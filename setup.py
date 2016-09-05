@@ -9,20 +9,31 @@ except LookupError:
     codecs.register(func)
 
 from setuptools import setup, Extension
-import glob, os, shutil, fnmatch, platform
+import glob, os, shutil, fnmatch, platform, sys
 
 version = '2.0.6'
 
 from generator import mavgen, mavparse
 
 # path to message_definitions directory
-mdef_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'message_definitions')
+for path in [os.path.join('..', 'message_definitions'),
+             os.path.join('mavlink', 'message_definitions'), 
+             os.path.join('..', 'mavlink', 'message_definitions')]:
+    mdef_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
+    if os.path.exists(mdef_path):
+        print("Using message definitions from %s" % mdef_path)
+        break
+
 dialects_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dialects')
 
 v10_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
 
 # for now v2.0 uses same XML files as v1.0
 v20_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
+
+if len(v10_dialects) == 0:
+    print("No XML message definitions found")
+    sys.exit(1)
 
 if not "NOGEN" in os.environ:
     for xml in v10_dialects:
