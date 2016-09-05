@@ -13,14 +13,16 @@ script:
   # Set pythonpath
 
   # install
+  - git clone git://github.com/mavlink/mavlink.git
+  - ln -s $PWD/mavlink/message_definitions ../
   - python setup.py build install
 
   # Generate messages
-  - mavgen.py --lang='Python' 	--output=/tmp/ message_definitions/v1.0/common.xml
-  - mavgen.py --lang='C' 	--output=/tmp/ message_definitions/v1.0/common.xml
-  - mavgen.py --lang='CS' 	--output=/tmp/ message_definitions/v1.0/common.xml
-  - mavgen.py --lang='WLua' 	--output=/tmp/ message_definitions/v1.0/common.xml
-  - mavgen.py --lang='Java'	--output=/tmp/ message_definitions/v1.0/common.xml
+  - mavgen.py --lang='Python' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='C' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='CS' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='WLua' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='Java'	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
   # Avoid `spurious errors` caused by ~/.npm permission issues
   # ref: https://github.com/travis-ci/travis-ci/issues/2244
   # ref: https://github.com/npm/npm/issues/4815
@@ -29,12 +31,8 @@ script:
   # Make sure we own it
   # $USER references the current user in Travis env
   - sudo chown -R $USER ~/.npm
-  - "cd pymavlink/generator/javascript && npm test"
+  - "cd generator/javascript && npm test"
 
   # Test quaternions
   - cd $TRAVIS_BUILD_DIR
-  - pymavlink/tools/quaterniontest.py
-
-before_install:
-  - git clone git://github.com/mavlink/mavlink.git
-
+  - tools/quaterniontest.py
