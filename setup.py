@@ -16,9 +16,15 @@ version = '2.0.6'
 from generator import mavgen, mavparse
 
 # path to message_definitions directory
-for path in [os.path.join('..', 'message_definitions'),
-             os.path.join('mavlink', 'message_definitions'), 
-             os.path.join('..', 'mavlink', 'message_definitions')]:
+if os.getenv("MDEF",None) is not None:
+    mdef_paths = [os.getenv("MDEF")]
+else:
+    mdef_paths = [os.path.join('..', 'message_definitions'),
+                  os.path.join('mavlink', 'message_definitions'), 
+                  os.path.join('..', 'mavlink', 'message_definitions'),
+    ]
+
+for path in mdef_paths:
     mdef_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
     if os.path.exists(mdef_path):
         print("Using message definitions from %s" % mdef_path)
