@@ -1473,6 +1473,31 @@ mode_mapping_tracker = {
     16 : 'INITIALISING'
     }
 
+# map from a PX4 "main_state" to a string; see msg/commander_state.msg
+# This allows us to map sdlog STAT.MainState to a simple "mode"
+# string, used in DFReader and possibly other places.  These are
+# related but distict from what is found in mavlink messages; see
+# "Custom mode definitions", below.
+mainstate_mapping_px4 = {
+    0 : 'MANUAL',
+    1 : 'ALTCTL',
+    2 : 'POSCTL',
+    3 : 'AUTO_MISSION',
+    4 : 'AUTO_LOITER',
+    5 : 'AUTO_RTL',
+    6 : 'ACRO',
+    7 : 'OFFBOARD',
+    8 : 'STAB',
+    9 : 'RATTITUDE',
+    10 : 'AUTO_TAKEOFF',
+    11 : 'AUTO_LAND',
+    12 : 'AUTO_FOLLOW_TARGET',
+    13 : 'MAX',
+}
+def mode_string_px4(MainState):
+    return mainstate_mapping_px4.get(MainState, "Unknown")
+
+
 # Custom mode definitions from PX4
 PX4_CUSTOM_MAIN_MODE_MANUAL            = 1
 PX4_CUSTOM_MAIN_MODE_ALTCTL            = 2
