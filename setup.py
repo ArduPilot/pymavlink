@@ -53,16 +53,18 @@ if not "NOGEN" in os.environ:
         if not fnmatch.fnmatch(dialect, wildcard):
             continue
         print("Building %s for protocol 1.0" % xml)
-        mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0)
-
+        if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
+            print("Building failed %s for protocol 1.0" % xml)
+            sys.exit(1)
     for xml in v20_dialects:
         dialect = os.path.basename(xml)[:-4]
         wildcard = os.getenv("MAVLINK_DIALECT",'*')
         if not fnmatch.fnmatch(dialect, wildcard):
             continue
         print("Building %s for protocol 2.0" % xml)
-        mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0)
-
+        if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
+            print("Building failed %s for protocol 2.0" % xml)
+            sys.exit(1)
 extensions = [] # Assume we might be unable to build native code
 if platform.system() != 'Windows':
     extensions = [ Extension('mavnative',
@@ -100,13 +102,9 @@ setup (name = 'pymavlink',
                                                      'C/include_v1.0/*.hpp',
                                                      'C/include_v2.0/*.h',
                                                      'C/include_v2.0/*.hpp' ],
-                        'pymavlink.generator.lib.minixsv': [ '*.xsd' ],
                         'pymavlink' : ['mavnative/*.h'] },
        packages = ['pymavlink',
                    'pymavlink.generator',
-                   'pymavlink.generator.lib',
-                   'pymavlink.generator.lib.genxmlif',
-                   'pymavlink.generator.lib.minixsv',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
                    'pymavlink.dialects.v20'],
