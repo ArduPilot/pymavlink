@@ -6,8 +6,6 @@ build*
 share/
 __pycache__
 generator/C/
-generator/C/
-generator/python/
 generator/python/
 generator/message_definitions
 *.swp
