@@ -790,20 +790,39 @@ def set_close_on_exec(fd):
     except Exception:
         pass
 
+class FakeSerial():
+    def __init__(self):
+        pass
+    def read(self, len):
+        return ""
+    def write(self, buf):
+        raise Exception("write always fails")
+    def inWaiting(self):
+        return 0
+    def close(self):
+        pass
+
 class mavserial(mavfile):
     '''a serial mavlink port'''
-    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, source_component=0, use_native=default_native, force_connected=False):
         import serial
         if ',' in device and not os.path.exists(device):
             device, baud = device.split(',')
         self.baud = baud
         self.device = device
         self.autoreconnect = autoreconnect
+        self.force_connected = force_connected
         # we rather strangely set the baudrate initially to 1200, then change to the desired
         # baudrate. This works around a kernel bug on some Linux kernels where the baudrate
         # is not set correctly
-        self.port = serial.Serial(self.device, 1200, timeout=0,
-                                  dsrdtr=False, rtscts=False, xonxoff=False)
+        try:
+            self.port = serial.Serial(self.device, 1200, timeout=0,
+                                      dsrdtr=False, rtscts=False, xonxoff=False)
+        except serial.SerialException as e:
+            if not force_connected:
+                raise e
+            self.port = FakeSerial()
+
         try:
             fd = self.port.fileno()
             set_close_on_exec(fd)
@@ -856,8 +875,14 @@ class mavserial(mavfile):
     def reset(self):
         import serial
         try:
-            newport = serial.Serial(self.device, self.baud, timeout=0,
-                                    dsrdtr=False, rtscts=False, xonxoff=False)
+            try:
+                newport = serial.Serial(self.device, self.baud, timeout=0,
+                                        dsrdtr=False, rtscts=False, xonxoff=False)
+            except serial.SerialException as e:
+                if not self.force_connected:
+                    raise e
+                newport = FakeSerial()
+                return False
             self.port.close()
             self.port = newport
             print("Device %s reopened OK" % self.device)
@@ -866,6 +891,7 @@ class mavserial(mavfile):
                 self.fd = self.port.fileno()
             except Exception:
                 self.fd = None
+            self.set_baudrate(self.baud)
             if self.rtscts:
                 self.set_rtscts(self.rtscts)
             return True
@@ -1229,9 +1255,14 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        planner_format=None, write=False, append=False,
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
-                       retries=3, use_native=default_native):
+                       retries=3, use_native=default_native,
+                       force_connected=False):
     '''open a serial, UDP, TCP or file mavlink connection'''
     global mavfile_global
+
+    if force_connected:
+        # force_connected implies autoreconnect
+        autoreconnect = True
 
     if dialect is not None:
         set_dialect(dialect)
@@ -1282,7 +1313,13 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
             return mavlogfile(device, planner_format=planner_format, write=write,
                               append=append, robust_parsing=robust_parsing, notimestamps=notimestamps,
                               source_system=source_system, source_component=source_component, use_native=use_native)
-    return mavserial(device, baud=baud, source_system=source_system, source_component=source_component, autoreconnect=autoreconnect, use_native=use_native)
+    return mavserial(device,
+                     baud=baud,
+                     source_system=source_system,
+                     source_component=source_component,
+                     autoreconnect=autoreconnect,
+                     use_native=use_native,
+                     force_connected=force_connected)
 
 class periodic_event(object):
     '''a class for fixed frequency events'''
