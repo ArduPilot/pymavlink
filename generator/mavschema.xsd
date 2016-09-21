@@ -17,6 +17,14 @@
     </xs:simpleType>
 </xs:attribute>
 <xs:attribute name="index" type="xs:unsignedByte"/> <!-- param -->
+<xs:attribute name="label" type="xs:string"/> <!-- param -->
+<xs:attribute name="decimalPlaces" type="xs:unsignedByte"/> <!-- param -->
+<xs:attribute name="defaultValue" type="xs:float"/> <!-- param -->
+<xs:attribute name="minValue" type="xs:float"/> <!-- param -->
+<xs:attribute name="maxValue" type="xs:float"/> <!-- param -->
+<xs:attribute name="units" type="xs:string"/> <!-- param -->
+<xs:attribute name="noLocation" type="xs:boolean"/> <!-- param -->
+<xs:attribute name="standaloneLocation" type="xs:boolean"/> <!-- param -->
 <xs:attribute name="id" type="xs:unsignedShort"/> <!-- message -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- field -->
 <xs:attribute name="enum" type="xs:string"/>
@@ -62,6 +70,14 @@
 <xs:element name="param">
     <xs:complexType mixed="true">
         <xs:attribute ref="index" use="required"/>
+        <xs:attribute ref="label"/>
+        <xs:attribute ref="units"/>
+        <xs:attribute ref="decimalPlaces"/>
+        <xs:attribute ref="defaultValue"/>
+        <xs:attribute ref="minValue"/>
+        <xs:attribute ref="maxValue"/>
+        <xs:attribute ref="noLocation"/>
+        <xs:attribute ref="standaloneLocation"/>
     </xs:complexType>
 </xs:element>
 
