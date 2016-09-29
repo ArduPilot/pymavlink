@@ -134,7 +134,7 @@ def generate_Deserialization(outf, messages):
     
         outf.write("\t\t\treturn new %s\n" % classname)
         outf.write("\t\t\t{\n")
-		
+
         for f in m.ordered_fields:
             if (f.array_length):
                 outf.write("\t\t\t\t%s =  ByteArrayUtil.%s(bytes, offset + %s, %s),\n" % (mapFieldName.get(f.name, f.name), mapType[f.type][0], offset, f.array_length))
@@ -148,7 +148,7 @@ def generate_Deserialization(outf, messages):
             else:             
                 outf.write("\t\t\t\t%s = bitconverter.%s(bytes, offset + %s),\n" % (mapFieldName.get(f.name, f.name), mapType[f.type][0] ,  offset))
                 offset += mapType[f.type][1]
-				
+
         outf.write("\t\t\t};\n")
         outf.write("\t\t}\n") 
 
@@ -162,7 +162,7 @@ def generate_Serialization(outf, messages):
         outf.write("\n\t\tinternal static int Serialize_%s(this %s msg, byte[] bytes, ref int offset)\n\t\t{\n" % (m.name, classname))
         offset=0
         
-		# Now (since Mavlink 1.0) we need to deal with ordering of fields
+        # Now (since Mavlink 1.0) we need to deal with ordering of fields
         for f in m.ordered_fields:
         
             if (f.array_length):
