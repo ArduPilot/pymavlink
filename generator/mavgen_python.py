@@ -5,6 +5,9 @@ parse a MAVLink protocol XML file and generate a python implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
+from __future__ import print_function
+from builtins import str
+from builtins import range
 
 import sys, textwrap, os
 from . import mavparse, mavtemplate
@@ -21,7 +24,11 @@ Generated from: ${FILELIST}
 
 Note: this file has been auto-generated. DO NOT EDIT
 '''
-
+from __future__ import print_function
+from builtins import str
+from builtins import chr
+from builtins import range
+from builtins import object
 import struct, array, time, json, os, sys, platform
 
 from ...generator.mavcrc import x25crc
@@ -264,8 +271,8 @@ def generate_classes(outf, msgs):
     wrapper = textwrap.TextWrapper(initial_indent="        ", subsequent_indent="        ")
     for m in msgs:
         classname = "MAVLink_%s_message" % m.name.lower()
-        fieldname_str = ", ".join(map(lambda s: "'%s'" % s, m.fieldnames))
-        ordered_fieldname_str = ", ".join(map(lambda s: "'%s'" % s, m.ordered_fieldnames))
+        fieldname_str = ", ".join(["'%s'" % s for s in m.fieldnames])
+        ordered_fieldname_str = ", ".join(["'%s'" % s for s in m.ordered_fieldnames])
 
         outf.write("""
 class %s(MAVLink_message):
@@ -306,7 +313,7 @@ class %s(MAVLink_message):
                 return MAVLink_message.pack(self, mav, %u, struct.pack('%s'""" % (m.crc_extra, m.fmtstr))
         for field in m.ordered_fields:
                 if (field.type != "char" and field.array_length > 1):
-                        for i in range(field.array_length):
+                        for i in list(range(field.array_length)):
                                 outf.write(", self.{0:s}[{1:d}]".format(field.name,i))
                 else:
                         outf.write(", self.{0:s}".format(field.name))
@@ -721,12 +728,12 @@ class MAVLink(object):
                     t = tlist[:]
                     if sum(len_map) == len(len_map):
                         # message has no arrays in it
-                        for i in range(0, len(tlist)):
+                        for i in list(range(0, len(tlist))):
                             tlist[i] = t[order_map[i]]
                     else:
                         # message has some arrays
                         tlist = []
-                        for i in range(0, len(order_map)):
+                        for i in list(range(0, len(order_map))):
                             order = order_map[i]
                             L = len_map[order]
                             tip = sum(len_map[:order])
@@ -737,7 +744,7 @@ class MAVLink(object):
                                 tlist.append(t[tip:(tip + L)])
 
                 # terminate any strings
-                for i in range(0, len(tlist)):
+                for i in list(range(0, len(tlist))):
                     if isinstance(tlist[i], str):
                         tlist[i] = str(MAVString(tlist[i]))
                 t = tuple(tlist)
@@ -829,10 +836,10 @@ def generate(basename, xml):
         m.order_map = [ 0 ] * len(m.fieldnames)
         m.len_map = [ 0 ] * len(m.fieldnames)
         m.array_len_map = [ 0 ] * len(m.fieldnames)
-        for i in range(0, len(m.fieldnames)):
+        for i in list(range(0, len(m.fieldnames))):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
             m.array_len_map[i] = m.ordered_fields[i].array_length
-        for i in range(0, len(m.fieldnames)):
+        for i in list(range(0, len(m.fieldnames))):
             n = m.order_map[i]
             m.len_map[n] = m.fieldlengths[i]
 

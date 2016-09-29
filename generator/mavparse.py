@@ -5,6 +5,10 @@ mavlink python parse functions
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
+from __future__ import print_function
+from builtins import chr
+from builtins import range
+from builtins import object
 
 import xml.parsers.expat, os, errno, time, sys, operator, struct
 
@@ -100,7 +104,7 @@ class MAVField(object):
         '''set a testsuite value for a MAVField'''
         if self.array_length:
             self.test_value = []
-            for i in range(self.array_length):
+            for i in list(range(self.array_length)):
                 self.test_value.append(self.gen_test_value(i))
         else:
                 self.test_value = self.gen_test_value(0)
@@ -333,7 +337,7 @@ class MAVXML(object):
                     m.fieldlengths.append(1)
                 else:
                     m.fieldlengths.append(L)
-            for i in range(len(m.ordered_fields)):
+            for i in list(range(len(m.ordered_fields))):
                 f = m.ordered_fields[i]
                 f.wire_offset = m.wire_length
                 m.wire_length += f.wire_length
@@ -385,7 +389,7 @@ def message_checksum(msg):
     # in order to allow for extensions the crc does not include
     # any field extensions
     crc_end = msg.base_fields()
-    for i in range(crc_end):
+    for i in list(range(crc_end)):
         f = msg.ordered_fields[i]
         crc.accumulate_str(f.type + ' ')
         crc.accumulate_str(f.name + ' ')
