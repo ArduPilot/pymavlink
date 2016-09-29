@@ -3,6 +3,9 @@
 '''
 fit best estimate of magnetometer rotation to GPS data
 '''
+from __future__ import print_function
+from builtins import range
+from builtins import object
 
 import sys, time, os, math
 
@@ -68,7 +71,7 @@ def heading_difference(mag, attitude, declination):
     return abs(angle_diff(heading, heading2))
 
 def add_errors(mag, attitude, total_error, rotations):
-    for i in range(len(rotations)):
+    for i in list(range(len(rotations))):
         r = rotations[i].r
         rmag = r * mag
         total_error[i] += heading_difference(rmag, attitude, args.declination)
@@ -106,7 +109,7 @@ def magfit(logfile):
 
     best_i = 0
     best_err = total_error[0]
-    for i in range(len(rotations)):
+    for i in list(range(len(rotations))):
         r = rotations[i]
         print("(%u,%u,%u) err=%.2f" % (
             r.roll,

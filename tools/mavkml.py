@@ -4,6 +4,9 @@
 simple kml export for logfiles
 Thomas Gubler <thomasgubler@gmail.com>
 '''
+from __future__ import print_function
+from builtins import str
+from builtins import range
 
 from argparse import ArgumentParser
 import simplekml
@@ -50,7 +53,7 @@ def add_data(t, msg, msg_types, vars, fields, field_types, position_field_type):
     if mtype not in msg_types:
         return
 
-    for i in range(0, len(fields)):
+    for i in list(range(0, len(fields))):
         if mtype not in field_types[i]:
             continue
         f = fields[i]
@@ -192,7 +195,7 @@ if __name__ == '__main__':
         print("No files to process")
         sys.exit(1)
 
-    for fi in range(0, len(filenames)):
+    for fi in list(range(0, len(filenames))):
         f = filenames[fi]
         process_file(f, args.source)
 
