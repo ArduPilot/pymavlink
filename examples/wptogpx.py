@@ -4,6 +4,8 @@
 example program to extract GPS data from a waypoint file, and create a GPX
 file, for loading into google earth
 '''
+from __future__ import print_function
+from builtins import range
 
 import sys, struct, time, os
 
@@ -48,7 +50,7 @@ def wp_to_gpx(infilename, outfilename):
     add_header()
 
     count = 0
-    for i in range(wp.count()):
+    for i in list(range(wp.count())):
         w = wp.wp(i)
         if w.frame == 3:
             w.z += wp.wp(0).z
