@@ -1,3 +1,5 @@
+from __future__ import print_function
+from __future__ import absolute_import
 # Work around mbcs bug in distutils.
 # http://bugs.python.org/issue10945
 import codecs
