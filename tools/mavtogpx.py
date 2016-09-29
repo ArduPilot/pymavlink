@@ -89,7 +89,7 @@ def mav_to_gpx(infilename, outfilename):
             timestamp = m._timestamp
             fix = m.Status
         else:
-	    pass
+            pass
 
         if fix < 2 and not args.nofixcheck:
             continue
