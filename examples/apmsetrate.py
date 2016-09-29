@@ -3,6 +3,8 @@
 '''
 set stream rate on an APM
 '''
+from __future__ import print_function
+from builtins import range
 
 import sys, struct, time, os
 
@@ -47,7 +49,7 @@ master = mavutil.mavlink_connection(args.device, baud=args.baudrate)
 wait_heartbeat(master)
 
 print("Sending all stream request for rate %u" % args.rate)
-for i in range(0, 3):
+for i in list(range(0, 3)):
     master.mav.request_data_stream_send(master.target_system, master.target_component,
                                         mavutil.mavlink.MAV_DATA_STREAM_ALL, args.rate, 1)
 if args.showmessages:
