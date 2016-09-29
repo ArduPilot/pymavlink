@@ -1,6 +1,9 @@
 '''
 module for loading/saving waypoints
 '''
+from __future__ import print_function
+from builtins import range
+from builtins import object
 
 import time, copy
 import logging
@@ -79,7 +82,7 @@ class MAVWPLoader(object):
 
     def reindex(self):
         '''reindex waypoints'''
-        for i in range(self.count()):
+        for i in list(range(self.count())):
             w = self.wpoints[i]
             w.seq = i
         self.last_change = time.time()
@@ -411,7 +414,7 @@ class MAVRallyLoader(object):
 
     def reindex(self):
         '''reset counters and indexes'''
-        for i in range(self.rally_count()):
+        for i in list(range(self.rally_count())):
             self.rally_points[i].count = self.rally_count()
             self.rally_points[i].idx = i
         self.last_change = time.time()
@@ -521,7 +524,7 @@ class MAVFenceLoader(object):
 
     def reindex(self):
         '''reindex waypoints'''
-        for i in range(self.count()):
+        for i in list(range(self.count())):
             w = self.points[i]
             w.idx = i
             w.count = self.count()

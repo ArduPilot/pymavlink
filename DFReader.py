@@ -7,6 +7,9 @@ Released under GNU GPL version 3 or later
 
 Partly based on SDLog2Parser by Anton Babushkin
 '''
+from __future__ import print_function
+from builtins import range
+from builtins import object
 
 import struct, time, os
 from . import mavutil
@@ -29,8 +32,8 @@ FORMAT_TO_STRUCT = {
     "L": ("i", 1.0e-7, float),
     "d": ("d", None, float),
     "M": ("b", None, int),
-    "q": ("q", None, long),
-    "Q": ("Q", None, long),
+    "q": ("q", None, long),  # Backward compat
+    "Q": ("Q", None, long),  # Backward compat
     }
 
 class DFFormat(object):
@@ -62,7 +65,7 @@ class DFFormat(object):
         self.msg_types = msg_types
         self.msg_mults = msg_mults
         self.colhash = {}
-        for i in range(len(self.columns)):
+        for i in list(range(len(self.columns))):
             self.colhash[self.columns[i]] = i
 
     def __str__(self):
@@ -121,7 +124,7 @@ class DFMessage(object):
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
         values = []
-        for i in range(len(self.fmt.columns)):
+        for i in list(range(len(self.fmt.columns))):
             if i >= len(self.fmt.msg_mults):
                 continue
             mul = self.fmt.msg_mults[i]
@@ -137,7 +140,7 @@ class DFMessage(object):
     def get_fieldnames(self):
         return self._fieldnames
 
-class DFReaderClock():
+class DFReaderClock(object):
     '''base class for all the different ways we count time in logs'''
 
     def __init__(self):
