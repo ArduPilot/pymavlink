@@ -4,6 +4,9 @@ parse a MAVLink protocol XML file and generate a CSharp implementation
 
 
 '''
+from __future__ import print_function
+from builtins import str
+from builtins import range
 import sys, textwrap, os, time, platform
 from . import mavparse, mavtemplate
 
@@ -265,11 +268,11 @@ def generate(basename, xml):
 
     for m in msgs:
         m.order_map = [ 0 ] * len(m.fieldnames)
-        for i in range(0, len(m.fieldnames)):
+        for i in list(range(0, len(m.fieldnames))):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
         
         m.fields_in_order = []
-        for i in range(0, len(m.fieldnames)):
+        for i in list(range(0, len(m.fieldnames))):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
         
     print("Generating messages file: %s" % structsfilename)

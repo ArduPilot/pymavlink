@@ -9,6 +9,9 @@ Released under GNU GPL version 3 or later
 '''
 
 from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
 import sys, textwrap, os, copy
 import re
 from . import mavparse
@@ -154,7 +157,7 @@ def mavgen(opts, args):
     return True
 
 # build all the dialects in the dialects subpackage
-class Opts:
+class Opts(object):
     def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT):
         self.wire_protocol = wire_protocol
         self.error_limit = error_limit

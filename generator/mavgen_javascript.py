@@ -5,6 +5,9 @@ parse a MAVLink protocol XML file and generate a Node.js javascript module imple
 Based on original work Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
+from __future__ import print_function
+from builtins import str
+from builtins import range
 
 import sys, textwrap, os
 from . import mavparse, mavtemplate
@@ -559,7 +562,7 @@ def generate(basename, xml):
         for f in m.ordered_fields:
             m.fmtstr += mavfmt(f)
         m.order_map = [ 0 ] * len(m.fieldnames)
-        for i in range(0, len(m.fieldnames)):
+        for i in list(range(0, len(m.fieldnames))):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
 
     print("Generating %s" % filename)
