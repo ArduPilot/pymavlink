@@ -4,6 +4,8 @@
 fit best estimate of magnetometer offsets using the algorithm from
 Bill Premerlani
 '''
+from __future__ import print_function
+from builtins import range
 
 import sys, time, os, math
 
@@ -60,7 +62,7 @@ def find_offsets(data, ofs):
     history_idx = 0
     mag_history = data[0:args.history]
 
-    for i in range(args.history, len(data)):
+    for i in list(range(args.history, len(data))):
         B1 = mag_history[history_idx] + ofs
         B2 = data[i] + ofs
 
@@ -126,7 +128,7 @@ def magfit(logfile):
     # run the fitting algorithm
     ofs = offsets
     ofs = Vector3(0,0,0)
-    for r in range(args.repeat):
+    for r in list(range(args.repeat)):
         ofs = find_offsets(data, ofs)
         print('Loop %u offsets %s' % (r, ofs))
         sys.stdout.flush()

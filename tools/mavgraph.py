@@ -3,6 +3,9 @@
 graph a MAVLink log file
 Andrew Tridgell August 2011
 '''
+from __future__ import print_function
+from builtins import input
+from builtins import range
 
 import sys, struct, time, os, datetime
 import math, re
@@ -60,7 +63,7 @@ def plotit(x, y, fields, colors=[]):
     ax1 = fig.gca()
     ax2 = None
     xrange = 0.0
-    for i in range(0, len(fields)):
+    for i in list(range(0, len(fields))):
         if len(x[i]) == 0: continue
         if lowest_x is None or x[i][0] < lowest_x:
             lowest_x = x[i][0]
@@ -84,7 +87,7 @@ def plotit(x, y, fields, colors=[]):
     empty = True
     ax1_labels = []
     ax2_labels = []
-    for i in range(0, len(fields)):
+    for i in list(range(0, len(fields))):
         if len(x[i]) == 0:
             print("Failed to find any values for field %s" % fields[i])
             continue
@@ -131,7 +134,7 @@ def plotit(x, y, fields, colors=[]):
                          linestyle=linestyle, marker=marker, tz=None)
         empty = False
     if args.flightmode is not None:
-        for i in range(len(modes)-1):
+        for i in list(range(len(modes)-1)):
             c = colourmap[args.flightmode].get(modes[i][1], edge_colour)
             ax1.axvspan(modes[i][0], modes[i+1][0], fc=c, ec=edge_colour, alpha=0.1)
         c = colourmap[args.flightmode].get(modes[-1][1], edge_colour)
@@ -220,7 +223,7 @@ def add_data(t, msg, vars, flightmode):
         modes.append((t, flightmode))
     if mtype not in msg_types:
         return
-    for i in range(0, len(fields)):
+    for i in list(range(0, len(fields))):
         if mtype not in field_types[i]:
             continue
         f = fields[i]
@@ -274,11 +277,11 @@ else:
 
 timeshift = args.timeshift
 
-for fi in range(0, len(filenames)):
+for fi in list(range(0, len(filenames))):
     f = filenames[fi]
     process_file(f, timeshift)
     timeshift = 0
-    for i in range(0, len(x)):
+    for i in list(range(0, len(x))):
         if first_only[i] and fi != 0:
             x[i] = []
             y[i] = []
@@ -291,13 +294,13 @@ for fi in range(0, len(filenames)):
     else:
         col = colors[fi*len(fields):]
     fig = plotit(x, y, lab, colors=col)
-    for i in range(0, len(x)):
+    for i in list(range(0, len(x))):
         x[i] = []
         y[i] = []
 if args.output is None:
     pylab.show()
     pylab.draw()
-    input('press enter to exit....')
+    eval(input('press enter to exit....'))
 else:
     fname, fext = os.path.splitext(args.output)
     if fext == '.html':

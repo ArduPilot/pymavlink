@@ -3,6 +3,8 @@
 '''
 fit best estimate of magnetometer offsets, trying to take into account motor interference
 '''
+from __future__ import print_function
+from builtins import range
 
 import sys, time, os, math
 
@@ -123,7 +125,7 @@ def magfit(logfile):
     # do an initial fit with all data
     (offsets, motor_ofs, field_strength) = fit_data(data)
 
-    for count in range(3):
+    for count in list(range(3)):
         # sort the data by the radius
         data.sort(lambda a,b : radius_cmp(a,b,offsets,motor_ofs))
 

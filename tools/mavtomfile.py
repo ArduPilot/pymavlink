@@ -3,6 +3,8 @@
 '''
 convert a MAVLink tlog file to a MATLab mfile
 '''
+from __future__ import print_function
+from builtins import range
 
 import sys, os
 import re
@@ -64,7 +66,7 @@ def process_tlog(filename):
                     if type(val) is not list:
                         f.write(",'%s'" % field)
                     else:
-                        for i in range(0, len(val)):
+                        for i in list(range(0, len(val))):
                             f.write(",'%s%d'" % (field, i + 1))
             f.write("};\n")
 
@@ -76,7 +78,7 @@ def process_tlog(filename):
                 if type(val) is not list:
                     f.write(",%.20g" % val)
                 else:
-                    for i in range(0, len(val)):
+                    for i in list(range(0, len(val))):
                         f.write(",%.20g" % val[i])
         f.write("];\n")
     f.close()

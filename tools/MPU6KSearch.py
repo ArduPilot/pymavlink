@@ -3,6 +3,9 @@
 '''
 search a set of log files for signs of inconsistent IMU data
 '''
+from __future__ import print_function
+from builtins import input
+from builtins import range
 
 import sys, time, os, glob
 import zipfile
@@ -89,7 +92,7 @@ def IMUCheckFail(filename):
             return False
         
         if accel1 is not None and accel2 is not None and gotimu2 and t2 >= t1:
-            for i in range(3):
+            for i in list(range(3)):
                 adiff = accel1[i] - accel2[i]
                 if adiff > athreshold:
                     if ecount_accel[i] < 0:
@@ -155,7 +158,7 @@ for d in directories:
     elif match_extension(d):
         filelist.append(d)
 
-for i in range(len(filelist)):
+for i in list(range(len(filelist))):
     f = filelist[i]
     print("Checking %s ... [found=%u i=%u/%u]" % (f, len(found), i, len(filelist)))
     try:
@@ -168,7 +171,7 @@ for i in range(len(filelist)):
 
 if len(found) == 0:
     print("No matching files found - all OK!")
-    raw_input('Press enter to close')
+    input('Press enter to close')
     sys.exit(0)
 
 print("Creating zip file %s" % results)
@@ -179,7 +182,7 @@ except Exception:
     print("Please send matching files manually")
     for f in found:
         print('MATCHED: %s' % f)
-    raw_input('Press enter to close')
+    input('Press enter to close')
     sys.exit(1)
 
 for f in found:
@@ -195,5 +198,5 @@ print("Created %s with %u of %u matching logs" % (results, len(found), len(filel
 print("Please send this file to %s" % email)
 print('==============================================')
 
-raw_input('Press enter to close')
+input('Press enter to close')
 sys.exit(0)

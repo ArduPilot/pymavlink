@@ -3,6 +3,7 @@
 '''
 work out total flight time for a mavlink log
 '''
+from __future__ import print_function
 
 import sys, time, os, glob
 
@@ -75,5 +76,5 @@ for filename in args.logs:
         total_time += ftime
         total_dist += fdist
 
-print("Total time in air: %u:%02u" % (int(total_time)/60, int(total_time)%60))
+print("Total time in air: %u:%02u" % (int(total_time)//60, int(total_time)%60))
 print("Total distance travelled: %.1f meters" % total_dist)
