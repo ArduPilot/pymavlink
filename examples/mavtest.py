@@ -25,7 +25,7 @@ def test_protocol(mavlink, signing=False):
         mav.signing.secret_key = chr(42)*32
         mav.signing.link_id = 0
         mav.signing.timestamp = 0
-        mav.sign_messages = True
+        mav.signing.sign_outgoing = True
 
     # set the WP_RADIUS parameter on the MAV at the end of the link
     mav.param_set_send(7, 1, "WP_RADIUS", 101, mavlink.MAV_PARAM_TYPE_REAL32)
