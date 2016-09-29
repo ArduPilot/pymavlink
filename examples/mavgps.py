@@ -54,7 +54,7 @@ def main():
             data = conn_sock.recv(args.buffsize)
             if data:
                 if args.debug >= 1:
-                    print '>', len(data)
+                    print('>', len(data))
                 mav_serialport.write(data)
         except socket.error:
             pass
@@ -62,7 +62,7 @@ def main():
         data = mav_serialport.read(args.buffsize)
         if data:
             if args.debug >= 1:
-                print '<', len(data)
+                print('<', len(data))
             conn_sock.send(data)
 
 
