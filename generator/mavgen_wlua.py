@@ -128,7 +128,7 @@ def generate_msg_fields(outf, msg):
             count = 1
             ltype = 'string'
         
-        for i in list(range(0,count)):
+        for i in range(0,count):
             if count>1: 
                 array_text = '[' + str(i) + ']'
                 index_text = '_' + str(i)
@@ -158,7 +158,7 @@ def generate_field_dissector(outf, msg, field):
     
     # handle arrays, but not strings
     
-    for i in list(range(0,count)):
+    for i in range(0,count):
         if count>1: 
             index_text = '_' + str(i)
         else:
@@ -324,7 +324,7 @@ def generate(basename, xml):
         for f in m.ordered_fields:
             m.fmtstr += mavfmt(f)
         m.order_map = [ 0 ] * len(m.fieldnames)
-        for i in list(range(0, len(m.fieldnames))):
+        for i in range(0, len(m.fieldnames)):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
 
     print("Generating %s" % filename)

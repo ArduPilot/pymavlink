@@ -209,7 +209,7 @@ class fgFDM(object):
 
     def pack(self):
         '''pack a FD FDM buffer from current values'''
-        for i in list(range(len(self.values))):
+        for i in range(len(self.values)):
             if math.isnan(self.values[i]):
                 self.values[i] = 0
         return struct.pack(self.pack_string, *self.values)

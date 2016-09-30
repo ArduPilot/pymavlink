@@ -71,7 +71,7 @@ def generate_outputs(mav):
     for m in msgs:
         if m.name == "HEARTBEAT": continue
         outf.write("\tmav.%s_send(" % m.name.lower())
-        for i in list(range(0, len(m.fields))):
+        for i in range(0, len(m.fields)):
             f = m.fields[i]
             outf.write("%s=%s" % (f.name, gen_value(f, i, 'py')))
             if i != len(m.fields)-1:
@@ -95,7 +95,7 @@ static void mavtest_generate_outputs(mavlink_channel_t chan)
     for m in msgs:
         if m.name == "HEARTBEAT": continue
         outf.write("\tmavlink_msg_%s_send(chan," % m.name.lower())
-        for i in list(range(0, len(m.fields))):
+        for i in range(0, len(m.fields)):
             f = m.fields[i]
             outf.write("%s" % gen_value(f, i, 'C'))
             if i != len(m.fields)-1:

@@ -92,7 +92,7 @@ def IMUCheckFail(filename):
             return False
         
         if accel1 is not None and accel2 is not None and gotimu2 and t2 >= t1:
-            for i in list(range(3)):
+            for i in range(3):
                 adiff = accel1[i] - accel2[i]
                 if adiff > athreshold:
                     if ecount_accel[i] < 0:
@@ -158,7 +158,7 @@ for d in directories:
     elif match_extension(d):
         filelist.append(d)
 
-for i in list(range(len(filelist))):
+for i in range(len(filelist)):
     f = filelist[i]
     print("Checking %s ... [found=%u i=%u/%u]" % (f, len(found), i, len(filelist)))
     try:

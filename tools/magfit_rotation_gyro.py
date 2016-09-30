@@ -92,7 +92,7 @@ def mag_fixup(mag, AHRS_ORIENTATION, COMPASS_ORIENT, COMPASS_EXTERNAL):
     return mag
 
 def add_errors(mag, gyr, last_mag, deltat, total_error, rotations):
-    for i in list(range(len(rotations))):
+    for i in range(len(rotations)):
         if not rotations[i].is_90_degrees():
             continue
         r = rotations[i].r
@@ -160,7 +160,7 @@ def magfit(logfile):
 
     best_i = 0
     best_err = total_error[0]
-    for i in list(range(len(rotations))):
+    for i in range(len(rotations)):
         r = rotations[i]
         if not r.is_90_degrees():
             continue

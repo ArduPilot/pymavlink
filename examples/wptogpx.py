@@ -50,7 +50,7 @@ def wp_to_gpx(infilename, outfilename):
     add_header()
 
     count = 0
-    for i in list(range(wp.count())):
+    for i in range(wp.count()):
         w = wp.wp(i)
         if w.frame == 3:
             w.z += wp.wp(0).z

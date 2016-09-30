@@ -574,7 +574,7 @@ def generate_one(basename, xml):
     # form message lengths array
     xml.message_lengths_array = ''
     if not xml.command_24bit:
-        for msgid in list(range(256)):
+        for msgid in range(256):
             mlen = xml.message_min_lengths.get(msgid, 0)
             xml.message_lengths_array += '%u, ' % mlen
         xml.message_lengths_array = xml.message_lengths_array[:-2]
@@ -591,7 +591,7 @@ def generate_one(basename, xml):
                                                                       xml.message_target_system_ofs[msgid],
                                                                       xml.message_target_component_ofs[msgid])
     else:
-        for msgid in list(range(256)):
+        for msgid in range(256):
             crc = xml.message_crcs.get(msgid, 0)
             xml.message_crcs_array += '%u, ' % crc
     xml.message_crcs_array = xml.message_crcs_array[:-2]
@@ -604,7 +604,7 @@ def generate_one(basename, xml):
             name = xml.message_names[msgid]
             xml.message_info_array += 'MAVLINK_MESSAGE_INFO_%s, ' % name
     else:
-        for msgid in list(range(256)):
+        for msgid in range(256):
             name = xml.message_names.get(msgid, None)
             if name is not None:
                 xml.message_info_array += 'MAVLINK_MESSAGE_INFO_%s, ' % name

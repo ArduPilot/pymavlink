@@ -365,9 +365,9 @@ def test_euler():
     '''check that from_euler() and to_euler() are consistent'''
     m = Matrix3()
     from math import radians, degrees
-    for r in list(range(-179, 179, 3)):
-        for p in list(range(-89, 89, 3)):
-            for y in list(range(-179, 179, 3)):
+    for r in range(-179, 179, 3):
+        for p in range(-89, 89, 3):
+            for y in range(-179, 179, 3):
                 m.from_euler(radians(r), radians(p), radians(y))
                 (r2, p2, y2) = m.to_euler()
                 v1 = Vector3(r,p,y)
@@ -380,7 +380,7 @@ def test_euler():
 def test_two_vectors():
     '''test the from_two_vectors() method'''
     import random
-    for i in list(range(1000)):
+    for i in range(1000):
         v1 = Vector3(1, 0.2, -3)
         v2 = Vector3(random.uniform(-5,5), random.uniform(-5,5), random.uniform(-5,5))
         m = Matrix3()

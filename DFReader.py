@@ -65,7 +65,7 @@ class DFFormat(object):
         self.msg_types = msg_types
         self.msg_mults = msg_mults
         self.colhash = {}
-        for i in list(range(len(self.columns))):
+        for i in range(len(self.columns)):
             self.colhash[self.columns[i]] = i
 
     def __str__(self):
@@ -124,7 +124,7 @@ class DFMessage(object):
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
         values = []
-        for i in list(range(len(self.fmt.columns))):
+        for i in range(len(self.fmt.columns)):
             if i >= len(self.fmt.msg_mults):
                 continue
             mul = self.fmt.msg_mults[i]
