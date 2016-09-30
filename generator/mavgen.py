@@ -59,13 +59,12 @@ def mavgen(opts, args):
                                     enum$|await$|implements$|package$|protected$|static$|interface$|private$|public$|\
                                     abstract$|boolean$|byte$|char$|double$|final$|float$|goto$|int$|long$|native$|\
                                     short$|synchronized$|transient$|volatile$).*", re.IGNORECASE)
-                for element in xmldocument.iter("*"):
-                    if element.tag in ["enum", "entry", "message", "field"]:
-                        match = forbidden_names_re.search(element.get('name'))
-                        if match is not None:
-                            print("Validation error:", file=sys.stderr)
-                            print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
-                            xmlvalid = False
+                for element in xmldocument.iter('enum', 'entry', 'message', 'field'):
+                    if forbidden_names_re.search(element.get('name')):
+                        print("Validation error:", file=sys.stderr)
+                        print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
+                        xmlvalid = False
+
             return xmlvalid
         except etree.XMLSchemaError:
             return False
