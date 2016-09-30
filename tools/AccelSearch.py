@@ -112,7 +112,7 @@ for d in directories:
     elif d.endswith('.tlog'):
         filelist.append(d)
 
-for i in list(range(len(filelist))):
+for i in range(len(filelist)):
     f = filelist[i]
     print("Checking %s ... [found=%u logcount=%u i=%u/%u]" % (f, len(found), logcount, i, len(filelist)))
     if AccelSearch(f):

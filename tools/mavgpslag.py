@@ -36,10 +36,10 @@ def velocity_error(timestamps, vel, gaccel, accel_indexes, imu_dt, shift=0):
     '''return summed velocity error'''
     sum = 0
     count = 0
-    for i in list(range(0, len(vel)-1)):
+    for i in range(0, len(vel)-1):
         dv = vel[i+1] - vel[i]
         da = Vector3()
-        for idx in list(range(1+accel_indexes[i]-shift, 1+accel_indexes[i+1]-shift)):
+        for idx in range(1+accel_indexes[i]-shift, 1+accel_indexes[i+1]-shift):
             da += gaccel[idx]
         dt1 = timestamps[i+1] - timestamps[i]
         dt2 = (accel_indexes[i+1] - accel_indexes[i]) * imu_dt
@@ -97,7 +97,7 @@ def gps_lag(logfile):
     besterr = 0
     delays = []
     errors = []
-    for i in list(range(0,100)):
+    for i in range(0,100):
         err = velocity_error(timestamps, vel, gaccel, accel_indexes, imu_dt, shift=i)
         if err is None:
             break
