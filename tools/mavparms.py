@@ -4,7 +4,7 @@
 extract mavlink parameter values
 '''
 from __future__ import print_function
-from builtins import str
+
 
 import sys, time, os
 

@@ -4,7 +4,7 @@
 show changes in flight modes
 '''
 from __future__ import print_function
-from builtins import str
+
 
 import sys, time, datetime, os
 

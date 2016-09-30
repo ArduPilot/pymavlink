@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-from builtins import chr
 from builtins import object
 import sys, os
 
