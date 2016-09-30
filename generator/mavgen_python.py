@@ -6,7 +6,7 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 from __future__ import print_function
-from builtins import str
+
 from builtins import range
 
 import sys, textwrap, os
@@ -25,8 +25,6 @@ Generated from: ${FILELIST}
 Note: this file has been auto-generated. DO NOT EDIT
 '''
 from __future__ import print_function
-from builtins import str
-from builtins import chr
 from builtins import range
 from builtins import object
 import struct, array, time, json, os, sys, platform

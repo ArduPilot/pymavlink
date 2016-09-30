@@ -2,7 +2,7 @@
 module for loading/saving sets of mavlink parameters
 '''
 from __future__ import print_function
-from builtins import str
+
 
 import fnmatch, math, time
 

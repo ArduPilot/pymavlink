@@ -11,7 +11,7 @@ Instructions for use:
 3. open the pcap file in Wireshark
 '''
 from __future__ import print_function
-from builtins import str
+
 from builtins import range
 
 import sys, textwrap, os, re

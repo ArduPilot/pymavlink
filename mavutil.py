@@ -6,8 +6,6 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 from __future__ import print_function
-from builtins import chr
-from builtins import str
 from builtins import object
 
 import socket, math, struct, time, os, fnmatch, array, sys, errno

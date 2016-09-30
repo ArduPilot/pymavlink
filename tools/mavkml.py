@@ -5,7 +5,7 @@ simple kml export for logfiles
 Thomas Gubler <thomasgubler@gmail.com>
 '''
 from __future__ import print_function
-from builtins import str
+
 from builtins import range
 
 from argparse import ArgumentParser
