@@ -56,6 +56,7 @@ if not "NOGEN" in os.environ:
         if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
             print("Building failed %s for protocol 1.0" % xml)
             sys.exit(1)
+
     for xml in v20_dialects:
         dialect = os.path.basename(xml)[:-4]
         wildcard = os.getenv("MAVLINK_DIALECT",'*')
@@ -65,6 +66,7 @@ if not "NOGEN" in os.environ:
         if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
             print("Building failed %s for protocol 2.0" % xml)
             sys.exit(1)
+
 extensions = [] # Assume we might be unable to build native code
 if platform.system() != 'Windows':
     extensions = [ Extension('mavnative',
