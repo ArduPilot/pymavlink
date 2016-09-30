@@ -516,7 +516,7 @@ class mavfile(object):
             map = mode_mapping_tracker
         if map is None:
             return None
-        inv_map = dict((a, b) for (b, a) in list(map.items()))
+        inv_map = dict((a, b) for (b, a) in map.items())
         return inv_map
 
     def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0):
@@ -1593,7 +1593,7 @@ def mode_mapping_byname(mav_type):
         map = mode_mapping_tracker
     if map is None:
         return None
-    inv_map = dict((a, b) for (b, a) in list(map.items()))
+    inv_map = dict((a, b) for (b, a) in map.items())
     return inv_map
 
 def mode_mapping_bynumber(mav_type):
