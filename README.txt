@@ -7,3 +7,5 @@ License
 -------
 
 pymavlink is released under the GNU Lesser General Public License v3 or later
+
+Join the chat at https://gitter.im/ArduPilot/pymavlink
