@@ -28,7 +28,10 @@ MAVLINK_HELPER const mavlink_message_info_t *mavlink_get_message_info(const mavl
             low = mid;
             break;
         }
-        return &mavlink_message_info[low];
+        if (mavlink_message_info[low].msgid == msgid) {
+            return &mavlink_message_info[low];
+        }
+        return NULL;
 }
 #endif // MAVLINK_USE_MESSAGE_INFO
 
