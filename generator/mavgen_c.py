@@ -44,6 +44,8 @@ def generate_mavlink_h(directory, xml):
 #ifndef MAVLINK_H
 #define MAVLINK_H
 
+#define MAVLINK_PRIMARY_XML_IDX ${xml_idx}
+
 #ifndef MAVLINK_STX
 #define MAVLINK_STX ${protocol_marker}
 #endif
@@ -86,6 +88,9 @@ def generate_main_h(directory, xml):
 #ifndef MAVLINK_H
     #error Wrong include order: MAVLINK_${basename_upper}.H MUST NOT BE DIRECTLY USED. Include mavlink.h from the same directory instead or set ALL AND EVERY defines from MAVLINK.H manually accordingly, including the #define MAVLINK_H call.
 #endif
+
+#undef MAVLINK_THIS_XML_IDX
+#define MAVLINK_THIS_XML_IDX ${xml_idx}
 
 #ifdef __cplusplus
 extern "C" {
@@ -138,12 +143,14 @@ ${{message:#include "./mavlink_msg_${name_lower}.h"
 ${{include_list:#include "../${base}/${base}.h"
 }}
 
-#ifndef MAVLINK_MESSAGE_INFO
-#define MAVLINK_MESSAGE_INFO {${message_info_array}}
-#endif
+#undef MAVLINK_THIS_XML_IDX
+#define MAVLINK_THIS_XML_IDX ${xml_idx}
 
-#if MAVLINK_COMMAND_24BIT
-#include "../mavlink_get_info.h"
+#if MAVLINK_THIS_XML_IDX == MAVLINK_PRIMARY_XML_IDX
+# define MAVLINK_MESSAGE_INFO {${message_info_array}}
+# if MAVLINK_COMMAND_24BIT
+#  include "../mavlink_get_info.h"
+# endif
 #endif
 
 #ifdef __cplusplus
@@ -682,6 +689,8 @@ def generate_one(basename, xml):
 def generate(basename, xml_list):
     '''generate complete MAVLink C implemenation'''
 
-    for xml in xml_list:
+    for idx in range(len(xml_list)):
+        xml = xml_list[idx]
+        xml.xml_idx = idx
         generate_one(basename, xml)
     copy_fixed_headers(basename, xml_list[0])
