@@ -1,5 +1,4 @@
-#ifndef MAVLINK_TYPES_H_
-#define MAVLINK_TYPES_H_
+#pragma once
 
 // Visual Studio versions before 2010 don't have stdint.h, so we just error out.
 #if (defined _MSC_VER) && (_MSC_VER < 1600)
@@ -289,4 +288,4 @@ typedef struct __mavlink_msg_entry {
 #define MAVLINK_IFLAG_SIGNED  0x01
 #define MAVLINK_IFLAG_MASK    0x01 // mask of all understood bits
 
-#endif /* MAVLINK_TYPES_H_ */
+

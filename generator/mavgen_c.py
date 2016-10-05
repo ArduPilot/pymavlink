@@ -19,6 +19,8 @@ def generate_version_h(directory, xml):
  *	@brief MAVLink comm protocol built from ${basename}.xml
  *	@see http://mavlink.org
  */
+#pragma once
+ 
 #ifndef MAVLINK_VERSION_H
 #define MAVLINK_VERSION_H
 
@@ -38,6 +40,7 @@ def generate_mavlink_h(directory, xml):
  *	@brief MAVLink comm protocol built from ${basename}.xml
  *	@see http://mavlink.org
  */
+#pragma once
 #ifndef MAVLINK_H
 #define MAVLINK_H
 
@@ -76,6 +79,7 @@ def generate_main_h(directory, xml):
  *	@brief MAVLink comm protocol generated from ${basename}.xml
  *	@see http://mavlink.org
  */
+#pragma once
 #ifndef MAVLINK_${basename_upper}_H
 #define MAVLINK_${basename_upper}_H
 
@@ -155,6 +159,7 @@ def generate_message_h(directory, m):
     '''generate per-message header for a XML file'''
     f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w')
     t.write(f, '''
+#pragma once
 // MESSAGE ${name} PACKING
 
 #define MAVLINK_MSG_ID_${name} ${id}
@@ -402,6 +407,7 @@ def generate_testsuite_h(directory, xml):
  *	@brief MAVLink comm protocol testsuite generated from ${basename}.xml
  *	@see http://qgroundcontrol.org/mavlink/
  */
+#pragma once
 #ifndef ${basename_upper}_TESTSUITE_H
 #define ${basename_upper}_TESTSUITE_H
 

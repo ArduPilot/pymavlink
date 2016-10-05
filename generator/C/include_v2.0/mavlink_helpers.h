@@ -1,5 +1,4 @@
-#ifndef  _MAVLINK_HELPERS_H_
-#define  _MAVLINK_HELPERS_H_
+#pragma once
 
 #include "string.h"
 #include "checksum.h"
@@ -1095,6 +1094,5 @@ MAVLINK_HELPER void _mavlink_send_uart(mavlink_channel_t chan, const char *buf, 
 }
 #endif // MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-#endif /* _MAVLINK_HELPERS_H_ */
 
 

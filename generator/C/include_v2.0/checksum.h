@@ -1,9 +1,8 @@
+#pragma once
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef _CHECKSUM_H_
-#define _CHECKSUM_H_
 
 // Visual Studio versions before 2010 don't have stdint.h, so we just error out.
 #if (defined _MSC_VER) && (_MSC_VER < 1600)
@@ -88,8 +87,6 @@ static inline void crc_accumulate_buffer(uint16_t *crcAccum, const char *pBuffer
                 crc_accumulate(*p++, crcAccum);
         }
 }
-
-#endif /* _CHECKSUM_H_ */
 
 #ifdef __cplusplus
 }
