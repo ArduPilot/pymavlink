@@ -11,7 +11,7 @@ except LookupError:
 from setuptools import setup, Extension
 import glob, os, shutil, fnmatch, platform, sys
 
-version = '2.0.7'
+version = '2.0.8'
 
 from generator import mavgen, mavparse
 
@@ -22,6 +22,7 @@ else:
     mdef_paths = [os.path.join('..', 'message_definitions'),
                   os.path.join('mavlink', 'message_definitions'), 
                   os.path.join('..', 'mavlink', 'message_definitions'),
+                  os.path.join('message_definitions'),
     ]
 
 for path in mdef_paths:
@@ -104,7 +105,8 @@ setup (name = 'pymavlink',
                                                      'C/include_v1.0/*.hpp',
                                                      'C/include_v2.0/*.h',
                                                      'C/include_v2.0/*.hpp' ],
-                        'pymavlink' : ['mavnative/*.h'] },
+                        'pymavlink' : ['mavnative/*.h'],
+                        'pymavlink' : ['message_definitions/v*/*.xml'] },
        packages = ['pymavlink',
                    'pymavlink.generator',
                    'pymavlink.dialects',
