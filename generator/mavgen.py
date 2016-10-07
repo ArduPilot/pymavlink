@@ -112,10 +112,7 @@ def mavgen(opts, args):
             x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
 
     # work out max payload size across all includes
-    largest_payload = 0
-    for x in xml:
-        if x.largest_payload > largest_payload:
-            largest_payload = x.largest_payload
+    largest_payload = max(x.largest_payload for x in xml) if xml else 0
     for x in xml:
         x.largest_payload = largest_payload
 
