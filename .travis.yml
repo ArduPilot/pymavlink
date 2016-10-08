@@ -5,6 +5,14 @@ python:
   - "3.3"
   - "3.5"
 
+install:
+  - pip install -r requirements.txt
+  - pip install flake8
+
+before_script:
+  # --exit-zero means that flake8 will only warn and not stop the build
+  flake8 . --exit-zero
+
 script:
   # NOTE: we must do all testing on the installed python package, not 
   # on the build tree. Otherwise the testing is invalid and may not
@@ -13,7 +21,6 @@ script:
   # Set pythonpath
 
   # install
-  - pip install -r requirements.txt
   - git clone git://github.com/mavlink/mavlink.git
   - ln -s $PWD/mavlink/message_definitions ../
   - python setup.py build install
