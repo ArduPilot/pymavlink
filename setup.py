@@ -95,6 +95,7 @@ setup (name = 'pymavlink',
                     'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
                     'Operating System :: OS Independent',
                     'Programming Language :: Python :: 2.7',
+                    'Programming Language :: Python :: 3.5',
                     'Topic :: Scientific/Engineering'
                     ],
        license='LGPLv3',
@@ -132,5 +133,9 @@ setup (name = 'pymavlink',
                    'tools/mavfft.py',
                    'tools/mavsummarize.py',
                    'tools/MPU6KSearch.py'],
+       install_requires=[
+            'lxml',
+            'future',
+       ],
        ext_modules = extensions
        )
