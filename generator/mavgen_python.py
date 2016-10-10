@@ -404,6 +404,7 @@ class MAVLinkSigning(object):
         self.sign_outgoing = False
         self.allow_unsigned_callback = None
         self.stream_timestamps = {}
+        self.sig_count = 0
         self.badsig_count = 0
         self.goodsig_count = 0
         self.unsigned_count = 0
@@ -673,6 +674,8 @@ class MAVLink(object):
                     raise MAVError('invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x' % (msgId, crc, crc2.crc))
 
                 sig_ok = False
+                if signature_len == MAVLINK_SIGNATURE_BLOCK_LEN:
+                    self.signing.sig_count += 1
                 if self.signing.secret_key is not None:
                     accept_signature = False
                     if signature_len == MAVLINK_SIGNATURE_BLOCK_LEN:
