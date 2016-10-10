@@ -208,7 +208,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
             protocolString = "MAVLink 0.9"
     else
             protocolString = "unknown"
-    end	
+    end
 
     -- some Wireshark decoration
     pinfo.cols.protocol = protocolString
