@@ -38,11 +38,12 @@ v10_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
 # for now v2.0 uses same XML files as v1.0
 v20_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
 
-if len(v10_dialects) == 0:
-    print("No XML message definitions found")
-    sys.exit(1)
+should_generate = not "NOGEN" in os.environ
+if should_generate:
+    if len(v10_dialects) == 0:
+        print("No XML message definitions found")
+        sys.exit(1)
 
-if not "NOGEN" in os.environ:
     for xml in v10_dialects:
         shutil.copy(xml, os.path.join(dialects_path, 'v10'))
     for xml in v20_dialects:
