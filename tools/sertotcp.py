@@ -6,8 +6,10 @@ Released under GNU GPLv3 or later
 """
 
 from argparse import ArgumentParser
-import socket, serial, sys, time, errno
-
+import errno
+import serial
+import socket
+import time
 
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--baudrate", default=57600, type=int, help="baud rate")
@@ -19,6 +21,7 @@ args = parser.parse_args()
 serport = serial.Serial(args.serialport, args.baudrate, timeout=0)
 
 tcpsock = None
+
 
 def open_socket():
     global tcpsock
@@ -34,7 +37,7 @@ open_socket()
 
 while True:
     gotdata = False
-    
+
     if tcpsock is None:
         open_socket()
         time.sleep(0.1)
@@ -54,7 +57,7 @@ while True:
 
     try:
         b = tcpsock.recv(1000)
-    except socket.error, e:
+    except socket.error as e:
         if e.args[0] in [errno.EWOULDBLOCK, errno.EAGAIN]:
             time.sleep(0.02)
             continue
