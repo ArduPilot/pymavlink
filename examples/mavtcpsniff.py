@@ -15,7 +15,7 @@ Released under GNU GPL version 3 or later
 '''
 from __future__ import print_function
 
-import sys, time, os, struct
+import time
 
 from pymavlink import mavutil
 #from pymavlink import mavlinkv10 as mavlink

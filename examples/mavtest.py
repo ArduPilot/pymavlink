@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 from builtins import object
-import sys, os
 
 from pymavlink.dialects.v10 import ardupilotmega as mavlink1
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
