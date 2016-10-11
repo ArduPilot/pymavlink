@@ -188,9 +188,7 @@ class DFReaderClock_usec(DFReaderClock):
 
     def type_has_good_TimeMS(self, type):
         '''The TimeMS in some messages is not from *our* clock!'''
-        if type.startswith('ACC') or type.startswith('GYR'):
-            return False
-        return True
+        return not (type.startswith('ACC') or type.startswith('GYR'))
 
     def should_use_msec_field0(self, m):
         if not self.type_has_good_TimeMS(m.get_type()):
@@ -279,10 +277,10 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
 
     def message_arrived(self, m):
         type = m.get_type()
-        self.counts[type] = self.counts(type, 0) + 1
+        self.counts[type] = self.counts.get(type, 0) + 1
         # this preserves existing behaviour - but should we be doing this
         # if type == 'GPS'?
-        self.counts_since_gps[type] += self.counts_since_gps(type, 0) + 1
+        self.counts_since_gps[type] += self.counts_since_gps.get(type, 0) + 1
 
         if type == 'GPS' or type == 'GPS2':
             self.gps_message_arrived(m)
