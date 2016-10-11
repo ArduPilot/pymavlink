@@ -27,7 +27,7 @@ before_script:
 # F821 undefined name 'filename'
 # F841 local variable 'e' is assigned to but never used
 # W191 indentation contains tabs
-  flake8 . --count --exit-zero --max-line-length=127 --select=E401,E402,E502,E701,E703,E711,E712,E713,E731,E999,F401,F403,F405,F811 ,F821,F841,W191 --statistics
+  flake8 . --count --exit-zero --max-line-length=127 --select=E401,E402,E502,E701,E703,E711,E712,E713,E731,E999,F401,F403,F405,F811 ,F821,F841,W191 --statistics 
 
 script:
   # NOTE: we must do all testing on the installed python package, not 
