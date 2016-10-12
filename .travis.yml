@@ -9,7 +9,7 @@ install:
 
 before_script:
   # --exit-zero means that flake8 will only warn and not stop the build
-  flake8 . --exit-zero
+  flake8 . --exit-zero  --count --statistics
 
 script:
   # NOTE: we must do all testing on the installed python package, not 
