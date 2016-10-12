@@ -65,8 +65,7 @@ class DFFormat(object):
                 msg_mults.append(mul)
                 msg_types.append(type)
             except KeyError as e:
-                fmt = "Unsupported format char: '%s' in message %s"
-                raise Exception(fmt % (c, name))
+                raise KeyError("Unsupported format char: '%s' in message %s" % (c, name))
 
         self.msg_struct = msg_struct
         self.msg_types = msg_types
@@ -591,8 +590,7 @@ class DFReader_binary(DFReader):
             # we should also cope with other corruption; logs
             # transfered via DataFlash_MAVLink may have blocks of 0s
             # in them, for example
-            fmt = "Failed to parse %s/%s with len %u (remaining %u)"
-            print(fmt % (fmt.name, fmt.msg_struct, len(body), self.remaining))
+            print("Failed to parse %s/%s with len %u (remaining %u)" % (fmt.name, fmt.msg_struct, len(body), self.remaining))
         if elements is None:
             return self._parse_next()
         name = null_term(fmt.name)
