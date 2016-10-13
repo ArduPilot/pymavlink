@@ -1060,6 +1060,7 @@ class mavlogfile(mavfile):
         self.stop_on_EOF = True
         self._last_message = None
         self._last_timestamp = None
+        self._link = 0
 
     def close(self):
         self.f.close()
