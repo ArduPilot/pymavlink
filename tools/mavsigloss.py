@@ -5,7 +5,7 @@ show times when signal is lost
 '''
 from __future__ import print_function
 
-import sys, time, os
+import time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

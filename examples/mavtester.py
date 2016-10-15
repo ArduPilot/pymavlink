@@ -5,9 +5,6 @@ test mavlink messages
 '''
 from __future__ import print_function
 
-import sys, struct, time, os
-from curses import ascii
-
 from pymavlink import mavtest, mavutil
 
 from argparse import ArgumentParser

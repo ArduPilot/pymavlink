@@ -5,7 +5,8 @@ work out total flight time for a mavlink log
 '''
 from __future__ import print_function
 
-import sys, time, os, glob
+import time
+import glob
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

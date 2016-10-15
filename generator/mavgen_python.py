@@ -9,8 +9,9 @@ from __future__ import print_function
 
 from builtins import range
 
-import sys, textwrap, os
-from . import mavparse, mavtemplate
+import os
+import textwrap
+from . import mavtemplate
 
 t = mavtemplate.MAVTemplate()
 

@@ -6,7 +6,7 @@ file, for loading into google earth
 '''
 from __future__ import print_function
 
-import sys, struct, time, os
+import time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

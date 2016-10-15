@@ -364,7 +364,6 @@ class Line(object):
 def test_euler():
     '''check that from_euler() and to_euler() are consistent'''
     m = Matrix3()
-    from math import radians, degrees
     for r in range(-179, 179, 3):
         for p in range(-89, 89, 3):
             for y in range(-179, 179, 3):

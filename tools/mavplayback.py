@@ -12,7 +12,9 @@ standard_library.install_aliases()
 
 from builtins import object
 
-import sys, time, os, struct
+import os
+import sys
+import time
 import tkinter
 
 from pymavlink import fgFDM

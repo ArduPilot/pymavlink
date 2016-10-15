@@ -8,8 +8,11 @@ header. The timestamp is in microseconds since 1970 (unix epoch)
 '''
 from __future__ import print_function
 
-
-import sys, time, os, struct, json, fnmatch
+import fnmatch
+import json
+import os
+import struct
+import time
 
 try:
     from pymavlink.mavextra import *

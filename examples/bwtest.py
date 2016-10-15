@@ -5,7 +5,7 @@ check bandwidth of link
 '''
 from __future__ import print_function
 
-import sys, struct, time, os
+import time
 
 from pymavlink import mavutil
 

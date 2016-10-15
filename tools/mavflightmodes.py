@@ -5,8 +5,9 @@ show changes in flight modes
 '''
 from __future__ import print_function
 
-
-import sys, time, datetime, os
+import datetime
+import os
+import time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

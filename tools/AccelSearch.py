@@ -7,7 +7,7 @@ from __future__ import print_function
 from builtins import input
 from builtins import range
 
-import sys, time, os, glob
+import sys, os
 import zipfile
 
 from pymavlink import mavutil

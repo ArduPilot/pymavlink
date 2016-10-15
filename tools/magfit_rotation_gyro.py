@@ -8,8 +8,6 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
-import sys, time, os, math
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps", dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
@@ -21,7 +19,7 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 from pymavlink.rotmat import Vector3, Matrix3
-from math import radians, degrees
+from math import radians
 
 
 class Rotation(object):

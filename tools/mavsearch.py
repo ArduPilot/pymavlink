@@ -5,8 +5,6 @@ search a set of log files for a condition
 '''
 from __future__ import print_function
 
-import sys, time, os
-
 from pymavlink import mavutil
 
 from argparse import ArgumentParser

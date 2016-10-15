@@ -6,8 +6,6 @@ fit best estimate of magnetometer offsets
 from __future__ import print_function
 from builtins import object
 
-import sys, time, os, math
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps", dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
@@ -31,7 +29,6 @@ class vec3(object):
 
 def heading_error1(parm, data):
     from math import sin, cos, atan2, degrees
-    from numpy import dot
     xofs,yofs,zofs,a1,a2,a3,a4,a5,a6,a7,a8,a9,declination = parm
 
     if args.declination is not None:
@@ -97,7 +94,6 @@ def heading_error(parm, data):
     return ret
 
 def fit_data(data):
-    import numpy, scipy
     from scipy import optimize
 
     p0 = [0.0, 0.0, 0.0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0]

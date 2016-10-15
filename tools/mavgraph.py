@@ -7,9 +7,12 @@ from __future__ import print_function
 from builtins import input
 from builtins import range
 
-import sys, struct, time, os, datetime
-import math, re
+import datetime
 import matplotlib
+import os
+import re
+import sys
+import time
 from math import *
 
 try:

@@ -9,7 +9,12 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
-import xml.parsers.expat, os, errno, time, sys, operator, struct
+import errno
+import operator
+import os
+import sys
+import time
+import xml.parsers.expat
 
 PROTOCOL_0_9 = "0.9"
 PROTOCOL_1_0 = "1.0"

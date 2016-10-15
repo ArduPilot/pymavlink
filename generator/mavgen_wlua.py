@@ -14,7 +14,8 @@ from __future__ import print_function
 
 from builtins import range
 
-import sys, textwrap, os, re
+import os
+import re
 from . import mavparse, mavtemplate
 
 t = mavtemplate.MAVTemplate()

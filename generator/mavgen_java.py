@@ -10,7 +10,7 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
-import sys, textwrap, os, time
+import os
 from . import mavparse, mavtemplate
 
 t = mavtemplate.MAVTemplate()
