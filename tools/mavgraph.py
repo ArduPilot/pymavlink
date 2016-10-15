@@ -300,7 +300,7 @@ for fi in range(0, len(filenames)):
 if args.output is None:
     pylab.show()
     pylab.draw()
-    eval(input('press enter to exit....'))
+    input('press enter to exit....')
 else:
     fname, fext = os.path.splitext(args.output)
     if fext == '.html':
