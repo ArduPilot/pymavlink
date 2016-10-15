@@ -8,7 +8,7 @@ Released under GNU GPL version 3 or later
 from __future__ import print_function
 
 import os
-from . import mavparse, mavtemplate
+from . import mavtemplate
 
 abbreviations = ["MAV", "PX4", "UDB", "PPZ", "PIXHAWK", "SLUGS", "FP", "ASLUAV", "VTOL", "ROI", "UART", "UDP", "IMU", "IMU2", "3D", "RC", "GPS", "GPS1", "GPS2", "NED", "RTK"]
 swift_types = {'char' : ("String", '"\\0"', "mavString(offset: %u, length: %u)"),

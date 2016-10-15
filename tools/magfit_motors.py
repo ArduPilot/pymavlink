@@ -6,8 +6,6 @@ fit best estimate of magnetometer offsets, trying to take into account motor int
 from __future__ import print_function
 from builtins import range
 
-import sys, time, os, math
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps",dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
@@ -58,7 +56,6 @@ def radius_cmp(a, b, offsets, motor_ofs):
     return 0
 
 def sphere_error(p, data):
-    from scipy import sqrt
     x,y,z,mx,my,mz,r = p
     ofs = Vector3(x,y,z)
     motor_ofs = Vector3(mx,my,mz)
@@ -70,7 +67,6 @@ def sphere_error(p, data):
     return ret
 
 def fit_data(data):
-    import numpy, scipy
     from scipy import optimize
 
     p0 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

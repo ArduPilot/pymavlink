@@ -7,7 +7,7 @@ Bill Premerlani
 from __future__ import print_function
 from builtins import range
 
-import sys, time, os, math
+import sys
 
 # command line option handling
 from argparse import ArgumentParser
@@ -26,7 +26,7 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 args = parser.parse_args()
 
 from pymavlink import mavutil
-from pymavlink.rotmat import Vector3, Matrix3
+from pymavlink.rotmat import Vector3
 
 
 def noise():

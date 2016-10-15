@@ -9,7 +9,6 @@ from __future__ import print_function
 from __future__ import absolute_import
 from builtins import object
 
-import os, sys
 from math import *
 
 try:
@@ -255,7 +254,6 @@ def delta(var, key, tusec=None):
     else:
         from . import mavutil
         tnow = mavutil.mavfile_global.timestamp
-    dv = 0
     ret = 0
     if key in last_delta:
         (last_v, last_t, last_ret) = last_delta[key]

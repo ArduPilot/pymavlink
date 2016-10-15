@@ -6,7 +6,7 @@ calculate GPS lag from DF log
 from __future__ import print_function
 from builtins import range
 
-import sys, time, os
+import os
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -18,7 +18,7 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 from pymavlink.mavextra import *
-from pymavlink.rotmat import Vector3, Matrix3
+from pymavlink.rotmat import Vector3
 
 '''
 Support having a $HOME/.pymavlink/mavextra.py for extra graphing functions

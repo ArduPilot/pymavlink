@@ -11,7 +11,7 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
-import struct, time, os
+import struct
 from . import mavutil
 
 FORMAT_TO_STRUCT = {
@@ -356,7 +356,6 @@ class DFReader(object):
         px4_msg_time = None
         px4_msg_gps = None
         gps_interp_msg_gps1 = None
-        gps_interp_msg_gps2 = None
         first_us_stamp = None
         first_ms_stamp = None
 

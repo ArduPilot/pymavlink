@@ -6,7 +6,8 @@ Summarize MAVLink logs. Useful for identifying which log is of interest in a lar
 from __future__ import print_function
 from builtins import object
 
-import sys, time, os, glob
+import glob
+import time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

@@ -5,7 +5,8 @@ extract one mode type from a log
 '''
 from __future__ import print_function
 
-import sys, time, os, struct
+import os
+import struct
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
