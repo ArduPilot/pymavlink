@@ -8,8 +8,7 @@ Released under GNU GPL version 3 or later
 Partly based on SDLog2Parser by Anton Babushkin
 '''
 from __future__ import print_function
-from builtins import range
-from builtins import object
+from builtins import range, object
 
 import struct
 from . import mavutil
