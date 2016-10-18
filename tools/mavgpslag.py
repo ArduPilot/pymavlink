@@ -74,7 +74,7 @@ def gps_lag(logfile):
         if m is None:
             break
         t = m.get_type()
-        if t == 'GPS' and m.Status==3 and m.Spd>args.minspeed:
+        if t == 'GPS' and m.Status >= 3 and m.Spd>args.minspeed:
             v = Vector3(m.Spd*cos(radians(m.GCrs)), m.Spd*sin(radians(m.GCrs)), m.VZ)
             vel.append(v)
             timestamps.append(m._timestamp)
