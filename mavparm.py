@@ -101,12 +101,15 @@ class MAVParmDict(dict):
             print("Loaded %u parameters from %s" % (count, filename))
         return True
 
+    def show_param_value(self, name, value):
+        print("%-16.16s %s" % (name, value))
+
     def show(self, wildcard='*'):
         '''show parameters'''
         k = sorted(self.keys())
         for p in k:
             if fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
-                print("%-16.16s %f" % (str(p), self.get(p)))
+                self.show_param_value(str(p), "%f" % self.get(p))
 
     def diff(self, filename, wildcard='*'):
         '''show differences with another parameter file'''
