@@ -561,8 +561,7 @@ class DFReader_binary(DFReader):
         if skip_bytes != 0:
             if self.remaining < 528:
                 return None
-            fmt = "Skipped %u bad bytes in log at offset %u, type=%s"
-            print(fmt % (skip_bytes, skip_start, skip_type))
+            print("Skipped %u bad bytes in log at offset %u, type=%s" % (skip_bytes, skip_start, skip_type))
             self.remaining -= skip_bytes
 
         self.offset += 3
