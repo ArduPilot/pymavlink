@@ -161,10 +161,10 @@ class DataExtensionsTests: XCTestCase {
     }
     
     func testGetEnumerationDidGetProperCaseAtOffset() {
-        let data = Data(bytes: [0x00, 0x00, ADSBAltitudeType.Geometric.rawValue])
+        let data = Data(bytes: [0x00, 0x00, ADSBAltitudeType.geometric.rawValue])
         let adsbAltitudeType: ADSBAltitudeType = try! data.enumeration(at: 2)
         
-        XCTAssert(adsbAltitudeType == .Geometric, "Expected adsbAltitudeType is .Geometric")
+        XCTAssert(adsbAltitudeType == .geometric, "Expected adsbAltitudeType is .geometric")
     }
     
     // MARK: - Test set<T: MAVLinkNumber>(_ number: T, at offset: Data.Index, byteOrder: CFByteOrder) throws -> Void
@@ -302,9 +302,9 @@ class DataExtensionsTests: XCTestCase {
     
     func testSetEnumerationDidSetProperRawValueAtOffset() {
         var data = Data(bytes: Array<UInt8>(repeating: 0x00, count: 4))
-        let expectedData = Data(bytes: [0x00, 0x00, 0x00, MAVVTOLState.Fw.rawValue])
+        let expectedData = Data(bytes: [0x00, 0x00, 0x00, MAVVTOLState.fw.rawValue])
         
-        try! data.set(MAVVTOLState.Fw, at: 3)
+        try! data.set(MAVVTOLState.fw, at: 3)
         
         XCTAssert(data == expectedData, "Method should set appropriate case raw value at specified offset")
     }
@@ -347,7 +347,7 @@ class DataExtensionsTests: XCTestCase {
     func testGetEnumerationDidGetSameValuePreviouslySetWithSetEnumerationCall() {
         var data = Data(count: 10)
         let offset = 1
-        let mavvtolState = MAVVTOLState.Fw
+        let mavvtolState = MAVVTOLState.fw
         
         try! data.set(mavvtolState, at: offset)
         let receivedMavvtolState: MAVVTOLState = try! data.enumeration(at: offset)

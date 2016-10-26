@@ -11,6 +11,9 @@ import os
 from . import mavparse, mavtemplate
 
 abbreviations = ["MAV", "PX4", "UDB", "PPZ", "PIXHAWK", "SLUGS", "FP", "ASLUAV", "VTOL", "ROI", "UART", "UDP", "IMU", "IMU2", "3D", "RC", "GPS", "GPS1", "GPS2", "NED", "RTK", "ADSB"]
+swift_keywords = ["associatedtype", "class", "deinit", "enum", "extension", "fileprivate", "func", "import", "init", "inout", "internal", "let", "open", "operator", "private", "protocol",
+                  "public", "static", "struct", "subscript", "typealias", "var", "break" "case", "continue", "default", "defer", "do", "else", "fallthrough", "for", "guard", "if", "in", "repeat", "return", "switch",
+                  "where", "while", "Any", "catch", "false", "is", "nil", "rethrows", "super", "self", "Self", "throw", "throws", "true", "try"]
 swift_types = {'char' : ("String", '"\\0"', "string(at: %u, length: %u)", "set(%s, at: %u, length: %u)"),
                'uint8_t' : ("UInt8", 0, "number(at: %u)", "set(%s, at: %u)"),
                'int8_t' : ("Int8", 0, "number(at: %u)", "set(%s, at: %u)"),
@@ -201,9 +204,9 @@ def lower_camel_case_from_underscores(string):
     """Generate a lower-cased camelCase string from an underscore_string"""
 
     components = string.split('_')
-    string = components[0]
+    string = components[0].lower()
     for component in components[1:]:
-        string += component[0].upper() + component[1:]
+        string += component[0].upper() + component[1:].lower()
 
     return string
 
@@ -232,7 +235,11 @@ def generate_enums_type_info(enums, msgs):
             """Ensure that enums entry name does not start from digit"""
             if name[0].isdigit():
                 name = "MAV_" + name
-            entry.swift_name = camel_case_from_underscores(name)
+            entry.swift_name = lower_camel_case_from_underscores(name)
+
+            """Ensure that enums entry name does not match any swift keyword"""
+            if entry.swift_name in swift_keywords:
+                entry.swift_name = lower_camel_case_from_underscores("MAV_" + name)
 
             entry.formatted_description = ""
             if entry.description:
