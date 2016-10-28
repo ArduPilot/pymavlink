@@ -365,7 +365,7 @@ public protocol MAVLinkDelegate {
     /// - parameter data:    Compiled data that represents `message`.
     /// - parameter channel: Channel on which `message` should be sent.
     /// - parameter link:    `MAVLink` object that handled `message`.
-    func didFinalize(message: Message, from data: Data, on channel: Channel, in link: MAVLink)
+    func didFinalize(message: Message, from packet: Packet, to data: Data, on channel: Channel, in link: MAVLink)
 }
 
 // MARK: - Classes implementations
@@ -482,22 +482,22 @@ public class MAVLink {
         case .gotStx:
             rxpack.length = char
             rxpack.payload.count = 0
-            rxpack.checksum.accumulate(char: char)
+            rxpack.checksum.accumulate(char)
             status.parseState = .gotLength
             
         case .gotLength:
             rxpack.sequence = char
-            rxpack.checksum.accumulate(char: char)
+            rxpack.checksum.accumulate(char)
             status.parseState = .gotSequence
             
         case .gotSequence:
             rxpack.systemId = char
-            rxpack.checksum.accumulate(char: char)
+            rxpack.checksum.accumulate(char)
             status.parseState = .gotSystemId
             
         case .gotSystemId:
             rxpack.componentId = char
-            rxpack.checksum.accumulate(char: char)
+            rxpack.checksum.accumulate(char)
             status.parseState = .gotComponentId
             
         case .gotComponentId:
@@ -514,7 +514,7 @@ public class MAVLink {
                 }
             }
             rxpack.messageId = char
-            rxpack.checksum.accumulate(char: char)
+            rxpack.checksum.accumulate(char)
             if rxpack.length == 0 {
                 status.parseState = .gotPayload
             } else {
@@ -523,14 +523,14 @@ public class MAVLink {
             
         case .gotMessageId:
             rxpack.payload.append(char)
-            rxpack.checksum.accumulate(char: char)
+            rxpack.checksum.accumulate(char)
             if rxpack.payload.count == Int(rxpack.length) {
                 status.parseState = .gotPayload
             }
             
         case .gotPayload:
             if crcExtra && (messageCRCsExtra[rxpack.messageId] != nil) {
-                rxpack.checksum.accumulate(char: messageCRCsExtra[rxpack.messageId]!)
+                rxpack.checksum.accumulate(messageCRCsExtra[rxpack.messageId]!)
             }
             if char != rxpack.checksum.lowByte {
                 status.parseState = .gotBadCRC1
@@ -627,7 +627,7 @@ public class MAVLink {
         let channelStatus = channelStatuses[Int(channel)]
         let packet = Packet(message: message, systemId: systemId, componentId: componentId, channel: channel)
         let data = try packet.finalize(sequence: channelStatus.currentTxSeq)
-        delegate?.didFinalize(message: message, from: data, on: channel, in: self)
+        delegate?.didFinalize(message: message, from: packet, to: data, on: channel, in: self)
         channelStatus.currentTxSeq = channelStatus.currentTxSeq &+ 1
     }
 }
@@ -751,13 +751,13 @@ public class Packet {
         let coreHeader = [length, sequence, systemId, componentId, messageId]
         let header = [Constant.packetStx] + coreHeader
         let payload = try message.pack()
-        let checksumBytes = [checksum.lowByte, checksum.highByte]
         
         checksum.start()
-        checksum.accumulate(buffer: coreHeader)
-        checksum.accumulate(buffer: payload)
-        checksum.accumulate(char: crcExtra)
+        checksum.accumulate(coreHeader)
+        checksum.accumulate(payload)
+        checksum.accumulate(crcExtra)
         
+        let checksumBytes = [checksum.lowByte, checksum.highByte]
         var packetData = Data(capacity: payload.count + Constant.numberOfHeaderBytes)
         packetData.append(header, count: header.count)
         packetData.append(payload)
@@ -798,7 +798,7 @@ public struct Checksum {
     /// `value` (`UInt16`).
     ///
     /// - parameter char: New char to hash
-    mutating func accumulate(char: UInt8) {
+    mutating func accumulate(_ char: UInt8) {
         var tmp: UInt8 = char ^ UInt8(truncatingBitPattern: value)
         tmp ^= (tmp << 4)
         value = (UInt16(value) >> 8) ^ (UInt16(tmp) << 8) ^ (UInt16(tmp) << 3) ^ (UInt16(tmp) >> 4)
@@ -807,8 +807,8 @@ public struct Checksum {
     /// Accumulate the X.25 CRC by adding `buffer` bytes.
     ///
     /// - parameter buffer: Sequence of bytes to hash
-    mutating func accumulate<T: Sequence>(buffer: T) where T.Iterator.Element == UInt8 {
-        buffer.forEach { accumulate(char: $0) }
+    mutating func accumulate<T: Sequence>(_ buffer: T) where T.Iterator.Element == UInt8 {
+        buffer.forEach { accumulate($0) }
     }
 }
 
