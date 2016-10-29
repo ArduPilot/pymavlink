@@ -504,8 +504,9 @@ public class MAVLink {
             // Check Message length if `checkMessageLength` enabled and
             // `messageLengths` contains proper id. If `messageLengths` does not
             // contain info for current messageId, parsing will fail later on CRC check.
-            if checkMessageLength && (messageLengths[char] != nil) {
-                if let messageLength = messageLengths[char], rxpack.length != messageLength {
+            if checkMessageLength {
+                let messageLength = messageLengths[char] ?? 0
+                if rxpack.length != messageLength {
                     status.parseError += 1
                     status.parseState = .idle
                     let error = ParseError.invalidPayloadLength(messageId: char, receivedLength: rxpack.length, expectedLength: messageLength)
@@ -513,8 +514,10 @@ public class MAVLink {
                     break
                 }
             }
+            
             rxpack.messageId = char
             rxpack.checksum.accumulate(char)
+            
             if rxpack.length == 0 {
                 status.parseState = .gotPayload
             } else {
@@ -524,6 +527,7 @@ public class MAVLink {
         case .gotMessageId:
             rxpack.payload.append(char)
             rxpack.checksum.accumulate(char)
+            
             if rxpack.payload.count == Int(rxpack.length) {
                 status.parseState = .gotPayload
             }
@@ -532,19 +536,24 @@ public class MAVLink {
             if crcExtra && (messageCRCsExtra[rxpack.messageId] != nil) {
                 rxpack.checksum.accumulate(messageCRCsExtra[rxpack.messageId]!)
             }
+            
+            rxpack.payload.append(char)
+            
             if char != rxpack.checksum.lowByte {
                 status.parseState = .gotBadCRC1
+                fallthrough
             } else {
                 status.parseState = .gotCRC1
             }
-            rxpack.payload.append(char)
             
         case .gotCRC1, .gotBadCRC1:
             if (status.parseState == .gotBadCRC1) || (char != rxpack.checksum.highByte) {
                 status.parseError += 1
                 status.packetReceived = .badCRC
+                
                 let error = messageIdToClass[rxpack.messageId] == nil ? ParseError.unknownMessageId(messageId: rxpack.messageId) : ParseError.badCRC(messageId: rxpack.messageId)
                 delegate?.didFailToReceive(packet: Packet(packet: rxpack), with: error, on: channel, via: self)
+                handleSTX(char: char, rxpack: rxpack, status: status)
             } else {
                 // Successfully got message
                 rxpack.payload.append(char)
