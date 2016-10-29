@@ -632,7 +632,7 @@ public class MAVLink {
     /// - parameter channel:     ID of the current channel.
     ///
     /// - throws: Throws `PackError`.
-    public func dispatchMessage(message: Message, systemId: UInt8, componentId: UInt8, channel: Channel) throws {
+    public func dispatch(message: Message, systemId: UInt8, componentId: UInt8, channel: Channel) throws {
         let channelStatus = channelStatuses[Int(channel)]
         let packet = Packet(message: message, systemId: systemId, componentId: componentId, channel: channel)
         let data = try packet.finalize(sequence: channelStatus.currentTxSeq)
