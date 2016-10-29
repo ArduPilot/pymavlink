@@ -512,6 +512,8 @@ class mavfile(object):
             map = mode_mapping_rover
         if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
             map = mode_mapping_tracker
+        if mav_type == mavlink.MAV_TYPE_SUBMARINE:
+            map = mode_mapping_sub
         if map is None:
             return None
         inv_map = dict((a, b) for (b, a) in map.items())
@@ -1477,6 +1479,27 @@ mode_mapping_tracker = {
     16 : 'INITIALISING'
     }
 
+mode_mapping_sub = {
+    0: 'STABILIZE',
+    1: 'ACRO',
+    2: 'ALT_HOLD',
+    3: 'AUTO',
+    4: 'GUIDED',
+    5: 'VELHOLD',
+    6: 'RTL',
+    7: 'CIRCLE',
+    9: 'SURFACE',
+    10: 'OF_LOITER',
+    11: 'DRIFT',
+    13: 'TRANSECT',
+    14: 'FLIP',
+    15: 'AUTOTUNE',
+    16: 'POSHOLD',
+    17: 'BRAKE',
+    18: 'THROW',
+    19: 'MANUAL',
+    }
+
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
 # string, used in DFReader and possibly other places.  These are
@@ -1591,6 +1614,8 @@ def mode_mapping_byname(mav_type):
         map = mode_mapping_rover
     if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
         map = mode_mapping_tracker
+    if mav_type == mavlink.MAV_TYPE_SUBMARINE:
+        map = mode_mapping_sub
     if map is None:
         return None
     inv_map = dict((a, b) for (b, a) in map.items())
@@ -1612,6 +1637,8 @@ def mode_mapping_bynumber(mav_type):
         map = mode_mapping_rover
     if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
         map = mode_mapping_tracker
+    if mav_type == mavlink.MAV_TYPE_SUBMARINE:
+        map = mode_mapping_sub
     if map is None:
         return None
     return map
@@ -1638,6 +1665,9 @@ def mode_string_v10(msg):
     if msg.type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
         if msg.custom_mode in mode_mapping_tracker:
             return mode_mapping_tracker[msg.custom_mode]
+    if msg.type == mavlink.MAV_TYPE_SUBMARINE:
+        if msg.custom_mode in mode_mapping_sub:
+            return mode_mapping_sub[msg.custom_mode]
     return "Mode(%u)" % msg.custom_mode
 
 def mode_string_apm(mode_number):
