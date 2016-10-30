@@ -2,4 +2,8 @@
 
 export PYTHONPATH="$PYTHONPATH:../../../../"
 
-python -m pymavlink.tools.mavgen ./MAVLinkTests/Testdata/ardupilotmega.xml -o ./MAVLink/MAVLink/ --wire-protocol 1.0 --lang Swift
+rm -rf ./MAVLink/MAVLink/Swift/
+python -m pymavlink.tools.mavgen ./MAVLinkTests/Testdata/ardupilotmega.xml -o ./MAVLink/MAVLink/Swift/ --wire-protocol 1.0 --lang Swift
+
+rm -rf ./MAVLinkTests/MAVLink/C/
+python -m pymavlink.tools.mavgen ./MAVLinkTests/Testdata/ardupilotmega.xml -o ./MAVLinkTests/MAVLink/C/ --wire-protocol 1.0 --lang C

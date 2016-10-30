@@ -1,6 +1,7 @@
 <?xml version='1.0'?>
 <mavlink>
      <version>3</version>
+     <dialect>0</dialect>
      <enums>
           <enum name="MAV_AUTOPILOT">
                <description>Micro air vehicle / autopilot classes. This identifies the individual model.</description>
@@ -106,13 +107,13 @@
                     <description>Octorotor</description>
                </entry>
                <entry value="15" name="MAV_TYPE_TRICOPTER">
-                    <description>Octorotor</description>
+                    <description>Tricopter</description>
                </entry>
                <entry value="16" name="MAV_TYPE_FLAPPING_WING">
                     <description>Flapping wing</description>
                </entry>
                <entry value="17" name="MAV_TYPE_KITE">
-                    <description>Flapping wing</description>
+                    <description>Kite</description>
                </entry>
                <entry value="18" name="MAV_TYPE_ONBOARD_CONTROLLER">
                     <description>Onboard companion controller</description>
@@ -391,6 +392,9 @@
                <entry value="158" name="MAV_COMP_ID_PERIPHERAL">
                     <description>Generic autopilot peripheral component ID. Meant for devices that do not implement the parameter sub-protocol</description>
                </entry>
+               <entry value="159" name="MAV_COMP_ID_QX1_GIMBAL">
+                    <description/>
+               </entry>
           </enum>
           <enum name="MAV_SYS_STATUS_SENSOR">
                <description>These encode the sensors whose status is sent as part of the SYS_STATUS message.</description>
@@ -466,6 +470,9 @@
                <entry value="8388608" name="MAV_SYS_STATUS_REVERSE_MOTOR">
                     <description>0x800000 Motors are reversed</description>
                </entry>
+               <entry value="16777216" name="MAV_SYS_STATUS_LOGGING">
+                    <description>0x1000000 Logging</description>
+               </entry>
           </enum>
           <enum name="MAV_FRAME">
                <entry value="0" name="MAV_FRAME_GLOBAL">
@@ -539,6 +546,9 @@
               <entry name="FENCE_ACTION_GUIDED_THR_PASS" value="3">
                   <description>Switched to guided mode to return point (fence point 0) with manual throttle control</description>
               </entry>
+              <entry name="FENCE_ACTION_RTL" value="4">
+                  <description>Switch to RTL (return to launch) mode and head for the return point.</description>
+              </entry>
           </enum>
 
           <enum name="FENCE_BREACH">
@@ -591,7 +601,7 @@
                     <param index="1">Turns</param>
                     <param index="2">Empty</param>
                     <param index="3">Radius around MISSION, in meters. If positive loiter clockwise, else counter-clockwise</param>
-                    <param index="4">Desired yaw angle.</param>
+                    <param index="4">Forward moving aircraft this sets exit xtrack location: 0 for center of loiter wp, 1 for exit location. Else, this is desired yaw angle</param>
                     <param index="5">Latitude</param>
                     <param index="6">Longitude</param>
                     <param index="7">Altitude</param>
@@ -601,7 +611,7 @@
                     <param index="1">Seconds (decimal)</param>
                     <param index="2">Empty</param>
                     <param index="3">Radius around MISSION, in meters. If positive loiter clockwise, else counter-clockwise</param>
-                    <param index="4">Desired yaw angle.</param>
+                    <param index="4">Forward moving aircraft this sets exit xtrack location: 0 for center of loiter wp, 1 for exit location. Else, this is desired yaw angle</param>
                     <param index="5">Latitude</param>
                     <param index="6">Longitude</param>
                     <param index="7">Altitude</param>
@@ -681,10 +691,30 @@
                     <param index="1">Heading Required (0 = False)</param>
                     <param index="2">Radius in meters. If positive loiter clockwise, negative counter-clockwise, 0 means no change to standard loiter.</param>
                     <param index="3">Empty</param>
-                    <param index="4">Empty</param>
+                    <param index="4">Forward moving aircraft this sets exit xtrack location: 0 for center of loiter wp, 1 for exit location</param>
                     <param index="5">Latitude</param>
                     <param index="6">Longitude</param>
                     <param index="7">Altitude</param>
+               </entry>
+               <entry value="32" name="MAV_CMD_DO_FOLLOW">
+                    <description>Being following a target</description>
+                    <param index="1">System ID (the system ID of the FOLLOW_TARGET beacon). Send 0 to disable follow-me and return to the default position hold mode</param>
+                    <param index="2">RESERVED</param>
+                    <param index="3">RESERVED</param>
+                    <param index="4">altitude flag: 0: Keep current altitude, 1: keep altitude difference to target, 2: go to a fixed altitude above home</param>
+                    <param index="5">altitude</param>
+                    <param index="6">RESERVED</param>
+                    <param index="7">TTL in seconds in which the MAV should go to the default position hold mode after a message rx timeout</param>
+               </entry>
+               <entry value="33" name="MAV_CMD_DO_FOLLOW_REPOSITION">
+                    <description>Reposition the MAV after a follow target command has been sent</description>
+                    <param index="1">Camera q1 (where 0 is on the ray from the camera to the tracking device)</param>
+                    <param index="2">Camera q2</param>
+                    <param index="3">Camera q3</param>
+                    <param index="4">Camera q4</param>
+                    <param index="5">altitude offset from target (m)</param>
+                    <param index="6">X offset from target (m)</param>
+                    <param index="7">Y offset from target (m)</param>
                </entry>
                <entry value="80" name="MAV_CMD_NAV_ROI">
                     <description>Sets the region of interest (ROI) for a sensor set or the vehicle itself. This can then be used by the vehicles control system to control the vehicle attitude and the attitude of various sensors such as cameras.</description>
@@ -748,6 +778,16 @@
                     <param index="2">Empty</param>
                     <param index="3">Empty</param>
                     <param index="4">Empty</param>
+                    <param index="5">Empty</param>
+                    <param index="6">Empty</param>
+                    <param index="7">Empty</param>
+               </entry>
+               <entry value="93" name="MAV_CMD_NAV_DELAY">
+                    <description>Delay the next navigation command a number of seconds or until a specified time</description>
+                    <param index="1">Delay in seconds (decimal, -1 to enable time-of-day fields)</param>
+                    <param index="2">hour (24h format, UTC, -1 to ignore)</param>
+                    <param index="3">minute (24h format, UTC, -1 to ignore)</param>
+                    <param index="4">second (24h format, UTC)</param>
                     <param index="5">Empty</param>
                     <param index="6">Empty</param>
                     <param index="7">Empty</param>
@@ -837,7 +877,7 @@
                     <param index="1">Speed type (0=Airspeed, 1=Ground Speed)</param>
                     <param index="2">Speed  (m/s, -1 indicates no change)</param>
                     <param index="3">Throttle  ( Percent, -1 indicates no change)</param>
-                    <param index="4">Empty</param>
+                    <param index="4">absolute or relative [0,1]</param>
                     <param index="5">Empty</param>
                     <param index="6">Empty</param>
                     <param index="7">Empty</param>
@@ -912,6 +952,16 @@
                     <param index="6">Empty</param>
                     <param index="7">Empty</param>
                 </entry>
+                <entry value="186" name="MAV_CMD_DO_CHANGE_ALTITUDE">
+                    <description>Change altitude set point.</description>
+                    <param index="1">Altitude in meters</param>
+                    <param index="2">Mav frame of new altitude (see MAV_FRAME)</param>
+                    <param index="3">Empty</param>
+                    <param index="4">Empty</param>
+                    <param index="5">Empty</param>
+                    <param index="6">Empty</param>
+                    <param index="7">Empty</param>
+                </entry>
                 <entry value="189" name="MAV_CMD_DO_LAND_START">
                     <description>Mission command to perform a landing. This is used as a marker in a mission to tell the autopilot where a sequence of mission items that represents a landing starts. It may also be sent via a COMMAND_LONG to trigger a landing, in which case the nearest (geographically) landing sequence in the mission will be used. The Latitude/Longitude is optional, and may be set to 0/0 if not needed. If specified then it will be used to help find the closest landing sequence.</description>
                     <param index="1">Empty</param>
@@ -946,9 +996,9 @@
                <entry value="192" name="MAV_CMD_DO_REPOSITION">
                     <description>Reposition the vehicle to a specific WGS84 global position.</description>
                     <param index="1">Ground speed, less than 0 (-1) for default</param>
-                    <param index="2">Reserved</param>
+                    <param index="2">Bitmask of option flags, see the MAV_DO_REPOSITION_FLAGS enum.</param>
                     <param index="3">Reserved</param>
-                    <param index="4">Yaw heading, NaN for unchanged</param>
+                    <param index="4">Yaw heading, NaN for unchanged. For planes indicates loiter direction (0: clockwise, 1: counter clockwise)</param>
                     <param index="5">Latitude (deg * 1E7)</param>
                     <param index="6">Longitude (deg * 1E7)</param>
                     <param index="7">Altitude (meters)</param>
@@ -962,6 +1012,16 @@
                     <param index="5">Reserved</param>
                     <param index="6">Reserved</param>
                     <param index="7">Reserved</param>
+               </entry>
+               <entry value="194" name="MAV_CMD_DO_SET_REVERSE">
+                    <description>Set moving direction to forward or reverse.</description>
+                    <param index="1">Direction (0=Forward, 1=Reverse)</param>
+                    <param index="2">Empty</param>
+                    <param index="3">Empty</param>
+                    <param index="4">Empty</param>
+                    <param index="5">Empty</param>
+                    <param index="6">Empty</param>
+                    <param index="7">Empty</param>
                </entry>
                <entry value="200" name="MAV_CMD_DO_CONTROL_VIDEO">
                     <description>Control onboard camera system.</description>
@@ -1063,6 +1123,17 @@
                    <param index="7">Empty</param>
                </entry>
 
+               <entry name="MAV_CMD_DO_MOTOR_TEST" value="209">
+                   <description>Mission command to perform motor test</description>
+                   <param index="1">motor sequence number (a number from 1 to max number of motors on the vehicle)</param>
+                   <param index="2">throttle type (0=throttle percentage, 1=PWM, 2=pilot throttle channel pass-through. See MOTOR_TEST_THROTTLE_TYPE enum)</param>
+                   <param index="3">throttle</param>
+                   <param index="4">timeout (in seconds)</param>
+                   <param index="5">Empty</param>
+                   <param index="6">Empty</param>
+                   <param index="7">Empty</param>
+               </entry>
+
                <entry name="MAV_CMD_DO_INVERTED_FLIGHT" value="210">
                    <description>Change to/from inverted flight</description>
                    <param index="1">inverted (0=normal, 1=inverted)</param>
@@ -1073,6 +1144,18 @@
                    <param index="6">Empty</param>
                    <param index="7">Empty</param>
                </entry>
+
+               <entry name="MAV_CMD_NAV_SET_YAW_SPEED" value="213">
+                    <description>Sets a desired vehicle turn angle and speed change</description>
+                    <param index="1">yaw angle to adjust steering by in centidegress</param>
+                    <param index="2">speed - normalized to 0 .. 1</param>
+                    <param index="3">Empty</param>
+                    <param index="4">Empty</param>
+                    <param index="5">Empty</param>
+                    <param index="6">Empty</param>
+                    <param index="7">Empty</param>
+               </entry>
+
 
               <entry value="220" name="MAV_CMD_DO_MOUNT_CONTROL_QUAT">
                 <description>Mission command to control a camera or antenna mount, using a quaternion as reference.</description>
@@ -1107,6 +1190,18 @@
                  <param index="7">Empty</param>
                </entry>
 
+               <entry value="223" name="MAV_CMD_DO_ENGINE_CONTROL">
+                 <description>Control vehicle engine. This is interpreted by the vehicles engine controller to change the target engine state. It is intended for vehicles with internal combustion engines</description>
+                 <param index="1">0: Stop engine, 1:Start Engine</param>
+                 <param index="2">0: Warm start, 1:Cold start. Controls use of choke where applicable</param>
+                 <param index="3">Height delay (meters). This is for commanding engine start only after the vehicle has gained the specified height. Used in VTOL vehicles during takeoff to start engine after the aircraft is off the ground. Zero for no delay.</param>
+                 <param index="4">Empty</param>
+                 <param index="5">Empty</param>
+                 <param index="5">Empty</param>
+                 <param index="6">Empty</param>
+                 <param index="7">Empty</param>
+               </entry>
+               
                <entry value="240" name="MAV_CMD_DO_LAST">
                     <description>NOP - This command is only used to mark the upper limit of the DO commands in the enumeration</description>
                     <param index="1">Empty</param>
@@ -1129,7 +1224,7 @@
                </entry>
                <entry value="242" name="MAV_CMD_PREFLIGHT_SET_SENSOR_OFFSETS">
                     <description>Set sensor offsets. This command will be only accepted if in pre-flight mode.</description>
-                    <param index="1">Sensor to adjust the offsets for: 0: gyros, 1: accelerometer, 2: magnetometer, 3: barometer, 4: optical flow, 5: second magnetometer</param>
+                    <param index="1">Sensor to adjust the offsets for: 0: gyros, 1: accelerometer, 2: magnetometer, 3: barometer, 4: optical flow, 5: second magnetometer, 6: third magnetometer</param>
                     <param index="2">X axis offset (or generic dimension 1), in the sensor's raw units</param>
                     <param index="3">Y axis offset (or generic dimension 2), in the sensor's raw units</param>
                     <param index="4">Z axis offset (or generic dimension 3), in the sensor's raw units</param>
@@ -1261,6 +1356,22 @@
                   <param index="1">The target VTOL state, as defined by ENUM MAV_VTOL_STATE. Only MAV_VTOL_STATE_MC and MAV_VTOL_STATE_FW can be used.</param>
               </entry>
 
+              <entry value="4000" name="MAV_CMD_SET_GUIDED_SUBMODE_STANDARD">
+                  <description>This command sets the submode to standard guided when vehicle is in guided mode. The vehicle holds position and altitude and the user can input the desired velocites along all three axes.
+                  </description>
+              </entry>
+
+              <entry value="4001" name="MAV_CMD_SET_GUIDED_SUBMODE_CIRCLE">
+                  <description>This command sets submode circle when vehicle is in guided mode. Vehicle flies along a circle facing the center of the circle. The user can input the velocity along the circle and change the radius. If no input is given the vehicle will hold position.
+                  </description>
+                  <param index="1">Radius of desired circle in CIRCLE_MODE</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Unscaled target latitude of center of circle in CIRCLE_MODE</param>
+                  <param index="6">Unscaled target longitude of center of circle in CIRCLE_MODE</param>
+              </entry>
+
               <!-- VALUES FROM 0-40000 are reserved for the common message set. Values from 40000 to UINT16_MAX are available for dialects -->
 
               <!-- BEGIN of payload range (30000 to 30999) -->
@@ -1285,6 +1396,159 @@
                   <param index="7">Reserved</param>
               </entry>
               <!-- END of payload range (30000 to 30999) -->
+              
+              <!-- BEGIN user defined range (31000 to 31999) -->
+              <entry value="31000" name="MAV_CMD_WAYPOINT_USER_1">
+                  <description>User defined waypoint item. Ground Station will show the Vehicle as flying through this item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31001" name="MAV_CMD_WAYPOINT_USER_2">
+                  <description>User defined waypoint item. Ground Station will show the Vehicle as flying through this item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31002" name="MAV_CMD_WAYPOINT_USER_3">
+                  <description>User defined waypoint item. Ground Station will show the Vehicle as flying through this item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31003" name="MAV_CMD_WAYPOINT_USER_4">
+                  <description>User defined waypoint item. Ground Station will show the Vehicle as flying through this item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31004" name="MAV_CMD_WAYPOINT_USER_5">
+                  <description>User defined waypoint item. Ground Station will show the Vehicle as flying through this item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31005" name="MAV_CMD_SPATIAL_USER_1">
+                  <description>User defined spatial item. Ground Station will not show the Vehicle as flying through this item. Example: ROI item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31006" name="MAV_CMD_SPATIAL_USER_2">
+                  <description>User defined spatial item. Ground Station will not show the Vehicle as flying through this item. Example: ROI item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31007" name="MAV_CMD_SPATIAL_USER_3">
+                  <description>User defined spatial item. Ground Station will not show the Vehicle as flying through this item. Example: ROI item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31008" name="MAV_CMD_SPATIAL_USER_4">
+                  <description>User defined spatial item. Ground Station will not show the Vehicle as flying through this item. Example: ROI item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31009" name="MAV_CMD_SPATIAL_USER_5">
+                  <description>User defined spatial item. Ground Station will not show the Vehicle as flying through this item. Example: ROI item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">Latitude unscaled</param>
+                  <param index="6">Longitude unscaled</param>
+                  <param index="7">Altitude, in meters AMSL</param>
+              </entry>
+              <entry value="31010" name="MAV_CMD_USER_1">
+                  <description>User defined command. Ground Station will not show the Vehicle as flying through this item. Example: MAV_CMD_DO_SET_PARAMETER item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">User defined</param>
+                  <param index="6">User defined</param>
+                  <param index="7">User defined</param>
+              </entry>
+              <entry value="31011" name="MAV_CMD_USER_2">
+                  <description>User defined command. Ground Station will not show the Vehicle as flying through this item. Example: MAV_CMD_DO_SET_PARAMETER item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">User defined</param>
+                  <param index="6">User defined</param>
+                  <param index="7">User defined</param>
+              </entry>
+              <entry value="31012" name="MAV_CMD_USER_3">
+                  <description>User defined command. Ground Station will not show the Vehicle as flying through this item. Example: MAV_CMD_DO_SET_PARAMETER item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">User defined</param>
+                  <param index="6">User defined</param>
+                  <param index="7">User defined</param>
+              </entry>
+              <entry value="31013" name="MAV_CMD_USER_4">
+                  <description>User defined command. Ground Station will not show the Vehicle as flying through this item. Example: MAV_CMD_DO_SET_PARAMETER item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">User defined</param>
+                  <param index="6">User defined</param>
+                  <param index="7">User defined</param>
+              </entry>
+              <entry value="31014" name="MAV_CMD_USER_5">
+                  <description>User defined command. Ground Station will not show the Vehicle as flying through this item. Example: MAV_CMD_DO_SET_PARAMETER item.</description>
+                  <param index="1">User defined</param>
+                  <param index="2">User defined</param>
+                  <param index="3">User defined</param>
+                  <param index="4">User defined</param>
+                  <param index="5">User defined</param>
+                  <param index="6">User defined</param>
+                  <param index="7">User defined</param>
+              </entry>
+              <!-- END of user range (31000 to 31999) -->
           </enum>
           <enum name="MAV_DATA_STREAM">
                <description>THIS INTERFACE IS DEPRECATED AS OF JULY 2015. Please use MESSAGE_INTERVAL instead. A data stream is not a fixed set of messages, but rather a
@@ -1724,6 +1988,9 @@
               <entry value="4096" name="MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION">
                   <description>Autopilot supports onboard compass calibration.</description>
               </entry>
+              <entry value="8192" name="MAV_PROTOCOL_CAPABILITY_MAVLINK2">
+                  <description>Autopilot supports mavlink version 2.</description>
+              </entry>
           </enum>
           <enum name="MAV_ESTIMATOR_TYPE">
               <description>Enumeration of estimator types</description>
@@ -1851,6 +2118,174 @@
               <entry value="32" name="ADSB_FLAGS_VALID_SQUAWK"></entry>
               <entry value="64" name="ADSB_FLAGS_SIMULATED"></entry>
           </enum>
+          <enum name="MAV_DO_REPOSITION_FLAGS">
+              <description>Bitmask of options for the MAV_CMD_DO_REPOSITION</description>
+              <entry value="1" name="MAV_DO_REPOSITION_FLAGS_CHANGE_MODE">
+                  <description>The aircraft should immediately transition into guided. This should not be set for follow me applications</description>
+              </entry>
+          </enum>
+          <!-- ESTIMATOR_STATUS_FLAGS - these values should be bit-and with the messages flags field to know if flag has been set -->
+          <enum name="ESTIMATOR_STATUS_FLAGS">
+              <description>Flags in EKF_STATUS message</description>
+              <entry name="ESTIMATOR_ATTITUDE" value="1">
+                  <description>True if the attitude estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_VELOCITY_HORIZ" value="2">
+                  <description>True if the horizontal velocity estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_VELOCITY_VERT" value="4">
+                  <description>True if the  vertical velocity estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_POS_HORIZ_REL" value="8">
+                  <description>True if the horizontal position (relative) estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_POS_HORIZ_ABS" value="16">
+                  <description>True if the horizontal position (absolute) estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_POS_VERT_ABS" value="32">
+                  <description>True if the vertical position (absolute) estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_POS_VERT_AGL" value="64">
+                  <description>True if the vertical position (above ground) estimate is good</description>
+              </entry>
+
+              <entry name="ESTIMATOR_CONST_POS_MODE" value="128">
+                  <description>True if the EKF is in a constant position mode and is not using external measurements (eg GPS or optical flow)</description>
+              </entry>
+
+              <entry name="ESTIMATOR_PRED_POS_HORIZ_REL" value="256">
+                  <description>True if the EKF has sufficient data to enter a mode that will provide a (relative) position estimate</description>
+              </entry>
+
+              <entry name="ESTIMATOR_PRED_POS_HORIZ_ABS" value="512">
+                  <description>True if the EKF has sufficient data to enter a mode that will provide a (absolute) position estimate</description>
+              </entry>
+
+              <entry name="ESTIMATOR_GPS_GLITCH" value="1024">
+                  <description>True if the EKF has detected a GPS glitch</description>
+              </entry>
+          </enum>
+
+          <!-- motor test type enum -->
+          <enum name="MOTOR_TEST_THROTTLE_TYPE">
+              <entry name="MOTOR_TEST_THROTTLE_PERCENT" value="0">
+                  <description>throttle as a percentage from 0 ~ 100</description>
+              </entry>
+
+              <entry name="MOTOR_TEST_THROTTLE_PWM" value="1">
+                  <description>throttle as an absolute PWM value (normally in range of 1000~2000)</description>
+              </entry>
+
+              <entry name="MOTOR_TEST_THROTTLE_PILOT" value="2">
+                  <description>throttle pass-through from pilot's transmitter</description>
+              </entry>
+          </enum>
+
+          <!-- GPS_INPUT ignore flags enum -->
+          <enum name="GPS_INPUT_IGNORE_FLAGS">
+              <entry name="GPS_INPUT_IGNORE_FLAG_ALT" value="1">
+                  <description>ignore altitude field</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_HDOP" value="2">
+                  <description>ignore hdop field</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_VDOP" value="4">
+                  <description>ignore vdop field</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_VEL_HORIZ" value="8">
+                  <description>ignore horizontal velocity field (vn and ve)</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_VEL_VERT" value="16">
+                  <description>ignore vertical velocity field (vd)</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_SPEED_ACCURACY" value="32">
+                  <description>ignore speed accuracy field</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_HORIZONTAL_ACCURACY" value="64">
+                  <description>ignore horizontal accuracy field</description>
+              </entry>
+              <entry name="GPS_INPUT_IGNORE_FLAG_VERTICAL_ACCURACY" value="128">
+                  <description>ignore vertical accuracy field</description>
+              </entry>
+          </enum>
+          <enum name="MAV_COLLISION_ACTION">
+              <description>Possible actions an aircraft can take to avoid a collision.</description>
+              <entry value="0" name="MAV_COLLISION_ACTION_NONE">
+                  <description>Ignore any potential collisions</description>
+              </entry>
+              <entry value="1" name="MAV_COLLISION_ACTION_REPORT">
+                  <description>Report potential collision</description>
+              </entry>
+              <entry value="2" name="MAV_COLLISION_ACTION_ASCEND_OR_DESCEND">
+                  <description>Ascend or Descend to avoid thread</description>
+              </entry>
+              <entry value="3" name="MAV_COLLISION_ACTION_MOVE_HORIZONTALLY">
+                  <description>Ascend or Descend to avoid thread</description>
+              </entry>
+              <entry value="4" name="MAV_COLLISION_ACTION_MOVE_PERPENDICULAR">
+                  <description>Aircraft to move perpendicular to the collision's velocity vector</description>
+              </entry>
+              <entry value="5" name="MAV_COLLISION_ACTION_RTL">
+                  <description>Aircraft to fly directly back to its launch point</description>
+              </entry>
+              <entry value="6" name="MAV_COLLISION_ACTION_HOVER">
+                  <description>Aircraft to stop in place</description>
+              </entry>
+          </enum>
+          <enum name="MAV_COLLISION_THREAT_LEVEL">
+              <description>Aircraft-rated danger from this threat.</description>
+              <entry value="0" name="MAV_COLLISION_THREAT_LEVEL_NONE">
+                  <description>Not a threat</description>
+              </entry>
+              <entry value="1" name="MAV_COLLISION_THREAT_LEVEL_LOW">
+                  <description>Craft is mildly concerned about this threat</description>
+              </entry>
+              <entry value="2" name="MAV_COLLISION_THREAT_LEVEL_HIGH">
+                  <description>Craft is panicing, and may take actions to avoid threat</description>
+              </entry>
+          </enum>
+          <enum name="MAV_COLLISION_SRC">
+              <description>Source of information about this collision.</description>
+              <entry value="0" name="MAV_COLLISION_SRC_ADSB">
+                  <description>ID field references ADSB_VEHICLE packets</description>
+              </entry>
+              <entry value="1" name="MAV_COLLISION_SRC_MAVLINK_GPS_GLOBAL_INT">
+                  <description>ID field references MAVLink SRC ID</description>
+              </entry>
+          </enum>
+          <enum name="GPS_FIX_TYPE">
+              <description>Type of GPS fix</description>
+              <entry value="0" name="GPS_FIX_TYPE_NO_GPS">
+                  <description>No GPS connected</description>
+              </entry>
+              <entry value="1" name="GPS_FIX_TYPE_NO_FIX">
+                  <description>No position information, GPS is connected</description>
+              </entry>
+              <entry value="2" name="GPS_FIX_TYPE_2D_FIX">
+                  <description>2D position</description>
+              </entry>
+              <entry value="3" name="GPS_FIX_TYPE_3D_FIX">
+                  <description>3D position</description>
+              </entry>
+              <entry value="4" name="GPS_FIX_TYPE_DGPS">
+                  <description>DGPS/SBAS aided 3D position</description>
+              </entry>
+              <entry value="5" name="GPS_FIX_TYPE_RTK_FLOAT">
+                  <description>RTK float, 3D position</description>
+              </entry>
+              <entry value="6" name="GPS_FIX_TYPE_RTK_FIXED">
+                  <description>RTK Fixed, 3D position</description>
+              </entry>
+              <entry value="7" name="GPS_FIX_TYPE_STATIC">
+                  <description>Static fixed, typically used for base stations</description>
+              </entry>
+          </enum>
      </enums>
      <messages>
           <message id="0" name="HEARTBEAT">
@@ -1923,7 +2358,7 @@
                <field type="int16_t" name="param_index">Parameter index. Send -1 to use the param ID field as identifier (else the param id will be ignored)</field>
           </message>
           <message id="21" name="PARAM_REQUEST_LIST">
-               <description>Request all parameters of this component. After his request, all parameters are emitted.</description>
+               <description>Request all parameters of this component. After this request, all parameters are emitted.</description>
                <field type="uint8_t" name="target_system">System ID</field>
                <field type="uint8_t" name="target_component">Component ID</field>
           </message>
@@ -1947,7 +2382,7 @@
                <description>The global position, as returned by the Global Positioning System (GPS). This is
                 NOT the global position estimate of the system, but rather a RAW sensor value. See message GLOBAL_POSITION for the global position estimate. Coordinate frame is right-handed, Z-axis up (GPS frame).</description>
                <field type="uint64_t" name="time_usec">Timestamp (microseconds since UNIX epoch or microseconds since system boot)</field>
-               <field type="uint8_t" name="fix_type">0-1: no fix, 2: 2D fix, 3: 3D fix, 4: DGPS, 5: RTK. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.</field>
+               <field type="uint8_t" name="fix_type" enum="GPS_FIX_TYPE">See the GPS_FIX_TYPE enum.</field>
                <field type="int32_t" name="lat">Latitude (WGS84), in degrees * 1E7</field>
                <field type="int32_t" name="lon">Longitude (WGS84), in degrees * 1E7</field>
                <field type="int32_t" name="alt">Altitude (AMSL, NOT WGS84), in meters * 1000 (positive for up). Note that virtually all GPS modules provide the AMSL altitude in addition to the WGS84 altitude.</field>
@@ -2091,6 +2526,15 @@
                <field type="uint16_t" name="servo6_raw">Servo output 6 value, in microseconds</field>
                <field type="uint16_t" name="servo7_raw">Servo output 7 value, in microseconds</field>
                <field type="uint16_t" name="servo8_raw">Servo output 8 value, in microseconds</field>
+               <extensions/>
+               <field type="uint16_t" name="servo9_raw">Servo output 9 value, in microseconds</field>
+               <field type="uint16_t" name="servo10_raw">Servo output 10 value, in microseconds</field>
+               <field type="uint16_t" name="servo11_raw">Servo output 11 value, in microseconds</field>
+               <field type="uint16_t" name="servo12_raw">Servo output 12 value, in microseconds</field>
+               <field type="uint16_t" name="servo13_raw">Servo output 13 value, in microseconds</field>
+               <field type="uint16_t" name="servo14_raw">Servo output 14 value, in microseconds</field>
+               <field type="uint16_t" name="servo15_raw">Servo output 15 value, in microseconds</field>
+               <field type="uint16_t" name="servo16_raw">Servo output 16 value, in microseconds</field>
           </message>
           <message id="37" name="MISSION_REQUEST_PARTIAL_LIST">
                <description>Request a partial list of mission items from the system/component. http://qgroundcontrol.org/mavlink/waypoint_protocol. If start and end index are the same, just send one waypoint.</description>
@@ -2191,6 +2635,12 @@
                <field type="float" name="param_value_min">Minimum param value. The protocol does not define if this overwrites an onboard minimum value. (Depends on implementation)</field>
                <field type="float" name="param_value_max">Maximum param value. The protocol does not define if this overwrites an onboard maximum value. (Depends on implementation)</field>
           </message>
+          <message id="51" name="MISSION_REQUEST_INT">
+               <description>Request the information of the mission item with the sequence number seq. The response of the system to this message should be a MISSION_ITEM_INT message. http://qgroundcontrol.org/mavlink/waypoint_protocol</description>
+               <field type="uint8_t" name="target_system">System ID</field>
+               <field type="uint8_t" name="target_component">Component ID</field>
+               <field type="uint16_t" name="seq">Sequence</field>
+          </message>
           <message id="54" name="SAFETY_SET_ALLOWED_AREA">
                <description>Set a safety zone (volume), which is defined by two corners of a cube. This message can be used to tell the MAV which setpoints/MISSIONs to accept and which to reject. Safety areas are often enforced by national or competition regulations.</description>
                <field type="uint8_t" name="target_system">System ID</field>
@@ -2223,7 +2673,7 @@
                <field type="float[9]" name="covariance">Attitude covariance</field>
           </message>
           <message id="62" name="NAV_CONTROLLER_OUTPUT">
-               <description>Outputs of the APM navigation controller. The primary use of this message is to check the response and signs of the controller before actual flight and to assist with tuning controller parameters.</description>
+               <description>The state of the fixed wing navigation and position controller.</description>
                <field type="float" name="nav_roll">Current desired roll in degrees</field>
                <field type="float" name="nav_pitch">Current desired pitch in degrees</field>
                <field type="int16_t" name="nav_bearing">Current desired heading in degrees</field>
@@ -2549,6 +2999,13 @@
                <field type="uint16_t" name="chan12_raw">RC channel 12 value, in microseconds</field>
                <field type="uint8_t" name="rssi">Receive signal strength indicator, 0: 0%, 255: 100%</field>
           </message>
+          <message id="93" name="HIL_ACTUATOR_CONTROLS">
+               <description>Sent from autopilot to simulation. Hardware in the loop control outputs (replacement for HIL_CONTROLS)</description>
+               <field name="time_usec" type="uint64_t">Timestamp (microseconds since UNIX epoch or microseconds since system boot)</field>
+               <field name="controls" type="float[16]">Control outputs -1 .. 1. Channel assignment depends on the simulated hardware.</field>
+               <field name="mode" type="uint8_t">System mode (MAV_MODE), includes arming state.</field>
+               <field name="flags" type="uint64_t">Flags as bitfield, reserved for future use.</field>
+          </message>
           <message id="100" name="OPTICAL_FLOW">
                <description>Optical flow from a flow sensor (e.g. optical mouse sensor)</description>
                <field type="uint64_t" name="time_usec">Timestamp (UNIX)</field>
@@ -2642,7 +3099,7 @@
            <field type="float" name="diff_pressure">Differential pressure (airspeed) in millibar</field>
            <field type="float" name="pressure_alt">Altitude calculated from pressure</field>
            <field type="float" name="temperature">Temperature in degrees celsius</field>
-           <field type="uint32_t" name="fields_updated">Bitmask for fields that have updated since last message, bit 0 = xacc, bit 12: temperature</field>
+           <field type="uint32_t" name="fields_updated">Bitmask for fields that have updated since last message, bit 0 = xacc, bit 12: temperature, bit 31: full reset of attitude/position/velocities/etc was performed in sim.</field>
          </message>
 
 	  <message name="SIM_STATE" id="108">
@@ -2811,7 +3268,7 @@
          <message id="124" name="GPS2_RAW">
            <description>Second GPS data. Coordinate frame is right-handed, Z-axis up (GPS frame).</description>
            <field type="uint64_t" name="time_usec">Timestamp (microseconds since UNIX epoch or microseconds since system boot)</field>
-           <field type="uint8_t" name="fix_type">0-1: no fix, 2: 2D fix, 3: 3D fix, 4: DGPS fix, 5: RTK Fix. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.</field>
+           <field type="uint8_t" name="fix_type" enum="GPS_FIX_TYPE">See the GPS_FIX_TYPE enum.</field>
            <field type="int32_t" name="lat">Latitude (WGS84), in degrees * 1E7</field>
            <field type="int32_t" name="lon">Longitude (WGS84), in degrees * 1E7</field>
            <field type="int32_t" name="alt">Altitude (AMSL, not WGS84), in meters * 1000 (positive for up)</field>
@@ -2967,7 +3424,7 @@
         </message>
         <message id="141" name="ALTITUDE">
             <description>The current system altitude.</description>
-            <field type="uint64_t" name="time_usec">Timestamp (milliseconds since system boot)</field>
+            <field type="uint64_t" name="time_usec">Timestamp (micros since boot or Unix epoch)</field>
             <field type="float" name="altitude_monotonic">This altitude measure is initialized on system boot and monotonic (it is never reset, but represents the local altitude change). The only guarantee on this field is that it will never be reset and is consistent within a flight. The recommended value for this field is the uncorrected barometric altitude at boot time. This altitude will also drift and vary between flights.</field>
             <field type="float" name="altitude_amsl">This altitude measure is strictly above mean sea level and might be non-monotonic (it might reset on events like GPS lock or when a new QNH value is set). It should be the altitude to which global altitude waypoints are compared to. Note that it is *not* the GPS altitude, however, most GPS modules already output AMSL by default and not the WGS84 altitude.</field>
             <field type="float" name="altitude_local">This is the local altitude in the local coordinate frame. It is not the altitude above home, but in reference to the coordinate origin (0, 0, 0). It is up-positive.</field>
@@ -2989,6 +3446,20 @@
           <field type="float" name="press_abs">Absolute pressure (hectopascal)</field>
           <field type="float" name="press_diff">Differential pressure 1 (hectopascal)</field>
            <field type="int16_t" name="temperature">Temperature measurement (0.01 degrees celsius)</field>
+        </message>
+        <message id="144" name="FOLLOW_TARGET">
+              <description>current motion information from a designated system</description>
+              <field type="uint64_t" name="timestamp">Timestamp in milliseconds since system boot</field>
+              <field type="uint8_t" name="est_capabilities">bit positions for tracker reporting capabilities (POS = 0, VEL = 1, ACCEL = 2, ATT + RATES = 3)</field>
+              <field type="int32_t" name="lat">Latitude (WGS84), in degrees * 1E7</field>
+              <field type="int32_t" name="lon">Longitude (WGS84), in degrees * 1E7</field>
+              <field type="float" name="alt">AMSL, in meters</field>
+              <field type="float[3]" name="vel">target velocity (0,0,0) for unknown</field>
+              <field type="float[3]" name="acc">linear target acceleration (0,0,0) for unknown</field>
+              <field type="float[4]" name="attitude_q">(1 0 0 0 for unknown)</field>
+              <field type="float[3]" name="rates">(0 0 0 for unknown)</field>
+              <field type="float[3]" name="position_cov">eph epv</field>
+              <field type="uint64_t" name="custom_state">button states or switches of a tracker device</field>
         </message>
         <message id="146" name="CONTROL_SYSTEM_STATE">
             <description>The smoothed, monotonic system state used to feed the control loops of the system.</description>
@@ -3047,7 +3518,58 @@
             <field type="float" name="size_x">Size in radians of target along x-axis</field>
             <field type="float" name="size_y">Size in radians of target along y-axis</field>
         </message>
-        <!-- MESSAGE IDs 180 - 240: Space for custom messages in individual projectname_messages.xml files -->
+        <!-- MESSAGE IDs 180 - 229: Space for custom messages in individual projectname_messages.xml files -->
+        <message id="230" name="ESTIMATOR_STATUS">
+            <description>Estimator status message including flags, innovation test ratios and estimated accuracies. The flags message is an integer bitmask containing information on which EKF outputs are valid. See the ESTIMATOR_STATUS_FLAGS enum definition for further information. The innovaton test ratios show the magnitude of the sensor innovation divided by the innovation check threshold. Under normal operation the innovaton test ratios should be below 0.5 with occasional values up to 1.0. Values greater than 1.0 should be rare under normal operation and indicate that a measurement has been rejected by the filter. The user should be notified if an innovation test ratio greater than 1.0 is recorded. Notifications for values in the range between 0.5 and 1.0 should be optional and controllable by the user.</description>
+            <field type="uint64_t" name="time_usec">Timestamp (micros since boot or Unix epoch)</field>
+            <field name="flags" type="uint16_t" enum="ESTIMATOR_STATUS_FLAGS">Integer bitmask indicating which EKF outputs are valid. See definition for ESTIMATOR_STATUS_FLAGS.</field>
+            <field name="vel_ratio" type="float">Velocity innovation test ratio</field>
+            <field name="pos_horiz_ratio" type="float">Horizontal position innovation test ratio</field>
+            <field name="pos_vert_ratio" type="float">Vertical position innovation test ratio</field>
+            <field name="mag_ratio" type="float">Magnetometer innovation test ratio</field>
+            <field name="hagl_ratio" type="float">Height above terrain innovation test ratio</field>
+            <field name="tas_ratio" type="float">True airspeed innovation test ratio</field>
+            <field name="pos_horiz_accuracy" type="float">Horizontal position 1-STD accuracy relative to the EKF local origin (m)</field>
+            <field name="pos_vert_accuracy" type="float">Vertical position 1-STD accuracy relative to the EKF local origin (m)</field>
+        </message>
+        <message id="231" name="WIND_COV">
+            <field type="uint64_t" name="time_usec">Timestamp (micros since boot or Unix epoch)</field>
+            <field type="float" name="wind_x">Wind in X (NED) direction in m/s</field>
+            <field type="float" name="wind_y">Wind in Y (NED) direction in m/s</field>
+            <field type="float" name="wind_z">Wind in Z (NED) direction in m/s</field>
+            <field type="float" name="var_horiz">Variability of the wind in XY. RMS of a 1 Hz lowpassed wind estimate.</field>
+            <field type="float" name="var_vert">Variability of the wind in Z. RMS of a 1 Hz lowpassed wind estimate.</field>
+            <field type="float" name="wind_alt">AMSL altitude (m) this measurement was taken at</field>
+            <field name="horiz_accuracy" type="float">Horizontal speed 1-STD accuracy</field>
+            <field name="vert_accuracy" type="float">Vertical speed 1-STD accuracy</field>
+        </message>
+        <message id="232" name="GPS_INPUT">
+            <description>GPS sensor input message.  This is a raw sensor value sent by the GPS. This is NOT the global position estimate of the sytem.</description>
+            <field type="uint64_t" name="time_usec">Timestamp (micros since boot or Unix epoch)</field>
+            <field type="uint8_t" name="gps_id">ID of the GPS for multiple GPS inputs</field>
+            <field type="uint16_t" name="ignore_flags" enum="GPS_INPUT_IGNORE_FLAGS">Flags indicating which fields to ignore (see GPS_INPUT_IGNORE_FLAGS enum).  All other fields must be provided.</field>
+            <field type="uint32_t" name="time_week_ms">GPS time (milliseconds from start of GPS week)</field>
+            <field type="uint16_t" name="time_week">GPS week number</field>
+            <field type="uint8_t" name="fix_type">0-1: no fix, 2: 2D fix, 3: 3D fix. 4: 3D with DGPS. 5: 3D with RTK</field>
+            <field type="int32_t" name="lat">Latitude (WGS84), in degrees * 1E7</field>
+            <field type="int32_t" name="lon">Longitude (WGS84), in degrees * 1E7</field>
+            <field type="float" name="alt">Altitude (AMSL, not WGS84), in m (positive for up)</field>
+            <field type="float" name="hdop">GPS HDOP horizontal dilution of position in m</field>
+            <field type="float" name="vdop">GPS VDOP vertical dilution of position in m</field>
+            <field type="float" name="vn">GPS velocity in m/s in NORTH direction in earth-fixed NED frame</field>
+            <field type="float" name="ve">GPS velocity in m/s in EAST direction in earth-fixed NED frame</field>
+            <field type="float" name="vd">GPS velocity in m/s in DOWN direction in earth-fixed NED frame</field>
+            <field type="float" name="speed_accuracy">GPS speed accuracy in m/s</field>
+            <field type="float" name="horiz_accuracy">GPS horizontal accuracy in m</field>
+            <field type="float" name="vert_accuracy">GPS vertical accuracy in m</field>
+            <field type="uint8_t" name="satellites_visible">Number of satellites visible.</field>
+        </message>
+        <message id="233" name="GPS_RTCM_DATA">
+           <description>WORK IN PROGRESS! RTCM message for injecting into the onboard GPS (used for DGPS)</description>
+           <field type="uint8_t" name="flags">LSB: 1 means message is fragmented</field>
+           <field type="uint8_t" name="len">data length</field>
+           <field type="uint8_t[180]" name="data">RTCM message (may be fragmented)</field>
+        </message>
         <message id="241" name="VIBRATION">
             <description>Vibration levels and accelerometer clipping</description>
             <field type="uint64_t" name="time_usec">Timestamp (micros since boot or Unix epoch)</field>
@@ -3111,6 +3633,16 @@
           <field type="uint16_t" name="flags" enum="ADSB_FLAGS">Flags to indicate various statuses including valid data fields</field>
           <field type="uint16_t" name="squawk">Squawk code</field>
         </message>
+        <message id="247" name="COLLISION">
+          <description>Information about a potential collision</description>
+          <field type="uint8_t" name="src" enum="MAV_COLLISION_SRC">Collision data source</field>
+          <field type="uint32_t" name="id">Unique identifier, domain based on src field</field>
+          <field type="uint8_t" name="action" enum="MAV_COLLISION_ACTION">Action that is being taken to avoid this collision</field>
+          <field type="uint8_t" name="threat_level" enum="MAV_COLLISION_THREAT_LEVEL">How concerned the aircraft is about this collision</field>
+          <field type="float" name="time_to_minimum_delta">Estimated time until collision occurs (seconds)</field>
+          <field type="float" name="altitude_minimum_delta">Closest vertical distance in meters between vehicle and object</field>
+          <field type="float" name="horizontal_minimum_delta">Closest horizontal distance in meteres between vehicle and object</field>
+        </message>
         <message id="248" name="V2_EXTENSION">
             <description>Message implementing parts of the V2 payload specs in V1 frames for transitional support.</description>
             <field type="uint8_t" name="target_network">Network ID (0 for broadcast)</field>
@@ -3156,5 +3688,29 @@
                <field type="uint8_t" name="ind">index of debug variable</field>
                <field type="float" name="value">DEBUG value</field>
           </message>
-     </messages>
+
+          <!-- messages with ID 256 and above are only available in MAVLink2 -->
+          <message id="256" name="SETUP_SIGNING">
+               <description>Setup a MAVLink2 signing key. If called with secret_key of all zero and zero initial_timestamp will disable signing</description>
+               <field type="uint8_t" name="target_system">system id of the target</field>
+               <field type="uint8_t" name="target_component">component ID of the target</field>
+               <field type="uint8_t[32]" name="secret_key">signing key</field>
+               <field type="uint64_t" name="initial_timestamp">initial timestamp</field>
+          </message>
+
+	  <message id="257" name="BUTTON_CHANGE">
+            <description>Report button state change</description>
+            <field type="uint32_t" name="time_boot_ms">Timestamp (milliseconds since system boot)</field>
+            <field name="last_change_ms" type="uint32_t">Time of last change of button state</field>
+            <field name="state" type="uint8_t">Bitmap state of buttons</field>
+          </message>
+
+          <message id="258" name="PLAY_TUNE">
+            <description>Control vehicle tone generation (buzzer)</description>
+            <field name="target_system" type="uint8_t">System ID</field>
+            <field name="target_component" type="uint8_t">Component ID</field>
+            <field name="tune" type="char[30]">tune in board specific format</field>
+          </message>
+          
+        </messages>
 </mavlink>
