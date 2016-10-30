@@ -289,6 +289,7 @@
 		0FC224C61DA6561F005107DC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0FC224C51DA6561F005107DC /* Assets.xcassets */; };
 		0FC224C91DA6561F005107DC /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 0FC224C71DA6561F005107DC /* MainMenu.xib */; };
 		0FC224D41DA6561F005107DC /* MAVLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC224D31DA6561F005107DC /* MAVLinkTests.swift */; };
+		0FD2A71E1DC6B07D002D3EF4 /* Testdata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD2A71D1DC6B07D002D3EF4 /* Testdata.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -588,6 +589,7 @@
 		0FC224CF1DA6561F005107DC /* MAVLinkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MAVLinkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FC224D31DA6561F005107DC /* MAVLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MAVLinkTests.swift; sourceTree = "<group>"; };
 		0FC224D51DA6561F005107DC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0FD2A71D1DC6B07D002D3EF4 /* Testdata.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Testdata.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -950,6 +952,7 @@
 				0F0B054A1DA65D8E00BCF0EB /* DataExtensionsTests.swift */,
 				0FC224D31DA6561F005107DC /* MAVLinkTests.swift */,
 				0F15A4001DC4B83400914AD9 /* CompareWithCImpTests.swift */,
+				0FD2A71D1DC6B07D002D3EF4 /* Testdata.swift */,
 				0F5882AD1DC3C2B00015D834 /* Delegate.swift */,
 				0FC224D51DA6561F005107DC /* Info.plist */,
 				0F030A2F1DBED65F00A8D783 /* Testdata */,
@@ -1345,6 +1348,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0F5882AE1DC3C2B00015D834 /* Delegate.swift in Sources */,
+				0FD2A71E1DC6B07D002D3EF4 /* Testdata.swift in Sources */,
 				0FC224D41DA6561F005107DC /* MAVLinkTests.swift in Sources */,
 				0F15A4011DC4B83400914AD9 /* CompareWithCImpTests.swift in Sources */,
 				0F0B054B1DA65D8E00BCF0EB /* DataExtensionsTests.swift in Sources */,

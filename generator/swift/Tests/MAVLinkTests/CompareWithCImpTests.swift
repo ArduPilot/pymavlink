@@ -21,7 +21,7 @@ class CompareWithCImplementationResultsTest: XCTestCase {
     func testSwiftParserImplementationDidReturnSameNumberOfMessagesAsCImplementation() {
         
         // Load data from test tlog file
-        let data = testData
+        let data = testTlogData
         
         // Message and error counters
         var messageCountSwift = 0
@@ -70,7 +70,7 @@ class CompareWithCImplementationResultsTest: XCTestCase {
         continueAfterFailure = false
         
         // Load data from test tlog file
-        let data = testData
+        let data = testTlogData
         
         var messagesCount = 0
         
@@ -134,15 +134,5 @@ class CompareWithCImplementationResultsTest: XCTestCase {
         }
         
         XCTAssert(result == UInt8(MAVLINK_FRAMING_OK.rawValue))
-    }
-}
-
-extension CompareWithCImplementationResultsTest {
-    
-    /// Loads data from test tlog file
-    var testData: Data {
-        let bundle = Bundle(for: type(of: self))
-        let path = bundle.url(forResource: "flight", withExtension: "tlog")
-        return try! Data(contentsOf: path!)
     }
 }
