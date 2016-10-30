@@ -121,7 +121,7 @@ class DataExtensionsTests: XCTestCase {
     }
     
     func testGetStringDidReadEmptyNullTerminatedASCIIEncodedString() {
-        let data = Data(bytes: [0x0, 0x0, 0x0, 0x0, 0x0, 0x0]) // "\0\0\0\0\0\0"
+        let data = Data(bytes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00]) // "\0\0\0\0\0\0"
         let string = try! data.string(at: 1, length: 4)
         
         XCTAssert(string == "", "Expect to get empty string from zeroed data bytes")

@@ -10,81 +10,153 @@ import XCTest
 @testable import MAVLink
 
 class MAVLinkTests: XCTestCase {
-    
     override func setUp() {
         super.setUp()
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+        
+        continueAfterFailure = false
     }
     
-    override func tearDown() {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-        super.tearDown()
-    }
+    // MARK: - Parsing tests
     
-    var erroredIds = Set<UInt8>()
-    var parsedIds = Set<UInt8>()
-    var receivedCount = 0
-    var failedToReceiveCount = 0
-    var parsedCount = 0
-    var failedToParse = 0
-    
-    func testExample() {
-        let bundle = Bundle(for: type(of: self))
-        let path = bundle.url(forResource: "flight", withExtension: "tlog")
-        let data = try! Data(contentsOf: path!)
+    func testParseDidParseMessageThatStartsRightAfterCorruptedMessageIdByte() {
+        let corruptedByte = UInt8(0xC7)
+        
+        var data = Data(testHeartbeatData.prefix(upTo: 5))
+        data.append(corruptedByte)
+        data.append(testStatustextData)
+
+        var callsCount = 0
+        
+        let delegate = Delegate(didParse: { message, _, _, _ in
+            XCTAssert(message is Statustext, "Expects to get instance of Statustext from provided data")
+            
+            callsCount += 1
+        })
+        
         let mavLink = MAVLink()
-        mavLink.delegate = self
+        mavLink.delegate = delegate
+        mavLink.parse(data: data, channel: 0)
         
-        for (offset, data) in data.enumerated() {
-            let _ = offset
-            let _ = mavLink.parse(char: data, channel: 0)
-        }
-        
-        //mavLink.parse(data: data, channel: 0)
-        
-        print(erroredIds)
-        print(parsedIds)
-        print("received: \(receivedCount)")
-        print("failed to receive: \(failedToReceiveCount)")
-        print("parsed: \(parsedCount)")
-        print("failed to parse: \(failedToParse)")
+        XCTAssert(callsCount == 1, "MAVLink instance should parse exactly one message from provided data")
     }
     
-    func testPerformanceExample() {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    func testParseDidParseMessageThatStartsRightAfterCorruptedCRCByte() {
+        let corruptedByte = UInt8(0x00)
+        
+        var data = testHeartbeatData
+        data.removeLast(2)
+        data.append(corruptedByte)
+        data.append(testStatustextData)
+        
+        var callsCount = 0
+        
+        let delegate = Delegate(didParse: { message, _, _, _ in
+            XCTAssert(message is Statustext, "Expects to get instance of Statustext from provided data")
+            
+            callsCount += 1
+        })
+        
+        let mavLink = MAVLink()
+        mavLink.delegate = delegate
+        mavLink.parse(data: data, channel: 0)
+        
+        XCTAssert(callsCount == 1, "MAVLink instance should parse exactly one message from provided data")
+    }
+    
+    // MARK: - Dispatching tests
+    
+    func testDispatchDidPutProperMessageId() {
+        var callsCount = 0
+        
+        let delegate = Delegate(didFinalize: { _, _, data, _, _ in
+            XCTAssert(data[5] == Heartbeat.id, "Sixth byte of MAVLink packet should be message id (in this specific case \(Heartbeat.id))")
+            
+            callsCount += 1
+        })
+        
+        let mavLink = MAVLink()
+        mavLink.delegate = delegate
+        try! mavLink.dispatch(message: testHeartbeatMessage, systemId: 0, componentId: 0, channel: 0)
+        
+        XCTAssert(callsCount == 1, "MAVLink instance should return exactly one finalized packet from provided message")
+    }
+    
+    func testDispatchDidPutProperSystemId() {
+        var callsCount = 0
+        let systemId = UInt8(0xFF)
+        
+        let delegate = Delegate(didFinalize: { _, _, data, _, _ in
+            XCTAssert(data[3] == systemId, "Fourth byte of MAVLink packet should be system id (\(systemId))")
+            
+            callsCount += 1
+        })
+        
+        let mavLink = MAVLink()
+        mavLink.delegate = delegate
+        try! mavLink.dispatch(message: testHeartbeatMessage, systemId: systemId, componentId: 0, channel: 0)
+        
+        XCTAssert(callsCount == 1, "MAVLink instance should return exactly one finalized packet from provided message")
+    }
+    
+    func testDispatchDidPutProperComponentId() {
+        var callsCount = 0
+        let componentId = UInt8(0xFF)
+        
+        let delegate = Delegate(didFinalize: { _, _, data, _, _ in
+            XCTAssert(data[4] == componentId, "Fifth byte of generated MAVLink packet should contain component id (\(componentId))")
+            
+            callsCount += 1
+        })
+        
+        let mavLink = MAVLink()
+        mavLink.delegate = delegate
+        try! mavLink.dispatch(message: testHeartbeatMessage, systemId: 0, componentId: componentId, channel: 0)
+        
+        XCTAssert(callsCount == 1, "MAVLink instance should return exactly one finalized packet from provided message")
+    }
+    
+    func testDispatchDidPutProperCRC() {
+        var callsCount = 0
+        
+        let delegate = Delegate(didFinalize: { [unowned self] _, _, data, _, _ in
+            let expectedData = self.testHeartbeatData
+            XCTAssert(data == expectedData, "Test message`s bytes should match expected constant test data (including CRC)")
+            
+            callsCount += 1
+        })
+        
+        let mavLink = MAVLink()
+        mavLink.delegate = delegate
+        try! mavLink.dispatch(message: testHeartbeatMessage, systemId: 0xFF, componentId: 0, channel: 0)
+        
+        XCTAssert(callsCount == 1, "MAVLink instance should return exactly one finalized packet from provided message")
+    }
+    
+    func testDispatchRethrowsDataExtensionsErrors() {
+        let mavLink = MAVLink()
+        let message = Statustext(severity: MAVSeverity.notice, text:"💩")
+        
+        XCTAssertThrowsError(try mavLink.dispatch(message: message, systemId: 0, componentId: 0, channel: 0)) { error in
+            switch error {
+            case let PackError.invalidStringEncoding(offset, string) where offset == 1 && string == "💩":
+                break
+            default:
+                XCTFail("Unexpected error thrown")
+            }
         }
     }
 }
 
-extension MAVLinkTests: MAVLinkDelegate {
-    func didReceive(packet: Packet, on channel: Channel, via link: MAVLink) {
-        receivedCount += 1
+extension XCTest {
+    var testHeartbeatMessage: Heartbeat {
+        return Heartbeat(type: 6, autopilot: 8, baseMode: 0, customMode: 0, systemStatus: 0, mavlinkVersion: 3)
     }
     
-    func didFailToReceive(packet: Packet?, with error: Error, on channel: Channel, via link: MAVLink) {
-        failedToReceiveCount += 1
-        
-        switch error {
-        case let ParseError.invalidPayloadLength(messageId, _, _):
-            erroredIds.insert(messageId)
-        default:
-            
-            break
-        }
+    var testHeartbeatData: Data {
+        return Data(bytes: [0xFE,0x09,0x00,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x06,0x08,0x00,0x00,0x03,0xA1,0xDF])
     }
     
-    func didParse(message: Message, from packet: Packet, on channel: Channel, via link: MAVLink) {
-        parsedIds.insert(packet.messageId)
-        parsedCount += 1
-    }
-    
-    func didFailToParseMessage(from packet: Packet, with error: Error, on channel: Channel, via link: MAVLink) {
-        failedToParse += 1
-    }
-    
-    func didFinalize(message: Message, from data: Data, on channel: Channel, in link: MAVLink) {
-        
+    var testStatustextData: Data {
+        return Data(bytes: [0xFE,0x33,0x00,0x01,0x01,0xFD,0x01,0x41,0x50,0x4D,0x3A,0x43,0x6F,0x70,0x74,0x65,0x72,0x20,0x56,0x33,0x2E,0x34,0x2D,0x64,0x65,0x76,0x20,0x28,0x62,0x64,0x64,0x64,0x66,0x61,0x65,0x35,0x29,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x90,0x07])
     }
 }
