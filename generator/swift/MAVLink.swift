@@ -29,7 +29,7 @@ public protocol Enumeration: RawRepresentable, Equatable, MAVLinkEntity {
     /// `ENUM_END` flag for checking if enum case value is valid
     static var enumEnd: UInt { get }
     
-    /// Original MAVLinks enum member name (as declared in definition’s xml file)
+    /// Original MAVLinks enum member name (as declared in definition's xml file)
     var memberName: String { get }
     
     /// Specific member description from definitions xml
@@ -65,7 +65,7 @@ extension Enumeration {
 /// Message field definition tuple.
 public typealias FieldDefinition = (name: String, offset: Int, type: String, length: UInt, description: String)
 
-/// Message protocol describes common for all MAVLink messages properties and
+/// Message protocol describes all common MAVLink messages properties and
 /// methods requirements.
 public protocol Message: MAVLinkEntity {
     static var id: UInt8 { get }
@@ -75,24 +75,24 @@ public protocol Message: MAVLinkEntity {
     /// Array of tuples with field definition info
     static var fieldDefinitions: [FieldDefinition] { get }
     
-    /// All fields names and values of current Message
+    /// All field's names and values of current Message
     var allFields: [(String, Any)] { get }
     
     /// Initialize Message from received data.
     ///
     /// - parameter data: Data to decode.
     ///
-    /// - throws: Throws `ParseError` or `ParseEnumError` if any parsing error
-    /// occurs.
+    /// - throws: Throws `ParseError` or `ParseEnumError` if any parsing errors
+    /// occur.
     init(data: Data) throws
     
     /// Returns `Data` representation of current `Message` struct guided
     /// by format from `fieldDefinitions`.
     ///
-    /// - throws: Throws `PackError` if any of message fields does not comply
+    /// - throws: Throws `PackError` if any of message fields do not comply
     /// format from `fieldDefinitions`.
     ///
-    /// - returns: Receiver’s `Data` representation
+    /// - returns: Receiver's `Data` representation
     func pack() throws -> Data
 }
 
@@ -150,9 +150,9 @@ public protocol MAVLinkError: Error, CustomStringConvertible, CustomDebugStringC
 /// Parsing errors
 public enum ParseError: MAVLinkError {
     
-    /// Size of expected number is larger than receivers' data length.
-    /// - offset: Expected number offset in received data.
-    /// - size: Expected number size in bytes.
+    /// Size of expected number is larger than receiver's data length.
+    /// - offset:     Expected number offset in received data.
+    /// - size:       Expected number size in bytes.
     /// - upperBound: The number of bytes in the data.
     case valueSizeOutOfBounds(offset: Int, size: Int, upperBound: Int)
     
@@ -161,21 +161,21 @@ public enum ParseError: MAVLinkError {
     /// - length: Expected length of string to read.
     case invalidStringEncoding(offset: Int, length: Int)
     
-    /// Length check of payload for known `messageId` failed.
-    /// - messageId: ID of expected `Message` type.
+    /// Length check of payload for known `messageId` did fail.
+    /// - messageId:      Id of expected `Message` type.
     /// - receivedLength: Received payload length.
-    /// - properLength: Expected payload length for `Message` type.
+    /// - properLength:   Expected payload length for `Message` type.
     case invalidPayloadLength(messageId: UInt8, receivedLength: UInt8, expectedLength: UInt8)
     
-    /// Received `messageId` was not recognized so we can't create appropirate
+    /// Received `messageId` was not recognized so we can't create appropriate
     /// `Message`.
-    /// - messageId: Id of the message that was not found in known message
+    /// - messageId: Id of the message that was not found in the known message
     /// list (`messageIdToClass` array).
     case unknownMessageId(messageId: UInt8)
     
     /// Checksum check failed. Message id is known but calculated CRC bytes
-    /// does not match received CRC value.
-    /// - messageId: ID of expected `Message` type.
+    /// do not match received CRC value.
+    /// - messageId: Id of expected `Message` type.
     case badCRC(messageId: UInt8)
 }
 
@@ -218,10 +218,10 @@ extension ParseError {
 // MARK: Parsing enumeration error
 
 /// Special error type for returning Enum parsing errors with details in associated
-/// values (types of this values are not compatible with `ParseError` enum).
+/// values (types of these values are not compatible with `ParseError` enum).
 public enum ParseEnumError<T: RawRepresentable>: MAVLinkError {
     
-    /// Enumeration case with `rawValue` at `valueOffset` was not fouund in
+    /// Enumeration case with `rawValue` at `valueOffset` was not found in
     /// `enumType` enumeration.
     /// - enumType: Type of expected enumeration.
     /// - rawValue: Raw value that was not found in `enumType`.
@@ -231,7 +231,7 @@ public enum ParseEnumError<T: RawRepresentable>: MAVLinkError {
 
 extension ParseEnumError {
     
-    /// Textual representation used when written to output stream.
+    /// Textual representation used when written to the output stream.
     public var description: String {
         switch self {
         case .unknownValue:
@@ -239,7 +239,7 @@ extension ParseEnumError {
         }
     }
     
-    /// Debug textual representation used when written to output stream, which
+    /// Debug textual representation used when written to the output stream, which
     /// includes all associated values and their labels.
     public var debugDescription: String {
         switch self {
@@ -254,16 +254,16 @@ extension ParseEnumError {
 /// Errors that can occur while packing `Message` for sending.
 public enum PackError: MAVLinkError {
     
-    /// Size of received value (together with offset) is out of receiver’s lenght.
-    /// - offset: Expected value offset in payload.
-    /// - size: Provided field value size in bytes.
+    /// Size of received value (together with offset) is out of receiver's length.
+    /// - offset:     Expected value offset in payload.
+    /// - size:       Provided field value size in bytes.
     /// - upperBound: Available payload length.
     case valueSizeOutOfBounds(offset: Int, size: Int, upperBound: Int)
     
-    /// Length check for provided field value failed.
-    /// - offset: Expected value offset in payload.
+    /// Length check for provided field value did fail.
+    /// - offset:              Expected value offset in payload.
     /// - providedValueLength: Count of elements (characters) in provided value.
-    /// - allowedLength: Maximum number of elements (characters) allowed in field.
+    /// - allowedLength:       Maximum number of elements (characters) allowed in field.
     case invalidValueLength(offset: Int, providedValueLength: Int, allowedLength: Int)
     
     /// String field contains non ASCII characters.
@@ -272,7 +272,7 @@ public enum PackError: MAVLinkError {
     case invalidStringEncoding(offset: Int, string: String)
     
     /// CRC extra byte not found for provided `messageId` type.
-    /// - messageId: ID of message type.
+    /// - messageId: Id of message type.
     case crcExtraNotFound(messageId: UInt8)
     
     /// Packet finalization process failed due to `message` absence.
@@ -281,7 +281,7 @@ public enum PackError: MAVLinkError {
 
 extension PackError {
     
-    /// Textual representation used when written to output stream.
+    /// Textual representation used when written to the output stream.
     public var description: String {
         switch self {
         case .valueSizeOutOfBounds:
@@ -297,7 +297,7 @@ extension PackError {
         }
     }
     
-    /// Debug textual representation used when written to output stream, which
+    /// Debug textual representation used when written to the output stream, which
     /// includes all associated values and their labels.
     public var debugDescription: String {
         switch self {
@@ -317,12 +317,12 @@ extension PackError {
 
 // MARK: - Delegate protocol
 
-/// Alternative way to receive parsed Messages, finalized packets' data and all
-/// errors is to implement this protocol and set as `MAVLink`s' delegate.
+/// Alternative way to receive parsed Messages, finalized packet's data and all
+/// errors is to implement this protocol and set as `MAVLink`'s delegate.
 public protocol MAVLinkDelegate {
     
-    /// Called when MAVLink packet is successfully received, payload length check
-    /// and CRC are passed.
+    /// Called when MAVLink packet is successfully received, payload length
+    /// and CRC checks are passed.
     ///
     /// - parameter packet:  Completely received `Packet`.
     /// - parameter channel: Channel on which `packet` was received.
@@ -335,7 +335,7 @@ public protocol MAVLinkDelegate {
     /// - parameter packet:    Partially received `Packet`.
     /// - parameter error:     Error that  occurred while receiving `data`
     /// (`InvalidPayloadLength` or `BadCRC` error).
-    /// - parameter channel:   Channel on which `data` was received.
+    /// - parameter channel:   Channel on which `packet` was received.
     /// - parameter link:      `MAVLink` object that received `data`.
     func didFailToReceive(packet: Packet?, with error: MAVLinkError, on channel: Channel, via link: MAVLink)
     
@@ -349,11 +349,11 @@ public protocol MAVLinkDelegate {
     func didParse(message: Message, from packet: Packet, on channel: Channel, via link: MAVLink)
     
     /// Called when `packet` completely received but `MAVLink` was not able to
-    /// finish `Message` processing due unknown `messageId` or type validation
+    /// finish `Message` processing due to unknown `messageId` or type validation
     /// errors.
     ///
     /// - parameter packet:  Completely received `Packet`.
-    /// - parameter error:   Error that  occurred while parsing `packet`s
+    /// - parameter error:   Error that  occurred while parsing `packet`'s
     /// payload into `Message`.
     /// - parameter channel: Channel on which `message` was received.
     /// - parameter link:    `MAVLink` object that handled `packet`.
@@ -409,10 +409,10 @@ public class MAVLink {
         /// Parsing state machine
         var parseState: ParseState = .uninit
         
-        /// Sequence number of last packet received
+        /// Sequence number of the last received packet
         var currentRxSeq: UInt8 = 0
         
-        /// Sequence number of last packet sent
+        /// Sequence number of the last sent packet
         var currentTxSeq: UInt8 = 0
         
         /// Received packets
@@ -430,14 +430,14 @@ public class MAVLink {
     public var delegate: MAVLinkDelegate?
     
     /// Enable this option to check the length of each message. This allows
-    /// invalid messages to be caught much sooner. Use if the transmission
+    /// invalid messages to be caught much sooner. Use it if the transmission
     /// medium is prone to missing (or extra) characters (e.g. a radio that
-    /// fades in and out). Only use if the channel will only contain messages
+    /// fades in and out). Use only if the channel will contain message
     /// types listed in the headers.
     public var checkMessageLength = true
     
     /// Use one extra CRC that is added to the message CRC to detect mismatches
-    /// in message specifications. This is to prevent that two devices using
+    /// in the message specifications. This is to prevent that two devices using
     /// different message versions incorrectly decode a message with the same
     /// length. Defined as `let` as we support only the latest version (1.0) of
     /// the MAVLink wire protocol.
@@ -449,7 +449,7 @@ public class MAVLink {
     /// other failures will be delegated to `delegate`.
     ///
     /// - parameter char:    The char to parse.
-    /// - parameter channel: ID of the current channel. This allows to parse
+    /// - parameter channel: Id of the current channel. This allows to parse
     /// different channels with this function. A channel is not a physical
     /// message channel like a serial port, but a logic partition of the
     /// communication streams in this case.
@@ -607,12 +607,12 @@ public class MAVLink {
     /// is available.
     ///
     /// - parameter data:           Data to be parsed.
-    /// - parameter channel:        ID of the current channel. This allows to
+    /// - parameter channel:        Id of the current channel. This allows to
     /// parse different channels with this function. A channel is not a physical
     /// message channel like a serial port, but a logic partition of the
     /// communication streams in this case.
     /// - parameter messageHandler: The message handler to call when the
-    /// provided data is enought to complete message parsing. Unless you have
+    /// provided data is enough to complete message parsing. Unless you have
     /// provided a custom delegate, this parameter must not be `nil`, because
     /// there is no other way to retrieve the parsed message and packet.
     public func parse(data: Data, channel: Channel, messageHandler:((Message, Packet) -> Void)? = nil) {
@@ -627,9 +627,9 @@ public class MAVLink {
     /// processing and increase sequence counter.
     ///
     /// - parameter message:     Message to be compiled into bytes and sent.
-    /// - parameter systemId:    ID of the sending (this) system.
-    /// - parameter componentId: ID of the sending component.
-    /// - parameter channel:     ID of the current channel.
+    /// - parameter systemId:    Id of the sending (this) system.
+    /// - parameter componentId: Id of the sending component.
+    /// - parameter channel:     Id of the current channel.
     ///
     /// - throws: Throws `PackError`.
     public func dispatch(message: Message, systemId: UInt8, componentId: UInt8, channel: Channel) throws {
@@ -683,13 +683,13 @@ public class Packet {
     /// Sequence of packet
     public internal(set) var sequence: UInt8 = 0
     
-    /// ID of message sender system/aircraft
+    /// Id of message sender system/aircraft
     public internal(set) var systemId: UInt8 = 0
     
-    /// ID of the message sender component
+    /// Id of the message sender component
     public internal(set) var componentId: UInt8 = 0
     
-    /// ID of message type in payload
+    /// Id of message type in payload
     public internal(set) var messageId: UInt8 = 0
     
     /// Message bytes
@@ -717,9 +717,9 @@ public class Packet {
     /// Initialize packet with provided `message` for sending.
     ///
     /// - parameter message:     Message to send.
-    /// - parameter systemId:    ID of the sending (this) system.
-    /// - parameter componentId: ID of the sending component.
-    /// - parameter channel:     ID of the current channel.
+    /// - parameter systemId:    Id of the sending (this) system.
+    /// - parameter componentId: Id of the sending component.
+    /// - parameter channel:     Id of the current channel.
     init(message: Message, systemId: UInt8, componentId: UInt8, channel: Channel) {
         self.magic = Constant.packetStx
         self.systemId = systemId
@@ -735,12 +735,12 @@ public class Packet {
     /// Finalize a MAVLink packet with sequence assignment. Returns data that
     /// could be sent to the aircraft. This function calculates the checksum and
     /// sets length and aircraft id correctly. It assumes that the packet is
-    /// already correctly initalized with apropirate `message`, `length`,
+    /// already correctly initialized with appropriate `message`, `length`,
     /// `systemId`, `componentId`.
     /// Could be used to send packets without `MAVLink` object, in this case you
     /// should take care of `sequence` counter manually.
     ///
-    /// - parameter sequence: Each channel counts up his send sequence. Allows
+    /// - parameter sequence: Each channel counts up its send sequence. It allows
     /// to detect packet loss.
     ///
     /// - throws: Throws `PackError`.
@@ -797,7 +797,7 @@ public struct Checksum {
         start()
     }
     
-    /// Initiliaze the buffer for the X.25 CRC.
+    /// Initialize the buffer for the X.25 CRC.
     mutating func start() {
         value = Constants.x25InitCRCValue
     }
@@ -848,9 +848,9 @@ extension Double: MAVLinkNumber { }
 /// Methods for getting properly typed field values from received data.
 extension Data {
     
-    /// Returns number value (integer or floating point) from receiver’s data.
+    /// Returns number value (integer or floating point) from receiver's data.
     ///
-    /// - parameter offset: Offset in receiver’s bytes.
+    /// - parameter offset: Offset in receiver's bytes.
     /// - parameter byteOrder: Current system endianness.
     ///
     /// - throws: Throws `ParseError`.
@@ -873,9 +873,9 @@ extension Data {
         return bytes.withUnsafeBytes { $0.pointee }
     }
     
-    /// Returns typed array from receiver’s data.
+    /// Returns typed array from receiver's data.
     ///
-    /// - parameter offset:   Offset in receiver’s bytes.
+    /// - parameter offset:   Offset in receiver's bytes.
     /// - parameter capacity: Expected number of elements in array.
     ///
     /// - throws: Throws `ParseError`.
@@ -893,9 +893,9 @@ extension Data {
         return array
     }
     
-    /// Returns ASCII String from receiver’s data.
+    /// Returns ASCII String from receiver's data.
     ///
-    /// - parameter offset: Offset in receiver’s bytes.
+    /// - parameter offset: Offset in receiver's bytes.
     /// - parameter length: Expected length of string to read.
     ///
     /// - throws: Throws `ParseError`.
@@ -922,7 +922,7 @@ extension Data {
     /// Returns proper typed `Enumeration` subtype value from data or throws
     /// `ParserEnumError` or `ParseError` error.
     ///
-    /// - parameter offset: Offset in receiver’s bytes.
+    /// - parameter offset: Offset in receiver's bytes.
     ///
     /// - throws: Throws `ParserEnumError`, `ParseError`.
     ///
@@ -948,7 +948,7 @@ extension Data {
     /// (little-endian byte order).
     ///
     /// - parameter number: Number value to set.
-    /// - parameter offset: Offset in receiver’s bytes.
+    /// - parameter offset: Offset in receiver's bytes.
     /// - parameter byteOrder: Current system endianness.
     ///
     /// - throws: Throws `PackError`.
@@ -978,7 +978,7 @@ extension Data {
     /// Sets `array` of `MAVLinkNumber` values at `offset` with `capacity` validation.
     ///
     /// - parameter array:    Array of values to set.
-    /// - parameter offset:   Offset in receiver’s bytes.
+    /// - parameter offset:   Offset in receiver's bytes.
     /// - parameter capacity: Maximum allowed count of elements in `array`.
     ///
     /// - throws: Throws `PackError`.
@@ -1005,7 +1005,7 @@ extension Data {
     /// - precondition: `string` value must be ASCII compatible.
     ///
     /// - parameter string: Value to set.
-    /// - parameter offset: Offset in receiver’s bytes.
+    /// - parameter offset: Offset in receiver's bytes.
     /// - parameter length: Maximum allowed length of `string`.
     ///
     /// - throws: Throws `PackError`.
@@ -1028,7 +1028,7 @@ extension Data {
     /// `PackError`.
     ///
     /// - parameter enumeration: Value to set.
-    /// - parameter offset:      Offset in receiver’s bytes.
+    /// - parameter offset:      Offset in receiver's bytes.
     ///
     /// - throws: Throws `PackError`.
     mutating func set<T: Enumeration>(_ enumeration: T, at offset: Data.Index) throws where T.RawValue: MAVLinkNumber {
