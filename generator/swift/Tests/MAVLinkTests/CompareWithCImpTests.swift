@@ -12,6 +12,34 @@ import MAVLink_C
 
 class CompareWithCImplementationResultsTest: XCTestCase {
     
+    func testSwiftParserImplementationDidReturnSameFloatValuesAsCImplementation() {
+        let data = testAttitudeData
+        
+        let mavLink = MAVLink()
+        var attitudeMessageSwift: Attitude!
+        mavLink.parse(data: data, channel: 0) { message, _ in
+            attitudeMessageSwift = message as! Attitude
+        }
+        
+        XCTAssert(attitudeMessageSwift != nil, "Expects to receive valid Attitude message from provided data")
+        
+        var messageC = mavlink_message_t()
+        var statusC = mavlink_status_t()
+        var attitudeMessageC = mavlink_attitude_t()
+
+        data.forEach { mavlink_parse_char(0, $0, &messageC, &statusC) }
+        
+        mavlink_msg_attitude_decode(&messageC, &attitudeMessageC)
+        
+        XCTAssert(attitudeMessageSwift.timeBootMs == attitudeMessageC.time_boot_ms)
+        XCTAssert(attitudeMessageSwift.roll == attitudeMessageC.roll)
+        XCTAssert(attitudeMessageSwift.pitch == attitudeMessageC.pitch)
+        XCTAssert(attitudeMessageSwift.yaw == attitudeMessageC.yaw)
+        XCTAssert(attitudeMessageSwift.rollspeed == attitudeMessageC.rollspeed)
+        XCTAssert(attitudeMessageSwift.pitchspeed == attitudeMessageC.pitchspeed)
+        XCTAssert(attitudeMessageSwift.yawspeed == attitudeMessageC.yawspeed)
+    }
+    
     /// Test MAVLink parser on the real world data and compare results with C code results
     /// on the same data set. This test could take significant amount of time (tlog
     /// contains about 163000 messages).
@@ -75,7 +103,7 @@ class CompareWithCImplementationResultsTest: XCTestCase {
         var messagesCount = 0
         
         // Delegated messages handler
-        let delegate = Delegate(didParse: { _, packet, _, link in
+        let delegate = Delegate(didParse: { message, packet, _, link in
             let data = try! packet.finalize(sequence: 0)
             var message = mavlink_message_t()
             var status = mavlink_status_t()
