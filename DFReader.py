@@ -16,6 +16,7 @@ import math
 import sys
 
 import struct
+import sys
 from . import mavutil
 
 try:
@@ -46,6 +47,8 @@ FORMAT_TO_STRUCT = {
     "Q": ("Q", None, long),  # Backward compat
     }
 
+def u_ord(c):
+	return ord(c) if sys.version_info.major < 3 else c
 
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns):
@@ -63,7 +66,7 @@ class DFFormat(object):
         msg_types = []
         msg_fmts = []
         for c in format:
-            if ord(c) == 0:
+            if u_ord(c) == 0:
                 break
             try:
                 msg_fmts.append(c)
@@ -95,6 +98,8 @@ class DFFormat(object):
 
 def null_term(str):
     '''null terminate a string'''
+    if isinstance(str, bytes):
+        str = str.decode("utf-8")
     idx = str.find("\0")
     if idx != -1:
         str = str[:idx]
@@ -122,7 +127,10 @@ class DFMessage(object):
             i = self.fmt.colhash[field]
         except Exception:
             raise AttributeError(field)
-        v = self._elements[i]
+        if isinstance(self._elements[i], bytes):
+            v = self._elements[i].decode("utf-8")
+        else:
+            v = self._elements[i]
         if self.fmt.format[i] == 'a':
             pass
         elif self.fmt.format[i] != 'M' or self._apply_multiplier:
@@ -553,9 +561,9 @@ class DFReader_binary(DFReader):
     def __init__(self, filename, zero_time_base=False):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        f = open(filename, mode='rb')
-        self.data = f.read()
-        self.data_len = len(self.data)
+        with open(filename, 'rb') as f:
+            self.data = f.read()
+            self.data_len = len(self.data)
         f.close()
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
@@ -585,17 +593,17 @@ class DFReader_binary(DFReader):
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
-        while (ord(hdr[0]) != self.HEAD1 or ord(hdr[1]) != self.HEAD2 or
-               ord(hdr[2]) not in self.formats):
+        while (u_ord(hdr[0]) != self.HEAD1 or u_ord(hdr[1]) != self.HEAD2 or
+	       u_ord(hdr[2]) not in self.formats):
             if skip_type is None:
-                skip_type = (ord(hdr[0]), ord(hdr[1]), ord(hdr[2]))
+                skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
                 skip_start = self.offset
             skip_bytes += 1
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
             hdr = self.data[self.offset:self.offset+3]
-        msg_type = ord(hdr[2])
+        msg_type = u_ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
                 return None
@@ -657,7 +665,6 @@ class DFReader_binary(DFReader):
         self.remaining -= fmt.len-3
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
-
         self.percent = 100.0 * (self.offset / float(self.data_len))
 
         return m
@@ -665,8 +672,8 @@ class DFReader_binary(DFReader):
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
-    f = open(filename)
-    ret = (f.read(8000).find('FMT, ') != -1)
+    with open(filename, 'r') as f:
+        ret = (f.read(8000).find('FMT, ') != -1)
     f.close()
     return ret
 
@@ -676,8 +683,8 @@ class DFReader_text(DFReader):
     def __init__(self, filename, zero_time_base=False):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        f = open(filename, mode='r')
-        self.lines = f.readlines()
+        with open(filename, 'r') as f:
+            self.lines = f.readlines()
         f.close()
         self.formats = {
             'FMT': DFFormat(0x80,
