@@ -105,6 +105,13 @@ class MAVLink_message(object):
         self._signed     = False
         self._link_id    = None
 
+    def format_attr(self, field):
+        '''override field getter'''
+        raw_attr = getattr(self,field)
+        if isinstance(raw_attr, bytes):
+            raw_attr = raw_attr.decode("utf-8").rstrip("\\00")
+        return raw_attr
+
     def get_msgbuf(self):
         if isinstance(self._msgbuf, bytearray):
             return self._msgbuf
@@ -146,7 +153,7 @@ class MAVLink_message(object):
     def __str__(self):
         ret = '%s {' % self._type
         for a in self._fieldnames:
-            v = getattr(self, a)
+            v = self.format_attr(a)
             ret += '%s : %s, ' % (a, v)
         ret = ret[0:-2] + '}'
         return ret
@@ -175,7 +182,7 @@ class MAVLink_message(object):
             return False   
             
         for a in self._fieldnames:
-            if getattr(self, a) != getattr(other, a):
+            if self.format_attr(a) != other.format_attr(a):
                 return False
 
         return True
@@ -184,7 +191,7 @@ class MAVLink_message(object):
         d = dict({})
         d['mavpackettype'] = self._type
         for a in self._fieldnames:
-          d[a] = getattr(self, a)
+          d[a] = self.format_attr(a)
         return d
 
     def to_json(self):
