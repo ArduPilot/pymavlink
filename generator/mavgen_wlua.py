@@ -93,7 +93,7 @@ f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.HEX)
 f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.HEX)
 f.msgid = ProtoField.uint8("mavlink_proto.msgid", "Message id", base.HEX)
 f.crc = ProtoField.uint16("mavlink_proto.crc", "Message CRC", base.HEX)
-f.payload = ProtoField.uint8("mavlink_proto.crc", "Payload", base.DEC, messageName)
+f.payload = ProtoField.uint8("mavlink_proto.payload", "Payload", base.DEC, messageName)
 f.rawheader = ProtoField.bytes("mavlink_proto.rawheader", "Unparsable header fragment")
 f.rawpayload = ProtoField.bytes("mavlink_proto.rawpayload", "Unparsable payload")
 
