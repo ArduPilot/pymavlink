@@ -1594,7 +1594,7 @@ def interpret_px4_mode(base_mode, custom_mode):
                 return "LAND"
             elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_RTGS:
                 return "RTGS"
-            elif custom_sub_mode == PX4_CUSTOM_MAIN_MODE_OFFBOARD:
+            elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_OFFBOARD:
                 return "OFFBOARD"
     return "UNKNOWN"
 
