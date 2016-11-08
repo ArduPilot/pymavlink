@@ -1,5 +1,6 @@
 from __future__ import print_function
 from __future__ import absolute_import
+from setuptools.command.build_py import build_py
 # Work around mbcs bug in distutils.
 # http://bugs.python.org/issue10945
 import codecs
@@ -87,7 +88,13 @@ if platform.system() != 'Windows':
 else:
     print("Skipping mavnative due to Windows possibly missing a compiler...")
 
-generate_content()
+
+class custom_build_py(build_py):
+    def run(self):
+        generate_content()
+
+        # distutils uses old-style classes, so no super()
+        build_py.run(self)
 
 
 setup (name = 'pymavlink',
@@ -143,5 +150,6 @@ setup (name = 'pymavlink',
             'future',
             'lxml',
        ],
+       cmdclass={'build_py': custom_build_py},
        ext_modules = extensions
        )
