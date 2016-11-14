@@ -5,7 +5,7 @@ This is a python implementation of the MAVLink protocol.
 # Documentation
 
 Please see http://www.qgroundcontrol.org/mavlink/pymavlink for
-documentation
+documentation.
 
 # Installation 
 
@@ -13,28 +13,33 @@ documentation
 
 Pymavlink is currently a Python 2 package. It is recommended to install and use it with Python 2. 
 
-However an initial Python 3 support is given
-The following instruction assume your are using Python 2 and an Ubuntu installation
+However an initial Python 3 support is given.
+The following instruction assume your are using Python 2 and an Debian-based (like Ubuntu) installation.
 
 ## Dependencies
 
-Pymavlink requires two dependencies :
+Pymavlink requires 3 dependencies :
 
-    - future : for python 2 and python 3 interoperability
-    - lxml : for checking and parsing xml file
+    - future : for python 2 and python 3 interoperability (http://python-future.org/)
+    - lxml : for checking and parsing xml file (http://lxml.de/installation.html)
+    - python-dev : for mavnative
 
 ### On linux
 
-Using pip you can install the required dependencies
+lxml has some additional dependencies that can be installed with your package manager (here with apt-get) :
 
 ```bash
-sudo pip2 install -r requirements.txt
+sudo apt-get install libxml2-dev libxslt-dev python-dev
+
 ```
 
-Or
+Using pip you can install the required dependencies for pymavlink :
+
 ```bash
 sudo pip2 install -U future lxml
 ```
+
+The -U parameter allow to update future and lxml version if it is already installed.
 
 ### On Windows
 
@@ -54,16 +59,20 @@ The -U parameter allow to update pymavlink version if it is already installed.
 
 ### For developpers
 
-On the pymavlink directory, prefer use of
+On the pymavlink directory, you can use :
 ```bash
-sudo pip2 install .
+sudo MDEF=PATH_TO_message_definitions pip2 install . -v
 ```
-instead of
+The -v parameter will output the installation commands on the terminal.
+The MDEF usage is require as pip install is done from /tmp directory, so it is necessary to use MDEF variable to 
+point on the message_definitions directory.
+Use pip should auto install dependencies and allow to keep them up-to-date with pip. 
+
+Or 
 ```bash
 sudo python2 setup.py install
 ```
 
-That way pip should auto install dependencies and allow to keep them up-to-date with pip. 
 
 ### Advance usage
 
@@ -72,6 +81,6 @@ Please see Pip documentation : https://pip.pypa.io/en/stable/
 # License
 -------
 
-pymavlink is released under the GNU Lesser General Public License v3 or later
+pymavlink is released under the GNU Lesser General Public License v3 or later.
 
 Join the chat at https://gitter.im/ArduPilot/pymavlink
