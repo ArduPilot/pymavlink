@@ -64,12 +64,9 @@ def generate_enums(directory, filelist, xml_list, enums, msgs):
 
     print("Generating Enumerations")
 
-    dirpath = os.path.join(directory, 'Enumerations')
-    mavparse.mkdir_p(dirpath)
-
     for enum in enums:
-        filename = "%s.swift" % enum.name
-        filepath = os.path.join(dirpath, filename)
+        filename = "%s%sEnum.swift" % (enum.swift_name, enum.basename)
+        filepath = os.path.join(directory, filename)
         outf = open(filepath, "w")
         generate_header(outf, filelist, xml_list, filename)
         t.write(outf, """
@@ -101,12 +98,9 @@ def generate_messages(directory, filelist, xml_list, msgs):
 
     print("Generating Messages")
 
-    dirpath = os.path.join(directory, 'Messages')
-    mavparse.mkdir_p(dirpath)
-
     for msg in msgs:
-        filename = "%s.swift" % msg.name
-        filepath = os.path.join(dirpath, filename)
+        filename = "%s%sMsg.swift" % (msg.swift_name, msg.basename)
+        filepath = os.path.join(directory, filename)
         outf = open(filepath, "w")
         generate_header(outf, filelist, xml_list, filename)
         t.write(outf, """
@@ -312,6 +306,9 @@ def generate(basename, xml_list):
     filelist = []
 
     for xml in xml_list:
+        for msg in xml.message: msg.basename = xml.basename.title()
+        for enum in xml.enum: enum.basename = xml.basename.title()
+
         msgs.extend(xml.message)
         enums.extend(xml.enum)
         filelist.append(os.path.basename(xml.filename))
