@@ -70,7 +70,7 @@ if nottypes is not None:
     nottypes = nottypes.split(',')
 
 ext = os.path.splitext(filename)[1]
-isbin = ext in ['.bin', '.BIN']
+isbin = ext in ['.bin', '.BIN', '.px4log']
 islog = ext in ['.log', '.LOG'] # NOTE: "islog" does not mean a tlog
 istlog = ext in ['.tlog', '.TLOG']
 
