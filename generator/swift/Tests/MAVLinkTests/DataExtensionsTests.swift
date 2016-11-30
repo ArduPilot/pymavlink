@@ -33,7 +33,7 @@ class DataExtensionsTests: XCTestCase {
     func testGetNumberDidGetNumberAtOffset() {
         let data = Data(bytes: [0x00, 0x00, 0x01, 0x02, 0x03, 0x04])
         let expectedNumber: UInt32 = 0x01_02_03_04
-        let receivedNumber: UInt32 = try! data.number(at: 2, byteOrder: Int(CFByteOrderBigEndian.rawValue))
+        let receivedNumber: UInt32 = try! data.number(at: 2, byteOrder: .bigEndian)
         
         XCTAssert(receivedNumber == expectedNumber, "Method should return number value available at specified offset in data")
     }
@@ -43,7 +43,7 @@ class DataExtensionsTests: XCTestCase {
         let expectedNumber: UInt32 = 0x01_02_03_04
         
         let data = Data(bytes: memoryBytes)
-        let receivedNumber: UInt32 = try! data.number(at: 0, byteOrder: Int(CFByteOrderLittleEndian.rawValue))
+        let receivedNumber: UInt32 = try! data.number(at: 0, byteOrder: .littleEndian)
         
         XCTAssert(receivedNumber == expectedNumber, "Method expects swapped bytes in memory on little-endian system (most significant digit byte at the end)")
     }
@@ -53,7 +53,7 @@ class DataExtensionsTests: XCTestCase {
         let expectedNumber: UInt32 = 0x01_02_03_04
         
         let data = Data(bytes: memoryBytes)
-        let receivedNumber: UInt32 = try! data.number(at: 0, byteOrder: Int(CFByteOrderBigEndian.rawValue))
+        let receivedNumber: UInt32 = try! data.number(at: 0, byteOrder: .bigEndian)
         
         XCTAssert(receivedNumber == expectedNumber, "Method expects less significant digit byte at the end of value's memory chunk")
     }
@@ -187,7 +187,7 @@ class DataExtensionsTests: XCTestCase {
         let number: UInt32 = 0x01_02_03_04
         let expectedData = Data(bytes: [0x00, 0x00, 0x01, 0x02, 0x03, 0x04])
 
-        try! data.set(number, at: 2, byteOrder: Int(CFByteOrderBigEndian.rawValue))
+        try! data.set(number, at: 2, byteOrder: .bigEndian)
         
         XCTAssert(data == expectedData, "Method should set number at specified offset in data memory")
     }
@@ -197,7 +197,7 @@ class DataExtensionsTests: XCTestCase {
         let number: UInt32 = 0x01_02_03_04
         let expectedData = Data(bytes: [0x04, 0x03, 0x02, 0x01])
         
-        try! data.set(number, at: 0, byteOrder: Int(CFByteOrderLittleEndian.rawValue))
+        try! data.set(number, at: 0, byteOrder: .littleEndian)
         
         XCTAssert(data == expectedData, "Method should write swapped bytes in memory on little-endian system (most significant digit byte at the end)")
     }
@@ -207,7 +207,7 @@ class DataExtensionsTests: XCTestCase {
         let number: UInt32 = 0x01_02_03_04
         let expectedData = Data(bytes: [0x01, 0x02, 0x03, 0x04])
         
-        try! data.set(number, at: 0, byteOrder: Int(CFByteOrderBigEndian.rawValue))
+        try! data.set(number, at: 0, byteOrder: .bigEndian)
         
         XCTAssert(data == expectedData, "Method should write less significant digit byte at the end of data's memory chunk")
     }

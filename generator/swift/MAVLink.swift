@@ -821,6 +821,27 @@ public struct Checksum {
     }
 }
 
+// MARK: - CF independent host system byte order determination
+
+public enum ByteOrder: UInt32 {
+    case unknown
+    case littleEndian
+    case bigEndian
+}
+
+public func hostByteOrder() -> ByteOrder {
+    var bigAndLittleEndian: UInt32 = (ByteOrder.bigEndian.rawValue << 24) | ByteOrder.littleEndian.rawValue
+    
+    let firstByte: UInt8 = withUnsafePointer(to: &bigAndLittleEndian) { numberPointer in
+        let bufferPointer = numberPointer.withMemoryRebound(to: UInt8.self, capacity: 4) { pointer in
+            return UnsafeBufferPointer(start: pointer, count: 4)
+        }
+        return bufferPointer[0]
+    }
+    
+    return ByteOrder(rawValue: UInt32(firstByte)) ?? .unknown
+}
+
 // MARK: - Data extensions
 
 protocol MAVLinkNumber { }
@@ -857,7 +878,7 @@ extension Data {
     ///
     /// - returns: Returns `MAVLinkNumber` (UInt8, Int8, UInt16, Int16, UInt32,
     /// Int32, UInt64, Int64, Float, Double).
-    func number<T: MAVLinkNumber>(at offset: Data.Index, byteOrder: CFByteOrder = CFByteOrderGetCurrent()) throws -> T {
+    func number<T: MAVLinkNumber>(at offset: Data.Index, byteOrder: ByteOrder = hostByteOrder()) throws -> T {
         let size = MemoryLayout<T>.stride
         let range: Range<Int> = offset ..< offset + size
         
@@ -866,7 +887,7 @@ extension Data {
         }
         
         var bytes = subdata(in: range)
-        if byteOrder != Int(CFByteOrderLittleEndian.rawValue) {
+        if byteOrder != .littleEndian {
             bytes.reverse()
         }
         
@@ -952,7 +973,7 @@ extension Data {
     /// - parameter byteOrder: Current system endianness.
     ///
     /// - throws: Throws `PackError`.
-    mutating func set<T: MAVLinkNumber>(_ number: T, at offset: Data.Index, byteOrder: CFByteOrder = CFByteOrderGetCurrent()) throws -> Void {
+    mutating func set<T: MAVLinkNumber>(_ number: T, at offset: Data.Index, byteOrder: ByteOrder = hostByteOrder()) throws -> Void {
         let size = MemoryLayout<T>.stride
         let range = offset ..< offset + size
         
@@ -963,12 +984,12 @@ extension Data {
         var number = number
         var bytes: Data = withUnsafePointer(to: &number) { numberPointer in
             let bufferPointer = numberPointer.withMemoryRebound(to: UInt8.self, capacity: size) { pointer in
-                UnsafeBufferPointer(start: pointer, count: size)
+                return UnsafeBufferPointer(start: pointer, count: size)
             }
             return Data(bufferPointer)
         }
         
-        if byteOrder != Int(CFByteOrderLittleEndian.rawValue) {
+        if byteOrder != .littleEndian {
             bytes.reverse()
         }
         
