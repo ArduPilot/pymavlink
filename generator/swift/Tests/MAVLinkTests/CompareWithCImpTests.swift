@@ -6,6 +6,7 @@
 //  Copyright © 2016 Build Apps. All rights reserved.
 //
 
+import Foundation
 import XCTest
 import MAVLink_C
 @testable import MAVLink

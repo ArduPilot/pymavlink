@@ -6,6 +6,7 @@
 //  Copyright © 2016 Build Apps. All rights reserved.
 //
 
+import Foundation
 import XCTest
 @testable import MAVLink
 
@@ -13,9 +14,31 @@ extension XCTestCase {
     
     /// Loads data from test tlog file
     var testTlogData: Data {
-        let bundle = Bundle(for: MAVLinkTests.self)
-        let path = bundle.url(forResource: "flight", withExtension: "tlog")
-        return try! Data(contentsOf: path!)
+        func bundledPath() -> URL? {
+            let bundle = Bundle(for: MAVLinkTests.self)
+            return bundle.url(forResource: "flight", withExtension: "tlog")
+        }
+        
+        func relativePath() -> URL {
+            let packagePath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            return packagePath.appendingPathComponent("Tests/MAVLinkTests/Testdata/flight.tlog")
+        }
+        
+        let logPath: URL!
+        
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+            if let path = bundledPath() {
+                logPath = path
+            } else {
+                logPath = relativePath()
+            }
+        #elseif os(Linux)
+            logPath = relativePath()
+        #else
+            XCTFail("Unsupported target OS")
+        #endif
+        
+        return try! Data(contentsOf: logPath)
     }
     
     /**
