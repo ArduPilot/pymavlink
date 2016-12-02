@@ -1031,7 +1031,9 @@ extension Data {
     ///
     /// - throws: Throws `PackError`.
     mutating func set(_ string: String, at offset: Data.Index, length: Int) throws {
-        guard var bytes = string.data(using: .ascii) else {
+        var bytes = string.data(using: .ascii) ?? Data()
+        
+        if bytes.isEmpty && string.unicodeScalars.count > 0 {
             throw PackError.invalidStringEncoding(offset: offset, string: string)
         }
         
