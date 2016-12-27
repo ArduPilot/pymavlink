@@ -1581,9 +1581,9 @@ def interpret_px4_mode(base_mode, custom_mode):
     elif (base_mode & auto_mode_flags) == auto_mode_flags: #auto modes
         if custom_main_mode & PX4_CUSTOM_MAIN_MODE_AUTO != 0:
             if custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_MISSION:
-                return "TAKEOFF"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF:
                 return "MISSION"
+            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF:
+                return "TAKEOFF"
             elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER:
                 return "LOITER"
             elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET:
