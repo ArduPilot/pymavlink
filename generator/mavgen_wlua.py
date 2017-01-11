@@ -284,7 +284,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         subtree:add_le(f.crc, crc)
         offset = offset + 2
 
-    end -- end of while
+    end
 end
 
 
