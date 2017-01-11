@@ -199,87 +199,92 @@ def generate_packet_dis(outf):
 -- dissector function
 function mavlink_proto.dissector(buffer,pinfo,tree)
     local offset = 0
-            
-    local subtree = tree:add (mavlink_proto, buffer(), "MAVLink Protocol ("..buffer:len()..")")
-
-    -- decode protocol version first
-    local version = buffer(offset,1):uint()
-    local protocolString = ""
     
-    if (version == 0xfe) then
+    -- loop through the buffer to extract all the messages in the buffer
+    while (offset < buffer:len()) 
+    do
+    
+        local subtree = tree:add (mavlink_proto, buffer(), "MAVLink Protocol ("..buffer:len()..")")
+
+        -- decode protocol version first
+        local version = buffer(offset,1):uint()
+        local protocolString = ""
+    
+        if (version == 0xfe) then
             protocolString = "MAVLink 1.0"
-    elseif (version == 0x55) then
+        elseif (version == 0x55) then
             protocolString = "MAVLink 0.9"
-    else
+        else
             protocolString = "unknown"
-    end
+        end
 
-    -- some Wireshark decoration
-    pinfo.cols.protocol = protocolString
+        -- some Wireshark decoration
+        pinfo.cols.protocol = protocolString
 
-    -- HEADER ----------------------------------------
+        -- HEADER ----------------------------------------
     
-    local msgid
-    if (buffer:len() - 2 - offset > 6) then
-        -- normal header
-        local header = subtree:add("Header")
-        header:add(f.magic,version)
-        offset = offset + 1
+        local msgid
+        if (buffer:len() - 2 - offset > 6) then
+            -- normal header
+            local header = subtree:add("Header")
+            header:add(f.magic,version)
+            offset = offset + 1
         
-        local length = buffer(offset,1)
-        header:add(f.length, length)
-        offset = offset + 1
+            local length = buffer(offset,1)
+            header:add(f.length, length)
+            offset = offset + 1
         
-        local sequence = buffer(offset,1)
-        header:add(f.sequence, sequence)
-        offset = offset + 1
+            local sequence = buffer(offset,1)
+            header:add(f.sequence, sequence)
+            offset = offset + 1
         
-        local sysid = buffer(offset,1)
-        header:add(f.sysid, sysid)
-        offset = offset + 1
+            local sysid = buffer(offset,1)
+            header:add(f.sysid, sysid)
+            offset = offset + 1
     
-        local compid = buffer(offset,1)
-        header:add(f.compid, compid)
-        offset = offset + 1
+            local compid = buffer(offset,1)
+            header:add(f.compid, compid)
+            offset = offset + 1
         
-        pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
+            pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
     
-        msgid = buffer(offset,1)
-        header:add(f.msgid, msgid)
-        offset = offset + 1
-    else 
-        -- handle truncated header
-        local hsize = buffer:len() - 2 - offset
-        subtree:add(f.rawheader, buffer(offset, hsize))
-        offset = offset + hsize
-    end
+            msgid = buffer(offset,1)
+            header:add(f.msgid, msgid)
+            offset = offset + 1
+        else 
+            -- handle truncated header
+            local hsize = buffer:len() - 2 - offset
+            subtree:add(f.rawheader, buffer(offset, hsize))
+            offset = offset + hsize
+        end
 
 
-    -- BODY ----------------------------------------
+        -- BODY ----------------------------------------
     
-    -- dynamically call the type-specific payload dissector    
-    local msgnr = msgid:uint()
-    local dissect_payload_fn = "payload_"..tostring(msgnr)
-    local fn = payload_fns[dissect_payload_fn]
+        -- dynamically call the type-specific payload dissector    
+        local msgnr = msgid:uint()
+        local dissect_payload_fn = "payload_"..tostring(msgnr)
+        local fn = payload_fns[dissect_payload_fn]
     
-    if (fn == nil) then
-        pinfo.cols.info:append ("Unkown message type   ")
-        subtree:add_expert_info(PI_MALFORMED, PI_ERROR, "Unkown message type")
-        size = buffer:len() - 2 - offset
-        subtree:add(f.rawpayload, buffer(offset,size))
-        offset = offset + size
-    else
-        local payload = subtree:add(f.payload, msgid)
-        pinfo.cols.dst:set(messageName[msgid:uint()])
-        pinfo.cols.info = messageName[msgid:uint()]
-        offset = fn(buffer, payload, msgid, offset)
-    end
+        if (fn == nil) then
+            pinfo.cols.info:append ("Unkown message type   ")
+            subtree:add_expert_info(PI_MALFORMED, PI_ERROR, "Unkown message type")
+            size = buffer:len() - 2 - offset
+            subtree:add(f.rawpayload, buffer(offset,size))
+            offset = offset + size
+        else
+            local payload = subtree:add(f.payload, msgid)
+            pinfo.cols.dst:set(messageName[msgid:uint()])
+            pinfo.cols.info = messageName[msgid:uint()]
+            offset = fn(buffer, payload, msgid, offset)
+        end
 
-    -- CRC ----------------------------------------
-    local crc = buffer(offset,2)
-    subtree:add_le(f.crc, crc)
-    offset = offset + 2
+        -- CRC ----------------------------------------
+        local crc = buffer(offset,2)
+        subtree:add_le(f.crc, crc)
+        offset = offset + 2
 
+    end -- end of while
 end
 
 
