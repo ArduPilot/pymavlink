@@ -443,6 +443,8 @@ public class MAVLink {
     /// the MAVLink wire protocol.
     public let crcExtra = true
     
+    public init() { }
+    
     /// This is a convenience function which handles the complete MAVLink
     /// parsing. The function will parse one byte at a time and return the
     /// complete packet once it could be successfully decoded. Checksum and
