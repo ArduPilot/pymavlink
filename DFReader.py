@@ -53,6 +53,23 @@ FORMAT_TO_STRUCT = {
 def u_ord(c):
 	return ord(c) if sys.version_info.major < 3 else c
 
+class BadFormatCharException(Exception):
+    def __init__(self, char, msg_type):
+        self.char = char
+        self.msg_type = msg_type
+    def __str__(self):
+        return ("Unsupported format char: '%s' in message %s" %
+                (self.char, self.msg_type))
+
+class FormatColumnCountMismatch(Exception):
+    def __init__(self, fmt, columns):
+        self.fmt = fmt
+        self._columns = columns
+
+    def __str__(self):
+        return ("Format column mismatch (format=%s) (columns=%s)" %
+                (str(self.fmt),str(self.columns)))
+
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns, oldfmt=None):
         self.type = type
@@ -63,6 +80,9 @@ class DFFormat(object):
         self.instance_field = None
         self.unit_ids = None
         self.mult_ids = None
+
+        if len(self.columns) != len(format):
+            raise(FormatColumnCountMismatch(format, columns))
 
         if self.columns == ['']:
             self.columns = []
@@ -84,10 +104,7 @@ class DFFormat(object):
                 else:
                     msg_types.append(type)
             except KeyError as e:
-                print("DFFormat: Unsupported format char: '%s' in message %s" %
-                      (c, name))
-                raise Exception("Unsupported format char: '%s' in message %s" %
-                                (c, name))
+                raise BadFormatCharException(c, name)
 
         self.msg_struct = msg_struct
         self.msg_types = msg_types
@@ -157,6 +174,13 @@ def null_term(str):
         str = str[:idx]
     return str
 
+class ElementCountMismatch(Exception):
+    def __init__(self, fmt, elements):
+        self.fmt = fmt
+        self._elements = elements
+
+    def __str__(self):
+        return "Element count mismatch (fmt=%s) (elements=%s)" % (str(self.fmt),str(self.elements))
 
 class DFMessage(object):
     def __init__(self, fmt, elements, apply_multiplier, parent):
@@ -165,6 +189,9 @@ class DFMessage(object):
         self._apply_multiplier = apply_multiplier
         self._fieldnames = fmt.columns
         self._parent = parent
+
+        if len(fmt.format) != len(elements):
+            raise ElementCountMismatch(fmt.format, elements)
 
     def to_dict(self):
         d = {'mavpackettype': self.fmt.name}
@@ -442,7 +469,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
 
 class DFReader(object):
     '''parse a generic dataflash file'''
-    def __init__(self):
+    def __init__(self, robust_parsing=False):
         # read the whole file into memory for simplicity
         self.clock = None
         self.timestamp = 0
@@ -450,6 +477,7 @@ class DFReader(object):
         self.verbose = False
         self.params = {}
         self._flightmodes = None
+        self._robust_parsing = robust_parsing
 
     def _rewind(self):
         '''reset state on rewind'''
@@ -497,7 +525,12 @@ class DFReader(object):
 
         have_good_clock = False
         while True:
-            m = self.recv_msg()
+            try:
+                m = self.recv_msg()
+            except BadFormatCharException as e:
+                if not self._robust_parsing:
+                    raise e
+                m = None
             if m is None:
                 break
 
@@ -677,8 +710,12 @@ class DFReader(object):
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
-    def __init__(self, filename, zero_time_base=False, progress_callback=None):
-        DFReader.__init__(self)
+    def __init__(self,
+                 filename,
+                 zero_time_base=False,
+                 progress_callback=None,
+                 robust_parsing=False):
+        DFReader.__init__(self, robust_parsing=robust_parsing)
         # read the whole file into memory for simplicity
         self.filehandle = open(filename, 'rb')
         self.filehandle.seek(0, 2)
@@ -854,7 +891,7 @@ class DFReader_binary(DFReader):
             self.indexes[smallest_index] += 1
             self.offset = smallest_offset
 
-    def _parse_next(self):
+    def _parse_next_read_message(self):
         '''read one message, returning it as an object'''
 
         # skip over bad messages; after this loop has run msg_type
@@ -968,6 +1005,16 @@ class DFReader_binary(DFReader):
 
         return m
 
+    def _parse_next(self):
+        while True: # hmmmm
+            try:
+                return self._parse_next_read_message()
+            except BadFormatCharException as e:
+                if not self._robust_parsing:
+                    raise e
+            except FormatColumnCountMismatch as e:
+                if not self._robust_parsing:
+                    raise e
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
@@ -979,8 +1026,12 @@ def DFReader_is_text_log(filename):
 
 class DFReader_text(DFReader):
     '''parse a text dataflash file'''
-    def __init__(self, filename, zero_time_base=False, progress_callback=None):
-        DFReader.__init__(self)
+    def __init__(self,
+                 filename,
+                 zero_time_base=False,
+                 progress_callback=None,
+                 robust_parsing=False):
+        DFReader.__init__(self, robust_parsing=robust_parsing)
         # read the whole file into memory for simplicity
         self.filehandle = open(filename, 'r')
         self.filehandle.seek(0, 2)
