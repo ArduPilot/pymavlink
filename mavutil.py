@@ -389,9 +389,9 @@ class mavfile(object):
         '''start logging raw bytes to the given logfile, without timestamps'''
         self.logfile_raw = open(logfile, mode=mode)
 
-    def wait_heartbeat(self, blocking=True):
+    def wait_heartbeat(self, blocking=True, timeout=None):
         '''wait for a heartbeat so we know the target system IDs'''
-        return self.recv_match(type='HEARTBEAT', blocking=blocking)
+        return self.recv_match(type='HEARTBEAT', blocking=blocking, timeout=timeout)
 
     def param_fetch_all(self):
         '''initiate fetch of all parameters'''
