@@ -49,10 +49,10 @@ def generate_header(outf, filelist, xml_list, filename):
     t.write(outf, """
 //
 //  ${FILENAME}
-//  MAVLink Micro Air Vehicle Communication Protocol
+//  MAVLink Protocol Swift Library
 //
 //  Generated from ${FILELIST} on ${PARSE_TIME} by mavgen_swift.py 
-//  http://qgroundcontrol.org/mavlink/start
+//  https://github.com/modnovolyk/MAVLinkSwift
 //
 
 """, {'FILENAME' : filename,
