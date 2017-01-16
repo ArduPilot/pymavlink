@@ -199,25 +199,63 @@ def generate_packet_dis(outf):
 -- dissector function
 function mavlink_proto.dissector(buffer,pinfo,tree)
     local offset = 0
+    local msgCount = 0
     
     -- loop through the buffer to extract all the messages in the buffer
     while (offset < buffer:len()) 
     do
-    
+        msgCount = msgCount + 1
         local subtree = tree:add (mavlink_proto, buffer(), "MAVLink Protocol ("..buffer:len()..")")
 
         -- decode protocol version first
         local version = buffer(offset,1):uint()
         local protocolString = ""
     
-        if (version == 0xfe) then
-            protocolString = "MAVLink 1.0"
-        elseif (version == 0x55) then
-            protocolString = "MAVLink 0.9"
-        else
-            protocolString = "unknown"
+    	while (true)
+		do
+            if (version == 0xfe) then
+                protocolString = "MAVLink 1.0"
+                break
+            elseif (version == 0x55) then
+                protocolString = "MAVLink 0.9"
+                break
+            else
+                protocolString = "unknown"
+                -- some unknown data found, record the begin offset
+                if (unknownFrameBeginOffset == 0) then
+                    unknownFrameBeginOffset = offset
+                end
+               
+                offset = offset + 1
+                
+                if (offset < buffer:len()) then
+                    version = buffer(offset,1):uint()
+                else
+                    -- no magic value found in the whole buffer. print the raw data and exit
+                    if (unknownFrameBeginOffset ~= 0) then
+                        if (msgCount == 1) then
+                            pinfo.cols.info:set("Unkown message")
+                        else
+                            pinfo.cols.info:append("  Unkown message")
+                        end
+                        size = offset - unknownFrameBeginOffset
+                        subtree:add(f.rawpayload, buffer(unknownFrameBeginOffset,size))
+                        unknownFrameBeginOffset = 0
+                    end
+                    return
+                end
+            end	
         end
-
+        
+        if (unknownFrameBeginOffset ~= 0) then
+            pinfo.cols.info:append("Unkown message22")
+            size = offset - unknownFrameBeginOffset
+            subtree:add(f.rawpayload, buffer(unknownFrameBeginOffset,size))
+            unknownFrameBeginOffset = 0
+            -- jump to next loop
+            break
+        end
+        
         -- some Wireshark decoration
         pinfo.cols.protocol = protocolString
 
@@ -275,7 +313,12 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         else
             local payload = subtree:add(f.payload, msgid)
             pinfo.cols.dst:set(messageName[msgid:uint()])
-            pinfo.cols.info = messageName[msgid:uint()]
+            if (msgCount == 1) then
+            -- first message should over wirte the TCP/UDP info
+                pinfo.cols.info = messageName[msgid:uint()]
+            else
+                pinfo.cols.info:append("   "..messageName[msgid:uint()])
+            end
             offset = fn(buffer, payload, msgid, offset)
         end
 
