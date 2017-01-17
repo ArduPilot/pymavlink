@@ -140,7 +140,6 @@ extension Message {
 
 public typealias Channel = UInt8
 
-
 // MARK: - Errors
 
 public protocol MAVLinkError: Error, CustomStringConvertible, CustomDebugStringConvertible { }
@@ -319,7 +318,7 @@ extension PackError {
 
 /// Alternative way to receive parsed Messages, finalized packet's data and all
 /// errors is to implement this protocol and set as `MAVLink`'s delegate.
-public protocol MAVLinkDelegate {
+public protocol MAVLinkDelegate: class {
     
     /// Called when MAVLink packet is successfully received, payload length
     /// and CRC checks are passed.
@@ -328,7 +327,6 @@ public protocol MAVLinkDelegate {
     /// - parameter channel: Channel on which `packet` was received.
     /// - parameter link:    `MAVLink` object that handled `packet`.
     func didReceive(packet: Packet, on channel: Channel, via link: MAVLink)
-    
     
     /// Packet receiving failed due to `InvalidPayloadLength` or `BadCRC` error.
     ///
@@ -427,7 +425,7 @@ public class MAVLink {
     let channelStatuses = (0 ..< Channel.max).map({ _ in Status() })
     
     /// Object to pass received packets, messages, errors, finalized data to.
-    public var delegate: MAVLinkDelegate?
+    public weak var delegate: MAVLinkDelegate?
     
     /// Enable this option to check the length of each message. This allows
     /// invalid messages to be caught much sooner. Use it if the transmission
@@ -582,7 +580,7 @@ public class MAVLink {
         status.currentRxSeq = rxpack.sequence
         // Initial condition: If no packet has been received so far, drop count is undefined
         if status.packetRxSuccessCount == 0 {
-            status.packetRxDropCount = 0;
+            status.packetRxDropCount = 0
         }
         // Count this packet as received
         status.packetRxSuccessCount = status.packetRxSuccessCount &+ 1
@@ -617,7 +615,7 @@ public class MAVLink {
     /// provided data is enough to complete message parsing. Unless you have
     /// provided a custom delegate, this parameter must not be `nil`, because
     /// there is no other way to retrieve the parsed message and packet.
-    public func parse(data: Data, channel: Channel, messageHandler:((Message, Packet) -> Void)? = nil) {
+    public func parse(data: Data, channel: Channel, messageHandler: ((Message, Packet) -> Void)? = nil) {
         data.forEach { byte in
             if let packet = parse(char: byte, channel: channel), let message = packet.message, let messageHandler = messageHandler {
                 messageHandler(message, packet)
@@ -975,7 +973,7 @@ extension Data {
     /// - parameter byteOrder: Current system endianness.
     ///
     /// - throws: Throws `PackError`.
-    mutating func set<T: MAVLinkNumber>(_ number: T, at offset: Data.Index, byteOrder: ByteOrder = hostByteOrder()) throws -> Void {
+    mutating func set<T: MAVLinkNumber>(_ number: T, at offset: Data.Index, byteOrder: ByteOrder = hostByteOrder()) throws {
         let size = MemoryLayout<T>.stride
         let range = offset ..< offset + size
         
