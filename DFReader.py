@@ -615,7 +615,7 @@ class DFReader_text(DFReader):
         self.lines = f.readlines()
         f.close()
         self.formats = {
-            'FMT' : DFFormat(0x80, 'FMT', 89, 'BBnNZ', "Type,Length,Name,Format,Columns")
+            'FMT': DFFormat(0x80, 'FMT', 89, 'BBnNZ', "Type,Length,Name,Format,Columns")
         }
         self._rewind()
         self._zero_time_base = zero_time_base
