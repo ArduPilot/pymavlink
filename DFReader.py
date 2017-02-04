@@ -10,6 +10,7 @@ Partly based on SDLog2Parser by Anton Babushkin
 from __future__ import print_function
 from builtins import range
 from builtins import object
+from collections import Counter
 
 import struct
 from . import mavutil
@@ -64,7 +65,7 @@ class DFFormat(object):
                 msg_struct += s
                 msg_mults.append(mul)
                 msg_types.append(type)
-            except KeyError as e:
+            except KeyError:
                 raise Exception("Unsupported format char: '%s' in message %s" % (c, name))
 
         self.msg_struct = msg_struct
@@ -212,8 +213,8 @@ class DFReaderClock_usec(DFReaderClock):
 
 
 class DFReaderClock_msec(DFReaderClock):
-    '''DFReaderClock_msec - a format where many messages have TimeMS in their formats,
-       and GPS messages have a "T" field giving msecs '''
+    '''DFReaderClock_msec - a format where many messages have TimeMS in their
+       formats, and GPS messages have a "T" field giving msecs '''
     def find_time_base(self, gps, first_ms_stamp):
         '''work out time basis for the log - new style'''
         t = self._gpsTimeToTime(gps.Week, gps.TimeMS)
@@ -223,14 +224,16 @@ class DFReaderClock_msec(DFReaderClock):
     def set_message_timestamp(self, m):
         if 'TimeMS' == m._fieldnames[0]:
             m._timestamp = self.timebase + m.TimeMS*0.001
-        elif m.get_type() in ('GPS','GPS2'):
+        elif m.get_type() in ('GPS', 'GPS2'):
             m._timestamp = self.timebase + m.T*0.001
         else:
             m._timestamp = self.timestamp
         self.timestamp = m._timestamp
 
+
 class DFReaderClock_px4(DFReaderClock):
-    '''DFReaderClock_px4 - a format where a starting time is explicitly given in a message'''
+    '''DFReaderClock_px4 - a format where a starting time is explicitly given
+       in a message'''
     def __init__(self):
         DFReaderClock.__init__(self)
         self.px4_timebase = 0
@@ -251,13 +254,15 @@ class DFReaderClock_px4(DFReaderClock):
         if type == 'TIME' and 'StartTime' in m._fieldnames:
             self.set_px4_timebase(m)
 
+
 class DFReaderClock_gps_interpolated(DFReaderClock):
-    '''DFReaderClock_gps_interpolated - for when the only real references in a message are GPS timestamps '''
+    '''DFReaderClock_gps_interpolated - for when the only real references in a
+       message are GPS timestamps '''
     def __init__(self):
         DFReaderClock.__init__(self)
         self.msg_rate = {}
-        self.counts = collections.Counter()
-        self.counts_since_gps = collections.Counter()
+        self.counts = Counter()
+        self.counts_since_gps = Counter()
 
     def rewind_event(self):
         '''reset counters on rewind'''
@@ -290,7 +295,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                     # better clock was found.
                     return
 
-        t = self._gpsTimeToTime(gps_week, gps_timems) 
+        t = self._gpsTimeToTime(gps_week, gps_timems)
 
         deltat = t - self.timebase
         if deltat <= 0:
@@ -498,7 +503,7 @@ class DFReader(object):
     def param(self, name, default=None):
         '''convenient function for returning an arbitrary MAVLink
            parameter with a default'''
-        if not name in self.params:
+        if name not in self.params:
             return default
         return self.params[name]
 
@@ -532,7 +537,7 @@ class DFReader_binary(DFReader):
         if self.data_len - self.offset < 3:
             return None
 
-        hdr = self.data[self.offset:self.offset+3]
+        hdr = self.data[self.offset:self.offset + 3]
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
@@ -544,7 +549,7 @@ class DFReader_binary(DFReader):
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
-            hdr = self.data[self.offset:self.offset+3]
+            hdr = self.data[self.offset:self.offset + 3]
         msg_type = ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
@@ -555,17 +560,17 @@ class DFReader_binary(DFReader):
         self.offset += 3
         self.remaining -= 3
 
-        if not msg_type in self.formats:
+        if msg_type not in self.formats:
             if self.verbose:
                 print("unknown message type %02x" % msg_type)
             raise Exception("Unknown message type %02x" % msg_type)
         fmt = self.formats[msg_type]
-        if self.remaining < fmt.len-3:
+        if self.remaining < fmt.len - 3:
             # out of data - can often happen half way through a message
             if self.verbose:
                 print("out of data")
             return None
-        body = self.data[self.offset:self.offset+(fmt.len-3)]
+        body = self.data[self.offset:self.offset + (fmt.len - 3)]
         elements = None
         try:
             elements = list(struct.unpack(fmt.msg_struct, body))
@@ -587,8 +592,8 @@ class DFReader_binary(DFReader):
                                                  null_term(elements[2]), elements[1],
                                                  null_term(elements[3]), null_term(elements[4]))
 
-        self.offset += fmt.len-3
-        self.remaining -= fmt.len-3
+        self.offset += fmt.len - 3
+        self.remaining -= fmt.len - 3
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
         self.percent = 100.0 * (self.offset / float(self.data_len))
@@ -653,12 +658,12 @@ class DFReader_text(DFReader):
 
         msg_type = elements[0]
 
-        if not msg_type in self.formats:
+        if msg_type not in self.formats:
             return self._parse_next()
 
         fmt = self.formats[msg_type]
 
-        if len(elements) < len(fmt.format)+1:
+        if len(elements) < len(fmt.format) + 1:
             # not enough columns
             return self._parse_next()
 
@@ -669,14 +674,11 @@ class DFReader_text(DFReader):
             # add to formats
             # name, len, format, headings
             self.formats[elements[2]] = DFFormat(int(elements[0]), elements[2], int(elements[1]), elements[3], elements[4])
-
         try:
             m = DFMessage(fmt, elements, False)
         except ValueError:
             return self._parse_next()
-
         self._add_msg(m)
-
         return m
 
 
