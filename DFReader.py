@@ -14,6 +14,11 @@ from builtins import object
 import struct
 from . import mavutil
 
+try:
+    long        # Python 2 has long
+except NameError:
+    long = int  # But Python 3 does not
+ 
 FORMAT_TO_STRUCT = {
     "b": ("b", None, int),
     "B": ("B", None, int),
