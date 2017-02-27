@@ -210,7 +210,7 @@ public class msg_${name_lower} extends MAVLinkMessage{
     * Returns a string with the MSG name and data
     */
     public String toString(){
-        return "MAVLINK_MSG_ID_${name} -"+${{ordered_fields:" ${name}:"+${name}+}}"";
+        return "MAVLINK_MSG_ID_${name} - sysid:"+sysid+" compid:"+compid+${{ordered_fields:" ${name}:"+${name}+}}"";
     }
 }
         ''' % path[len(path)-1], m)
