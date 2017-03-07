@@ -653,10 +653,10 @@ class mavfile(object):
         self.recv_match(type='VFR_HUD', blocking=True)
         if self.mavlink10():
             self.recv_match(type='GPS_RAW_INT', blocking=True,
-                            condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0 and GPS_RAW_INT.alt != 0')
+                            condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
         else:
             self.recv_match(type='GPS_RAW', blocking=True,
-                            condition='GPS_RAW.fix_type>=2 and GPS_RAW.lat != 0 and GPS_RAW.alt != 0')
+                            condition='GPS_RAW.fix_type>=2 and GPS_RAW.lat != 0')
 
     def location(self, relative_alt=False):
         '''return current location'''
