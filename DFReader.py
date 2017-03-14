@@ -10,9 +10,15 @@ Partly based on SDLog2Parser by Anton Babushkin
 from __future__ import print_function
 from builtins import range
 from builtins import object
+from collections import Counter
 
 import struct
 from . import mavutil
+
+try:
+    long        # Python 2 has long
+except NameError:
+    long = int  # But Python 3 does not
 
 FORMAT_TO_STRUCT = {
     "b": ("b", None, int),
@@ -36,6 +42,7 @@ FORMAT_TO_STRUCT = {
     "Q": ("Q", None, long),  # Backward compat
     }
 
+
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns):
         self.type = type
@@ -58,7 +65,7 @@ class DFFormat(object):
                 msg_struct += s
                 msg_mults.append(mul)
                 msg_types.append(type)
-            except KeyError as e:
+            except KeyError:
                 raise Exception("Unsupported format char: '%s' in message %s" % (c, name))
 
         self.msg_struct = msg_struct
@@ -71,12 +78,14 @@ class DFFormat(object):
     def __str__(self):
         return "DFFormat(%s,%s,%s,%s)" % (self.type, self.name, self.format, self.columns)
 
+
 def null_term(str):
     '''null terminate a string'''
     idx = str.find("\0")
     if idx != -1:
         str = str[:idx]
     return str
+
 
 class DFMessage(object):
     def __init__(self, fmt, elements, apply_multiplier):
@@ -140,6 +149,7 @@ class DFMessage(object):
     def get_fieldnames(self):
         return self._fieldnames
 
+
 class DFReaderClock(object):
     '''base class for all the different ways we count time in logs'''
 
@@ -161,6 +171,7 @@ class DFReaderClock(object):
     def rewind_event(self):
         pass
 
+
 class DFReaderClock_usec(DFReaderClock):
     '''DFReaderClock_usec - use microsecond timestamps from messages'''
     def __init__(self):
@@ -175,10 +186,8 @@ class DFReaderClock_usec(DFReaderClock):
 
     def type_has_good_TimeMS(self, type):
         '''The TimeMS in some messages is not from *our* clock!'''
-        if type.startswith('ACC'):
-            return False;
-        if type.startswith('GYR'):
-            return False;
+        if type.startswith('ACC') or type.startswith('GYR'):
+            return False
         return True
 
     def should_use_msec_field0(self, m):
@@ -188,7 +197,7 @@ class DFReaderClock_usec(DFReaderClock):
             return False
         if self.timebase + m.TimeMS*0.001 < self.timestamp:
             return False
-        return True;
+        return True
 
     def set_message_timestamp(self, m):
         if 'TimeUS' == m._fieldnames[0]:
@@ -202,8 +211,10 @@ class DFReaderClock_usec(DFReaderClock):
             m._timestamp = self.timestamp
         self.timestamp = m._timestamp
 
+
 class DFReaderClock_msec(DFReaderClock):
-    '''DFReaderClock_msec - a format where many messages have TimeMS in their formats, and GPS messages have a "T" field giving msecs '''
+    '''DFReaderClock_msec - a format where many messages have TimeMS in their
+       formats, and GPS messages have a "T" field giving msecs '''
     def find_time_base(self, gps, first_ms_stamp):
         '''work out time basis for the log - new style'''
         t = self._gpsTimeToTime(gps.Week, gps.TimeMS)
@@ -213,14 +224,16 @@ class DFReaderClock_msec(DFReaderClock):
     def set_message_timestamp(self, m):
         if 'TimeMS' == m._fieldnames[0]:
             m._timestamp = self.timebase + m.TimeMS*0.001
-        elif m.get_type() in ['GPS','GPS2']:
+        elif m.get_type() in ('GPS', 'GPS2'):
             m._timestamp = self.timebase + m.T*0.001
         else:
             m._timestamp = self.timestamp
         self.timestamp = m._timestamp
 
+
 class DFReaderClock_px4(DFReaderClock):
-    '''DFReaderClock_px4 - a format where a starting time is explicitly given in a message'''
+    '''DFReaderClock_px4 - a format where a starting time is explicitly given
+       in a message'''
     def __init__(self):
         DFReaderClock.__init__(self)
         self.px4_timebase = 0
@@ -241,33 +254,29 @@ class DFReaderClock_px4(DFReaderClock):
         if type == 'TIME' and 'StartTime' in m._fieldnames:
             self.set_px4_timebase(m)
 
+
 class DFReaderClock_gps_interpolated(DFReaderClock):
-    '''DFReaderClock_gps_interpolated - for when the only real references in a message are GPS timestamps '''
+    '''DFReaderClock_gps_interpolated - for when the only real references in a
+       message are GPS timestamps '''
     def __init__(self):
         DFReaderClock.__init__(self)
         self.msg_rate = {}
-        self.counts = {}
-        self.counts_since_gps = {}
+        self.counts = Counter()
+        self.counts_since_gps = Counter()
 
     def rewind_event(self):
         '''reset counters on rewind'''
-        self.counts = {}
-        self.counts_since_gps = {}
+        self.counts.clear()
+        self.counts_since_gps.clear()
 
     def message_arrived(self, m):
         type = m.get_type()
-        if not type in self.counts:
-            self.counts[type] = 1
-        else:
-            self.counts[type] += 1
+        self.counts[type] += 1
         # this preserves existing behaviour - but should we be doing this
         # if type == 'GPS'?
-        if not type in self.counts_since_gps:
-            self.counts_since_gps[type] = 1
-        else:
-            self.counts_since_gps[type] += 1
+        self.counts_since_gps[type] += 1
 
-        if type == 'GPS' or type == 'GPS2':
+        if type in ('GPS', 'GPS2'):
             self.gps_message_arrived(m)
 
     def gps_message_arrived(self, m):
@@ -284,9 +293,9 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                     # PX4-style timestamp; we've only been called
                     # because we were speculatively created in case no
                     # better clock was found.
-                    return;
+                    return
 
-        t = self._gpsTimeToTime(gps_week, gps_timems) 
+        t = self._gpsTimeToTime(gps_week, gps_timems)
 
         deltat = t - self.timebase
         if deltat <= 0:
@@ -298,13 +307,13 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                 self.msg_rate[type] = rate
         self.msg_rate['IMU'] = 50.0
         self.timebase = t
-        self.counts_since_gps = {}
+        self.counts_since_gps.clear()
 
     def set_message_timestamp(self, m):
         rate = self.msg_rate.get(m.fmt.name, 50.0)
         if int(rate) == 0:
             rate = 50
-        count = self.counts_since_gps.get(m.fmt.name, 0)
+        count = self.counts_since_gps[m.fmt.name]
         m._timestamp = self.timebase + count/rate
 
 
@@ -320,7 +329,7 @@ class DFReader(object):
 
     def _rewind(self):
         '''reset state on rewind'''
-        self.messages = { 'MAV' : self }
+        self.messages = {'MAV': self}
         self.flightmode = "UNKNOWN"
         self.percent = 0
         if self.clock:
@@ -363,28 +372,26 @@ class DFReader(object):
         while True:
             m = self.recv_msg()
             if m is None:
-                break;
+                break
 
             type = m.get_type()
 
-            if first_us_stamp is None:
-                first_us_stamp = getattr(m, "TimeUS", None);
-
-            if first_ms_stamp is None and (type != 'GPS' and type != 'GPS2'):
+            first_us_stamp = first_us_stamp or getattr(m, "TimeUS", None)
+            if first_ms_stamp is None and type not in ('GPS', 'GPS2'):
                 # Older GPS messages use TimeMS for msecs past start
                 # of gps week
-                first_ms_stamp = getattr(m, "TimeMS", None);
+                first_ms_stamp = getattr(m, "TimeMS", None)
 
-            if type == 'GPS' or type == 'GPS2':
+            if type in ('GPS', 'GPS2'):
                 if getattr(m, "TimeUS", 0) != 0 and \
-                   getattr(m, "GWk", 0) != 0: # everything-usec-timestamped
+                   getattr(m, "GWk", 0) != 0:  # everything-usec-timestamped
                     self.init_clock_usec()
                     if not self._zero_time_base:
                         self.clock.find_time_base(m, first_us_stamp)
                     have_good_clock = True
                     break
                 if getattr(m, "T", 0) != 0 and \
-                   getattr(m, "Week", 0) != 0: # GPS is msec-timestamped
+                   getattr(m, "Week", 0) != 0:  # GPS is msec-timestamped
                     if first_ms_stamp is None:
                         first_ms_stamp = m.T
                     self.init_clock_msec()
@@ -392,11 +399,11 @@ class DFReader(object):
                         self.clock.find_time_base(m, first_ms_stamp)
                     have_good_clock = True
                     break
-                if getattr(m, "GPSTime", 0) != 0: # px4-style-only
+                if getattr(m, "GPSTime", 0) != 0:  # px4-style-only
                     px4_msg_gps = m
                 if getattr(m, "Week", 0) != 0:
                     if gps_interp_msg_gps1 is not None and \
-                       (gps_interp_msg_gps1.TimeMS != m.TimeMS or \
+                       (gps_interp_msg_gps1.TimeMS != m.TimeMS or
                         gps_interp_msg_gps1.Week != m.Week):
                         # we've received two distinct, non-zero GPS
                         # packets without finding a decent clock to
@@ -410,8 +417,8 @@ class DFReader(object):
 
             elif type == 'TIME':
                 '''only px4-style logs use TIME'''
-                if getattr(m, "StartTime", None) != None:
-                    px4_msg_time = m;
+                if getattr(m, "StartTime", None) is not None:
+                    px4_msg_time = m
 
             if px4_msg_time is not None and px4_msg_gps is not None:
                 self.init_clock_px4(px4_msg_time, px4_msg_gps)
@@ -483,7 +490,7 @@ class DFReader(object):
             m = self.recv_msg()
             if m is None:
                 return None
-            if type is not None and not m.get_type() in type:
+            if type is not None and m.get_type() not in type:
                 continue
             if not mavutil.evaluate_condition(condition, self.messages):
                 continue
@@ -496,9 +503,10 @@ class DFReader(object):
     def param(self, name, default=None):
         '''convenient function for returning an arbitrary MAVLink
            parameter with a default'''
-        if not name in self.params:
+        if name not in self.params:
             return default
         return self.params[name]
+
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
@@ -512,7 +520,7 @@ class DFReader_binary(DFReader):
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
         self.formats = {
-            0x80 : DFFormat(0x80, 'FMT', 89, 'BBnNZ', "Type,Length,Name,Format,Columns")
+            0x80: DFFormat(0x80, 'FMT', 89, 'BBnNZ', "Type,Length,Name,Format,Columns")
         }
         self._zero_time_base = zero_time_base
         self.init_clock()
@@ -528,8 +536,8 @@ class DFReader_binary(DFReader):
         '''read one message, returning it as an object'''
         if self.data_len - self.offset < 3:
             return None
-            
-        hdr = self.data[self.offset:self.offset+3]
+
+        hdr = self.data[self.offset:self.offset + 3]
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
@@ -541,7 +549,7 @@ class DFReader_binary(DFReader):
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
-            hdr = self.data[self.offset:self.offset+3]
+            hdr = self.data[self.offset:self.offset + 3]
         msg_type = ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
@@ -552,17 +560,17 @@ class DFReader_binary(DFReader):
         self.offset += 3
         self.remaining -= 3
 
-        if not msg_type in self.formats:
+        if msg_type not in self.formats:
             if self.verbose:
                 print("unknown message type %02x" % msg_type)
             raise Exception("Unknown message type %02x" % msg_type)
         fmt = self.formats[msg_type]
-        if self.remaining < fmt.len-3:
+        if self.remaining < fmt.len - 3:
             # out of data - can often happen half way through a message
             if self.verbose:
                 print("out of data")
             return None
-        body = self.data[self.offset:self.offset+(fmt.len-3)]
+        body = self.data[self.offset:self.offset + (fmt.len - 3)]
         elements = None
         try:
             elements = list(struct.unpack(fmt.msg_struct, body))
@@ -584,21 +592,19 @@ class DFReader_binary(DFReader):
                                                  null_term(elements[2]), elements[1],
                                                  null_term(elements[3]), null_term(elements[4]))
 
-        self.offset += fmt.len-3
-        self.remaining -= fmt.len-3
+        self.offset += fmt.len - 3
+        self.remaining -= fmt.len - 3
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
-
         self.percent = 100.0 * (self.offset / float(self.data_len))
-        
         return m
+
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
-    f = open(filename)
-    ret = (f.read(8000).find('FMT, ') != -1)
-    f.close()
-    return ret
+    with open(filename) as f:
+        return f.read(8000).find('FMT, ') != -1
+
 
 class DFReader_text(DFReader):
     '''parse a text dataflash file'''
@@ -609,7 +615,7 @@ class DFReader_text(DFReader):
         self.lines = f.readlines()
         f.close()
         self.formats = {
-            'FMT' : DFFormat(0x80, 'FMT', 89, 'BBnNZ', "Type,Length,Name,Format,Columns")
+            'FMT': DFFormat(0x80, 'FMT', 89, 'BBnNZ', "Type,Length,Name,Format,Columns")
         }
         self._rewind()
         self._zero_time_base = zero_time_base
@@ -652,30 +658,27 @@ class DFReader_text(DFReader):
 
         msg_type = elements[0]
 
-        if not msg_type in self.formats:
+        if msg_type not in self.formats:
             return self._parse_next()
-        
+
         fmt = self.formats[msg_type]
 
-        if len(elements) < len(fmt.format)+1:
+        if len(elements) < len(fmt.format) + 1:
             # not enough columns
             return self._parse_next()
 
         elements = elements[1:]
-        
+
         name = fmt.name.rstrip('\0')
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
             self.formats[elements[2]] = DFFormat(int(elements[0]), elements[2], int(elements[1]), elements[3], elements[4])
-
         try:
             m = DFMessage(fmt, elements, False)
         except ValueError:
             return self._parse_next()
-
         self._add_msg(m)
-
         return m
 
 
@@ -689,17 +692,13 @@ if __name__ == "__main__":
         profiler.add_function(DFReader_binary._add_msg)
         profiler.add_function(DFReader._set_time)
         profiler.enable_by_count()
-                    
+
     filename = sys.argv[1]
-    if filename.endswith('.log'):
-        log = DFReader_text(filename)
-    else:
-        log = DFReader_binary(filename)
+    log = DFReader_text(filename) if filename.endswith('.log') else DFReader_binary(filename)
     while True:
         m = log.recv_msg()
         if m is None:
             break
-        #print(m)
+        # print(m)
     if use_profiler:
         profiler.print_stats()
-
