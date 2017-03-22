@@ -1,6 +1,0 @@
-[flake8]
-  count = True
-  ignore = E  # in general the E errors are about style (whitespace, etc.)
-  # 127 characters is the width of a GitHub editor
-  max-line-length = 127
-  statistics = True
