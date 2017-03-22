@@ -5,6 +5,9 @@ python:
   - 3.3
   - 3.6
 
+before_install:
+  - pip install --upgrade pip setuptools
+
 install:
   - pip install -r requirements.txt
   - pip install flake8
@@ -44,3 +47,4 @@ script:
   # Test quaternions
   - cd $TRAVIS_BUILD_DIR
   - tools/quaterniontest.py
+  - DFReader.py  # should fail in Python 3 -- fixed by pull requests #30 or #52
