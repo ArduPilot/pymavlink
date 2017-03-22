@@ -16,7 +16,7 @@ before_script:
   # E errors are in general about style (whitespace, etc.)
   # 127 characters is the width of a GitHub editor
   # --exit-zero means that flake8 will only warn and not stop the build
-  flake8 . --count --ignore=E --max-line-length=127 --exit-zero
+  flake8 . --count --ignore=E --max-line-length=127 --statistics --exit-zero
 
 script:
   # NOTE: we must do all testing on the installed python package, not 
