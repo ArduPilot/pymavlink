@@ -57,9 +57,11 @@ def fft(logfile):
     # interactive selection of analysis window
     preview = pylab.figure()
     preview.set_size_inches(12, 3, forward=True)
-    field = 'ACC1.AccZ'
-    d = numpy.array(data[field])
-    pylab.plot( d, label=field )
+    msg = 'ACC1'
+    for axis in ['X', 'Y', 'Z']:
+        field = msg + '.Acc' + axis
+        d = numpy.array(data[field])
+        pylab.plot( d, label=field )
     pylab.legend(loc='upper right')
     pylab.ylabel('m/sec/sec')
     pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
@@ -86,6 +88,7 @@ def fft(logfile):
     for msg in ['ACC1', 'GYR1']:
         fftwin = pylab.figure()
         fftwin.set_size_inches(12, 3, forward=True)
+        f_res = float(data[msg+'.rate']) / n_samp
 
         if msg.startswith('ACC'):
             prefix = 'Acc'
@@ -94,25 +97,41 @@ def fft(logfile):
             prefix = 'Gyr'
             title = 'Gyro FFT'
             
+        max_fft = 0
+        abs_fft = [0,0,0]
+        index = 0
         for axis in ['X', 'Y', 'Z']:
             field = msg + '.' + prefix + axis
             d = data[field][s_start:s_end]
             d = numpy.array(d)
+            freq  = numpy.fft.rfftfreq(len(d), 1.0 / data[msg+'.rate'])
+
             if len(d) == 0:
                 continue
             avg = numpy.sum(d) / len(d)
             d -= avg
             d_fft = numpy.fft.rfft(d)
-            freq  = numpy.fft.rfftfreq(len(d), 1.0 / data[msg+'.rate'])
-            f_res = float(data[msg+'.rate']) / n_samp
-            pylab.plot( freq, numpy.abs(d_fft), label=field )
-            fftwin.canvas.set_window_title(title)
+            abs_fft[index] = numpy.abs(d_fft)
+            thismax = numpy.max(abs_fft[index])
+            if (max_fft < thismax):
+                max_fft = thismax
+            index += 1
             
+        for index in range(0,3):
+            db_fft = 20 * numpy.log10(abs_fft[index] / max_fft)
+            pylab.plot( freq, db_fft, label=field )
+
+        fftwin.canvas.set_window_title(title)
+        fftwin.gca().set_ylim(-90, 0)
         pylab.legend(loc='upper right')
         pylab.xlabel('Hz : resolution = ' + '{0:.3f}'.format(f_res))
+        pylab.ylabel('dB')
         pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
         fftwin.savefig(msg + '_fft.png')
 
 for filename in args.logs:
     fft(filename)
+
+pylab.ioff()
+pylab.show()
 
