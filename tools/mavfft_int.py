@@ -19,6 +19,48 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 
+def plot_input(data, msg, prefix, start, end):
+    preview = pylab.figure()
+    preview.set_size_inches(12, 3, forward=True)
+    for axis in ['X', 'Y', 'Z']:
+        field = msg + '.' + prefix + axis
+        d = numpy.array(data[field][start:end])
+        pylab.plot( d, marker='.', label=field )
+    pylab.legend(loc='upper right')
+#     pylab.ylabel('m/sec/sec')
+    pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
+    pylab.show()
+
+def check_drops(data, msg, start, end):
+    ts = 1e-6 * numpy.array(data[msg + '.TimeUS'])
+    seqcnt = numpy.array(data[msg + '.SampleUS'])
+
+    deltas = numpy.diff(seqcnt[start:end])
+    print('ndeltas: ', len(deltas))
+    duration = ts[end] - ts[start]
+    print('duration: {0:.3f} seconds'.format(duration))
+    avg_rate = float(len(ts)-1) / duration
+    print('average logging rate: {0:.0f} Hz'.format(avg_rate))
+    ts_mean = numpy.mean(deltas) 
+    dmin = numpy.min(deltas)
+    dmax = numpy.max(deltas)
+    print('sample count delta min: {0}, max: {1}'.format(dmin, dmax))
+    if (dmin != dmax):
+        print('sample count delta mean: ', '{0:.2f}, std: {0:.2f}'.format(ts_mean, numpy.std(deltas)))
+    print('sensor sample rate: {0:.0f} Hz'.format(ts_mean * avg_rate))
+
+    drop_lens = []
+    drop_times = []
+    intvl_count = [0]
+    for i in range(0, len(deltas)):
+        if (deltas[i] > 1.5 * ts_mean):
+            drop_lens.append(deltas[i])
+            drop_times.append(ts[start+i])
+            print('dropout at sample {0}: length {1}'.format(i, deltas[i]))
+    
+    print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
+    return avg_rate
+    
 def fft(logfile):
     '''display fft for raw ACC data in logfile'''
 
@@ -32,35 +74,34 @@ def fft(logfile):
             'GYR2.rate' :  800,
             'GYR3.rate' : 1000}
     for acc in ['ACC1','ACC2','ACC3']:
-        for ax in ['AccX', 'AccY', 'AccZ']:
+        for ax in ['AccX', 'AccY', 'AccZ', 'SampleUS', 'TimeUS']:
             data[acc+'.'+ax] = []
     for gyr in ['GYR1','GYR2','GYR3']:
-        for ax in ['GyrX', 'GyrY', 'GyrZ']:
+        for ax in ['GyrX', 'GyrY', 'GyrZ', 'SampleUS', 'TimeUS']:
             data[gyr+'.'+ax] = []
 
     # now gather all the data
-    timestamp1 = []
-    seqcnt1 = []
     while True:
         m = mlog.recv_match(condition=args.condition)
         if m is None:
             break
         type = m.get_type()
-        if type.startswith("ACC1"):
-            seqcnt1.append(m.SampleUS)
-            timestamp1.append(m.TimeUS)
         if type.startswith("ACC"):
             data[type+'.AccX'].append(m.AccX)
             data[type+'.AccY'].append(m.AccY)
             data[type+'.AccZ'].append(m.AccZ)
+            data[type+'.SampleUS'].append(m.SampleUS)
+            data[type+'.TimeUS'].append(m.TimeUS)
         if type.startswith("GYR"):
             data[type+'.GyrX'].append(m.GyrX)
             data[type+'.GyrY'].append(m.GyrY)
             data[type+'.GyrZ'].append(m.GyrZ)
+            data[type+'.SampleUS'].append(m.SampleUS)
+            data[type+'.TimeUS'].append(m.TimeUS)
 
     # SampleUS is just a sample counter
-    ts = 1e-6 * numpy.array(timestamp1)
-    seqcnt = numpy.array(seqcnt1)
+    ts = 1e-6 * numpy.array(data['ACC1.TimeUS'])
+    seqcnt = numpy.array(data['ACC1.SampleUS'])
 
     print("Extracted %u data points" % len(data['ACC1.AccX']))
     
@@ -78,7 +119,7 @@ def fft(logfile):
     pylab.show()
     currentAxes = preview.gca()
     s_start = 0
-    s_end = len(timestamp1)-1
+    s_end = len(ts)-1
     n_samp = s_end - s_start
     currentAxes.set_xlim(s_start, s_end)
 
@@ -103,48 +144,29 @@ def fft(logfile):
         print('N samples: ', n_samp)
         
         # check for dropouts: (delta > 1)
-        deltas = numpy.diff(seqcnt[s_start:s_end])
-        print('ndeltas: ', len(deltas))
-        duration = ts[s_end] - ts[s_start]
-        print('duration: {0:.3f} seconds'.format(duration))
-        avg_rate = float(n_samp-1) / duration
-        print('average logging rate: {0:.0f} Hz'.format(avg_rate))
-        ts_mean = numpy.mean(deltas) 
-        dmin = numpy.min(deltas)
-        dmax = numpy.max(deltas)
-        print('sample count delta min: {0}, max: {1}'.format(dmin, dmax))
-        if (dmin != dmax):
-            print('sample count delta mean: ', '{0:.2f}, std: {0:.2f}'.format(ts_mean, numpy.std(deltas)))
-        print('sensor sample rate: {0:.0f} Hz'.format(ts_mean * avg_rate))
+        avg_rate = check_drops(data, 'ACC1', s_start, s_end)
         
         title = 'FFT input: {0:s} ACC1[{1:d}:{2:d}], {3:d} samples'.format(logfile, s_start, s_end, n_samp)
         currentAxes.set_xlabel('sample index : nsamples: {0:d}, avg rate: {1:.0f} Hz'.format(n_samp, avg_rate))
         preview.canvas.set_window_title(title)
         preview.savefig('acc1z.png')
             
-        drop_lens = []
-        drop_times = []
-        intvl_count = [0]
-        for i in range(0, len(deltas)):
-            if (deltas[i] > 1.5 * ts_mean):
-                drop_lens.append(deltas[i])
-                drop_times.append(ts[s_start+i])
-                print('dropout at sample {0}: length {1}'.format(i, deltas[i]))
-        
-        print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
-
         for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2']:
-            fftwin = pylab.figure()
-            fftwin.set_size_inches(12, 3, forward=True)
-            f_res = float(data[msg+'.rate']) / n_samp
-    
             if msg.startswith('ACC'):
                 prefix = 'Acc'
                 title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
             else:
                 prefix = 'Gyr'
                 title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
-                
+            
+            # check for dropouts    
+            avg_rate = check_drops(data, msg, s_start, s_end)
+            plot_input(data, msg, prefix, s_start, s_end)
+            
+            fftwin = pylab.figure()
+            fftwin.set_size_inches(12, 3, forward=True)
+            f_res = float(data[msg+'.rate']) / n_samp
+    
             max_fft = 0
             abs_fft = {}
             index = 0
