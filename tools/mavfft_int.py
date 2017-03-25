@@ -25,10 +25,10 @@ def fft(logfile):
     print("Processing log %s" % filename)
     mlog = mavutil.mavlink_connection(filename)
 
-    data = {'ACC1.rate' : 900,
+    data = {'ACC1.rate' : 1000,
             'ACC2.rate' : 1600,
             'ACC3.rate' : 1000,
-            'GYR1.rate' : 900,
+            'GYR1.rate' : 1000,
             'GYR2.rate' :  800,
             'GYR3.rate' : 1000}
     for acc in ['ACC1','ACC2','ACC3']:
@@ -71,7 +71,7 @@ def fft(logfile):
     for axis in ['X', 'Y', 'Z']:
         field = msg + '.Acc' + axis
         d = numpy.array(data[field])
-        pylab.plot( d, label=field )
+        pylab.plot( d, marker='.', label=field )
     pylab.legend(loc='upper right')
     pylab.ylabel('m/sec/sec')
     pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
@@ -108,44 +108,42 @@ def fft(logfile):
         duration = ts[s_end] - ts[s_start]
         print('duration: {0:.3f} seconds'.format(duration))
         avg_rate = float(n_samp-1) / duration
-        print('average sample rate: {0:.0f} Hz'.format(avg_rate))
+        print('average logging rate: {0:.0f} Hz'.format(avg_rate))
         ts_mean = numpy.mean(deltas) 
-        print('mean sample interval: ', '{0:.2f}'.format(ts_mean))
-        print('std: ', '{0:.0f}'.format(numpy.std(deltas)))
+        dmin = numpy.min(deltas)
+        dmax = numpy.max(deltas)
+        print('sample count delta min: {0}, max: {1}'.format(dmin, dmax))
+        if (dmin != dmax):
+            print('sample count delta mean: ', '{0:.2f}, std: {0:.2f}'.format(ts_mean, numpy.std(deltas)))
+        print('sensor sample rate: {0:.0f} Hz'.format(ts_mean * avg_rate))
         
         title = 'FFT input: {0:s} ACC1[{1:d}:{2:d}], {3:d} samples'.format(logfile, s_start, s_end, n_samp)
-        pylab.xlabel('sample index : nsamples: {0:d}, avg rate: {1:.0f} Hz'.format(n_samp, avg_rate))
+        currentAxes.set_xlabel('sample index : nsamples: {0:d}, avg rate: {1:.0f} Hz'.format(n_samp, avg_rate))
         preview.canvas.set_window_title(title)
         preview.savefig('acc1z.png')
             
         drop_lens = []
         drop_times = []
         intvl_count = [0]
-        interval = 0
         for i in range(0, len(deltas)):
-            if (deltas[i] < 1.5 * ts_mean):
-                interval += 1
-                intvl_count.append(interval)
-            else:
-                interval += 2
-                intvl_count.append(interval)
+            if (deltas[i] > 1.5 * ts_mean):
                 drop_lens.append(deltas[i])
                 drop_times.append(ts[s_start+i])
-                #print('dropout at sample {0}: length {1:.2f} msec'.format(i, 1e3*deltas[i]))
+                print('dropout at sample {0}: length {1}'.format(i, deltas[i]))
         
-        print('{0:d} sample intervals > {1:.3f} msec'.format(len(drop_lens), 1.5 * ts_mean))
+        print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
 
-        for msg in ['ACC1', 'GYR1']:
+        for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2']:
             fftwin = pylab.figure()
             fftwin.set_size_inches(12, 3, forward=True)
             f_res = float(data[msg+'.rate']) / n_samp
     
             if msg.startswith('ACC'):
                 prefix = 'Acc'
-                title = 'Accelerometer FFT [{0:d}:{1:d}]'.format(s_start, s_end)
+                title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
             else:
                 prefix = 'Gyr'
-                title = 'Gyro FFT [{0:d}:{1:d}]'.format(s_start, s_end)
+                title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
                 
             max_fft = 0
             abs_fft = {}
