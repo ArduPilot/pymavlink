@@ -49,4 +49,4 @@ script:
   # Test quaternions
   - cd $TRAVIS_BUILD_DIR
   - tools/quaterniontest.py
-  # - python DFReader.py  # This will fail -- fixed by pull requests #30 or #52
+  - python DFReader.py  # This will fail -- fixed by pull requests #30 or #52
