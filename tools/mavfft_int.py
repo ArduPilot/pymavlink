@@ -161,7 +161,7 @@ def fft(logfile):
                 title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
             
             # check for dropouts    
-            avg_rate = check_drops(data, msg, s_start, s_end)
+            data[msg+'.rate'] = check_drops(data, msg, s_start, s_end)
             plot_input(data, msg, prefix, s_start, s_end)
             
             fftwin = pylab.figure()
