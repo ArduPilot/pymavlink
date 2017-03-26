@@ -32,10 +32,10 @@ script:
 
   # Generate messages
   - mavgen.py --lang='Python' --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='C' 	    --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='CS' 	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='WLua' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='Java'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='C'      --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='CS'     --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='WLua'   --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='Java'   --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
   # Avoid `spurious errors` caused by ~/.npm permission issues
   # ref: https://github.com/travis-ci/travis-ci/issues/2244
   # ref: https://github.com/npm/npm/issues/4815
