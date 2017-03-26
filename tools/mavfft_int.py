@@ -29,6 +29,7 @@ def plot_input(data, msg, prefix, start, end):
     pylab.legend(loc='upper right')
 #     pylab.ylabel('m/sec/sec')
     pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
+    preview.canvas.set_window_title('FFT input: ' + msg)
     pylab.show()
 
 def check_drops(data, msg, start, end):
@@ -36,10 +37,10 @@ def check_drops(data, msg, start, end):
     seqcnt = numpy.array(data[msg + '.SampleUS'])
 
     deltas = numpy.diff(seqcnt[start:end])
-    print('ndeltas: ', len(deltas))
+#     print('ndeltas: ', len(deltas))
     duration = ts[end] - ts[start]
-    print('duration: {0:.3f} seconds'.format(duration))
-    avg_rate = float(len(ts)-1) / duration
+    print(msg + ' duration: {0:.3f} seconds'.format(duration))
+    avg_rate = float(end - start - 1) / duration
     print('average logging rate: {0:.0f} Hz'.format(avg_rate))
     ts_mean = numpy.mean(deltas) 
     dmin = numpy.min(deltas)
