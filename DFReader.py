@@ -12,7 +12,7 @@ from builtins import range
 from builtins import object
 
 import struct
-from . import mavutil
+import mavutil
 
 FORMAT_TO_STRUCT = {
     "b": ("b", None, int),
