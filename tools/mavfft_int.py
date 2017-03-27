@@ -34,7 +34,7 @@ def plot_input(data, msg, prefix, start, end):
 
 def check_drops(data, msg, start, end):
     ts = 1e-6 * numpy.array(data[msg + '.TimeUS'])
-    seqcnt = numpy.array(data[msg + '.SampleUS'])
+    seqcnt = numpy.array(data[msg + '.SampleC'])
 
     deltas = numpy.diff(seqcnt[start:end])
 #     print('ndeltas: ', len(deltas))
@@ -57,7 +57,7 @@ def check_drops(data, msg, start, end):
         if (deltas[i] > 1.5 * ts_mean):
             drop_lens.append(deltas[i])
             drop_times.append(ts[start+i])
-            print('dropout at sample {0}: length {1}'.format(i, deltas[i]))
+            print('dropout at sample {0}: length {1}'.format(start+i, deltas[i]))
     
     print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
     return avg_rate
@@ -75,10 +75,10 @@ def fft(logfile):
             'GYR2.rate' :  800,
             'GYR3.rate' : 1000}
     for acc in ['ACC1','ACC2','ACC3']:
-        for ax in ['AccX', 'AccY', 'AccZ', 'SampleUS', 'TimeUS']:
+        for ax in ['AccX', 'AccY', 'AccZ', 'SampleC', 'TimeUS']:
             data[acc+'.'+ax] = []
     for gyr in ['GYR1','GYR2','GYR3']:
-        for ax in ['GyrX', 'GyrY', 'GyrZ', 'SampleUS', 'TimeUS']:
+        for ax in ['GyrX', 'GyrY', 'GyrZ', 'SampleC', 'TimeUS']:
             data[gyr+'.'+ax] = []
 
     # now gather all the data
@@ -91,18 +91,18 @@ def fft(logfile):
             data[type+'.AccX'].append(m.AccX)
             data[type+'.AccY'].append(m.AccY)
             data[type+'.AccZ'].append(m.AccZ)
-            data[type+'.SampleUS'].append(m.SampleUS)
+            data[type+'.SampleC'].append(m.SampleC)
             data[type+'.TimeUS'].append(m.TimeUS)
         if type.startswith("GYR"):
             data[type+'.GyrX'].append(m.GyrX)
             data[type+'.GyrY'].append(m.GyrY)
             data[type+'.GyrZ'].append(m.GyrZ)
-            data[type+'.SampleUS'].append(m.SampleUS)
+            data[type+'.SampleC'].append(m.SampleC)
             data[type+'.TimeUS'].append(m.TimeUS)
 
-    # SampleUS is just a sample counter
+    # SampleC is just a sample counter
     ts = 1e-6 * numpy.array(data['ACC1.TimeUS'])
-    seqcnt = numpy.array(data['ACC1.SampleUS'])
+    seqcnt = numpy.array(data['ACC1.SampleC'])
 
     print("Extracted %u data points" % len(data['ACC1.AccX']))
     
