@@ -171,6 +171,7 @@ def fft(logfile):
             max_fft = 0
             abs_fft = {}
             index = 0
+            avg = {'X':0, 'Y':0, 'Z':0}
             for axis in ['X', 'Y', 'Z']:
                 field = msg + '.' + prefix + axis
                 d = data[field][s_start:s_end]
@@ -180,8 +181,9 @@ def fft(logfile):
                 d = numpy.array(d)
                 freq  = numpy.fft.rfftfreq(len(d), 1.0 / data[msg+'.rate'])
                 # remove mean
-                avg = numpy.mean(d)
-                d -= avg
+                avg[axis] = numpy.mean(d)
+                d -= avg[axis]
+                print('{1} DC component: {0:.3f}'.format(avg[axis], field))
                 # transform
                 d_fft = numpy.fft.rfft(d)
                 abs_fft[axis] = numpy.abs(d_fft)
@@ -200,9 +202,9 @@ def fft(logfile):
             fftwin.canvas.set_window_title(title)
             fftwin.gca().set_ylim(-90, 0)
             pylab.legend(loc='upper right')
-            pylab.xlabel('Hz : resolution = ' + '{0:.3f}'.format(f_res))
-            pylab.ylabel('dB')
-            pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
+            pylab.xlabel('Hz : res: ' + '{0:.3f}'.format(f_res))
+            pylab.ylabel('dB X {0:.3f} Y {1:.3f} Z {2:.3f}\n'.format(avg['X'], avg['Y'], avg['Z']))
+            pylab.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.16)
             fftwin.savefig(msg + '_fft.png')
         
         try:
