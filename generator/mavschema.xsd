@@ -15,7 +15,7 @@
 <xs:attribute name="id" type="xs:unsignedShort"/> <!-- message -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- field -->
 <xs:attribute name="enum" type="xs:string"/>
-<xs:attribute name="bitmask" type="xs:string"/>
+<xs:attribute name="display" type="xs:string"/>
 <xs:attribute name="units" type="xs:string"/>
 <xs:attribute name="value"> <!-- entry -->
   <xs:simpleType>
@@ -71,7 +71,7 @@
         <xs:attribute ref="name" use="required"/>
         <xs:attribute ref="print_format" />
         <xs:attribute ref="enum" />
-        <xs:attribute ref="bitmask" />
+        <xs:attribute ref="display" />
         <xs:attribute ref="units" />
         <xs:attribute ref="default" />
     </xs:complexType>
