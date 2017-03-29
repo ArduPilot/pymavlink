@@ -735,18 +735,27 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		} else {
 			// Successfully got message
 			status->msg_received = MAVLINK_FRAMING_OK;
-                }
-                rxmsg->ck[1] = c;
+		}
+        rxmsg->ck[1] = c;
+
 		if (rxmsg->incompat_flags & MAVLINK_IFLAG_SIGNED) {
 			status->parse_state = MAVLINK_PARSE_STATE_SIGNATURE_WAIT;
 			status->signature_wait = MAVLINK_SIGNATURE_BLOCK_LEN;
-			status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
+
+			// If the CRC is already wrong, don't overwrite msg_received,
+			// otherwise we can end up with garbage flagged as valid.
+			if (status->msg_received != MAVLINK_FRAMING_BAD_CRC) {
+				status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
+			}
 		} else {
 			if (status->signing &&
 			    (status->signing->accept_unsigned_callback == NULL ||
 			     !status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
-				// don't accept this unsigned packet
-				status->msg_received = MAVLINK_FRAMING_BAD_SIGNATURE;
+
+				// If the CRC is already wrong, don't overwrite msg_received.
+				if (status->msg_received != MAVLINK_FRAMING_BAD_CRC) {
+					status->msg_received = MAVLINK_FRAMING_BAD_SIGNATURE;
+				}
 			}
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 			memcpy(r_message, rxmsg, sizeof(mavlink_message_t));
