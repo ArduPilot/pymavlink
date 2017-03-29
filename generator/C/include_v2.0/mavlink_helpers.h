@@ -736,7 +736,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 			// Successfully got message
 			status->msg_received = MAVLINK_FRAMING_OK;
 		}
-        rxmsg->ck[1] = c;
+		rxmsg->ck[1] = c;
 
 		if (rxmsg->incompat_flags & MAVLINK_IFLAG_SIGNED) {
 			status->parse_state = MAVLINK_PARSE_STATE_SIGNATURE_WAIT;
@@ -749,8 +749,8 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 			}
 		} else {
 			if (status->signing &&
-			    (status->signing->accept_unsigned_callback == NULL ||
-			     !status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
+			   	(status->signing->accept_unsigned_callback == NULL ||
+			   	 !status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
 
 				// If the CRC is already wrong, don't overwrite msg_received.
 				if (status->msg_received != MAVLINK_FRAMING_BAD_CRC) {
@@ -762,14 +762,14 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		}
 		break;
 	case MAVLINK_PARSE_STATE_SIGNATURE_WAIT:
-                rxmsg->signature[MAVLINK_SIGNATURE_BLOCK_LEN-status->signature_wait] = c;
+		rxmsg->signature[MAVLINK_SIGNATURE_BLOCK_LEN-status->signature_wait] = c;
 		status->signature_wait--;
 		if (status->signature_wait == 0) {
 			// we have the whole signature, check it is OK
 			bool sig_ok = mavlink_signature_check(status->signing, status->signing_streams, rxmsg);
 			if (!sig_ok &&
-			    (status->signing->accept_unsigned_callback &&
-			     status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
+			   	(status->signing->accept_unsigned_callback &&
+			   	 status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
 				// accepted via application level override
 				sig_ok = true;
 			}
