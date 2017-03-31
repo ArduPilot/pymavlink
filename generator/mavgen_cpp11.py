@@ -278,7 +278,7 @@ def copy_fixed_headers(directory, xml):
         }
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'CPP11/include_v%s' % xml.wire_protocol_version)
-    print("Copying fixed headers for protocol %s to %s" % (xml.wire_protocol_version, directory))
+    print("Copying fixed C++ headers for protocol %s to %s" % (xml.wire_protocol_version, directory))
     for h in hlist[xml.wire_protocol_version]:
         src = os.path.realpath(os.path.join(srcpath, h))
         dest = os.path.realpath(os.path.join(directory, h))
@@ -447,7 +447,9 @@ def generate_one(basename, xml):
 
 def generate(basename, xml_list):
     '''generate serialization MAVLink C++ implemenation'''
-
+    print("Generating C headers")
+    import mavgen_c
+    mavgen_c.generate(basename, xml_list)
     for xml in xml_list:
         generate_one(basename, xml)
     copy_fixed_headers(basename, xml_list[0])
