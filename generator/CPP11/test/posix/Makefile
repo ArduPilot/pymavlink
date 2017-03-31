@@ -1,7 +1,7 @@
 
 CXX ?= g++
 CXXFLAGS ?= -std=c++11 -g -O0 -Wall -pthread
-GENDIR ?= /tmp/mavlink
+GENDIR ?= ../../include_v2.0
 GTESTSRC ?= /usr/src/gtest/src/gtest-all.cc
 MSGDEFDIR ?= ../../../../../message_definitions/v1.0
 
