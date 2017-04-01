@@ -32,12 +32,22 @@ def plot_input(data, msg, prefix, start, end):
     preview.canvas.set_window_title('FFT input: ' + msg)
     pylab.show()
 
-def check_drops(data, msg, start, end):
-    ts = 1e-6 * numpy.array(data[msg + '.TimeUS'])
+def check_drops(data, msg, t_start, t_end):
+    
+    # t_start, t_end are in seconds
+    # timestamps are system (wall clock) time in usec
+    tus = numpy.array(data[msg + '.TimeUS'])
+    
+    # SampleC is a sample counter representing actual sensor samples.
+    # It should increment by 8 when sampling at 8KHz and logging at 1KHz.
+    # An increment larger than expected indicates a dropout.
     seqcnt = numpy.array(data[msg + '.SampleC'])
 
+    # convert time range to sample range
+    [start, end] = tim2smp(tus, t_start, t_end)
+
+    ts = 1e-6 * tus
     deltas = numpy.diff(seqcnt[start:end])
-#     print('ndeltas: ', len(deltas))
     duration = ts[end] - ts[start]
     print(msg + ' duration: {0:.3f} seconds'.format(duration))
     avg_rate = float(end - start - 1) / duration
@@ -50,18 +60,34 @@ def check_drops(data, msg, start, end):
         print('sample count delta mean: ', '{0:.2f}, std: {0:.2f}'.format(ts_mean, numpy.std(deltas)))
     print('sensor sample rate: {0:.0f} Hz'.format(ts_mean * avg_rate))
 
+    drop_samples = []
     drop_lens = []
     drop_times = []
     intvl_count = [0]
     for i in range(0, len(deltas)):
         if (deltas[i] > 1.5 * ts_mean):
+            drop_samples.append(start+i)
             drop_lens.append(deltas[i])
             drop_times.append(ts[start+i])
             print('dropout at sample {0}: length {1}'.format(start+i, deltas[i]))
     
-    print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
-    return avg_rate
-    
+    if (len(drop_lens) > 0):
+        print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
+    else:
+        print('no dropouts')
+        
+    return [avg_rate, drop_samples, drop_times, drop_lens]
+
+# t_start, t_end in seconds, timestamps in usec
+def tim2smp(tus, t_start, t_end):
+    # find sample range corresponding to time window
+    s_max = len(tus) - 1
+    s_start = 0
+    while (tus[s_start] < 1e6*t_start) and (s_start < s_max): s_start += 1
+    s_end = s_start
+    while (tus[s_end] < 1e6*t_end) and (s_end < s_max): s_end += 1
+    return [s_start, s_end]
+
 def fft(logfile):
     '''display fft for raw ACC data in logfile'''
 
@@ -100,9 +126,8 @@ def fft(logfile):
             data[type+'.SampleC'].append(m.SampleC)
             data[type+'.TimeUS'].append(m.TimeUS)
 
-    # SampleC is just a sample counter
-    ts = 1e-6 * numpy.array(data['ACC1.TimeUS'])
-    seqcnt = numpy.array(data['ACC1.SampleC'])
+    tus = numpy.array(data['ACC1.TimeUS'])
+    ts = 1e-6 * tus
 
     print("Extracted %u data points" % len(data['ACC1.AccX']))
     
@@ -113,7 +138,7 @@ def fft(logfile):
     for axis in ['X', 'Y', 'Z']:
         field = msg + '.Acc' + axis
         d = numpy.array(data[field])
-        pylab.plot( d, marker='.', label=field )
+        pylab.plot( ts, d, marker='.', label=field )
     pylab.legend(loc='upper right')
     pylab.ylabel('m/sec/sec')
     pylab.subplots_adjust(left=0.06, right=0.95, top=0.95, bottom=0.16)
@@ -122,48 +147,59 @@ def fft(logfile):
     s_start = 0
     s_end = len(ts)-1
     n_samp = s_end - s_start
-    currentAxes.set_xlim(s_start, s_end)
+    t_start = ts[s_start]
+    t_end = ts[s_end]
+    currentAxes.set_xlim(ts[s_start], ts[s_end])
 
     while True:
         
         # outer loop for repeating time window selection
+        # check for dropouts and plot them
+        for msg in ['ACC1', 'ACC2', 'ACC3']:
+            if msg.endswith('1'):
+                symbol = 'ro'
+            elif msg.endswith('2'):
+                symbol = 'go'
+            elif msg.endswith('3'):
+                symbol = 'bo'
+            if len(data[msg+'.TimeUS']) > 0:
+                [avg_rate, drop_samples, drop_times, drop_lens] = check_drops(data, msg, t_start, t_end)
+                pylab.plot(drop_times, d[drop_samples], symbol)
+        
         while True:
             print('select sample range for fft analysis')
             preview.canvas.set_window_title('select sample range')
             try:
-                s_start = input('start sample: ')
-                s_end = input('end sample: ')
-                currentAxes.set_xlim(s_start, s_end)
+                t_start = input('start time: ')
+                t_end = input('end time: ')
+                currentAxes.set_xlim(t_start, t_end)
             except:
                 break
             
         # process selected samples
-        s_start = int(currentAxes.get_xlim()[0])
-        s_end = int(currentAxes.get_xlim()[1])
+        t_start = currentAxes.get_xlim()[0]
+        t_end = currentAxes.get_xlim()[1]
+        tus = numpy.array(data['ACC1.TimeUS'])
+        [s_start, s_end] = tim2smp(tus, t_start, t_end)
         n_samp = s_end - s_start
 
-        t_start = data['ACC1.TimeUS'][s_start]
-        t_end = data['ACC1.TimeUS'][s_end]
         print('N samples: ', n_samp)
         print('sample range: ', s_start, s_end)
         print('time range: [{0:.3f}, {1:.3f}]'.format(ts[s_start], ts[s_end]))
-        
-        # check for dropouts: (delta > 1)
-        avg_rate = check_drops(data, 'ACC1', s_start, s_end)
         
         title = 'FFT input: {0:s} ACC1[{1:d}:{2:d}], {3:d} samples'.format(logfile, s_start, s_end, n_samp)
         currentAxes.set_xlabel('sample index : nsamples: {0:d}, avg rate: {1:.0f} Hz'.format(n_samp, avg_rate))
         preview.canvas.set_window_title(title)
         preview.savefig('acc1z.png')
             
-        for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2']:
+        for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2', 'ACC3', 'GYR3']:
             
             # find sample range corresponding to time window
             tus = numpy.array(data[msg+'.TimeUS'])
-            s_start = 0
-            while (tus[s_start] < t_start): s_start += 1
-            s_end = s_start
-            while (tus[s_end] < t_end): s_end += 1
+            if len(tus) == 0:
+                print('no data for ' + msg)
+                continue
+            [s_start, s_end] = tim2smp(tus, t_start, t_end)
             
             if msg.startswith('ACC'):
                 prefix = 'Acc'
@@ -173,7 +209,7 @@ def fft(logfile):
                 title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
             
             # check for dropouts    
-            data[msg+'.rate'] = check_drops(data, msg, s_start, s_end)
+            [data[msg+'.rate'], drop_samples, drop_times, drop_lens] = check_drops(data, msg, t_start, t_end)
             plot_input(data, msg, prefix, s_start, s_end)
             
             fftwin = pylab.figure()
