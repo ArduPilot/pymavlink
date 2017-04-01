@@ -124,9 +124,9 @@ def fft(logfile):
     n_samp = s_end - s_start
     currentAxes.set_xlim(s_start, s_end)
 
-    # outer loop for repeating time window selection
     while True:
         
+        # outer loop for repeating time window selection
         while True:
             print('select sample range for fft analysis')
             preview.canvas.set_window_title('select sample range')
@@ -141,8 +141,12 @@ def fft(logfile):
         s_start = int(currentAxes.get_xlim()[0])
         s_end = int(currentAxes.get_xlim()[1])
         n_samp = s_end - s_start
-        print('sample range: ', s_start, s_end)
+
+        t_start = data['ACC1.TimeUS'][s_start]
+        t_end = data['ACC1.TimeUS'][s_end]
         print('N samples: ', n_samp)
+        print('sample range: ', s_start, s_end)
+        print('time range: [{0:.3f}, {1:.3f}]'.format(ts[s_start], ts[s_end]))
         
         # check for dropouts: (delta > 1)
         avg_rate = check_drops(data, 'ACC1', s_start, s_end)
@@ -153,6 +157,14 @@ def fft(logfile):
         preview.savefig('acc1z.png')
             
         for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2']:
+            
+            # find sample range corresponding to time window
+            tus = numpy.array(data[msg+'.TimeUS'])
+            s_start = 0
+            while (tus[s_start] < t_start): s_start += 1
+            s_end = s_start
+            while (tus[s_end] < t_end): s_end += 1
+            
             if msg.startswith('ACC'):
                 prefix = 'Acc'
                 title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
