@@ -300,8 +300,12 @@ class %s(MAVLink_message):
             m.len_map,
             m.array_len_map,
             m.crc_extra))
-        if len(m.fields) != 0:
-                outf.write(", " + ", ".join(m.fieldnames))
+        for i in range(len(m.fields)):
+                fname = m.fieldnames[i]
+                if m.extensions_start is not None and i >= m.extensions_start:
+                        outf.write(", %s=0" % fname)
+                else:
+                        outf.write(", %s" % fname)
         outf.write("):\n")
         outf.write("                MAVLink_message.__init__(self, %s.id, %s.name)\n" % (classname, classname))
         outf.write("                self._fieldnames = %s.fieldnames\n" % (classname))
@@ -777,9 +781,12 @@ def generate_methods(outf, msgs):
         comment = "%s\n\n%s" % (wrapper.fill(m.description.strip()), field_descriptions(m.fields))
 
         selffieldnames = 'self, '
-        for f in m.fields:
+        for i in range(len(m.fields)):
+            f = m.fields[i]
             if f.omit_arg:
                 selffieldnames += '%s=%s, ' % (f.name, f.const_value)
+            elif m.extensions_start is not None and i >= m.extensions_start:
+                selffieldnames += '%s=0, ' % f.name
             else:
                 selffieldnames += '%s, ' % f.name
         selffieldnames = selffieldnames[:-2]
