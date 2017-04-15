@@ -1007,3 +1007,44 @@ def rotate_quat(attitude, roll, pitch, yaw):
   res = rotation * quat
 
   return res.q
+
+def qroll(MSG):
+    '''return quaternion roll in degrees'''
+    q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
+    return degrees(q.euler[0])
+
+    
+def qpitch(MSG):
+    '''return quaternion pitch in degrees'''
+    q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
+    return degrees(q.euler[1])
+
+    
+def qyaw(MSG):
+    '''return quaternion yaw in degrees'''
+    q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
+    return degrees(q.euler[2])
+
+def euler_rotated(MSG, roll, pitch, yaw):
+    '''return eulers in radians from quaternion for view at given attitude in euler radians'''
+    rot_view = Matrix3()
+    rot_view.from_euler(roll, pitch, yaw)
+    q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
+    dcm = (rot_view * q.dcm.transposed()).transposed()
+    return dcm.to_euler()
+
+def euler_p90(MSG):
+    '''return eulers in radians from quaternion for view at pitch 90'''
+    return euler_rotated(MSG, 0, radians(90), 0);
+
+def qroll_p90(MSG):
+    '''return quaternion roll in degrees for view at pitch 90'''
+    return degrees(euler_p90(MSG)[0])
+
+def qpitch_p90(MSG):
+    '''return quaternion roll in degrees for view at pitch 90'''
+    return degrees(euler_p90(MSG)[1])
+
+def qyaw_p90(MSG):
+    '''return quaternion roll in degrees for view at pitch 90'''
+    return degrees(euler_p90(MSG)[2])
