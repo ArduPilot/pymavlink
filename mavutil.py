@@ -988,6 +988,7 @@ class mavtcpin(mavfile):
         self.listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listen_addr = (a[0], int(a[1]))
         self.listen.bind(self.listen_addr)
+        self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen.listen(1)
         self.listen.setblocking(0)
         set_close_on_exec(self.listen.fileno())
