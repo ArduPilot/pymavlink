@@ -89,8 +89,6 @@ def magfit(logfile):
     mlog = mavutil.mavlink_connection(filename, notimestamps=args.notimestamps)
 
     data = []
-
-    last_t = 0
     offsets = Vector3(0,0,0)
 
     # now gather all the data
