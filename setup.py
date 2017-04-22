@@ -1,5 +1,4 @@
-from __future__ import print_function
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 from setuptools.command.build_py import build_py
 # Work around mbcs bug in distutils.
 # http://bugs.python.org/issue10945
@@ -100,8 +99,12 @@ class custom_build_py(build_py):
 setup (name = 'pymavlink',
        version = version,
        description = 'Python MAVLink code',
-       long_description = '''A Python library for handling MAVLink protocol streams and log files. This allows for the creation of simple scripts to analyse telemetry logs from autopilots such as ArduPilot which use the MAVLink protocol. See the scripts that come with the package for examples of small, useful scripts that use pymavlink. For more information about the MAVLink protocol see http://qgroundcontrol.org/mavlink/''',
-       url = 'http://github.com/mavlink/mavlink',
+       long_description = ('A Python library for handling MAVLink protocol streams and log files. This allows for the '
+                           'creation of simple scripts to analyse telemetry logs from autopilots such as ArduPilot which use '
+                           'the MAVLink protocol. See the scripts that come with the package for examples of small, useful '
+                           'scripts that use pymavlink. For more information about the MAVLink protocol see '
+                           'http://qgroundcontrol.org/mavlink/'),
+       url = 'https://github.com/ArduPilot/pymavlink/',
        classifiers=['Development Status :: 4 - Beta',
                     'Environment :: Console',
                     'Intended Audience :: Science/Research',
