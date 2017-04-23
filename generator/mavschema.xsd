@@ -146,7 +146,7 @@
             <xs:element ref="enums" minOccurs="0"/>
             <xs:element ref="messages"/>
         </xs:sequence>
-        <xs:attribute ref="file" />
+        <xs:attribute name="file" type="xs:anyURI"/>
     </xs:complexType>
 </xs:element>
 
