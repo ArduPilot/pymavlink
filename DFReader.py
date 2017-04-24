@@ -64,6 +64,7 @@ class DFFormat(object):
                 msg_mults.append(mul)
                 msg_types.append(type)
             except KeyError as e:
+                print("DFFormat: Unsupported format char: '%s' in message %s" % (c, name))
                 raise Exception("Unsupported format char: '%s' in message %s" % (c, name))
 
         self.msg_struct = msg_struct
@@ -585,9 +586,12 @@ class DFReader_binary(DFReader):
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
-            self.formats[elements[0]] = DFFormat(elements[0],
-                                                 null_term(elements[2]), elements[1],
-                                                 null_term(elements[3]), null_term(elements[4]))
+            try:
+                self.formats[elements[0]] = DFFormat(elements[0],
+                                                     null_term(elements[2]), elements[1],
+                                                     null_term(elements[3]), null_term(elements[4]))
+            except Exception:
+                return self._parse_next()
 
         self.offset += fmt.len-3
         self.remaining -= fmt.len-3
