@@ -14,6 +14,7 @@ from pymavlink.mavextra import *
 from pymavlink import mavutil
 import time
 import re
+import os
 
 mainstate_field = 'STAT.MainState'
 position_field_types = [  # Order must be lon, lat, alt to match KML
