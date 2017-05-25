@@ -152,6 +152,7 @@ ${{include_list:#include "../${base}/${base}.h"
 
 #if MAVLINK_THIS_XML_IDX == MAVLINK_PRIMARY_XML_IDX
 # define MAVLINK_MESSAGE_INFO {${message_info_array}}
+# define MAVLINK_MESSAGE_NAMES {${message_name_array}}
 # if MAVLINK_COMMAND_24BIT
 #  include "../mavlink_get_info.h"
 # endif
@@ -614,6 +615,13 @@ def generate_one(basename, xml):
                 # feed the compiler a "filled" empty message
                 xml.message_info_array += '{"EMPTY",0,{{"","",MAVLINK_TYPE_CHAR,0,0,0}}}, '
     xml.message_info_array = xml.message_info_array[:-2]
+
+    # form message name array
+    xml.message_name_array = ''
+    # sort by names
+    for msgid, name in sorted(xml.message_names.iteritems(), key=lambda (k,v): (v,k)):
+        xml.message_name_array += '{ "%s", %u }, ' % (name, msgid)
+    xml.message_name_array = xml.message_name_array[:-2]
 
     # add some extra field attributes for convenience with arrays
     for m in xml.message:
