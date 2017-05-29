@@ -74,7 +74,7 @@ def mavgen(opts, args):
             return False
 
     # Process all XML files, validating them as necessary.
-    for fname in args:
+    for fname in args[0].split(","):
         if opts.validate:
             print("Validating %s" % fname)
             if not mavgen_validate(fname):
