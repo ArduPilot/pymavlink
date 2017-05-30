@@ -23,9 +23,9 @@ def main():
                       help="Mavlink port baud rate", default=115200)
     parser.add_argument("--devnum", default=2, type=int,
                       help="PX4 UART device number (defaults to GPS port)")
-    parser.add_argument("--devbaud", default=38400, type=int,
+    parser.add_argument("--devbaud", default=115200, type=int,
                       help="PX4 UART baud rate (defaults to u-Blox GPS baud)")
-    parser.add_argument("--tcpport", default=1001, type=int,
+    parser.add_argument("--tcpport", default=2001, type=int,
                       help="local TCP port (defaults to %(default)s)")
     parser.add_argument("--tcpaddr", default='127.0.0.1', type=str,
                       help="local TCP address (defaults to %(default)s)")
@@ -33,6 +33,8 @@ def main():
                       help="debug level")
     parser.add_argument("--buffsize", default=128, type=int,
                       help="buffer size")
+    parser.add_argument("--login", default=None, help="input log file")
+    parser.add_argument("--logout", default=None, help="output log file")
     args = parser.parse_args()
 
     print("Connecting to MAVLINK...")
@@ -41,6 +43,7 @@ def main():
         devnum=args.devnum, devbaud=args.devbaud, debug=args.debug)
 
     listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_sock.bind((args.tcpaddr, args.tcpport))
     listen_sock.listen(1)
 
@@ -50,10 +53,19 @@ def main():
     conn_sock.setblocking(0)  # non-blocking mode
     print("TCP connection accepted. Use Ctrl+C to exit.")
 
+    login = None
+    logout = None
+    if args.login:
+        login = open(args.login, "w")
+    if args.logout:
+        logout = open(args.logout, "w")
+
     while True:
         try:
             data = conn_sock.recv(args.buffsize)
             if data:
+                if login:
+                    login.write(data)
                 if args.debug >= 1:
                     print('>', len(data))
                 mav_serialport.write(data)
@@ -62,6 +74,8 @@ def main():
 
         data = mav_serialport.read(args.buffsize)
         if data:
+            if logout:
+                logout.write(data)
             if args.debug >= 1:
                 print('<', len(data))
             conn_sock.send(data)
