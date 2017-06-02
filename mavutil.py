@@ -1486,18 +1486,9 @@ mode_mapping_sub = {
     2: 'ALT_HOLD',
     3: 'AUTO',
     4: 'GUIDED',
-    5: 'VELHOLD',
-    6: 'RTL',
     7: 'CIRCLE',
     9: 'SURFACE',
-    10: 'OF_LOITER',
-    11: 'DRIFT',
-    13: 'TRANSECT',
-    14: 'FLIP',
-    15: 'AUTOTUNE',
     16: 'POSHOLD',
-    17: 'BRAKE',
-    18: 'THROW',
     19: 'MANUAL',
     }
 
