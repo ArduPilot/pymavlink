@@ -15,7 +15,7 @@ namespace mavlink {
 // Macro to define packed structures
 #ifdef __GNUC__
   #define MAVPACKED( __Declaration__ ) __Declaration__ __attribute__((packed))
-#elif defined __arm__
+#elif defined __ARMCC_VERSION
   #pragma anon_unions
   #pragma pack(push, 1)
   #define MAVPACKED( __Declaration__ ) __Declaration__	
