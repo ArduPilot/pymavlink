@@ -1,11 +1,13 @@
 # Pymavlink
 This is a python implementation of the MAVLink protocol.
 
-
 # Documentation
 
-Please see http://www.qgroundcontrol.org/mavlink/pymavlink for
-documentation.
+Please see http://dev.ardupilot.org/ for documentation.
+
+For realtime discussion please see the pymavlink gitter channel here
+https://gitter.im/ArduPilot/pymavlink
+
 
 # Installation 
 
