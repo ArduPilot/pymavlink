@@ -33,6 +33,14 @@
 #define MAVLINK_END_UART_SEND(chan, length)
 #endif
 
+#ifndef MAVLINK_START_SIGN_STREAM
+#define MAVLINK_START_SIGN_STREAM(chan)
+#endif
+
+#ifndef MAVLINK_END_SIGN_STREAM
+#define MAVLINK_END_SIGN_STREAM(chan)
+#endif
+
 /* option to provide alternative implementation of mavlink_helpers.h */
 #ifdef MAVLINK_SEPARATE_HELPERS
 
