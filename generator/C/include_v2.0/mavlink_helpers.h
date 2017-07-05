@@ -777,7 +777,9 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		status->signature_wait--;
 		if (status->signature_wait == 0) {
 			// we have the whole signature, check it is OK
+			MAVLINK_START_SIGN_STREAM(status->signing->link_id);
 			bool sig_ok = mavlink_signature_check(status->signing, status->signing_streams, rxmsg);
+			MAVLINK_END_SIGN_STREAM(status->signing->link_id);
 			if (!sig_ok &&
 			   	(status->signing->accept_unsigned_callback &&
 			   	 status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
