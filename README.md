@@ -59,7 +59,7 @@ sudo pip2 install -U pymavlink
 ```
 The -U parameter allow to update pymavlink version if it is already installed.
 
-### For developpers
+### For developers
 
 On the pymavlink directory, you can use :
 ```bash
