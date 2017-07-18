@@ -222,6 +222,13 @@ class mavfile(object):
         '''enable/disable RTS/CTS if applicable'''
         return
 
+    def probably_vehicle_heartbeat(self, msg):
+        if msg.get_srcComponent() == mavlink.MAV_COMP_ID_GIMBAL:
+            return False
+        if msg.type in (mavlink.MAV_TYPE_GCS, mavlink.MAV_TYPE_GIMBAL):
+            return False
+        return True
+
     def post_message(self, msg):
         '''default post message call'''
         if '_posted' in msg.__dict__:
@@ -229,7 +236,7 @@ class mavfile(object):
         msg._posted = True
         msg._timestamp = time.time()
         type = msg.get_type()
-        if type != 'HEARTBEAT' or (msg.type != mavlink.MAV_TYPE_GCS and msg.type != mavlink.MAV_TYPE_GIMBAL):
+        if type != 'HEARTBEAT' or self.probably_vehicle_heartbeat(msg):
             self.messages[type] = msg
 
         if 'usec' in msg.__dict__:
@@ -262,10 +269,10 @@ class mavfile(object):
             self.mav_count += 1
         
         self.timestamp = msg._timestamp
-        if type == 'HEARTBEAT' and msg.get_srcComponent() != mavlink.MAV_COMP_ID_GIMBAL:
+        if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
             self.target_system = msg.get_srcSystem()
             self.target_component = msg.get_srcComponent()
-            if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1 and msg.type != mavlink.MAV_TYPE_GCS:
+            if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
                 self.flightmode = mode_string_v10(msg)
                 self.mav_type = msg.type
                 self.base_mode = msg.base_mode
