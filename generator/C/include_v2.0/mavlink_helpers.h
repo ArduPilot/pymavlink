@@ -703,7 +703,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		break;
 
 	case MAVLINK_PARSE_STATE_GOT_MSGID2:
-		rxmsg->msgid |= c<<16;
+		rxmsg->msgid |= ((uint32_t)c)<<16;
 		mavlink_update_checksum(rxmsg, c);
 		if(rxmsg->len > 0){
 			status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID3;
