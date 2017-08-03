@@ -341,7 +341,7 @@ using System.Reflection;
     #print("Cmd:" + compileCommand)
     res = os.system (compileCommand)
     
-    if res == '0':
-        print("Generated %s OK" % filename)
+    if res == 0:
+        print("Generated %s OK" % outputLibraryPath)
     else:
-        print("Error")
+        raise SystemError("Compilation failed. (" + str(res) + ")")
