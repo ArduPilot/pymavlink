@@ -1527,6 +1527,7 @@ PX4_CUSTOM_MAIN_MODE_OFFBOARD          = 6
 PX4_CUSTOM_MAIN_MODE_STABILIZED        = 7
 PX4_CUSTOM_MAIN_MODE_RATTITUDE         = 8
 
+PX4_CUSTOM_SUB_MODE_OFFBOARD           = 0
 PX4_CUSTOM_SUB_MODE_AUTO_READY         = 1
 PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF       = 2
 PX4_CUSTOM_SUB_MODE_AUTO_LOITER        = 3
@@ -1588,7 +1589,7 @@ def interpret_px4_mode(base_mode, custom_mode):
                 return "LAND"
             elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_RTGS:
                 return "RTGS"
-            elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_OFFBOARD:
+            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_OFFBOARD:
                 return "OFFBOARD"
     return "UNKNOWN"
 
