@@ -108,7 +108,7 @@ set_dialect(os.environ['MAVLINK_DIALECT'])
 
 class mavfile(object):
     '''a generic mavlink port'''
-    def __init__(self, fd, address, source_system=255, notimestamps=False, input=True, use_native=default_native):
+    def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True, use_native=default_native):
         global mavfile_global
         if input:
             mavfile_global = self
@@ -124,9 +124,10 @@ class mavfile(object):
         self.target_system = 0
         self.target_component = 0
         self.source_system = source_system
+        self.source_component = source_component
         self.first_byte = True
         self.robust_parsing = True
-        self.mav = mavlink.MAVLink(self, srcSystem=self.source_system, use_native=use_native)
+        self.mav = mavlink.MAVLink(self, srcSystem=self.source_system, srcComponent=self.source_component, use_native=use_native)
         self.mav.robust_parsing = self.robust_parsing
         self.logfile = None
         self.logfile_raw = None
@@ -182,7 +183,7 @@ class mavfile(object):
         (callback, callback_args, callback_kwargs) = (self.mav.callback,
                                                       self.mav.callback_args,
                                                       self.mav.callback_kwargs)
-        self.mav = mavlink.MAVLink(self, srcSystem=self.source_system)
+        self.mav = mavlink.MAVLink(self, srcSystem=self.source_system, srcComponent=self.source_component)
         self.mav.robust_parsing = self.robust_parsing
         self.WIRE_PROTOCOL_VERSION = mavlink.WIRE_PROTOCOL_VERSION
         (self.mav.callback, self.mav.callback_args, self.mav.callback_kwargs) = (callback,
@@ -781,7 +782,7 @@ def set_close_on_exec(fd):
 
 class mavserial(mavfile):
     '''a serial mavlink port'''
-    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, use_native=default_native):
+    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, source_component=0, use_native=default_native):
         import serial
         if ',' in device and not os.path.exists(device):
             device, baud = device.split(',')
@@ -799,7 +800,7 @@ class mavserial(mavfile):
         except Exception:
             fd = None
         self.set_baudrate(self.baud)
-        mavfile.__init__(self, fd, device, source_system=source_system, use_native=use_native)
+        mavfile.__init__(self, fd, device, source_system=source_system, source_component=source_component, use_native=use_native)
         self.rtscts = False
 
     def set_rtscts(self, enable):
@@ -866,7 +867,7 @@ class mavserial(mavfile):
 
 class mavudp(mavfile):
     '''a UDP mavlink socket'''
-    def __init__(self, device, input=True, broadcast=False, source_system=255, use_native=default_native):
+    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
             print("UDP ports must be specified as host:port")
@@ -885,7 +886,7 @@ class mavudp(mavfile):
         set_close_on_exec(self.port.fileno())
         self.port.setblocking(0)
         self.last_address = None
-        mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, input=input, use_native=use_native)
+        mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
 
     def close(self):
         self.port.close()
@@ -932,7 +933,7 @@ class mavudp(mavfile):
 
 class mavtcp(mavfile):
     '''a TCP mavlink socket'''
-    def __init__(self, device, source_system=255, retries=3, use_native=default_native):
+    def __init__(self, device, source_system=255, source_component=0, retries=3, use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
             print("TCP ports must be specified as host:port")
@@ -955,7 +956,7 @@ class mavtcp(mavfile):
         self.port.setblocking(0)
         set_close_on_exec(self.port.fileno())
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, use_native=use_native)
+        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
     def close(self):
         self.port.close()
@@ -980,7 +981,7 @@ class mavtcp(mavfile):
 
 class mavtcpin(mavfile):
     '''a TCP input mavlink socket'''
-    def __init__(self, device, source_system=255, retries=3, use_native=default_native):
+    def __init__(self, device, source_system=255, source_component=0, retries=3, use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
             print("TCP ports must be specified as host:port")
@@ -993,7 +994,7 @@ class mavtcpin(mavfile):
         self.listen.setblocking(0)
         set_close_on_exec(self.listen.fileno())
         self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        mavfile.__init__(self, self.listen.fileno(), "tcpin:" + device, source_system=source_system, use_native=use_native)
+        mavfile.__init__(self, self.listen.fileno(), "tcpin:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
         self.port = None
 
     def close(self):
@@ -1040,7 +1041,7 @@ class mavlogfile(mavfile):
     '''a MAVLink logfile reader/writer'''
     def __init__(self, filename, planner_format=None,
                  write=False, append=False,
-                 robust_parsing=True, notimestamps=False, source_system=255, use_native=default_native):
+                 robust_parsing=True, notimestamps=False, source_system=255, source_component=0, use_native=default_native):
         self.filename = filename
         self.writeable = write
         self.robust_parsing = robust_parsing
@@ -1055,7 +1056,7 @@ class mavlogfile(mavfile):
         self.f = open(filename, mode)
         self.filesize = os.path.getsize(filename)
         self.percent = 0
-        mavfile.__init__(self, None, filename, source_system=source_system, notimestamps=notimestamps, use_native=use_native)
+        mavfile.__init__(self, None, filename, source_system=source_system, source_component=source_component, notimestamps=notimestamps, use_native=use_native)
         if self.notimestamps:
             self._timestamp = 0
         else:
@@ -1165,7 +1166,7 @@ class mavmemlog(mavfile):
 
 class mavchildexec(mavfile):
     '''a MAVLink child processes reader/writer'''
-    def __init__(self, filename, source_system=255, use_native=default_native):
+    def __init__(self, filename, source_system=255, source_component=0, use_native=default_native):
         from subprocess import Popen, PIPE
         import fcntl
         
@@ -1179,7 +1180,7 @@ class mavchildexec(mavfile):
         fl = fcntl.fcntl(self.child.stdout.fileno(), fcntl.F_GETFL)
         fcntl.fcntl(self.child.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-        mavfile.__init__(self, self.fd, filename, source_system=source_system, use_native=use_native)
+        mavfile.__init__(self, self.fd, filename, source_system=source_system, source_component=source_component, use_native=use_native)
 
     def close(self):
         self.child.close()
@@ -1195,7 +1196,7 @@ class mavchildexec(mavfile):
         self.child.stdin.write(buf)
 
 
-def mavlink_connection(device, baud=115200, source_system=255,
+def mavlink_connection(device, baud=115200, source_system=255, source_component=0,
                        planner_format=None, write=False, append=False,
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
@@ -1206,18 +1207,18 @@ def mavlink_connection(device, baud=115200, source_system=255,
     if dialect is not None:
         set_dialect(dialect)
     if device.startswith('tcp:'):
-        return mavtcp(device[4:], source_system=source_system, retries=retries, use_native=use_native)
+        return mavtcp(device[4:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
     if device.startswith('tcpin:'):
-        return mavtcpin(device[6:], source_system=source_system, retries=retries, use_native=use_native)
+        return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
     if device.startswith('udpin:'):
-        return mavudp(device[6:], input=True, source_system=source_system, use_native=use_native)
+        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native)
     if device.startswith('udpout:'):
-        return mavudp(device[7:], input=False, source_system=source_system, use_native=use_native)
+        return mavudp(device[7:], input=False, source_system=source_system, source_component=source_component, use_native=use_native)
     if device.startswith('udpbcast:'):
-        return mavudp(device[9:], input=False, source_system=source_system, use_native=use_native, broadcast=True)
+        return mavudp(device[9:], input=False, source_system=source_system, source_component=source_component, use_native=use_native, broadcast=True)
     # For legacy purposes we accept the following syntax and let the caller to specify direction
     if device.startswith('udp:'):
-        return mavudp(device[4:], input=input, source_system=source_system, use_native=use_native)
+        return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native)
 
     if device.lower().endswith('.bin') or device.lower().endswith('.px4log'):
         # support dataflash logs
@@ -1238,16 +1239,16 @@ def mavlink_connection(device, baud=115200, source_system=255,
     logsuffixes = ['mavlink', 'log', 'raw', 'tlog' ]
     suffix = device.split('.')[-1].lower()
     if device.find(':') != -1 and not suffix in logsuffixes:
-        return mavudp(device, source_system=source_system, input=input, use_native=use_native)
+        return mavudp(device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
     if os.path.isfile(device):
         if device.endswith(".elf") or device.find("/bin/") != -1:
             print("executing '%s'" % device)
-            return mavchildexec(device, source_system=source_system, use_native=use_native)
+            return mavchildexec(device, source_system=source_system, source_component=source_component, use_native=use_native)
         else:
             return mavlogfile(device, planner_format=planner_format, write=write,
                               append=append, robust_parsing=robust_parsing, notimestamps=notimestamps,
-                              source_system=source_system, use_native=use_native)
-    return mavserial(device, baud=baud, source_system=source_system, autoreconnect=autoreconnect, use_native=use_native)
+                              source_system=source_system, source_component=source_component, use_native=use_native)
+    return mavserial(device, baud=baud, source_system=source_system, source_component=source_component, autoreconnect=autoreconnect, use_native=use_native)
 
 class periodic_event(object):
     '''a class for fixed frequency events'''
