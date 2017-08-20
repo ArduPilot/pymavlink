@@ -13,7 +13,7 @@ before_script:
   flake8 . --exit-zero
 
 script:
-  # NOTE: we must do all testing on the installed python package, not 
+  # NOTE: we must do all testing on the installed python package, not
   # on the build tree. Otherwise the testing is invalid and may not
   # indicate the code actually works
   #
@@ -25,11 +25,16 @@ script:
   - python setup.py build install
 
   # Generate messages
-  - mavgen.py --lang='Python' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='C' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='CS' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='WLua' 	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='Java'	--output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='C'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='CS'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='JavaScript' --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='Python'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='WLua'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='ObjC'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='Swift'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='Java'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='C++11'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+
   # Avoid `spurious errors` caused by ~/.npm permission issues
   # ref: https://github.com/travis-ci/travis-ci/issues/2244
   # ref: https://github.com/npm/npm/issues/4815
