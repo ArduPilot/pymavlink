@@ -132,6 +132,7 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 	}
 
 	// now check timestamp
+	bool timestamp_checks = !(signing->flags & MAVLINK_SIGNING_FLAG_NO_TIMESTAMPS);
 	union tstamp {
 	    uint64_t t64;
 	    uint8_t t8[8];
@@ -158,7 +159,7 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 			return false;
 		}
 		// new stream. Only accept if timestamp is not more than 1 minute old
-		if (tstamp.t64 + 6000*1000UL < signing->timestamp) {
+		if (timestamp_checks && (tstamp.t64 + 6000*1000UL < signing->timestamp)) {
 			return false;
 		}
 		// add new stream
@@ -170,7 +171,7 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 		union tstamp last_tstamp;
 		last_tstamp.t64 = 0;
 		memcpy(last_tstamp.t8, signing_streams->stream[i].timestamp_bytes, 6);
-		if (tstamp.t64 <= last_tstamp.t64) {
+		if (timestamp_checks && tstamp.t64 <= last_tstamp.t64) {
 			// repeating old timestamp
 			return false;
 		}
