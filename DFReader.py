@@ -11,6 +11,8 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
+import sys
+
 import struct
 from . import mavutil
 
@@ -291,6 +293,13 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                     # because we were speculatively created in case no
                     # better clock was found.
                     return;
+
+        if gps_week is None:
+            # AvA-style logs
+            gps_week = getattr(m, 'Wk')
+            gps_timems = getattr(m, 'TWk')
+            if gps_week is None or gps_timems is None:
+                return
 
         t = self._gpsTimeToTime(gps_week, gps_timems) 
 
