@@ -11,6 +11,7 @@ from builtins import object
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 from pymavlink import mavexpression
+from pymavlink.generator import mavparse
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
@@ -79,7 +80,6 @@ def set_dialect(dialect):
     For example, set_dialect("ardupilotmega")
     '''
     global mavlink, current_dialect
-    from .generator import mavparse
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
         modname = "pymavlink.dialects.v20." + dialect

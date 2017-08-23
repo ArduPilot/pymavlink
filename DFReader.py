@@ -14,7 +14,7 @@ from builtins import object
 import sys
 
 import struct
-from . import mavutil
+import mavutil
 
 try:
     long        # Python 2 has long
