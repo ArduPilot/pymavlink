@@ -123,6 +123,7 @@ class mavfile(object):
         self.params = {}
         self.target_system = 0
         self.target_component = 0
+        self.filter_target = False
         self.source_system = source_system
         self.first_byte = True
         self.robust_parsing = True
@@ -228,6 +229,18 @@ class mavfile(object):
         msg._posted = True
         msg._timestamp = time.time()
         type = msg.get_type()
+        
+        if(self.filter_target):
+            #Set the target system and component if it has not been done already
+            if(type == 'HEARTBEAT'):
+                if(self.target_system == 0):
+                    self.target_system = msg.get_srcSystem()
+                    self.target_component = msg.get_srcComponent()
+            
+            #Dont act on messages from sources that are not from the correct system
+            if( (self.target_system != msg.get_srcSystem()) or (self.target_component != msg.get_srcComponent()) ):
+                return
+        
         if type != 'HEARTBEAT' or (msg.type != mavlink.MAV_TYPE_GCS and msg.type != mavlink.MAV_TYPE_GIMBAL):
             self.messages[type] = msg
 
