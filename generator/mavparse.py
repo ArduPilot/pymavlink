@@ -229,22 +229,10 @@ class MAVXML(object):
                 self.message[-1].extensions_start = len(self.message[-1].fields)
             elif in_element == "mavlink.messages.message.field":
                 check_attrs(attrs, ['name', 'type'], 'field')
-                if 'print_format' in attrs:
-                    print_format = attrs['print_format']
-                else:
-                    print_format = None
-                if 'enum' in attrs:
-                    enum = attrs['enum']
-                else:
-                    enum = ''
-                if 'bitmask' in attrs:
-                    bitmask = attrs['bitmask']
-                else:
-                    bitmask = ''
-                if 'units' in attrs:
-                    units = attrs['units']
-                else:
-                    units = ''
+                print_format = attrs.get('print_format', None)
+                enum = attrs.get('enum', '')
+                bitmask = attrs.get('bitmask', '')
+                units = attrs.get('units', '')
                 new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, bitmask=bitmask, units=units)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields.append(new_field)
