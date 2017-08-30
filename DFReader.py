@@ -11,6 +11,7 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
+import array
 import sys
 
 import struct
@@ -22,6 +23,7 @@ except NameError:
     long = int  # But Python 3 does not
  
 FORMAT_TO_STRUCT = {
+    "a": ("64s", None, str),
     "b": ("b", None, int),
     "B": ("B", None, int),
     "h": ("h", None, int),
@@ -57,14 +59,19 @@ class DFFormat(object):
         msg_struct = "<"
         msg_mults = []
         msg_types = []
+        msg_fmts = []
         for c in format:
             if ord(c) == 0:
                 break
             try:
+                msg_fmts.append(c)
                 (s, mul, type) = FORMAT_TO_STRUCT[c]
                 msg_struct += s
                 msg_mults.append(mul)
-                msg_types.append(type)
+                if c == "a":
+                    msg_types.append(array.array)
+                else:
+                    msg_types.append(type)
             except KeyError as e:
                 print("DFFormat: Unsupported format char: '%s' in message %s" % (c, name))
                 raise Exception("Unsupported format char: '%s' in message %s" % (c, name))
@@ -72,6 +79,7 @@ class DFFormat(object):
         self.msg_struct = msg_struct
         self.msg_types = msg_types
         self.msg_mults = msg_mults
+        self.msg_fmts = msg_fmts
         self.colhash = {}
         for i in range(len(self.columns)):
             self.colhash[self.columns[i]] = i
@@ -108,7 +116,9 @@ class DFMessage(object):
         except Exception:
             raise AttributeError(field)
         v = self._elements[i]
-        if self.fmt.format[i] != 'M' or self._apply_multiplier:
+        if self.fmt.format[i] == 'a':
+            pass
+        elif self.fmt.format[i] != 'M' or self._apply_multiplier:
             v = self.fmt.msg_types[i](v)
         if self.fmt.msg_types[i] == str:
             v = null_term(v)
@@ -592,6 +602,14 @@ class DFReader_binary(DFReader):
         if elements is None:
             return self._parse_next()
         name = null_term(fmt.name)
+        # transform elements which can't be done at unpack time:
+        for i in range(0, len(elements)):
+            if fmt.msg_fmts[i] == 'a':
+                try:
+                    elements[i] = array.array('h', elements[i])
+                except Exception as e:
+                    print("Failed to transform array: %s" % str(e), file=sys.stderr)
+
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
