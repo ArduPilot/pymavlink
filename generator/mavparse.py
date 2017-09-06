@@ -33,13 +33,13 @@ class MAVParseError(Exception):
         return self.message
 
 class MAVField(object):
-    def __init__(self, name, type, print_format, xml, description='', enum='', bitmask='', units=''):
+    def __init__(self, name, type, print_format, xml, description='', enum='', display='', units=''):
         self.name = name
         self.name_upper = name.upper()
         self.description = description
         self.array_length = 0
         self.enum = enum
-        self.bitmask = bitmask
+        self.display = display
         self.units = units
         self.omit_arg = False
         self.const_value = None
@@ -231,9 +231,9 @@ class MAVXML(object):
                 check_attrs(attrs, ['name', 'type'], 'field')
                 print_format = attrs.get('print_format', None)
                 enum = attrs.get('enum', '')
-                bitmask = attrs.get('bitmask', '')
+                display = attrs.get('display', '')
                 units = attrs.get('units', '')
-                new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, bitmask=bitmask, units=units)
+                new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields.append(new_field)
             elif in_element == "mavlink.enums.enum":
