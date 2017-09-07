@@ -25,15 +25,24 @@ script:
   - python setup.py build install
 
   # Generate messages
-  - mavgen.py --lang='C'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='CS'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='JavaScript' --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='Python'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='WLua'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='ObjC'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='Swift'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='Java'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
-  - mavgen.py --lang='C++11'	  --output=/tmp/ mavlink/message_definitions/v1.0/common.xml
+  - mavgen.py --lang='C'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='CS'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='JavaScript' --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='Python'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='WLua'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='ObjC'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='Swift'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+  - mavgen.py --lang='Java'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0
+
+  - mavgen.py --lang='C'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='CS'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='JavaScript' --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='Python'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='WLua'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='ObjC'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='Swift'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='Java'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0
+  - mavgen.py --lang='C++11'	  --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0 # C++11 generator only supports 2.0
 
   # Avoid `spurious errors` caused by ~/.npm permission issues
   # ref: https://github.com/travis-ci/travis-ci/issues/2244
