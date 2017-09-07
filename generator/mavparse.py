@@ -16,7 +16,7 @@ import sys
 import time
 import xml.parsers.expat
 
-from .maverrors import MAVError
+from .maverrors import MAVError, MAVParseError
 
 PROTOCOL_0_9 = "0.9"
 PROTOCOL_1_0 = "1.0"
