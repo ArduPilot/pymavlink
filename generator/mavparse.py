@@ -16,6 +16,8 @@ import sys
 import time
 import xml.parsers.expat
 
+from .maverrors import MAVError, MAVParseError
+
 PROTOCOL_0_9 = "0.9"
 PROTOCOL_1_0 = "1.0"
 PROTOCOL_2_0 = "2.0"
@@ -23,14 +25,6 @@ PROTOCOL_2_0 = "2.0"
 # message flags
 FLAG_HAVE_TARGET_SYSTEM    = 1
 FLAG_HAVE_TARGET_COMPONENT = 2
-
-class MAVParseError(Exception):
-    def __init__(self, message, inner_exception=None):
-        self.message = message
-        self.inner_exception = inner_exception
-        self.exception_info = sys.exc_info()
-    def __str__(self):
-        return self.message
 
 class MAVField(object):
     def __init__(self, name, type, print_format, xml, description='', enum='', display='', units=''):
