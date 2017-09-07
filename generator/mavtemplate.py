@@ -8,7 +8,7 @@ Released under GNU GPL version 3 or later
 
 from builtins import object
 
-from .mavparse import MAVParseError
+from .maverrors import MAVParseError
 
 class MAVTemplate(object):
     '''simple templating system'''
