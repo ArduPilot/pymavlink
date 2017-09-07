@@ -448,7 +448,7 @@ def generate_one(basename, xml):
 def generate(basename, xml_list):
     '''generate serialization MAVLink C++ implemenation'''
     print("Generating C headers")
-    import mavgen_c
+    from . import mavgen_c
     mavgen_c.generate(basename, xml_list)
     for xml in xml_list:
         generate_one(basename, xml)

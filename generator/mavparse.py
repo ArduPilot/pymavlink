@@ -214,7 +214,7 @@ class MAVXML(object):
 
         def check_attrs(attrs, check, where):
             for c in check:
-                if not c in attrs:
+                if c not in attrs:
                     raise MAVParseError('expected missing %s "%s" attribute at %s:%u' % (
                         where, c, filename, p.CurrentLineNumber))
 
@@ -229,22 +229,10 @@ class MAVXML(object):
                 self.message[-1].extensions_start = len(self.message[-1].fields)
             elif in_element == "mavlink.messages.message.field":
                 check_attrs(attrs, ['name', 'type'], 'field')
-                if 'print_format' in attrs:
-                    print_format = attrs['print_format']
-                else:
-                    print_format = None
-                if 'enum' in attrs:
-                    enum = attrs['enum']
-                else:
-                    enum = ''
-                if 'bitmask' in attrs:
-                    bitmask = attrs['bitmask']
-                else:
-                    bitmask = ''
-                if 'units' in attrs:
-                    units = attrs['units']
-                else:
-                    units = ''
+                print_format = attrs.get('print_format', None)
+                enum = attrs.get('enum', '')
+                bitmask = attrs.get('bitmask', '')
+                units = attrs.get('units', '')
                 new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, bitmask=bitmask, units=units)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields.append(new_field)
@@ -261,7 +249,7 @@ class MAVXML(object):
                     value = self.enum[-1].highest_value + 1
                     autovalue = True
                 # check lowest value
-                if (self.enum[-1].start_value == None or value < self.enum[-1].start_value):
+                if (self.enum[-1].start_value is None or value < self.enum[-1].start_value):
                     self.enum[-1].start_value = value
                 # check highest value
                 if (value > self.enum[-1].highest_value):
@@ -423,7 +411,7 @@ def merge_enums(xml):
                 if (emapitem.start_value <= enum.highest_value and emapitem.highest_value >= enum.start_value):
                     for entry in emapitem.entry:
                         # correct the value if necessary, but only if it was auto-assigned to begin with
-                        if entry.value <= enum.highest_value and entry.autovalue == True:
+                        if entry.value <= enum.highest_value and entry.autovalue is True:
                             entry.value = enum.highest_value + 1
                             enum.highest_value = entry.value
                 # merge the entries
@@ -472,7 +460,7 @@ def check_duplicates(xml):
             msgmap[key] = '%s (%s:%u)' % (m.name, x.filename, m.linenumber)
         for enum in x.enum:
             for entry in enum.entry:
-                if entry.autovalue == True and "common.xml" not in entry.origin_file:
+                if entry.autovalue is True and "common.xml" not in entry.origin_file:
                     print("Note: An enum value was auto-generated: %s = %u" % (entry.name, entry.value))
                 s1 = "%s.%s" % (enum.name, entry.name)
                 s2 = "%s.%s" % (enum.name, entry.value)
@@ -499,9 +487,8 @@ def mkdir_p(dir):
     try:
         os.makedirs(dir)
     except OSError as exc:
-        if exc.errno == errno.EEXIST:
-            pass
-        else: raise
+        if exc.errno != errno.EEXIST:
+            raise
 
 # check version consistent
 # add test.xml

@@ -11,6 +11,8 @@ from __future__ import print_function
 from builtins import range
 from builtins import object
 
+import sys
+
 import struct
 from . import mavutil
 
@@ -292,6 +294,13 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                     # better clock was found.
                     return;
 
+        if gps_week is None:
+            # AvA-style logs
+            gps_week = getattr(m, 'Wk')
+            gps_timems = getattr(m, 'TWk')
+            if gps_week is None or gps_timems is None:
+                return
+
         t = self._gpsTimeToTime(gps_week, gps_timems) 
 
         deltat = t - self.timebase
@@ -552,7 +561,7 @@ class DFReader_binary(DFReader):
         if skip_bytes != 0:
             if self.remaining < 528:
                 return None
-            print("Skipped %u bad bytes in log at offset %u, type=%s" % (skip_bytes, skip_start, skip_type))
+            print("Skipped %u bad bytes in log at offset %u, type=%s" % (skip_bytes, skip_start, skip_type), file=sys.stderr)
             self.remaining -= skip_bytes
 
         self.offset += 3
@@ -560,13 +569,13 @@ class DFReader_binary(DFReader):
 
         if not msg_type in self.formats:
             if self.verbose:
-                print("unknown message type %02x" % msg_type)
+                print("unknown message type %02x" % msg_type, file=sys.stderr)
             raise Exception("Unknown message type %02x" % msg_type)
         fmt = self.formats[msg_type]
         if self.remaining < fmt.len-3:
             # out of data - can often happen half way through a message
             if self.verbose:
-                print("out of data")
+                print("out of data", file=sys.stderr)
             return None
         body = self.data[self.offset:self.offset+(fmt.len-3)]
         elements = None
@@ -579,7 +588,7 @@ class DFReader_binary(DFReader):
             # we should also cope with other corruption; logs
             # transfered via DataFlash_MAVLink may have blocks of 0s
             # in them, for example
-            print("Failed to parse %s/%s with len %u (remaining %u)" % (fmt.name, fmt.msg_struct, len(body), self.remaining))
+            print("Failed to parse %s/%s with len %u (remaining %u)" % (fmt.name, fmt.msg_struct, len(body), self.remaining), file=sys.stderr)
         if elements is None:
             return self._parse_next()
         name = null_term(fmt.name)

@@ -59,7 +59,7 @@ class pcap(object):
 
         if hdr:
             # We're in read mode
-            self._endian = pcap.None
+            self._endian = None
             for endian in '<>':
                 (self.magic,) = struct.unpack(endian + 'I', hdr[:4])
                 if self.magic == pcap._MAGIC:
