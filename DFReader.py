@@ -12,6 +12,7 @@ from builtins import range
 from builtins import object
 
 import array
+import math
 import sys
 
 import struct
@@ -133,7 +134,12 @@ class DFMessage(object):
         ret = "%s {" % self.fmt.name
         col_count = 0
         for c in self.fmt.columns:
-            ret += "%s : %s, " % (c, self.__getattr__(c))
+            val = self.__getattr__(c)
+            if isinstance(val,float) and math.isnan(val):
+                # quiet nans have more non-zero values:
+                if struct.pack(">d", val) != "\x7f\xf8\x00\x00\x00\x00\x00\x00":
+                    val = "qnan"
+            ret += "%s : %s, " % (c, val)
             col_count += 1
         if col_count != 0:
             ret = ret[:-2]
