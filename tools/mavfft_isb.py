@@ -62,6 +62,9 @@ def mavfft_fttd(logfile):
             else:
                 return "?Unknown Sensor Type?"
 
+        def tag(self):
+            return str(self)
+
         def __str__(self):
             return "%s[%u]" % (self.prefix(), self.instance)
 
@@ -101,12 +104,10 @@ def mavfft_fttd(logfile):
 
     sum_fft = {}
     count = 0
-    
+
     first_freq = None
     for thing_to_plot in things_to_plot:
-        prefix = thing_to_plot.prefix()
         for axis in [ "X","Y","Z" ]:
-            field = "%s-%s" % (prefix, axis)
             d = numpy.array(thing_to_plot.data[axis])/float(thing_to_plot.multiplier)
             if len(d) == 0:
                 print("No data?!?!?!")
@@ -114,20 +115,23 @@ def mavfft_fttd(logfile):
             avg = numpy.sum(d) / len(d)
             d -= avg
             d_fft = numpy.fft.rfft(d)
-            if not field in sum_fft:
-                sum_fft[field] = d_fft;
-            else:
-                sum_fft[field] = numpy.add(sum_fft[field], d_fft)
+            if thing_to_plot.tag() not in sum_fft:
+                sum_fft[thing_to_plot.tag()] = {
+                    "X": 0,
+                    "Y": 0,
+                    "Z": 0
+                }
+            sum_fft[thing_to_plot.tag()][axis] = numpy.add(sum_fft[thing_to_plot.tag()][axis], d_fft)
             count += 1
             freq = numpy.fft.rfftfreq(len(d), 1.0/thing_to_plot.sample_rate_hz)
             if first_freq is None:
                 first_freq = freq
 
-    for sensor in ['Accel', 'Gyro']:
-        pylab.figure()
+    for sensor in sum_fft:
+        print("Sensor: %s" % str(sensor))
+        pylab.figure(str(sensor))
         for axis in [ "X","Y","Z" ]:
-            field = "%s-%s" % (sensor, axis)
-            pylab.plot(first_freq, numpy.abs(sum_fft[field]/count), label=field)
+            pylab.plot(first_freq, numpy.abs(sum_fft[sensor][axis]/count), label=axis)
         pylab.legend(loc='upper right')
         pylab.xlabel('Hz')
 
