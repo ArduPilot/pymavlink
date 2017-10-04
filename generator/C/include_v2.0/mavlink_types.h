@@ -17,8 +17,7 @@ namespace mavlink {
   #define MAVPACKED( __Declaration__ ) __Declaration__ __attribute__((packed))
 #elif defined __ARMCC_VERSION
   #pragma anon_unions
-  #pragma pack(push, 1)
-  #define MAVPACKED( __Declaration__ ) __Declaration__	
+  #define MAVPACKED( __Declaration__ ) _Pragma("pack(push,1)") __Declaration__ _Pragma("pack(pop)")
 #else
   #define MAVPACKED( __Declaration__ ) __pragma( pack(push, 1) ) __Declaration__ __pragma( pack(pop) )
 #endif
