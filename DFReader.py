@@ -10,6 +10,7 @@ Partly based on SDLog2Parser by Anton Babushkin
 from __future__ import print_function
 from builtins import range
 from builtins import object
+from collections import Counter
 
 import array
 import math
@@ -270,26 +271,20 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
     def __init__(self):
         DFReaderClock.__init__(self)
         self.msg_rate = {}
-        self.counts = {}
-        self.counts_since_gps = {}
+        self.counts = Counter()
+        self.counts_since_gps = Counter()
 
     def rewind_event(self):
         '''reset counters on rewind'''
-        self.counts = {}
-        self.counts_since_gps = {}
+        self.counts.clear()
+        self.counts_since_gps.clear()
 
     def message_arrived(self, m):
         type = m.get_type()
-        if not type in self.counts:
-            self.counts[type] = 1
-        else:
-            self.counts[type] += 1
+        self.counts[type] += 1
         # this preserves existing behaviour - but should we be doing this
         # if type == 'GPS'?
-        if not type in self.counts_since_gps:
-            self.counts_since_gps[type] = 1
-        else:
-            self.counts_since_gps[type] += 1
+        self.counts_since_gps[type] += 1
 
         if type == 'GPS' or type == 'GPS2':
             self.gps_message_arrived(m)
@@ -329,13 +324,13 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                 self.msg_rate[type] = rate
         self.msg_rate['IMU'] = 50.0
         self.timebase = t
-        self.counts_since_gps = {}
+        self.counts_since_gps.clear()
 
     def set_message_timestamp(self, m):
         rate = self.msg_rate.get(m.fmt.name, 50.0)
         if int(rate) == 0:
             rate = 50
-        count = self.counts_since_gps.get(m.fmt.name, 0)
+        count = self.counts_since_gps[m.fmt.name]
         m._timestamp = self.timebase + count/rate
 
 
