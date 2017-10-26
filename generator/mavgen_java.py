@@ -219,6 +219,15 @@ public class msg_${name_lower} extends MAVLinkMessage{
 
 def generate_MAVLinkMessage(directory, xml_list):
     f = open(os.path.join(directory, "MAVLinkPacket.java"), mode='w')
+
+    imports = []
+
+    for xml in xml_list:
+        importString = "import com.MAVLink.{}.*;".format(xml.basename)
+        imports.append(importString)
+
+    xml_list[0].importString = os.linesep.join(imports)
+
     t.write(f, '''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
  *
@@ -232,8 +241,8 @@ import java.io.Serializable;
 import com.MAVLink.Messages.MAVLinkPayload;
 import com.MAVLink.Messages.MAVLinkMessage;
 import com.MAVLink.${basename}.CRC;
-import com.MAVLink.common.*;
-import com.MAVLink.${basename}.*;
+
+${importString}
 
 /**
 * Common interface for all MAVLink Messages
