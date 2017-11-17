@@ -45,11 +45,18 @@ ${{entry:   public static final int ${name} = ${value}; /* ${description} |${{pa
 def generate_CRC(directory, xml):
     # and message CRCs array
     xml.message_crcs_array = ''
-    for msgid in range(256):
+    xml.message_ids_array = ''
+    for msgid in sorted(xml.message_crcs.keys()):
+        if xml.wire_protocol_version == mavparse.PROTOCOL_0_9 or xml.wire_protocol_version == mavparse.PROTOCOL_1_0:
+            if msgid > 255:
+                break
         crc = xml.message_crcs.get(msgid, 0)
+        xml.message_ids_array += '%u, ' % msgid
         xml.message_crcs_array += '%u, ' % crc
+    # remove trailing ', '
     xml.message_crcs_array = xml.message_crcs_array[:-2]
-    
+    xml.message_ids_array = xml.message_ids_array[:-2]
+
     f = open(os.path.join(directory, "CRC.java"), mode='w')
     t.write(f,'''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
@@ -68,6 +75,7 @@ package com.MAVLink.${basename};
 */
 public class CRC {
     private static final int[] MAVLINK_MESSAGE_CRCS = {${message_crcs_array}};
+    private static final int[] MAVLINK_MESSAGE_IDS = {${message_ids_array}};
     private static final int CRC_INIT_VALUE = 0xffff;
     private int crcValue;
 
@@ -93,9 +101,29 @@ public class CRC {
     *
     * @param msgid
     *            The message id number
+    * @return crc_extra
+    *            The crc_extra value for the given message
     */
-    public void finish_checksum(int msgid) {
-        update_checksum(MAVLINK_MESSAGE_CRCS[msgid]);
+    public int finish_checksum(int msgid) {
+        int crc = 0;
+        if (msgid == 0) {
+            /* special handling to high frequency heartbeat message */
+            crc = MAVLINK_MESSAGE_CRCS[0];
+        } else {
+            int low = 0, high = MAVLINK_MESSAGE_IDS.length - 1;
+            while (low <= high) {
+                int mid = (low + high) / 2;
+                if (msgid == MAVLINK_MESSAGE_IDS[mid]) {
+                    crc = MAVLINK_MESSAGE_CRCS[mid];
+                    break;
+                } else if (msgid < MAVLINK_MESSAGE_IDS[mid]) {
+                    high = mid - 1;
+                } else
+                    low = mid + 1;
+            }
+        }
+        update_checksum(crc);
+        return crc;
     }
 
     /**
@@ -148,6 +176,7 @@ import com.MAVLink.Messages.MAVLinkPayload;
 public class msg_${name_lower} extends MAVLinkMessage{
 
     public static final int MAVLINK_MSG_ID_${name} = ${id};
+    public static final int MAVLINK_MSG_ID_${name}_CRC = ${crc_extra};
     public static final int MAVLINK_MSG_LENGTH = ${wire_length};
     private static final long serialVersionUID = MAVLINK_MSG_ID_${name};
 
@@ -168,6 +197,7 @@ public class msg_${name_lower} extends MAVLinkMessage{
         packet.sysid = 255;
         packet.compid = 190;
         packet.msgid = MAVLINK_MSG_ID_${name};
+        packet.crc_extra = MAVLINK_MSG_ID_${name}_CRC;
         ${{ordered_fields:      
         ${packField}
         }}
@@ -294,6 +324,11 @@ public class MAVLinkPacket implements Serializable {
     public MAVLinkPayload payload;
 
     /**
+    * crc extra value of the message.
+    */
+    public int crc_extra;
+
+    /**
     * ITU X.25/SAE AS-4 hash, excluding packet start sign, so bytes 1..(n+6)
     * Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from
     * message fields. Protects the packet from decoding a different version of
@@ -304,6 +339,7 @@ public class MAVLinkPacket implements Serializable {
     public MAVLinkPacket(int payloadLength){
         len = payloadLength;
         payload = new MAVLinkPayload(payloadLength);
+        crc_extra = -1;
     }
 
     /**
@@ -336,7 +372,12 @@ public class MAVLinkPacket implements Serializable {
         for (int i = 0; i < payloadSize; i++) {
             crc.update_checksum(payload.getByte());
         }
-        crc.finish_checksum(msgid);
+
+        if (crc_extra != -1) {
+            crc.update_checksum(crc_extra);
+        } else {
+            crc_extra = crc.finish_checksum(msgid);
+        }
     }
 
     /**
