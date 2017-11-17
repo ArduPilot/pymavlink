@@ -232,7 +232,7 @@ public class msg_${name_lower} extends MAVLinkMessage{
         this.sysid = mavLinkPacket.sysid;
         this.compid = mavLinkPacket.compid;
         this.msgid = MAVLINK_MSG_ID_${name};
-        unpack(mavLinkPacket.payload);        
+        unpack(mavLinkPacket.payload);
     }
 
     ${{ordered_fields: ${getText} }}
@@ -248,6 +248,16 @@ public class msg_${name_lower} extends MAVLinkMessage{
 
 
 def generate_MAVLinkMessage(directory, xml_list):
+
+    xml = xml_list[0]
+
+    if xml.wire_protocol_version == mavparse.PROTOCOL_2_0:
+        xml.protocol_version = "PROTOCOL_2_0"
+    elif xml.wire_protocol_version == mavparse.PROTOCOL_1_0:
+        xml.protocol_version = "PROTOCOL_1_0"
+    else:
+        xml.protocol_version = "PROTOCOL_0_9"
+
     f = open(os.path.join(directory, "MAVLinkPacket.java"), mode='w')
     t.write(f, '''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
@@ -288,10 +298,23 @@ import com.MAVLink.${basename}.*;
 public class MAVLinkPacket implements Serializable {
     private static final long serialVersionUID = 2095947771227815314L;
 
-    public static final int MAVLINK_STX = 254;
+    public static final int MAVLINK_STX = 253;
+
+    public static final int MAVLINK_STX_MAVLINK1 = 254;
+
+    public enum Protocol {
+        PROTOCOL_0_9,
+        PROTOCOL_1_0,
+        PROTOCOL_2_0
+    }
 
     /**
-    * Message length. NOT counting STX, LENGTH, SEQ, SYSID, COMPID, MSGID, CRC1 and CRC2
+    * protocol version
+    */
+    public Protocol protocol;
+
+    /**
+    * Message length. NOT counting STX, LENGTH, SEQ, INCOMPAT_FLAGS, COMPAT_FLAGS, SYSID, COMPID, MSGID, CRC1 and CRC2
     */
     public final int len;
 
@@ -299,6 +322,16 @@ public class MAVLinkPacket implements Serializable {
     * Message sequence
     */
     public int seq;
+
+    /**
+    * Flags that must be understood
+    */
+    public int incompat_flags;
+
+    /**
+    * Flags that can be ignored if not understood
+    */
+    public int compat_flags;
 
     /**
     * ID of the SENDING system. Allows to differentiate different MAVs on the
@@ -336,14 +369,24 @@ public class MAVLinkPacket implements Serializable {
     */
     public CRC crc;
 
-    public MAVLinkPacket(int payloadLength){
+    public MAVLinkPacket(int payloadLength) {
+        protocol = Protocol.${protocol_version};
+        incompat_flags = 0;
+        compat_flags = 0;
         len = payloadLength;
         payload = new MAVLinkPayload(payloadLength);
         crc_extra = -1;
     }
 
     /**
-    * Check if the size of the Payload is equal to the "len" byte
+    * Set the MAVLink protocol for this packet.
+    */
+    public void setProtocol(Protocol protocol) {
+        this.protocol = protocol;
+    }
+
+    /**
+    * Check if the size of the Payload is equal to the "len" byte.
     */
     public boolean payloadIsFilled() {
         return payload.size() >= len;
@@ -352,7 +395,14 @@ public class MAVLinkPacket implements Serializable {
     /**
     * Update CRC for this packet.
     */
-    public void generateCRC(){
+    public void generateCRC() {
+        generateCRC(payload.size());
+    }
+
+    /**
+    * Update CRC for this packet with given trimmed payload length.
+    */
+    private void generateCRC(int payloadSize){
         if(crc == null){
             crc = new CRC();
         }
@@ -361,14 +411,21 @@ public class MAVLinkPacket implements Serializable {
         }
         
         crc.update_checksum(len);
+        if (protocol == Protocol.PROTOCOL_2_0) {
+            crc.update_checksum(incompat_flags);
+            crc.update_checksum(compat_flags);
+        }
         crc.update_checksum(seq);
         crc.update_checksum(sysid);
         crc.update_checksum(compid);
         crc.update_checksum(msgid);
+        if (protocol == Protocol.PROTOCOL_2_0) {
+            crc.update_checksum(msgid >> 8);
+            crc.update_checksum(msgid >> 16);
+        }
 
         payload.resetIndex();
 
-        final int payloadSize = payload.size();
         for (int i = 0; i < payloadSize; i++) {
             crc.update_checksum(payload.getByte());
         }
@@ -381,15 +438,15 @@ public class MAVLinkPacket implements Serializable {
     }
 
     /**
-    * Encode this packet for transmission.
+    * Encode this packet in MAVLink1 for transmission.
     *
     * @return Array with bytes to be transmitted
     */
-    public byte[] encodePacket() {
+    private byte[] encodeMavlink1Packet() {
         byte[] buffer = new byte[6 + len + 2];
-        
+
         int i = 0;
-        buffer[i++] = (byte) MAVLINK_STX;
+        buffer[i++] = (byte) MAVLINK_STX_MAVLINK1;
         buffer[i++] = (byte) len;
         buffer[i++] = (byte) seq;
         buffer[i++] = (byte) sysid;
@@ -408,6 +465,65 @@ public class MAVLinkPacket implements Serializable {
     }
 
     /**
+    * Trim payload of any trailing zero bytes.
+    *
+    * @return Length of bytes to be transmitted
+    */
+    int trimPayload() {
+        for (int i = payload.size(); i > 0; i--) {
+            if (payload.get(i - 1) != 0) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /**
+    * Encode this packet in MAVLink2 for transmission.
+    *
+    * @return Array with bytes to be transmitted
+    */
+    private byte[] encodeMavlink2Packet() {
+        int length = trimPayload();
+
+        byte[] buffer = new byte[10 + length + 2];
+
+        int i = 0;
+        buffer[i++] = (byte) MAVLINK_STX;
+        buffer[i++] = (byte) length;
+        buffer[i++] = (byte) incompat_flags;
+        buffer[i++] = (byte) compat_flags;
+        buffer[i++] = (byte) seq;
+        buffer[i++] = (byte) sysid;
+        buffer[i++] = (byte) compid;
+        buffer[i++] = (byte) (msgid & 0xff);
+        buffer[i++] = (byte) ((msgid >> 8) & 0xff);
+        buffer[i++] = (byte) ((msgid >> 16) & 0xff);
+
+        for (int j = 0; j < length; j++) {
+            buffer[i++] = payload.payload.get(j);
+        }
+
+        generateCRC(length);
+        buffer[i++] = (byte) (crc.getLSB());
+        buffer[i++] = (byte) (crc.getMSB());
+        return buffer;
+    }
+
+    /**
+    * Encode this packet for transmission;
+    *
+    * @return Array with bytes to be transmitted
+    */
+    public byte[] encodePacket() {
+        if (protocol == Protocol.PROTOCOL_2_0) {
+            return encodeMavlink2Packet();
+        } else {
+            return encodeMavlink1Packet();
+        }
+    }
+
+    /**
     * Unpack the data in this packet and return a MAVLink message
     *
     * @return MAVLink message decoded from this packet
@@ -419,7 +535,7 @@ public class MAVLinkPacket implements Serializable {
         t.write(f, '''
             ${{message:     
             case msg_${name_lower}.MAVLINK_MSG_ID_${name}:
-                return  new msg_${name_lower}(this);
+                return new msg_${name_lower}(this);
             }}
             ''',xml)
     f.write('''
