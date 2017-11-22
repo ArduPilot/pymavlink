@@ -22,7 +22,7 @@ try:
     long        # Python 2 has long
 except NameError:
     long = int  # But Python 3 does not
- 
+
 FORMAT_TO_STRUCT = {
     "a": ("64s", None, str),
     "b": ("b", None, int),
@@ -200,9 +200,9 @@ class DFReaderClock_usec(DFReaderClock):
     def type_has_good_TimeMS(self, type):
         '''The TimeMS in some messages is not from *our* clock!'''
         if type.startswith('ACC'):
-            return False;
+            return False
         if type.startswith('GYR'):
-            return False;
+            return False
         return True
 
     def should_use_msec_field0(self, m):
@@ -212,7 +212,7 @@ class DFReaderClock_usec(DFReaderClock):
             return False
         if self.timebase + m.TimeMS*0.001 < self.timestamp:
             return False
-        return True;
+        return True
 
     def set_message_timestamp(self, m):
         if 'TimeUS' == m._fieldnames[0]:
@@ -308,7 +308,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                     # PX4-style timestamp; we've only been called
                     # because we were speculatively created in case no
                     # better clock was found.
-                    return;
+                    return
 
         if gps_week is None:
             # AvA-style logs
@@ -317,7 +317,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
             if gps_week is None or gps_timems is None:
                 return
 
-        t = self._gpsTimeToTime(gps_week, gps_timems) 
+        t = self._gpsTimeToTime(gps_week, gps_timems)
 
         deltat = t - self.timebase
         if deltat <= 0:
@@ -394,17 +394,17 @@ class DFReader(object):
         while True:
             m = self.recv_msg()
             if m is None:
-                break;
+                break
 
             type = m.get_type()
 
             if first_us_stamp is None:
-                first_us_stamp = getattr(m, "TimeUS", None);
+                first_us_stamp = getattr(m, "TimeUS", None)
 
             if first_ms_stamp is None and (type != 'GPS' and type != 'GPS2'):
                 # Older GPS messages use TimeMS for msecs past start
                 # of gps week
-                first_ms_stamp = getattr(m, "TimeMS", None);
+                first_ms_stamp = getattr(m, "TimeMS", None)
 
             if type == 'GPS' or type == 'GPS2':
                 if getattr(m, "TimeUS", 0) != 0 and \
@@ -442,7 +442,7 @@ class DFReader(object):
             elif type == 'TIME':
                 '''only px4-style logs use TIME'''
                 if getattr(m, "StartTime", None) != None:
-                    px4_msg_time = m;
+                    px4_msg_time = m
 
             if px4_msg_time is not None and px4_msg_gps is not None:
                 self.init_clock_px4(px4_msg_time, px4_msg_gps)
@@ -559,7 +559,7 @@ class DFReader_binary(DFReader):
         '''read one message, returning it as an object'''
         if self.data_len - self.offset < 3:
             return None
-            
+
         hdr = self.data[self.offset:self.offset+3]
         skip_bytes = 0
         skip_type = None
@@ -632,7 +632,7 @@ class DFReader_binary(DFReader):
         self._add_msg(m)
 
         self.percent = 100.0 * (self.offset / float(self.data_len))
-        
+
         return m
 
 def DFReader_is_text_log(filename):
@@ -696,7 +696,7 @@ class DFReader_text(DFReader):
 
         if not msg_type in self.formats:
             return self._parse_next()
-        
+
         fmt = self.formats[msg_type]
 
         if len(elements) < len(fmt.format)+1:
@@ -704,7 +704,7 @@ class DFReader_text(DFReader):
             return self._parse_next()
 
         elements = elements[1:]
-        
+
         name = fmt.name.rstrip('\0')
         if name == 'FMT':
             # add to formats
@@ -731,7 +731,7 @@ if __name__ == "__main__":
         profiler.add_function(DFReader_binary._add_msg)
         profiler.add_function(DFReader._set_time)
         profiler.enable_by_count()
-                    
+
     filename = sys.argv[1]
     if filename.endswith('.log'):
         log = DFReader_text(filename)
