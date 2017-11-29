@@ -9,6 +9,13 @@ package com.MAVLink;
 import com.MAVLink.MAVLinkPacket;
 import com.MAVLink.Messages.MAVLinkStats;
 
+/**
+ * MAVLink parser that parses @{link MAVLinkPacket}s from a byte stream one byte
+ * at a time. 
+ *
+ * After creating an instance of this class, simply just use the @{link #mavlink_parse_char} 
+ * method to parse a byte stream.
+ */
 public class Parser {
 
     /**
@@ -33,7 +40,7 @@ public class Parser {
         MAVLINK_PARSE_STATE_GOT_SIGNATURE,
     }
 
-    MAV_states state = MAV_states.MAVLINK_PARSE_STATE_UNINIT;
+    private MAV_states state = MAV_states.MAVLINK_PARSE_STATE_UNINIT;
 
     public MAVLinkStats stats;
     private MAVLinkPacket m;
@@ -55,6 +62,7 @@ public class Parser {
      * failures will be silently ignored.
      * 
      * @param c The char to parse
+     * @return the complete @{link MAVLinkPacket} if successfully decoded, else null
      */
     public MAVLinkPacket mavlink_parse_char(int c) {
 

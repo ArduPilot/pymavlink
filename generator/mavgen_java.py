@@ -31,8 +31,8 @@ def generate_enums(basename, xml):
 package com.MAVLink.enums;
 
 /** 
-* ${description}
-*/
+ * ${description}
+ */
 public class ${name} {
 ${{entry:   public static final int ${name} = ${value}; /* ${description} |${{param:${description}| }} */
 }}
@@ -148,9 +148,9 @@ import com.MAVLink.Messages.MAVLinkMessage;
 import com.MAVLink.Messages.MAVLinkPayload;
         
 /**
-* ${description}
-*/
-public class msg_${name_lower} extends MAVLinkMessage{
+ * ${description}
+ */
+public class msg_${name_lower} extends MAVLinkMessage {
 
     public static final int MAVLINK_MSG_ID_${name} = ${id};
     public static final int MAVLINK_MSG_LENGTH = ${wire_length};
@@ -159,16 +159,16 @@ public class msg_${name_lower} extends MAVLinkMessage{
 
     ${{ordered_fields:  
     /**
-    * ${description}
-    */
+     * ${description}
+     */
     public ${type} ${name}${array_suffix};
     }}
 
     /**
-    * Generates the payload for a mavlink message for a message of this type
-    * @return
-    */
-    public MAVLinkPacket pack(){
+     * Generates the payload for a mavlink message for a message of this type
+     * @return
+     */
+    public MAVLinkPacket pack() {
         MAVLinkPacket packet = new MAVLinkPacket(MAVLINK_MSG_LENGTH);
         packet.sysid = 255;
         packet.compid = 190;
@@ -185,10 +185,10 @@ public class msg_${name_lower} extends MAVLinkMessage{
     }
 
     /**
-    * Decode a ${name_lower} message into this class fields
-    *
-    * @param payload The message to decode
-    */
+     * Decode a ${name_lower} message into this class fields
+     *
+     * @param payload The message to decode
+     */
     public void unpack(MAVLinkPayload payload) {
         payload.resetIndex();
         ${{base_fields:
@@ -202,18 +202,18 @@ public class msg_${name_lower} extends MAVLinkMessage{
     }
 
     /**
-    * Constructor for a new message, just initializes the msgid
-    */
-    public msg_${name_lower}(){
+     * Constructor for a new message, just initializes the msgid
+     */
+    public msg_${name_lower}() {
         msgid = MAVLINK_MSG_ID_${name};
     }
 
     /**
-    * Constructor for a new message, initializes the message with the payload
-    * from a mavlink packet
-    *
-    */
-    public msg_${name_lower}(MAVLinkPacket mavLinkPacket){
+     * Constructor for a new message, initializes the message with the payload
+     * from a mavlink packet
+     *
+     */
+    public msg_${name_lower}(MAVLinkPacket mavLinkPacket) {
         this.sysid = mavLinkPacket.sysid;
         this.compid = mavLinkPacket.compid;
         this.msgid = MAVLINK_MSG_ID_${name};
@@ -223,9 +223,9 @@ public class msg_${name_lower} extends MAVLinkMessage{
 
     ${{ordered_fields: ${getText} }}
     /**
-    * Returns a string with the MSG name and data
-    */
-    public String toString(){
+     * Returns a string with the MSG name and data
+     */
+    public String toString() {
         return "MAVLINK_MSG_ID_${name} - sysid:"+sysid+" compid:"+compid+${{ordered_fields:" ${name}:"+${name}+}}"";
     }
 }
@@ -303,7 +303,7 @@ ${importString}
  * The signature is a combination of a typeid, timestamp, and SHA256 hash.
  * OPTIONAL fields mean that, if they are not used, they do not exist in the MAVLink frame at all. Typically target sysid and target compid are not used, and signature is only used if signing is set up between both ends.
  * 
- * @see mavlink.io for more documentation on MAVLink protocol
+ * @see <a href="https://mavlink.io">mavlink.io</a> for more documentation on the MAVLink protocol
  */
 public class MAVLinkPacket implements Serializable {
     private static final long serialVersionUID = 2095947771227815314L;
@@ -313,7 +313,8 @@ public class MAVLinkPacket implements Serializable {
     public static final int MAVLINK1_HEADER_LEN = 6;
     public static final int MAVLINK2_HEADER_LEN = 10;
     public static final int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
-    public static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2 + Signature.MAX_SIGNATURE_SIZE;
+    public static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
+    public static final int MAVLINK2_NONPAYLOAD_SIGNED_LEN = MAVLINK2_HEADER_LEN + 2 + Signature.MAX_SIGNATURE_SIZE;
 
     /**
      * Payload length
@@ -409,11 +410,10 @@ public class MAVLinkPacket implements Serializable {
     /**
      * Update CRC for this packet.
      */
-    public void generateCRC(){
-        if(crc == null){
+    public void generateCRC() {
+        if(crc == null) {
             crc = new CRC();
-        }
-        else{
+        } else {
             crc.start_checksum();
         }
 
