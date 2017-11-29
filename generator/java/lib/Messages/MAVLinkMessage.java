@@ -22,6 +22,7 @@ public abstract class MAVLinkMessage implements Serializable {
     public int sysid;
     public int compid;
     public int msgid;
+    public boolean isMavlink2;
     public abstract MAVLinkPacket pack();
     public abstract void unpack(MAVLinkPayload payload);
 }
