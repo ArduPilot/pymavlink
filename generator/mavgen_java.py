@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 '''
-    Parse a MAVLink protocol XML file and generate a Java implementation
-    
-    Copyright Andrew Tridgell 2011
-    Released under GNU GPL version 3 or later
-    '''
+Parse a MAVLink protocol XML file and generate a Java implementation
+
+Copyright Andrew Tridgell 2011
+Released under GNU GPL version 3 or later
+'''
 from __future__ import print_function
 
 from builtins import range
@@ -43,12 +43,10 @@ ${{entry:   public static final int ${name} = ${value}; /* ${description} |${{pa
 
 
 def generate_CRC(directory, xml):
-    # and message CRCs array
+    '''generate CRC definition and crc array per dialect'''
     xml.message_crcs_array = ''
-    for msgid in range(256):
-        crc = xml.message_crcs.get(msgid, 0)
-        xml.message_crcs_array += '%u, ' % crc
-    xml.message_crcs_array = xml.message_crcs_array[:-2]
+    for msgid, crc in sorted(xml.message_crcs.items()):
+        xml.message_crcs_array += 'MAVLINK_MESSAGE_CRCS.put(%u, %u);\n        ' % (msgid, crc)
     
     f = open(os.path.join(directory, "CRC.java"), mode='w')
     t.write(f,'''
@@ -60,27 +58,34 @@ def generate_CRC(directory, xml):
 
 package com.MAVLink.${basename};
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
-* CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
-* initialized, updated with witch field of the message, and then finished with
-* the message id.
-*
-*/
+ * CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
+ * initialized, updated with which field of the message, and then finished with
+ * the message id.
+ *
+ */
 public class CRC {
-    private static final int[] MAVLINK_MESSAGE_CRCS = {${message_crcs_array}};
+    private static final Map<Integer, Integer> MAVLINK_MESSAGE_CRCS;
     private static final int CRC_INIT_VALUE = 0xffff;
     private int crcValue;
 
+    static {
+        MAVLINK_MESSAGE_CRCS = new HashMap<>();
+        ${message_crcs_array}
+    }
+
     /**
-    * Accumulate the CRC16 by adding one char at a time.
-    *
-    * The checksum function adds the hash of one char at a time to the 16 bit
-    * checksum (uint16_t).
-    *
-    * @param data
-    *            new char to hash
-    **/
-    public  void update_checksum(int data) {
+     * Accumulate the CRC by adding one char at a time.
+     *
+     * The checksum function adds the hash of one char at a time to the 16 bit
+     * checksum (uint16_t).
+     *
+     * @param data new char to hash
+     **/
+    public void update_checksum(int data) {
         data = data & 0xff; //cast because we want an unsigned type
         int tmp = data ^ (crcValue & 0xff);
         tmp ^= (tmp << 4) & 0xff;
@@ -88,20 +93,21 @@ public class CRC {
     }
 
     /**
-    * Finish the CRC calculation of a message, by running the CRC with the
-    * Magic Byte. This Magic byte has been defined in MAVlink v1.0.
-    *
-    * @param msgid
-    *            The message id number
-    */
+     * Finish the CRC calculation of a message, by running the CRC with the
+     * Magic Byte.
+     *
+     * @param msgid The message id number
+     */
     public void finish_checksum(int msgid) {
-        update_checksum(MAVLINK_MESSAGE_CRCS[msgid]);
+        if(MAVLINK_MESSAGE_CRCS.containsKey(msgid))
+            update_checksum(MAVLINK_MESSAGE_CRCS.get(msgid));
+        else
+            throw new IllegalArgumentException("Invalid msgid");
     }
 
     /**
-    * Initialize the buffer for the CRC16/MCRF4XX
-    *
-    */
+     * Initialize the buffer for the CRC16/MCRF4XX
+     */
     public void start_checksum() {
         crcValue = CRC_INIT_VALUE;
     }
@@ -170,9 +176,14 @@ public class msg_${name_lower} extends MAVLinkMessage{
         packet.sysid = 255;
         packet.compid = 190;
         packet.msgid = MAVLINK_MSG_ID_${name};
-        ${{ordered_fields:      
-        ${packField}
+        ${{base_fields:
+        ${packField}    
         }}
+        if(isMavlink2) {
+            ${{extended_fields:
+            ${packField}
+            }}
+        }
         return packet;
     }
 
@@ -183,9 +194,14 @@ public class msg_${name_lower} extends MAVLinkMessage{
     */
     public void unpack(MAVLinkPayload payload) {
         payload.resetIndex();
-        ${{ordered_fields:      
-        ${unpackField}
+        ${{base_fields:
+        ${unpackField}    
         }}
+        if(isMavlink2) {
+            ${{extended_fields:
+            ${unpackField}
+            }}
+        }
     }
 
     /**
@@ -204,6 +220,7 @@ public class msg_${name_lower} extends MAVLinkMessage{
         this.sysid = mavLinkPacket.sysid;
         this.compid = mavLinkPacket.compid;
         this.msgid = MAVLINK_MSG_ID_${name};
+        this.isMavlink2 = mavLinkPacket.isMavlink2;
         unpack(mavLinkPacket.payload);        
     }
 
@@ -247,86 +264,153 @@ import com.MAVLink.${basename}.CRC;
 ${importString}
 
 /**
-* Common interface for all MAVLink Messages
-* Packet Anatomy
-* This is the anatomy of one packet. It is inspired by the CAN and SAE AS-4 standards.
-
-* Byte Index  Content              Value       Explanation
-* 0            Packet start sign  v1.0: 0xFE   Indicates the start of a new packet.  (v0.9: 0x55)
-* 1            Payload length      0 - 255     Indicates length of the following payload.
-* 2            Packet sequence     0 - 255     Each component counts up his send sequence. Allows to detect packet loss
-* 3            System ID           1 - 255     ID of the SENDING system. Allows to differentiate different MAVs on the same network.
-* 4            Component ID        0 - 255     ID of the SENDING component. Allows to differentiate different components of the same system, e.g. the IMU and the autopilot.
-* 5            Message ID          0 - 255     ID of the message - the id defines what the payload means and how it should be correctly decoded.
-* 6 to (n+6)   Payload             0 - 255     Data of the message, depends on the message id.
-* (n+7)to(n+8) Checksum (low byte, high byte)  CRC16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6) Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from message fields. Protects the packet from decoding a different version of the same packet but with different variables).
-
-* The checksum is the CRC16/MCRF4XX. Please see the MAVLink source code for a documented C-implementation of it. LINK TO CHECKSUM
-* The minimum packet length is 8 bytes for acknowledgement packets without payload
-* The maximum packet length is 263 bytes for full payload
-*
-*/
+ * Common interface for all MAVLink Messages
+ * Packet Anatomy
+ * This is the anatomy of one packet. It is inspired by the CAN and SAE AS-4 standards.
+ *
+ * MAVLink 1 Packet Format
+ *
+ * Byte Index  Content              Value       Explanation
+ * 0            Packet start sign  v1.0: 0xFE   Indicates the start of a new packet.  (v0.9: 0x55; v1.0: 0xFE; v2.0 0xFD)
+ * 1            Payload length      0 - 255     Indicates length of the following payload.
+ * 2            Packet sequence     0 - 255     Each component counts up its send sequence. Allows to detect packet loss
+ * 3            System ID           1 - 255     ID of the SENDING system. Allows to differentiate different MAVs on the same network.
+ * 4            Component ID        0 - 255     ID of the SENDING component. Allows to differentiate different components of the same system, e.g. the IMU and the autopilot.
+ * 5            Message ID          0 - 255     ID of the message - the id defines what the payload means and how it should be correctly decoded.
+ * 6 to (n+6)   Payload             0 - 255     Data of the message, depends on the message id.
+ * (n+7)to(n+8) Checksum (low byte, high byte)  CRC16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6) Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from message fields. Protects the packet from decoding a different version of the same packet but with different variables).
+ *
+ * The checksum is the CRC16/MCRF4XX. Please see the MAVLink source code for a documented C-implementation of it. LINK TO CHECKSUM
+ * The minimum packet length is 8 bytes for acknowledgement packets without payload
+ * The maximum packet length is 263 bytes for full payload
+ *
+ *
+ * MAVLink 2 Packet Format
+ *
+ * Byte Index     Content             Value              Explanation
+ * 0              Packet start sign  v2.0: 0xFD          Indicates the start of a new packet.  (v0.9: 0x55; v1.0: 0xFE; v2.0 0xFD)
+ * 1              Payload length      0 - 255            Indicates length of the following payload.
+ * 2              Incompatible Flags  0 - 255            Flags that must be understood
+ * 3              Compatible Flags    0 - 255            Flags that can be ignored if not understood
+ * 4              Packet sequence     0 - 255            Each component counts up its send sequence. Allows to detect packet loss
+ * 5              System ID           1 - 255            ID of the SENDING system. Allows to differentiate different MAVs on the same network.
+ * 6              Component ID        0 - 255            ID of the SENDING component. Allows to differentiate different components of the same system, e.g. the IMU and the autopilot.
+ * 7 to 9         Message ID          0 - 16777216       ID of the message - the id defines what the payload means and how it should be correctly decoded.
+ * 10             Target System ID    1 - 255            (OPTIONAL) ID of the TARGET system. Only used for point-to-point mode
+ * 11             Target Component ID 0 - 255            (OPTIONAL) ID of the TARGET component. Only used for point-to-point mode
+ * 12 to (n+12)   Payload             0 - 255            Data of the message, depends on the message id.
+ * (n+13)to(n+14) Checksum (low byte, high byte)         CRC16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6) Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from message fields. Protects the packet from decoding a different version of the same packet but with different variables).
+ * (n+15)to(n+27) Signature (typeid, timestamp, sha256)  (OPTIONAL) Signature which allows ensuring that the link is tamper-proof; 13 bytes containing typeid (1 byte), timestamp (6 bytes), and last 6 bytes of SHA256 hash
+ *
+ * The signature is a combination of a typeid, timestamp, and SHA256 hash.
+ * OPTIONAL fields mean that, if they are not used, they do not exist in the MAVLink frame at all. Typically target sysid and target compid are not used, and signature is only used if signing is set up between both ends.
+ * 
+ * @see mavlink.io for more documentation on MAVLink protocol
+ */
 public class MAVLinkPacket implements Serializable {
     private static final long serialVersionUID = 2095947771227815314L;
 
-    public static final int MAVLINK_STX = 254;
+    public static final int MAVLINK1_STX = 0xFE; // 254
+    public static final int MAVLINK2_STX = 0xFD; // 253
+    public static final int MAVLINK1_HEADER_LEN = 6;
+    public static final int MAVLINK2_HEADER_LEN = 10;
+    public static final int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
+    public static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2 + Signature.MAX_SIGNATURE_SIZE;
 
     /**
-    * Message length. NOT counting STX, LENGTH, SEQ, SYSID, COMPID, MSGID, CRC1 and CRC2
-    */
+     * Payload length
+     */
     public final int len;
 
     /**
-    * Message sequence
-    */
+     * Message sequence
+     */
     public int seq;
 
     /**
-    * ID of the SENDING system. Allows to differentiate different MAVs on the
-    * same network.
-    */
+     * ID of the SENDING system. Allows to differentiate different MAVs on the
+     * same network.
+     */
     public int sysid;
 
     /**
-    * ID of the SENDING component. Allows to differentiate different components
-    * of the same system, e.g. the IMU and the autopilot.
-    */
+     * ID of the SENDING component. Allows to differentiate different components
+     * of the same system, e.g. the IMU and the autopilot.
+     */
     public int compid;
 
     /**
-    * ID of the message - the id defines what the payload means and how it
-    * should be correctly decoded.
-    */
+     * ID of the message - the id defines what the payload means and how it
+     * should be correctly decoded.
+     */
     public int msgid;
 
     /**
-    * Data of the message, depends on the message id.
-    */
+     * Data of the message, depends on the message id.
+     */
     public MAVLinkPayload payload;
 
     /**
-    * CRC-16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6)
+    * CRC-16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+HEADER-LENGTH)
     * Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from
     * message fields. Protects the packet from decoding a different version of
     * the same packet but with different variables).
     */
     public CRC crc;
 
-    public MAVLinkPacket(int payloadLength){
+    // MAVLink 2.0 fields
+
+    /**
+     * Flag to indicate which MAVLink version this packet is
+     */
+    public boolean isMavlink2;
+
+    /**
+     * Flags that must be understood
+     */
+    public int incompatFlags;
+
+    /**
+     * Flags that can be ignored if not understood
+     */
+    public int compatFlags;
+
+//    /**
+//     * Optional field for point-to-point messages, used for payload else
+//     */
+//    public int targetSysid;
+//
+//    /**
+//     * Optional field for point-to-point messages, used for payload else
+//     */
+//    public int targetCompid;
+
+    /**
+     * Signature which allows ensuring that the link is tamper-proof
+     */
+    public Signature signature;
+
+
+    public MAVLinkPacket(int payloadLength) {
+        this(payloadLength, false);
+    }
+
+    public MAVLinkPacket(int payloadLength, boolean isMavlink2) {
         len = payloadLength;
         payload = new MAVLinkPayload(payloadLength);
+        this.isMavlink2 = isMavlink2;
     }
 
     /**
-    * Check if the size of the Payload is equal to the "len" byte
-    */
+     * Check if the size of the Payload is equal to the "len" byte
+     */
     public boolean payloadIsFilled() {
         return payload.size() >= len;
     }
 
     /**
-    * Update CRC for this packet.
-    */
+     * Update CRC for this packet.
+     */
     public void generateCRC(){
         if(crc == null){
             crc = new CRC();
@@ -334,12 +418,24 @@ public class MAVLinkPacket implements Serializable {
         else{
             crc.start_checksum();
         }
-        
-        crc.update_checksum(len);
-        crc.update_checksum(seq);
-        crc.update_checksum(sysid);
-        crc.update_checksum(compid);
-        crc.update_checksum(msgid);
+
+        if(isMavlink2) {
+            crc.update_checksum(len);
+            crc.update_checksum(incompatFlags);
+            crc.update_checksum(compatFlags);
+            crc.update_checksum(seq);
+            crc.update_checksum(sysid);
+            crc.update_checksum(compid);
+            crc.update_checksum(msgid);
+            crc.update_checksum(msgid >>> 8);
+            crc.update_checksum(msgid >>> 16);
+        } else {
+            crc.update_checksum(len);
+            crc.update_checksum(seq);
+            crc.update_checksum(sysid);
+            crc.update_checksum(compid);
+            crc.update_checksum(msgid);
+        }
 
         payload.resetIndex();
 
@@ -351,47 +447,102 @@ public class MAVLinkPacket implements Serializable {
     }
 
     /**
-    * Encode this packet for transmission.
-    *
-    * @return Array with bytes to be transmitted
-    */
-    public byte[] encodePacket() {
-        byte[] buffer = new byte[6 + len + 2];
-        
-        int i = 0;
-        buffer[i++] = (byte) MAVLINK_STX;
-        buffer[i++] = (byte) len;
-        buffer[i++] = (byte) seq;
-        buffer[i++] = (byte) sysid;
-        buffer[i++] = (byte) compid;
-        buffer[i++] = (byte) msgid;
+     * Update signature for this packet.
+     */
+    public void generateSignature() {
+        // TODO: implement signature
 
-        final int payloadSize = payload.size();
-        for (int j = 0; j < payloadSize; j++) {
-            buffer[i++] = payload.payload.get(j);
+        if(signature == null) {
+            signature = new Signature();
         }
 
-        generateCRC();
-        buffer[i++] = (byte) (crc.getLSB());
-        buffer[i++] = (byte) (crc.getMSB());
+    }
+
+    /**
+     * Encode this packet for transmission.
+     *
+     * @return Array with bytes to be transmitted
+     */
+    public byte[] encodePacket() {
+        int bufLen;
+        if(isMavlink2) {
+            bufLen = MAVLINK2_HEADER_LEN + len + 2;
+
+            //TODO: implement signature, maybe in encodeSignedPacket()
+            //bufLen = MAVLINK2_HEADER_LEN + len + 2 + Signature.MAX_SIGNATURE_SIZE;
+        } else {
+            bufLen = MAVLINK1_HEADER_LEN + len + 2;
+        }
+        byte[] buffer = new byte[bufLen];
+        
+        int i = 0;
+        if(isMavlink2) {
+            buffer[i++] = (byte) MAVLINK2_STX;
+            buffer[i++] = (byte) len;
+            buffer[i++] = (byte) incompatFlags;
+            buffer[i++] = (byte) compatFlags;
+            buffer[i++] = (byte) seq;
+            buffer[i++] = (byte) sysid;
+            buffer[i++] = (byte) compid;
+            buffer[i++] = (byte) msgid;
+            buffer[i++] = (byte) (msgid >>> 8);
+            buffer[i++] = (byte) (msgid >>> 16);
+
+            for (int j = 0; j < payload.size(); j++) {
+                buffer[i++] = payload.payload.get(j);
+            }
+
+            generateCRC();
+            buffer[i++] = (byte) (crc.getLSB());
+            buffer[i++] = (byte) (crc.getMSB());
+
+            // TODO: implement signature
+//            generateSignature();
+//            for (int j = 0; j < Signature.MAX_SIGNATURE_SIZE; j++) {
+//                buffer[i++] = signature.signature.get(j);
+//            }
+        } else {
+            buffer[i++] = (byte) MAVLINK1_STX;
+            buffer[i++] = (byte) len;
+            buffer[i++] = (byte) seq;
+            buffer[i++] = (byte) sysid;
+            buffer[i++] = (byte) compid;
+            buffer[i++] = (byte) msgid;
+
+            for (int j = 0; j < payload.size(); j++) {
+                buffer[i++] = payload.payload.get(j);
+            }
+
+            generateCRC();
+            buffer[i++] = (byte) (crc.getLSB());
+            buffer[i++] = (byte) (crc.getMSB());
+        }
+
         return buffer;
     }
 
     /**
-    * Unpack the data in this packet and return a MAVLink message
-    *
-    * @return MAVLink message decoded from this packet
-    */
+     * Unpack the data in this packet and return a MAVLink message
+     *
+     * @return MAVLink message decoded from this packet
+     */
     public MAVLinkMessage unpack() {
         switch (msgid) {
         ''', xml_list[0])
+
+
+    # sort msgs by id
+    xml_msgs = []
     for xml in xml_list:
-        t.write(f, '''
-            ${{message:     
+        for msg in xml.message:
+            xml_msgs.append(msg)
+    xml_msgs.sort(key=lambda msg: msg.id)
+
+    for msg in xml_msgs:
+        t.write(f, ''' 
             case msg_${name_lower}.MAVLINK_MSG_ID_${name}:
                 return  new msg_${name_lower}(this);
-            }}
-            ''',xml)
+            ''',msg)
     f.write('''
             default:
                 return null;
@@ -407,7 +558,7 @@ public class MAVLinkPacket implements Serializable {
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
-    hlist = [ 'Parser.java', 'Messages/MAVLinkMessage.java', 'Messages/MAVLinkPayload.java', 'Messages/MAVLinkStats.java' ]
+    hlist = [ 'Parser.java', 'Signature.java', 'Messages/MAVLinkMessage.java', 'Messages/MAVLinkPayload.java', 'Messages/MAVLinkStats.java' ]
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'java/lib')
     print("Copying fixed headers")
@@ -616,6 +767,13 @@ def generate_one(basename, xml):
     for m in xml.message:
         for f in m.ordered_fields:
             f.type = mavfmt(f)
+
+    # separate base fields from MAVLink 2 extended fields
+    for m in xml.message:
+        m.base_fields = m.ordered_fields[:m.extensions_start]
+        m.extended_fields = []
+        if m.extensions_start is not None:
+            m.extended_fields = m.ordered_fields[m.extensions_start:]
     
     generate_CRC(directory, xml)
     
