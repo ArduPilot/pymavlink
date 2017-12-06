@@ -43,7 +43,7 @@ def IMUCheckFail(filename):
     count_threshold = 100
     imu1_count = 0
     imu2_count = 0
-    
+
     while True:
         try:
             m = mlog.recv_match(type=['RAW_IMU','SCALED_IMU2','IMU','IMU2','PARM','PARAM_VALUE'])
@@ -90,7 +90,7 @@ def IMUCheckFail(filename):
         # skip out early if we don't have two IMUs
         if imu1_count > imu2_count + 100:
             return False
-        
+
         if accel1 is not None and accel2 is not None and gotimu2 and t2 >= t1:
             for i in range(3):
                 adiff = accel1[i] - accel2[i]
@@ -105,7 +105,7 @@ def IMUCheckFail(filename):
                     else:
                         ecount_accel[i] -= 1
                 else:
-                        ecount_accel[i] = 0                    
+                        ecount_accel[i] = 0
                 gdiff = gyro1[i] - gyro2[i]
                 if gdiff > gthreshold:
                     if ecount_gyro[i] < 0:
@@ -118,7 +118,7 @@ def IMUCheckFail(filename):
                     else:
                         ecount_gyro[i] -= 1
                 else:
-                        ecount_gyro[i] = 0                    
+                        ecount_gyro[i] = 0
                 if abs(ecount_accel[i]) > count_threshold:
                     print("acceldiff[%u] %.1f" % (i, adiff))
                     print(m)
@@ -127,14 +127,14 @@ def IMUCheckFail(filename):
                     print("gyrodiff[i] %.1f" % (i, adiff))
                     print(m)
                     return True
-        
+
     return False
 
 found = []
 directories = sys.argv[1:]
 if not directories:
     directories = search_dirs
-    
+
 filelist = []
 
 extensions = ['.tlog','.bin']

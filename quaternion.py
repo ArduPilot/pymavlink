@@ -612,7 +612,7 @@ class Quaternion(QuaternionBase):
         """
         assert(isinstance(dcm, Matrix3))
         return np.array(dcm.to_euler())
-    
+
     def __mul__(self, other):
         """
         :param other: Quaternion

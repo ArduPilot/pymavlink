@@ -26,7 +26,7 @@ class fgFDMVariableList(object):
     def __init__(self):
         self.vars = {}
         self._nextidx = 0
-        
+
     def add(self, varname, arraylength=1, units=None):
         self.vars[varname] = fgFDMVariable(self._nextidx, arraylength, units=units)
         self._nextidx += arraylength
@@ -109,7 +109,7 @@ class fgFDM(object):
         self.mapping.add('tit',       self.FG_MAX_ENGINES)  # Turbine Inlet Temperature
         self.mapping.add('oil_temp',  self.FG_MAX_ENGINES)  # Oil temp deg F
         self.mapping.add('oil_px',    self.FG_MAX_ENGINES)  # Oil pressure psi
-            
+
         # Consumables
         self.mapping.add('num_tanks')                       # Max number of fuel tanks
         self.mapping.add('fuel_quantity', self.FG_MAX_TANKS)

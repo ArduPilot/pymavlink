@@ -31,7 +31,7 @@ def test_protocol(mavlink, signing=False):
     # set the WP_RADIUS parameter on the MAV at the end of the link
     mav.param_set_send(7, 1, "WP_RADIUS", 101, mavlink.MAV_PARAM_TYPE_REAL32)
 
-    # alternatively, produce a MAVLink_param_set object 
+    # alternatively, produce a MAVLink_param_set object
     # this can be sent via your own transport if you like
     m = mav.param_set_encode(7, 1, "WP_RADIUS", 101, mavlink.MAV_PARAM_TYPE_REAL32)
 
