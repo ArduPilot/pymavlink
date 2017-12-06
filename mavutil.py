@@ -592,6 +592,16 @@ class mavfile(object):
             MAV_ACTION_LOITER = 27
             self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_LOITER)
 
+    def set_mode_guided(self):
+        '''enter guided mode'''
+        if self.mavlink10():
+            self.mav.command_long_send(self.target_system, self.target_component,
+                                       mavlink.MAV_CMD_DO_SET_MODE, 0,
+                                       mavlink.MAV_MODE_GUIDED,
+                                       0, 0, 0, 0, 0, 0)
+        else:
+            print("GUIDED mode not supported")
+
     def set_servo(self, channel, pwm):
         '''set a servo value'''
         self.mav.command_long_send(self.target_system, self.target_component,
