@@ -10,6 +10,11 @@ import pylab
 import matplotlib
 import matplotlib.pyplot as pyplot
 
+try:
+    raw_input          # Python 2
+except NameError:
+    raw_input = input  # Python 3
+
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by condition")
