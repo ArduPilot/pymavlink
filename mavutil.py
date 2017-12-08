@@ -1461,6 +1461,7 @@ mode_mapping_acm = {
     18 : 'THROW',
     19 : 'AVOID_ADSB',
     20 : 'GUIDED_NOGPS',
+    21 : 'SMART_RTL',
 }
 mode_mapping_rover = {
     0 : 'MANUAL',
@@ -1469,6 +1470,7 @@ mode_mapping_rover = {
     4 : 'HOLD',
     10 : 'AUTO',
     11 : 'RTL',
+    12 : 'SMART_RTL',
     15 : 'GUIDED',
     16 : 'INITIALISING'
     }
