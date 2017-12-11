@@ -4,6 +4,7 @@
 interactively select accel and gyro data for FFT analysis
 '''
 from __future__ import print_function
+from builtins import input
 
 import numpy
 import pylab
@@ -208,7 +209,7 @@ def fft(logfile):
             fftwin.savefig(msg + '_fft.png')
         
         try:
-            selection = raw_input('q to proceed to next file, anything else to select a new range: ')
+            selection = input('q to proceed to next file, anything else to select a new range: ')
             print(selection)
         except:
             continue
