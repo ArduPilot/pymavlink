@@ -5,8 +5,6 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 
-import sys
-
 
 class MAVError(Exception):
         '''MAVLink error class'''
