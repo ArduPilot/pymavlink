@@ -8,6 +8,7 @@ Copyright Andrew Tridgell 2011
 Copyright Vladimir Ermakov 2016
 Released under GNU GPL version 3 or later
 '''
+from __future__ import print_function
 
 import sys, textwrap, os, time
 from . import mavparse, mavtemplate
