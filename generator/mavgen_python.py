@@ -12,7 +12,6 @@ from builtins import range
 import os
 import textwrap
 from . import mavtemplate
-from .maverrors import MAVError
 
 t = mavtemplate.MAVTemplate()
 
@@ -375,6 +374,11 @@ def generate_mavlink_class(outf, msgs, xml):
     outf.write("}\n\n")
 
     t.write(outf, """
+class MAVError(Exception):
+        '''MAVLink error class'''
+        def __init__(self, msg):
+            Exception.__init__(self, msg)
+            self.message = msg
 
 class MAVString(str):
         '''NUL terminated string'''
