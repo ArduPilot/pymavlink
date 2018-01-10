@@ -4,6 +4,7 @@
 map a serial port to an outgoing TCP connection
 Released under GNU GPLv3 or later
 """
+from __future__ import print_function
 
 from argparse import ArgumentParser
 import errno
