@@ -3,6 +3,7 @@
 '''
 fit best estimate of magnetometer offsets
 '''
+from __future__ import print_function
 
 import sys, time, os, math
 
@@ -42,7 +43,7 @@ def select_data(data):
             counts[key] = 1
         if counts[key] < 3:
             ret.append(d)
-    print(len(data), len(ret))
+    print((len(data), len(ret)))
     return ret
 
 def constrain(v, min, max):
