@@ -104,7 +104,7 @@ class MAVField(object):
         elif self.type in ['int64_t', 'uint64_t']:
             return 93372036854775807 + self.wire_offset*63 + i
         else:
-            raise MAVError('unknown type %s' % self.type)
+            raise MAVParseError('unknown type %s' % self.type)
 
     def set_test_value(self):
         '''set a testsuite value for a MAVField'''
