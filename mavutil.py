@@ -834,9 +834,7 @@ class mavserial(mavfile):
 
     def write(self, buf):
         try:
-            if not isinstance(buf, str):
-                buf = str(buf)
-            return self.port.write(buf)
+            return self.port.write(bytes(buf))
         except Exception:
             if not self.portdead:
                 print("Device %s is dead" % self.device)
