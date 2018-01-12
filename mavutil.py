@@ -271,7 +271,7 @@ class mavfile(object):
                 self.base_mode = msg.base_mode
         elif type == 'PARAM_VALUE':
             s = str(msg.param_id)
-            self.params[str(msg.param_id)] = msg.param_value
+            self.params[msg.param_id] = msg.param_value
             if msg.param_index+1 == msg.param_count:
                 self.param_fetch_in_progress = False
                 self.param_fetch_complete = True
@@ -414,10 +414,10 @@ class mavfile(object):
             if parm_type == None:
                 parm_type = mavlink.MAVLINK_TYPE_FLOAT
             self.mav.param_set_send(self.target_system, self.target_component,
-                                    parm_name, parm_value, parm_type)
+                                    parm_name.encode('utf8'), parm_value, parm_type)
         else:
             self.mav.param_set_send(self.target_system, self.target_component,
-                                    parm_name, parm_value)
+                                    parm_name.encode('utf8'), parm_value)
 
     def waypoint_request_list_send(self):
         '''wrapper for waypoint_request_list_send'''
@@ -834,9 +834,7 @@ class mavserial(mavfile):
 
     def write(self, buf):
         try:
-            if not isinstance(buf, str):
-                buf = str(buf)
-            return self.port.write(buf)
+            return self.port.write(bytes(buf))
         except Exception:
             if not self.portdead:
                 print("Device %s is dead" % self.device)
@@ -1688,13 +1686,13 @@ class x25crc(object):
 
     def accumulate(self, buf):
         '''add in some more bytes'''
-        bytes = array.array('B')
+        byte_buf = array.array('B')
         if isinstance(buf, array.array):
-            bytes.extend(buf)
+            byte_buf.extend(buf)
         else:
-            bytes.fromstring(buf)
+            byte_buf.fromstring(buf)
         accum = self.crc
-        for b in bytes:
+        for b in byte_buf:
             tmp = b ^ (accum & 0xff)
             tmp = (tmp ^ (tmp<<4)) & 0xFF
             accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
