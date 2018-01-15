@@ -1686,13 +1686,13 @@ class x25crc(object):
 
     def accumulate(self, buf):
         '''add in some more bytes'''
-        bytes = array.array('B')
+        byte_buf = array.array('B')
         if isinstance(buf, array.array):
-            bytes.extend(buf)
+            byte_buf.extend(buf)
         else:
-            bytes.fromstring(buf)
+            byte_buf.fromstring(buf)
         accum = self.crc
-        for b in bytes:
+        for b in byte_buf:
             tmp = b ^ (accum & 0xff)
             tmp = (tmp ^ (tmp<<4)) & 0xFF
             accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
