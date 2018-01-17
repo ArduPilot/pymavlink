@@ -16,7 +16,7 @@
 <xs:attribute name="print_format" type="xs:string"/> <!-- field -->
 <xs:attribute name="enum" type="xs:string"/>
 <xs:attribute name="display" type="xs:string"/>
-<xs:attribute name="units" type="xs:string"/>
+<xs:attribute name="units" type="SI_Unit"/>
 <xs:attribute name="value"> <!-- entry -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
@@ -54,6 +54,68 @@
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
+
+<xs:simpleType name="SI_Unit">
+  <xs:restriction base="xs:string">
+    <!-- time -->
+    <xs:enumeration value="s"/>        <!-- seconds -->
+    <xs:enumeration value="ds"/>       <!-- deciseconds -->
+    <xs:enumeration value="ms"/>       <!-- milliseconds -->
+    <xs:enumeration value="us"/>       <!-- microseconds -->
+    <xs:enumeration value="Hz"/>       <!-- Herz -->
+    <!-- distance -->
+    <xs:enumeration value="km"/>       <!-- kilometres -->
+    <xs:enumeration value="m"/>        <!-- metres -->
+    <xs:enumeration value="m/s"/>      <!-- metres per second -->
+    <xs:enumeration value="m/s/s"/>    <!-- metres per second per second -->
+    <xs:enumeration value="cm"/>       <!-- centimetres -->
+    <xs:enumeration value="cm/s"/>     <!-- centimetres per second -->
+    <xs:enumeration value="mm"/>       <!-- millimetres -->
+    <xs:enumeration value="mm/s"/>     <!-- millimetres per second -->
+    <!-- temperature -->
+    <xs:enumeration value="K"/>        <!-- Kelvin -->
+    <xs:enumeration value="degC"/>     <!-- degrees Celsius -->
+    <xs:enumeration value="cdegC"/>    <!-- centi degrees Celsius -->
+    <!-- angle -->
+    <xs:enumeration value="rad"/>      <!-- radians -->
+    <xs:enumeration value="rad/s"/>    <!-- radians per second -->
+    <xs:enumeration value="mrad/s"/>   <!-- milli-radians per second -->
+    <xs:enumeration value="deg"/>      <!-- degrees -->
+    <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
+    <xs:enumeration value="cdeg"/>     <!-- centidegrees per second -->
+    <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
+    <!-- electricity -->
+    <xs:enumeration value="V"/>        <!-- Volt -->
+    <xs:enumeration value="mV"/>       <!-- milli-Volt -->
+    <xs:enumeration value="A"/>        <!-- Ampere -->
+    <xs:enumeration value="cA"/>       <!-- centi-Ampere -->
+    <xs:enumeration value="mAh"/>      <!-- milli-Ampere hour -->
+    <!-- magnetism -->
+    <xs:enumeration value="mT"/>       <!-- milli-Tesla -->
+    <xs:enumeration value="gauss"/>    <!-- Gauss -->
+    <xs:enumeration value="mgauss"/>   <!-- milli-Gauss -->
+    <!-- energy -->
+    <xs:enumeration value="hJ"/>       <!-- hecto-Joule -->
+    <!-- force -->
+    <xs:enumeration value="mG"/>       <!-- milli-G -->
+    <!-- pressure -->
+    <xs:enumeration value="Pa"/>       <!-- Pascal -->
+    <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
+    <xs:enumeration value="mbar"/>     <!-- millibar -->
+    <!-- ratio -->
+    <xs:enumeration value="%"/>        <!-- percent -->
+    <xs:enumeration value="d%"/>       <!-- decipercent -->
+    <xs:enumeration value="c%"/>       <!-- centipercent -->
+    <xs:enumeration value="dB"/>       <!-- Deci-Bell -->
+    <!-- digital -->
+    <xs:enumeration value="Mibytes"/>  <!-- Megabytes (1024*1024 bytes) -->
+    <xs:enumeration value="Mibytes/s"/><!-- Megabytes (1024*1024 bytes) per second -->
+    <xs:enumeration value="bytes"/>    <!-- bytes -->
+    <xs:enumeration value="bits/s"/>   <!-- bits per second -->
+    <xs:enumeration value="pix"/>      <!-- pixels -->
+    <xs:enumeration value="dpixels"/>  <!-- decipixels -->
+  </xs:restriction>
+</xs:simpleType>
 
 <!-- definition of complex elements -->
 <xs:element name="param">
