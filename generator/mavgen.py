@@ -25,6 +25,7 @@ DEFAULT_WIRE_PROTOCOL = mavparse.PROTOCOL_1_0
 DEFAULT_LANGUAGE = 'Python'
 DEFAULT_ERROR_LIMIT = 200
 DEFAULT_VALIDATE = True
+DEFAULT_STRICT_UNITS = False
 
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
 supportedLanguages = ["C", "CS", "JavaScript", "Python", "WLua", "ObjC", "Swift", "Java", "C++11"]
@@ -44,6 +45,10 @@ def mavgen(opts, args):
             from lxml import etree
             with open(schemaFile, 'r') as f:
                 xmlschema_root = etree.parse(f)
+                if opts.strict_units:
+                    # replace the generic "xs:string" type with a restricted list of known unit strings
+                    for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
+                        elem.set("type", "SI_Unit")
                 xmlschema = etree.XMLSchema(xmlschema_root)
         except:
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
@@ -159,12 +164,13 @@ def mavgen(opts, args):
 
 # build all the dialects in the dialects subpackage
 class Opts(object):
-    def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT):
+    def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
         self.wire_protocol = wire_protocol
         self.error_limit = error_limit
         self.language = language
         self.output = output
         self.validate = validate
+        self.strict_units = strict_units
 
 def mavgen_python_dialect(dialect, wire_protocol):
     '''generate the python code on the fly for a MAVLink dialect'''

@@ -16,7 +16,7 @@
 <xs:attribute name="print_format" type="xs:string"/> <!-- field -->
 <xs:attribute name="enum" type="xs:string"/>
 <xs:attribute name="display" type="xs:string"/>
-<xs:attribute name="units" type="SI_Unit"/>
+<xs:attribute name="units" type="xs:string"/> <!-- this will get changed on the fly to SI_Unit if strict-units command line option is used -->
 <xs:attribute name="value"> <!-- entry -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
