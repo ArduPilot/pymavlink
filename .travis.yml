@@ -22,7 +22,7 @@ script:
   # Set pythonpath
 
   # install
-  - git clone git://github.com/mavlink/mavlink.git
+  - git clone git://github.com/ArduPilot/mavlink.git
   - ln -s $PWD/mavlink/message_definitions ../
   - python setup.py build install
 
