@@ -45,10 +45,10 @@ def mavgen(opts, args):
             from lxml import etree
             with open(schemaFile, 'r') as f:
                 xmlschema_root = etree.parse(f)
-                if opts.strict_units:
-                    # replace the generic "xs:string" type with a restricted list of known unit strings
+                if not opts.strict_units:
+                    # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
                     for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
-                        elem.set("type", "SI_Unit")
+                        elem.set("type", "xs:string")
                 xmlschema = etree.XMLSchema(xmlschema_root)
         except:
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
