@@ -72,6 +72,9 @@ def mavgen(opts, args):
             return xmlvalid
         except etree.XMLSchemaError:
             return False
+        except etree.DocumentInvalid as err:
+            sys.exit('ERROR: %s' % str(err.error_log))
+        return True
 
     # Process all XML files, validating them as necessary.
     for fname in args:
