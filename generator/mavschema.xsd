@@ -82,7 +82,8 @@
     <xs:enumeration value="mrad/s"/>   <!-- milli-radians per second -->
     <xs:enumeration value="deg"/>      <!-- degrees -->
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
-    <xs:enumeration value="cdeg"/>     <!-- centidegrees per second -->
+    <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
+    <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
     <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
     <!-- electricity -->
     <xs:enumeration value="V"/>        <!-- Volt -->
