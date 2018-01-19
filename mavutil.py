@@ -271,7 +271,7 @@ class mavfile(object):
                 self.base_mode = msg.base_mode
         elif type == 'PARAM_VALUE':
             s = str(msg.param_id)
-            self.params[bytes(msg.param_id)] = msg.param_value
+            self.params[msg.param_id] = msg.param_value
             if msg.param_index+1 == msg.param_count:
                 self.param_fetch_in_progress = False
                 self.param_fetch_complete = True
@@ -414,10 +414,10 @@ class mavfile(object):
             if parm_type == None:
                 parm_type = mavlink.MAVLINK_TYPE_FLOAT
             self.mav.param_set_send(self.target_system, self.target_component,
-                                    bytes(parm_name, 'utf8'), parm_value, parm_type)
+                                    parm_name.encode('utf8'), parm_value, parm_type)
         else:
             self.mav.param_set_send(self.target_system, self.target_component,
-                                    bytes(parm_name, 'utf8'), parm_value)
+                                    parm_name.encode('utf8'), parm_value)
 
     def waypoint_request_list_send(self):
         '''wrapper for waypoint_request_list_send'''
