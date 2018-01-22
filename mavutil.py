@@ -270,7 +270,6 @@ class mavfile(object):
                 self.mav_type = msg.type
                 self.base_mode = msg.base_mode
         elif type == 'PARAM_VALUE':
-            s = str(msg.param_id)
             self.params[msg.param_id] = msg.param_value
             if msg.param_index+1 == msg.param_count:
                 self.param_fetch_in_progress = False
