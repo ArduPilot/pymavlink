@@ -46,70 +46,81 @@ public class MAVLinkPayload {
         payload.put(c);
     }
 
+    /* https://github.com/mavlink/pymavlink/blog/master/generator/C/include_v2.0/mavlink_helpers.h:#L94-L105
+    *
+    * Payload trimming (variable payload length) in MAVLink, to avoid out of bound access
+    */
+    public int get(int index) {
+        if (index < payload.limit()) {
+            return payload.get(index);
+        }
+        return 0;
+    }
+
     public void resetIndex() {
         index = 0;
     }
 
     public byte getByte() {
         byte result = 0;
-        result |= (payload.get(index + 0) & 0xFF);
+        result |= (get(index + 0) & 0xFF);
         index += 1;
         return result;
     }
 
     public short getUnsignedByte(){
         short result = 0;
-        result |= payload.get(index + 0) & 0xFF;
+        result |= get(index + 0) & 0xFF;
         index+= 1;
         return result; 
     }
 
     public short getShort() {
         short result = 0;
-        result |= (payload.get(index + 1) & 0xFF) << 8;
-        result |= (payload.get(index + 0) & 0xFF);
+        result |= (get(index + 1) & 0xFF) << 8;
+        result |= (get(index + 0) & 0xFF);
         index += 2;
         return result;
     }
 
     public int getUnsignedShort(){
         int result = 0;
-        result |= (payload.get(index + 1) & 0xFF) << 8;
-        result |= (payload.get(index + 0) & 0xFF);
+        result |= (get(index + 1) & 0xFF) << 8;
+        result |= (get(index + 0) & 0xFF);
         index += 2;
         return result;
     }
 
     public int getInt() {
         int result = 0;
-        result |= (payload.get(index + 3) & 0xFF) << 24;
-        result |= (payload.get(index + 2) & 0xFF) << 16;
-        result |= (payload.get(index + 1) & 0xFF) << 8;
-        result |= (payload.get(index + 0) & 0xFF);
+        result |= (get(index + 3) & 0xFF) << 24;
+        result |= (get(index + 2) & 0xFF) << 16;
+        result |= (get(index + 1) & 0xFF) << 8;
+        result |= (get(index + 0) & 0xFF);
         index += 4;
         return result;
     }
 
     public long getUnsignedInt(){
         long result = 0;
-        result |= (payload.get(index + 3) & 0xFFL) << 24;
-        result |= (payload.get(index + 2) & 0xFFL) << 16;
-        result |= (payload.get(index + 1) & 0xFFL) << 8;
-        result |= (payload.get(index + 0) & 0xFFL);
+        result |= (get(index + 3) & 0xFFL) << 24;
+        result |= (get(index + 2) & 0xFFL) << 16;
+        result |= (get(index + 1) & 0xFFL) << 8;
+        result |= (get(index + 0) & 0xFFL);
         index += 4;
         return result;
     }
 
     public long getLong() {
         long result = 0;
-        result |= (payload.get(index + 7) & 0xFFL) << 56;
-        result |= (payload.get(index + 6) & 0xFFL) << 48;
-        result |= (payload.get(index + 5) & 0xFFL) << 40;
-        result |= (payload.get(index + 4) & 0xFFL) << 32;
-        result |= (payload.get(index + 3) & 0xFFL) << 24;
-        result |= (payload.get(index + 2) & 0xFFL) << 16;
-        result |= (payload.get(index + 1) & 0xFFL) << 8;
-        result |= (payload.get(index + 0) & 0xFFL);
+        result |= (get(index + 7) & 0xFFL) << 56;
+        result |= (get(index + 6) & 0xFFL) << 48;
+        result |= (get(index + 5) & 0xFFL) << 40;
+        result |= (get(index + 4) & 0xFFL) << 32;
+        result |= (get(index + 3) & 0xFFL) << 24;
+        result |= (get(index + 2) & 0xFFL) << 16;
+        result |= (get(index + 1) & 0xFFL) << 8;
+        result |= (get(index + 0) & 0xFFL);
         index += 8;
         return result;
     }
@@ -120,14 +131,14 @@ public class MAVLinkPayload {
     
     public long getLongReverse() {
         long result = 0;
-        result |= (payload.get(index + 0) & 0xFFL) << 56;
-        result |= (payload.get(index + 1) & 0xFFL) << 48;
-        result |= (payload.get(index + 2) & 0xFFL) << 40;
-        result |= (payload.get(index + 3) & 0xFFL) << 32;
-        result |= (payload.get(index + 4) & 0xFFL) << 24;
-        result |= (payload.get(index + 5) & 0xFFL) << 16;
-        result |= (payload.get(index + 6) & 0xFFL) << 8;
-        result |= (payload.get(index + 7) & 0xFFL);
+        result |= (get(index + 0) & 0xFFL) << 56;
+        result |= (get(index + 1) & 0xFFL) << 48;
+        result |= (get(index + 2) & 0xFFL) << 40;
+        result |= (get(index + 3) & 0xFFL) << 32;
+        result |= (get(index + 4) & 0xFFL) << 24;
+        result |= (get(index + 5) & 0xFFL) << 16;
+        result |= (get(index + 6) & 0xFFL) << 8;
+        result |= (get(index + 7) & 0xFFL);
         index += 8;
         return result;
     }

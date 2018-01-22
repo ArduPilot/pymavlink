@@ -15,7 +15,21 @@ public class Parser {
      * States from the parsing state machine
      */
     enum MAV_states {
-        MAVLINK_PARSE_STATE_UNINIT, MAVLINK_PARSE_STATE_IDLE, MAVLINK_PARSE_STATE_GOT_STX, MAVLINK_PARSE_STATE_GOT_LENGTH, MAVLINK_PARSE_STATE_GOT_SEQ, MAVLINK_PARSE_STATE_GOT_SYSID, MAVLINK_PARSE_STATE_GOT_COMPID, MAVLINK_PARSE_STATE_GOT_MSGID, MAVLINK_PARSE_STATE_GOT_CRC1, MAVLINK_PARSE_STATE_GOT_PAYLOAD
+        MAVLINK_PARSE_STATE_UNINIT,
+        MAVLINK_PARSE_STATE_IDLE,
+        MAVLINK_PARSE_STATE_GOT_STX,
+        MAVLINK_PARSE_STATE_GOT_STX_MAVLINK1,
+        MAVLINK_PARSE_STATE_GOT_LENGTH,
+        MAVLINK_PARSE_STATE_GOT_SEQ,
+        MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS,
+        MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS,
+        MAVLINK_PARSE_STATE_GOT_SYSID,
+        MAVLINK_PARSE_STATE_GOT_COMPID,
+        MAVLINK_PARSE_STATE_GOT_MSGID1,
+        MAVLINK_PARSE_STATE_GOT_MSGID2,
+        MAVLINK_PARSE_STATE_GOT_MSGID3,
+        MAVLINK_PARSE_STATE_GOT_CRC1,
+        MAVLINK_PARSE_STATE_GOT_PAYLOAD
     }
 
     MAV_states state = MAV_states.MAVLINK_PARSE_STATE_UNINIT;
@@ -41,6 +55,7 @@ public class Parser {
      *            The char to parse
      */
     public MAVLinkPacket mavlink_parse_char(int c) {
+        c &= 0xff; // cast to byte
 
         switch (state) {
         case MAVLINK_PARSE_STATE_UNINIT:
@@ -48,15 +63,34 @@ public class Parser {
 
             if (c == MAVLinkPacket.MAVLINK_STX) {
                 state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
+            } else if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK1) {
+                state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX_MAVLINK1;
             }
             break;
 
         case MAVLINK_PARSE_STATE_GOT_STX:
             m = new MAVLinkPacket(c);
+            m.setProtocol(MAVLinkPacket.Protocol.PROTOCOL_2_0);
             state = MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH;
             break;
 
+        case MAVLINK_PARSE_STATE_GOT_STX_MAVLINK1:
+            m = new MAVLinkPacket(c);
+            m.setProtocol(MAVLinkPacket.Protocol.PROTOCOL_1_0);
+            state = MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
+            break;
+
         case MAVLINK_PARSE_STATE_GOT_LENGTH:
+            m.incompat_flags = c;
+            state = MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS;
+            break;
+
+        case MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS:
+            m.compat_flags = c;
+            state = MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
+            break;
+
+        case MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS:
             m.seq = c;
             state = MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ;
             break;
@@ -73,14 +107,32 @@ public class Parser {
 
         case MAVLINK_PARSE_STATE_GOT_COMPID:
             m.msgid = c;
-            if (m.len == 0) {
-                state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+            if (m.protocol == MAVLinkPacket.Protocol.PROTOCOL_2_0) {
+                state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1;
             } else {
-                state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID;
+                if (m.len == 0) {
+                    state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+                } else {
+                    state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
+                }
             }
             break;
 
-        case MAVLINK_PARSE_STATE_GOT_MSGID:
+        case MAVLINK_PARSE_STATE_GOT_MSGID1:
+            m.msgid |= (c << 8);
+            state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2;
+            break;
+
+        case MAVLINK_PARSE_STATE_GOT_MSGID2:
+            m.msgid |= (c << 16);
+            if (m.len == 0) {
+                state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+            } else {
+                state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
+            }
+            break;
+
+        case MAVLINK_PARSE_STATE_GOT_MSGID3:
             m.payload.add((byte) c);
             if (m.payloadIsFilled()) {
                 state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
@@ -92,10 +144,6 @@ public class Parser {
             // Check first checksum byte
             if (c != m.crc.getLSB()) {
                 state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                if (c == MAVLinkPacket.MAVLINK_STX) {
-                    state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
-                    m.crc.start_checksum();
-                }
                 stats.crcError();
             } else {
                 state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1;
@@ -106,10 +154,6 @@ public class Parser {
             // Check second checksum byte
             if (c != m.crc.getMSB()) {
                 state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                if (c == MAVLinkPacket.MAVLINK_STX) {
-                    state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
-                    m.crc.start_checksum();
-                }
                 stats.crcError();
             } else { // Successfully received the message
                 stats.newPacket(m);
@@ -118,7 +162,6 @@ public class Parser {
             }
 
             break;
-
         }
         return null;
     }
