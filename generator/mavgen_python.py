@@ -325,6 +325,8 @@ class %s(MAVLink_message):
                 if (field.type != "char" and field.array_length > 1):
                         for i in range(field.array_length):
                                 outf.write(", self.{0:s}[{1:d}]".format(field.name,i))
+                elif (field.type == "char" and field.array_length > 1):  # string: encode to bytes
+                    outf.write(", self.{0:s}.encode('utf-8')".format(field.name))
                 else:
                         outf.write(", self.{0:s}".format(field.name))
         outf.write("), force_mavlink1=force_mavlink1)\n")
@@ -387,15 +389,12 @@ class MAVError(Exception):
             Exception.__init__(self, msg)
             self.message = msg
 
-class MAVString(str):
+class MAVString(bytes):
         '''NUL terminated string'''
         def __init__(self, s):
                 str.__init__(self)
         def __str__(self):
-            i = self.find(chr(0))
-            if i == -1:
-                return self[:]
-            return self[0:i]
+            return self.rstrip(b'\\x00').decode('utf8')  # strip null bytes
 
 class MAVLink_bad_data(MAVLink_message):
         '''
@@ -755,7 +754,7 @@ class MAVLink(object):
 
                 # terminate any strings
                 for i in range(0, len(tlist)):
-                    if isinstance(tlist[i], str):
+                    if isinstance(tlist[i], bytes):
                         tlist[i] = str(MAVString(tlist[i]))
                 t = tuple(tlist)
                 # construct the message object
