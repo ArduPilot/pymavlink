@@ -265,7 +265,7 @@ class mavfile(object):
         if type == 'HEARTBEAT' and msg.get_srcComponent() != mavlink.MAV_COMP_ID_GIMBAL:
             self.target_system = msg.get_srcSystem()
             self.target_component = msg.get_srcComponent()
-            if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1 and msg.type != mavlink.MAV_TYPE_GCS:
+            if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1 and msg.type not in (mavlink.MAV_TYPE_GCS, mavlink.MAV_TYPE_ONBOARD_CONTROLLER):
                 self.flightmode = mode_string_v10(msg)
                 self.mav_type = msg.type
                 self.base_mode = msg.base_mode
