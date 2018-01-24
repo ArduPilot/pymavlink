@@ -93,12 +93,9 @@ class DFFormat(object):
                 (self.type, self.name, self.format, self.columns))
 
 
-def null_term(str):
+def null_term(s):
     '''null terminate a string'''
-    idx = str.find("\0")
-    if idx != -1:
-        str = str[:idx]
-    return str
+    return s.rstrip(b'\x00').decode('utf-8')
 
 
 class DFMessage(object):
@@ -127,7 +124,7 @@ class DFMessage(object):
             pass
         elif self.fmt.format[i] != 'M' or self._apply_multiplier:
             v = self.fmt.msg_types[i](v)
-        if self.fmt.msg_types[i] == str:
+        if self.fmt.msg_types[i] == bytes:
             v = null_term(v)
         if self.fmt.msg_mults[i] is not None and self._apply_multiplier:
             v *= self.fmt.msg_mults[i]
@@ -143,7 +140,7 @@ class DFMessage(object):
             val = self.__getattr__(c)
             if isinstance(val, float) and math.isnan(val):
                 # quiet nans have more non-zero values:
-                noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
+                noisy_nan = b"\x7f\xf8\x00\x00\x00\x00\x00\x00"
                 if struct.pack(">d", val) != noisy_nan:
                     val = "qnan"
             ret += "%s : %s, " % (c, val)
@@ -581,21 +578,21 @@ class DFReader_binary(DFReader):
         if self.data_len - self.offset < 3:
             return None
 
-        hdr = self.data[self.offset:self.offset+3]
+        hdr = bytearray(self.data[self.offset:self.offset+3])
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
-        while (ord(hdr[0]) != self.HEAD1 or ord(hdr[1]) != self.HEAD2 or
-               ord(hdr[2]) not in self.formats):
+        while (hdr[0] != self.HEAD1 or hdr[1] != self.HEAD2 or
+               hdr[2] not in self.formats):
             if skip_type is None:
-                skip_type = (ord(hdr[0]), ord(hdr[1]), ord(hdr[2]))
+                skip_type = (hdr[0], hdr[1], hdr[2])
                 skip_start = self.offset
             skip_bytes += 1
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
             hdr = self.data[self.offset:self.offset+3]
-        msg_type = ord(hdr[2])
+        msg_type = hdr[2]
         if skip_bytes != 0:
             if self.remaining < 528:
                 return None
@@ -632,7 +629,7 @@ class DFReader_binary(DFReader):
                   file=sys.stderr)
         if elements is None:
             return self._parse_next()
-        name = null_term(fmt.name)
+        name = fmt.name
         # transform elements which can't be done at unpack time:
         for i in range(0, len(elements)):
             if fmt.msg_fmts[i] == 'a':
@@ -738,7 +735,7 @@ class DFReader_text(DFReader):
 
         elements = elements[1:]
 
-        name = fmt.name.rstrip('\0')
+        name = fmt.name.rstrip(b'\0')
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
