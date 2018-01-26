@@ -3,7 +3,7 @@
 #include "string.h"
 #include "mavlink_types.h"
 
-/* 
+/*
    If you want MAVLink on a system that is native big-endian,
    you need to define NATIVE_BIG_ENDIAN
 */
@@ -33,6 +33,14 @@
 #define MAVLINK_END_UART_SEND(chan, length)
 #endif
 
+#ifndef MAVLINK_START_SIGN_STREAM
+#define MAVLINK_START_SIGN_STREAM(chan)
+#endif
+
+#ifndef MAVLINK_END_SIGN_STREAM
+#define MAVLINK_END_SIGN_STREAM(chan)
+#endif
+
 /* option to provide alternative implementation of mavlink_helpers.h */
 #ifdef MAVLINK_SEPARATE_HELPERS
 
@@ -54,10 +62,10 @@
     MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buffer, const mavlink_message_t *msg);
     MAVLINK_HELPER void mavlink_start_checksum(mavlink_message_t* msg);
     MAVLINK_HELPER void mavlink_update_checksum(mavlink_message_t* msg, uint8_t c);
-    MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg, 
+    MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 						     mavlink_status_t* status,
-						     uint8_t c, 
-						     mavlink_message_t* r_message, 
+						     uint8_t c,
+						     mavlink_message_t* r_message,
 						     mavlink_status_t* r_mavlink_status);
     MAVLINK_HELPER uint8_t mavlink_frame_char(uint8_t chan, uint8_t c, mavlink_message_t* r_message, mavlink_status_t* r_mavlink_status);
     MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_message_t* r_message, mavlink_status_t* r_mavlink_status);
@@ -280,21 +288,21 @@ _MAV_MSG_RETURN_TYPE(float)
 _MAV_MSG_RETURN_TYPE(double)
 #endif // MAVLINK_NEED_BYTE_SWAP
 
-static inline uint16_t _MAV_RETURN_char_array(const mavlink_message_t *msg, char *value, 
+static inline uint16_t _MAV_RETURN_char_array(const mavlink_message_t *msg, char *value,
 						     uint8_t array_length, uint8_t wire_offset)
 {
 	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length);
 	return array_length;
 }
 
-static inline uint16_t _MAV_RETURN_uint8_t_array(const mavlink_message_t *msg, uint8_t *value, 
+static inline uint16_t _MAV_RETURN_uint8_t_array(const mavlink_message_t *msg, uint8_t *value,
 							uint8_t array_length, uint8_t wire_offset)
 {
 	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length);
 	return array_length;
 }
 
-static inline uint16_t _MAV_RETURN_int8_t_array(const mavlink_message_t *msg, int8_t *value, 
+static inline uint16_t _MAV_RETURN_int8_t_array(const mavlink_message_t *msg, int8_t *value,
 						       uint8_t array_length, uint8_t wire_offset)
 {
 	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length);
@@ -330,5 +338,3 @@ _MAV_RETURN_ARRAY(int32_t,  i32)
 _MAV_RETURN_ARRAY(int64_t,  i64)
 _MAV_RETURN_ARRAY(float,    f)
 _MAV_RETURN_ARRAY(double,   d)
-
-
