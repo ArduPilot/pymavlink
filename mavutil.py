@@ -225,7 +225,9 @@ class mavfile(object):
     def probably_vehicle_heartbeat(self, msg):
         if msg.get_srcComponent() == mavlink.MAV_COMP_ID_GIMBAL:
             return False
-        if msg.type in (mavlink.MAV_TYPE_GCS, mavlink.MAV_TYPE_GIMBAL):
+        if msg.type in (mavlink.MAV_TYPE_GCS,
+                        mavlink.MAV_TYPE_GIMBAL,
+                        mavlink.MAV_TYPE_ONBOARD_CONTROLLER):
             return False
         return True
 
