@@ -68,6 +68,8 @@
     <xs:enumeration value="m"/>        <!-- metres -->
     <xs:enumeration value="m/s"/>      <!-- metres per second -->
     <xs:enumeration value="m/s/s"/>    <!-- metres per second per second -->
+    <xs:enumeration value="dm"/>       <!-- decimetres -->
+    <xs:enumeration value="dm/s"/>     <!-- decimetres per second -->
     <xs:enumeration value="cm"/>       <!-- centimetres -->
     <xs:enumeration value="cm/s"/>     <!-- centimetres per second -->
     <xs:enumeration value="mm"/>       <!-- millimetres -->
