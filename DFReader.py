@@ -564,7 +564,7 @@ class DFReader_binary(DFReader):
         with open(filename, 'rb') as f:
             self.data = f.read()
             self.data_len = len(self.data)
-        f.close()
+
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
         self.formats = {
@@ -674,7 +674,7 @@ def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
     with open(filename, 'r') as f:
         ret = (f.read(8000).find('FMT, ') != -1)
-    f.close()
+
     return ret
 
 
@@ -685,7 +685,7 @@ class DFReader_text(DFReader):
         # read the whole file into memory for simplicity
         with open(filename, 'r') as f:
             self.lines = f.readlines()
-        f.close()
+
         self.formats = {
             'FMT': DFFormat(0x80,
                             'FMT',
