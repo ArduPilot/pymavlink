@@ -65,6 +65,7 @@
     <xs:enumeration value="Hz"/>       <!-- Herz -->
     <!-- distance -->
     <xs:enumeration value="km"/>       <!-- kilometres -->
+    <xs:enumeration value="dam"/>      <!-- decametres -->
     <xs:enumeration value="m"/>        <!-- metres -->
     <xs:enumeration value="m/s"/>      <!-- metres per second -->
     <xs:enumeration value="m/s/s"/>    <!-- metres per second per second -->
