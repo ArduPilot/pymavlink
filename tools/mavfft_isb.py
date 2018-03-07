@@ -37,6 +37,7 @@ def mavfft_fttd(logfile):
             self.data["Y"] = []
             self.data["Z"] = []
             self.holes = False
+            self.freq = None
 
         def add_fftd(self, fftd):
             if fftd.N != self.fftnum:
@@ -103,6 +104,7 @@ def mavfft_fttd(logfile):
     print("Extracted %u fft data sets" % len(things_to_plot), file=sys.stderr)
 
     sum_fft = {}
+    freqmap = {}
     count = 0
 
     first_freq = None
@@ -112,6 +114,7 @@ def mavfft_fttd(logfile):
             if len(d) == 0:
                 print("No data?!?!?!")
                 continue
+            
             avg = numpy.sum(d) / len(d)
             d -= avg
             d_fft = numpy.fft.rfft(d)
@@ -124,14 +127,13 @@ def mavfft_fttd(logfile):
             sum_fft[thing_to_plot.tag()][axis] = numpy.add(sum_fft[thing_to_plot.tag()][axis], d_fft)
             count += 1
             freq = numpy.fft.rfftfreq(len(d), 1.0/thing_to_plot.sample_rate_hz)
-            if first_freq is None:
-                first_freq = freq
+            freqmap[thing_to_plot.tag()] = freq
 
     for sensor in sum_fft:
         print("Sensor: %s" % str(sensor))
         pylab.figure(str(sensor))
         for axis in [ "X","Y","Z" ]:
-            pylab.plot(first_freq, numpy.abs(sum_fft[sensor][axis]/count), label=axis)
+            pylab.plot(freqmap[sensor], numpy.abs(sum_fft[sensor][axis]/count), label=axis)
         pylab.legend(loc='upper right')
         pylab.xlabel('Hz')
 
