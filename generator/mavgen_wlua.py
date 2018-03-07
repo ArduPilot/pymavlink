@@ -6,7 +6,7 @@ Copyright Holger Steinhaus 2012
 Released under GNU GPL version 3 or later
 
 Instructions for use: 
-1. python -m pymavlink.generator.mavgen --lang=wlua mymavlink.xml -o ~/.wireshark/plugins/mymavlink.lua
+1. python -m pymavlink.tools.mavgen --lang=WLua mymavlink.xml -o ~/.wireshark/plugins/mymavlink.lua
 2. convert binary stream int .pcap file format (see ../examples/mav2pcap.py)
 3. open the pcap file in Wireshark
 '''
@@ -75,6 +75,7 @@ def generate_preamble(outf):
 """
 -- Wireshark dissector for the MAVLink protocol (please see http://qgroundcontrol.org/mavlink/start for details) 
 
+unknownFrameBeginOffset = 0
 mavlink_proto = Proto("mavlink_proto", "MAVLink protocol")
 f = mavlink_proto.fields
 
