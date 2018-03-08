@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+Generate a message using different MAVLink versions, put in a buffer and then read from it.
+"""
+
 from __future__ import print_function
 from builtins import object
 
@@ -19,6 +23,7 @@ def test_protocol(mavlink, signing=False):
     # we will use a fifo as an encode/decode buffer
     f = fifo()
 
+    print("Creating MAVLink message...")
     # create a mavlink instance, which will do IO on file object 'f'
     mav = mavlink.MAVLink(f)
 
@@ -43,8 +48,10 @@ def test_protocol(mavlink, signing=False):
     bi=[]
     for c in b:
         bi.append(int(c))
+    print("Buffer containing the encoded message:")
     print(bi)
 
+    print("Decoding message...")
     # decode an incoming message
     m2 = mav.decode(b)
 
@@ -55,11 +62,11 @@ def test_protocol(mavlink, signing=False):
     print(m2)
 
 
-print("Testing mavlink1")
+print("Testing mavlink1\n")
 test_protocol(mavlink1)
 
-print("Testing mavlink2")
+print("\nTesting mavlink2\n")
 test_protocol(mavlink2)
 
-print("Testing mavlink2 with signing")
+print("\nTesting mavlink2 with signing\n")
 test_protocol(mavlink2, True)
