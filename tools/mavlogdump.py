@@ -140,7 +140,7 @@ while True:
             continue
         if m.get_type() == 'PARAM_VALUE' and args.parms:
             timestamp = getattr(m, '_timestamp', None)
-            output.write(struct.pack('>Q', timestamp*1.0e6) + m.get_msgbuf())
+            output.write(struct.pack('>Q', int(timestamp*1.0e6)) + m.get_msgbuf())
             continue
 
     if not mavutil.evaluate_condition(args.condition, mlog.messages):
@@ -169,7 +169,7 @@ while True:
     # If we're just logging, pack in the timestamp and data into the output file.
     if output:
         if not (isbin or islog):
-            output.write(struct.pack('>Q', timestamp*1.0e6))
+            output.write(struct.pack('>Q', int(timestamp*1.0e6)))
         try:
             output.write(m.get_msgbuf())
         except Exception as ex:
