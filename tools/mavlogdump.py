@@ -169,7 +169,7 @@ while True:
     # If we're just logging, pack in the timestamp and data into the output file.
     if output:
         if not (isbin or islog):
-a            output.write(struct.pack('>Q', int(timestamp*1.0e6)))
+            output.write(struct.pack('>Q', int(timestamp*1.0e6)))
         try:
             output.write(m.get_msgbuf())
         except Exception as ex:
