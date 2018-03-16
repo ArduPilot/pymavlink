@@ -151,6 +151,7 @@ setup (name = 'pymavlink',
                    'tools/mavgen.py',
                    'tools/mavkml.py',
                    'tools/mavfft.py',
+                   'tools/mavfft_isb.py',
                    'tools/mavsummarize.py',
                    'tools/MPU6KSearch.py'],
        install_requires=[
