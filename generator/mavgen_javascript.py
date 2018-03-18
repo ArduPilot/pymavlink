@@ -255,8 +255,9 @@ mavlink.messages.bad_data = function(data, reason) {
 }
 
 /* MAVLink protocol handling class */
-MAVLink = function(logger, srcSystem, srcComponent) {
+MAVLink = function(file, logger, srcSystem, srcComponent) {
 
+    this.file = file;
     this.logger = logger;
 
     this.seq = 0;
@@ -532,6 +533,8 @@ MAVLink.prototype.decode = function(msgbuf) {
 
 def generate_footer(outf):
     t.write(outf, """
+
+mavlink.MAVLink = MAVLink;
 
 // Expose this code as a module
 module.exports = mavlink;
