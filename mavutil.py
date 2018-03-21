@@ -519,6 +519,8 @@ class mavfile(object):
             map = mode_mapping_apm
         if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
             map = mode_mapping_rover
+        if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
+            map = mode_mapping_rover # for the time being
         if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
             map = mode_mapping_tracker
         if mav_type == mavlink.MAV_TYPE_SUBMARINE:
@@ -1617,6 +1619,8 @@ def mode_mapping_byname(mav_type):
         map = mode_mapping_apm
     if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
         map = mode_mapping_rover
+    if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
+        map = mode_mapping_rover # for the time being
     if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
         map = mode_mapping_tracker
     if mav_type == mavlink.MAV_TYPE_SUBMARINE:
@@ -1640,6 +1644,8 @@ def mode_mapping_bynumber(mav_type):
         map = mode_mapping_apm
     if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
         map = mode_mapping_rover
+    if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
+        map = mode_mapping_rover # for the time being
     if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
         map = mode_mapping_tracker
     if mav_type == mavlink.MAV_TYPE_SUBMARINE:
@@ -1665,6 +1671,9 @@ def mode_string_v10(msg):
         if msg.custom_mode in mode_mapping_apm:
             return mode_mapping_apm[msg.custom_mode]
     if msg.type == mavlink.MAV_TYPE_GROUND_ROVER:
+        if msg.custom_mode in mode_mapping_rover:
+            return mode_mapping_rover[msg.custom_mode]
+    if msg.type == mavlink.MAV_TYPE_SURFACE_BOAT:
         if msg.custom_mode in mode_mapping_rover:
             return mode_mapping_rover[msg.custom_mode]
     if msg.type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
