@@ -158,6 +158,9 @@ setup (name = 'pymavlink',
             'future',
             'lxml',
        ],
+       setup_requires=[
+           'future'  # future is required by mavgen, included by this file
+       ],
        cmdclass={'build_py': custom_build_py},
        ext_modules = extensions
        )
