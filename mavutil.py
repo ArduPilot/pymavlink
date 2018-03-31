@@ -948,19 +948,19 @@ class mavtcp(mavfile):
             sys.exit(1)
         self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.destination_addr = (a[0], int(a[1]))
+        if retries <= 0:
+            # try to connect at least once:
+            retries = 1
         while retries >= 0:
             retries -= 1
-            if retries <= 0:
+            try:
                 self.port.connect(self.destination_addr)
-            else:
-                try:
-                    self.port.connect(self.destination_addr)
-                    break
-                except Exception as e:
-                    if retries > 0:
-                        print(e, "sleeping")
-                        time.sleep(1)
-                    continue
+                break
+            except Exception as e:
+                if retries == 0:
+                    raise e
+                print(e, "sleeping")
+                time.sleep(1)
         self.port.setblocking(0)
         set_close_on_exec(self.port.fileno())
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
