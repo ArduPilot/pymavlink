@@ -1474,6 +1474,7 @@ mode_mapping_acm = {
 }
 mode_mapping_rover = {
     0 : 'MANUAL',
+    1 : 'ACRO',
     2 : 'LEARNING',
     3 : 'STEERING',
     4 : 'HOLD',
