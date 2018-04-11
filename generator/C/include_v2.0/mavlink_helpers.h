@@ -977,7 +977,7 @@ MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_messa
 		    rxmsg->len = 0;
 		    mavlink_start_checksum(rxmsg);
 	    }
-	    return 0;
+	    return MAVLINK_FRAMING_BAD_CRC;
     }
     return msg_received;
 }
