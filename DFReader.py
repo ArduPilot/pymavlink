@@ -173,6 +173,9 @@ class DFMessage(object):
             v = self.__getattr__(name)
             if mul is not None:
                 v /= mul
+            if type(v) == unicode:
+                # temporary(?) hack
+                v = bytes(v)
             values.append(v)
         return (struct.pack("BBB", 0xA3, 0x95, self.fmt.type) +
                 struct.pack(self.fmt.msg_struct, *values))
