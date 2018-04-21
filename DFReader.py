@@ -578,7 +578,9 @@ class DFReader_binary(DFReader):
                            "Type,Length,Name,Format,Columns")
         }
         self._zero_time_base = zero_time_base
+        self.prev_type = None
         self.init_clock()
+        self.prev_type = None
         self._rewind()
 
     def _rewind(self):
@@ -589,38 +591,45 @@ class DFReader_binary(DFReader):
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
-        if self.data_len - self.offset < 3:
-            return None
 
-        hdr = self.data[self.offset:self.offset+3]
-        skip_bytes = 0
         skip_type = None
-        # skip over bad messages
-        while (u_ord(hdr[0]) != self.HEAD1 or u_ord(hdr[1]) != self.HEAD2 or
-	       u_ord(hdr[2]) not in self.formats):
+        # skip over bad messages; after this loop has run msg_type
+        # indicates the message which starts at self.offset (including
+        # signature bytes and msg_type itself)
+        while True:
+            if self.remaining < 3:
+                return None
+            hdr = self.data[self.offset:self.offset+3]
+            if u_ord(hdr[0]) == self.HEAD1 and u_ord(hdr[1]) == self.HEAD2:
+                # signature found
+                if skip_type is not None:
+                    # emit message about skipped bytes
+                    if self.remaining >= 528:
+                        # APM logs often contain garbage at end
+                        skip_bytes = self.offset - skip_start
+                        print("Skipped %u bad bytes in log at offset %u, type=%s (prev=%s)" %
+                              (skip_bytes, skip_start, skip_type, self.prev_type),
+                          file=sys.stderr)
+                    skip_type = None
+                # check we recognise this message type:
+                msg_type = u_ord(hdr[2])
+                if msg_type in self.formats:
+                    # recognised message found
+                    self.prev_type = msg_type
+                    break;
+                # message was not recognised; fall through so these
+                # bytes are considered "skipped".  The signature bytes
+                # are easily recognisable in the "Skipped bytes"
+                # message.
             if skip_type is None:
                 skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
                 skip_start = self.offset
-            skip_bytes += 1
             self.offset += 1
-            if self.data_len - self.offset < 3:
-                return None
-            hdr = self.data[self.offset:self.offset+3]
-        msg_type = u_ord(hdr[2])
-        if skip_bytes != 0:
-            if self.remaining < 528:
-                return None
-            print("Skipped %u bad bytes in log at offset %u, type=%s" %
-                  (skip_bytes, skip_start, skip_type), file=sys.stderr)
-            self.remaining -= skip_bytes
+            self.remaining -= 1
 
         self.offset += 3
         self.remaining -= 3
 
-        if msg_type not in self.formats:
-            if self.verbose:
-                print("unknown message type %02x" % msg_type, file=sys.stderr)
-            raise Exception("Unknown message type %02x" % msg_type)
         fmt = self.formats[msg_type]
         if self.remaining < fmt.len-3:
             # out of data - can often happen half way through a message
