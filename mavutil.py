@@ -1478,6 +1478,7 @@ mode_mapping_rover = {
     2 : 'LEARNING',
     3 : 'STEERING',
     4 : 'HOLD',
+    5 : 'LOITER',
     10 : 'AUTO',
     11 : 'RTL',
     12 : 'SMART_RTL',
