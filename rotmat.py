@@ -406,3 +406,4 @@ if __name__ == "__main__":
     doctest.testmod()
     test_euler()
     test_two_vectors()
+    test_plane()
