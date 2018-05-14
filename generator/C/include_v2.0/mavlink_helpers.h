@@ -534,7 +534,7 @@ MAVLINK_HELPER uint8_t mavlink_expected_message_length(const mavlink_message_t *
  * parser in a library that doesn't use any global variables
  *
  * @param rxmsg    parsing message buffer
- * @param status   parsing starus buffer 
+ * @param status   parsing status buffer
  * @param c        The char to parse
  *
  * @param returnMsg NULL if no message could be decoded, the message data else
