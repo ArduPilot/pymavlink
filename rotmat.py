@@ -31,15 +31,15 @@ from math import sin, cos, sqrt, asin, atan2, pi, radians, acos, degrees
 class Vector3(object):
     '''a vector'''
     def __init__(self, x=None, y=None, z=None):
-        if x != None and y != None and z != None:
+        if x is not None and y is not None and z is not None:
             self.x = float(x)
             self.y = float(y)
             self.z = float(z)
-        elif x != None and len(x) == 3:
+        elif x is not None and len(x) == 3:
             self.x = float(x[0])
             self.y = float(x[1])
             self.z = float(x[2])
-        elif x != None:
+        elif x is not None:
             raise ValueError('bad initialiser')
         else:
             self.x = float(0)
