@@ -173,7 +173,7 @@ class DFMessage(object):
                 name = 'ModeNum'
             v = self.__getattr__(name)
             if is_py2:
-                if isinstance(v,unicode):
+                if isinstance(v,unicode): # NOQA
                     v = str(v)
             else:
                 if isinstance(v,str):
