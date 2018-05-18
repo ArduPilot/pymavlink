@@ -54,6 +54,14 @@
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
+<xs:attribute name="since">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(20)\d{2}-(0[1-9]|1[012])"/>  <!-- restrict dates to 20YY-MM format -->
+    </xs:restriction>
+  </xs:simpleType>
+</xs:attribute>
+<xs:attribute name="replaced_by" type="xs:string"/>
 
 <xs:simpleType name="SI_Unit">
   <xs:restriction base="xs:string">
@@ -132,6 +140,16 @@
     </xs:complexType>
 </xs:element>
 
+<xs:element name="deprecated">
+    <xs:complexType mixed="true">
+        <xs:sequence>
+            <xs:element ref="description" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute ref="since" use="required"/>
+        <xs:attribute ref="replaced_by" use="required"/>
+    </xs:complexType>
+</xs:element>
+
 <xs:element name="field">
     <xs:complexType mixed="true">
         <xs:sequence>
@@ -153,6 +171,7 @@
 <xs:element name="entry">
     <xs:complexType>
         <xs:sequence>
+            <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
             <xs:element ref="description" minOccurs="0"/>
             <xs:element ref="param" minOccurs="0" maxOccurs="unbounded" />
         </xs:sequence>
@@ -164,6 +183,7 @@
 <xs:element name="enum">
     <xs:complexType>
         <xs:sequence>
+            <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
             <xs:element ref="description" minOccurs="0"/>
             <xs:element ref="entry" maxOccurs="unbounded"/>
         </xs:sequence>
@@ -176,6 +196,7 @@
         <xs:sequence>
             <xs:choice minOccurs="0" maxOccurs="2">
                     <xs:sequence>
+                        <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
                         <xs:element ref="description" minOccurs="0"/>
                         <xs:element ref="field" minOccurs="0" maxOccurs="unbounded"/>
                     </xs:sequence>
@@ -183,6 +204,7 @@
 
             </xs:choice>
                     <xs:sequence>
+                        <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
                         <xs:element ref="field" minOccurs="0" maxOccurs="unbounded"/>
                     </xs:sequence>
         </xs:sequence>
