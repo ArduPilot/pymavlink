@@ -233,6 +233,8 @@ class MAVXML(object):
                 enum = attrs.get('enum', '')
                 display = attrs.get('display', '')
                 units = attrs.get('units', '')
+                if units:
+                    units = '[' + units + ']'
                 new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields.append(new_field)

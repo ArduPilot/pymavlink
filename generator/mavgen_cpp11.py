@@ -134,7 +134,7 @@ struct ${name} : mavlink::Message {
     static constexpr auto NAME = "${name}";
 
 
-${{fields:    ${cxx_type} ${name}; /*< ${description} */
+${{fields:    ${cxx_type} ${name}; /*< ${units} ${description} */
 }}
 
 
