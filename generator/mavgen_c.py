@@ -179,7 +179,7 @@ def generate_message_h(directory, m):
 
 MAVPACKED(
 typedef struct __mavlink_${name_lower}_t {
-${{ordered_fields: ${type} ${name}${array_suffix}; /*< ${description}*/
+${{ordered_fields: ${type} ${name}${array_suffix}; /*< ${units} ${description}*/
 }}
 }) mavlink_${name_lower}_t;
 
@@ -217,7 +217,7 @@ ${{array_fields:#define MAVLINK_MSG_${msg_name}_FIELD_${name_upper}_LEN ${array_
  * @param component_id ID of this component (e.g. 200 for IMU)
  * @param msg The MAVLink message to compress the data into
  *
-${{arg_fields: * @param ${name} ${description}
+${{arg_fields: * @param ${name} ${units} ${description}
 }}
  * @return length of the message in bytes (excluding serial stream start sign)
  */
@@ -250,7 +250,7 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
  * @param component_id ID of this component (e.g. 200 for IMU)
  * @param chan The MAVLink channel this message will be sent over
  * @param msg The MAVLink message to compress the data into
-${{arg_fields: * @param ${name} ${description}
+${{arg_fields: * @param ${name} ${units} ${description}
 }}
  * @return length of the message in bytes (excluding serial stream start sign)
  */
@@ -309,7 +309,7 @@ static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uint8_t system_id, 
  * @brief Send a ${name_lower} message
  * @param chan MAVLink channel to send the message
  *
-${{arg_fields: * @param ${name} ${description}
+${{arg_fields: * @param ${name} ${units} ${description}
 }}
  */
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
@@ -383,7 +383,7 @@ ${{fields:
 /**
  * @brief Get field ${name} from ${name_lower} message
  *
- * @return ${description}
+ * @return ${units} ${description}
  */
 static inline ${return_type} mavlink_msg_${name_lower}_get_${name}(const mavlink_message_t* msg${get_arg})
 {
