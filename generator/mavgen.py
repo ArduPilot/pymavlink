@@ -43,6 +43,27 @@ def mavgen(opts, args):
     if opts.validate:
         try:
             from lxml import etree
+        except ImportError:
+            try:
+                import xml.etree.cElementTree as etree
+                #print("running with cElementTree on Python 2.5+")
+            except ImportError:
+                try:
+                    import xml.etree.ElementTree as etree
+                    #print("running with ElementTree on Python 2.5+")
+                except ImportError:
+                    try:
+                        import cElementTree as etree
+                        #print("running with cElementTree")
+                    except ImportError:
+                        try:
+                            import elementtree.ElementTree as etree
+                            #print("running with ElementTree")
+                        except ImportError:
+                            print("WARNING: Failed to import ElementTree from any known place. XML validation will not be performed", file=sys.stderr)
+                            opts.validate = False
+    if opts.validate:
+        try:
             with open(schemaFile, 'r') as f:
                 xmlschema_root = etree.parse(f)
                 if not opts.strict_units:
