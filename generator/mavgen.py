@@ -50,6 +50,9 @@ def mavgen(opts, args):
                     for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
                         elem.set("type", "xs:string")
                 xmlschema = etree.XMLSchema(xmlschema_root)
+        except ImportError:
+            print("WARNING: Failed to import lxml module etree. Are lxml, libxml2 and libxslt installed? XML validation will not be performed", file=sys.stderr)
+            opts.validate = False
         except etree.XMLSyntaxError as err:
             print("WARNING: XML Syntax Errors detected in %s XML schema file. XML validation will not be performed" % schemaFile, file=sys.stderr)
             print(str(err.error_log), file=sys.stderr)
