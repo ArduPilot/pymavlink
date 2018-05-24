@@ -87,8 +87,10 @@
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
     <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
     <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
+    <xs:enumeration value="rpm"/>      <!-- rotations per second -->
     <!-- electricity -->
     <xs:enumeration value="V"/>        <!-- Volt -->
+    <xs:enumeration value="cV"/>       <!-- centi-Volt -->
     <xs:enumeration value="mV"/>       <!-- milli-Volt -->
     <xs:enumeration value="A"/>        <!-- Ampere -->
     <xs:enumeration value="cA"/>       <!-- centi-Ampere -->
