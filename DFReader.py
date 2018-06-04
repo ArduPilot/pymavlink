@@ -522,7 +522,7 @@ class DFReader(object):
                 self.mav_type = mavutil.mavlink.MAV_TYPE_QUADROTOR
             elif m.Message.startswith("Antenna"):
                 self.mav_type = mavutil.mavlink.MAV_TYPE_ANTENNA_TRACKER
-            elif m.Message.find("Sub"):
+            elif m.Message.find("ArduSub") != -1:
                 self.mav_type = mavutil.mavlink.MAV_TYPE_SUBMARINE
         if type == 'MODE':
             if isinstance(m.Mode, str):
