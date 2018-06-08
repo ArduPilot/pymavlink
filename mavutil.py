@@ -941,13 +941,27 @@ class mavudp(mavfile):
 
 class mavtcp(mavfile):
     '''a TCP mavlink socket'''
-    def __init__(self, device, source_system=255, source_component=0, retries=3, use_native=default_native):
+    def __init__(self,
+                 device,
+                 autoreconnect=False,
+                 source_system=255,
+                 source_component=0,
+                 retries=3,
+                 use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
             print("TCP ports must be specified as host:port")
             sys.exit(1)
-        self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.destination_addr = (a[0], int(a[1]))
+
+        self.autoreconnect = autoreconnect
+
+        self.do_connect(retries)
+
+        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
+
+    def do_connect(self, retries=3):
+        self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if retries <= 0:
             # try to connect at least once:
             retries = 1
@@ -964,7 +978,6 @@ class mavtcp(mavfile):
         self.port.setblocking(0)
         set_close_on_exec(self.port.fileno())
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
     def close(self):
         self.port.close()
@@ -978,6 +991,14 @@ class mavtcp(mavfile):
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return ""
             raise
+        if len(data) == 0:
+            # EOF
+            print("EOF on TCP socket")
+            if self.autoreconnect:
+                print("Attempting reconnect")
+                self.port.close()
+                self.do_connect()
+
         return data
 
     def write(self, buf):
@@ -1215,7 +1236,12 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
     if dialect is not None:
         set_dialect(dialect)
     if device.startswith('tcp:'):
-        return mavtcp(device[4:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
+        return mavtcp(device[4:],
+                      autoreconnect=autoreconnect,
+                      source_system=source_system,
+                      source_component=source_component,
+                      retries=retries,
+                      use_native=use_native)
     if device.startswith('tcpin:'):
         return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
     if device.startswith('udpin:'):
