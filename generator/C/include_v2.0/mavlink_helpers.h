@@ -819,18 +819,18 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		status->packet_rx_success_count++;
 	}
 
-        if (NULL != r_message) {
-            r_message->len = rxmsg->len; // Provide visibility on how far we are into current msg
-        }
-        if (NULL != r_mavlink_status) {	
-            r_mavlink_status->parse_state = status->parse_state;
-            r_mavlink_status->packet_idx = status->packet_idx;
-            r_mavlink_status->current_rx_seq = status->current_rx_seq+1;
-            r_mavlink_status->packet_rx_success_count = status->packet_rx_success_count;
-            r_mavlink_status->packet_rx_drop_count = status->parse_error;
-            r_mavlink_status->flags = status->flags;
-        }
-        status->parse_error = 0;
+       if (NULL != r_message) {
+           r_message->len = rxmsg->len; // Provide visibility on how far we are into current msg
+       }
+       if (NULL != r_mavlink_status) {	
+           r_mavlink_status->parse_state = status->parse_state;
+           r_mavlink_status->packet_idx = status->packet_idx;
+           r_mavlink_status->current_rx_seq = status->current_rx_seq+1;
+           r_mavlink_status->packet_rx_success_count = status->packet_rx_success_count;
+           r_mavlink_status->packet_rx_drop_count = status->parse_error;
+           r_mavlink_status->flags = status->flags;
+       }
+       status->parse_error = 0;
 
 	if (status->msg_received == MAVLINK_FRAMING_BAD_CRC) {
 		/*
