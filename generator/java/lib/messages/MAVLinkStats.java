@@ -4,10 +4,10 @@
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.MAVLink.Messages;
+package com.mavlink.messages;
 
-import com.MAVLink.MAVLinkPacket;
-import com.MAVLink.common.msg_radio_status;
+import com.mavlink.MAVLinkPacket;
+import com.mavlink.common.msg_radio_status;
 
 /**
  * Storage for MAVLink Packet and Error statistics

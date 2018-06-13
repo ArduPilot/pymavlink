@@ -4,10 +4,10 @@
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.MAVLink;
+package com.mavlink;
 
-import com.MAVLink.MAVLinkPacket;
-import com.MAVLink.Messages.MAVLinkStats;
+import com.mavlink.MAVLinkPacket;
+import com.mavlink.messages.MAVLinkStats;
 
 /**
  * MAVLink parser that parses @{link MAVLinkPacket}s from a byte stream one byte
