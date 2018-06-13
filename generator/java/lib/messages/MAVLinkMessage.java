@@ -4,11 +4,11 @@
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.MAVLink.Messages;
+package com.mavlink.messages;
 
 import java.io.Serializable;
 
-import com.MAVLink.MAVLinkPacket;
+import com.mavlink.MAVLinkPacket;
 
 public abstract class MAVLinkMessage implements Serializable {
     private static final long serialVersionUID = -7754622750478538539L;
