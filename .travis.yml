@@ -7,7 +7,7 @@ before_install:
   - pip install --upgrade pip
 install:
   - pip install -r requirements.txt
-  - pip install flake8
+  - pip install flake8 pytest pytest-mock
 before_script:
   # fail the build if there are Python syntax errors or undefined names
   - flake8 . --count --select=E901,E999,F821,F822,F823 --show-source --statistics
@@ -56,6 +56,6 @@ script:
   - sudo chown -R $USER ~/.npm
   - "cd generator/javascript && npm test"
 
-  # Test quaternions
+  # Run tests
   - cd $TRAVIS_BUILD_DIR
-  - tools/quaterniontest.py
+  - python -m pytest
