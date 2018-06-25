@@ -18,7 +18,6 @@ except:
     pass
 
 try:
-    # rotmat doesn't work on Python3.2 yet
     from .rotmat import Vector3, Matrix3
 except Exception:
     pass
