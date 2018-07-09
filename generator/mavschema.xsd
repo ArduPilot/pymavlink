@@ -113,8 +113,10 @@
     <xs:enumeration value="c%"/>       <!-- centipercent -->
     <xs:enumeration value="dB"/>       <!-- Deci-Bell -->
     <!-- digital -->
-    <xs:enumeration value="Mibytes"/>  <!-- Megabytes (1024*1024 bytes) -->
-    <xs:enumeration value="Mibytes/s"/><!-- Megabytes (1024*1024 bytes) per second -->
+    <xs:enumeration value="KiB"/>      <!-- Kibibyte (1024 bytes) -->
+    <xs:enumeration value="KiB/s"/>    <!-- Kibibyte (1024 bytes) per second -->
+    <xs:enumeration value="MiB"/>      <!-- Mebibyte (1024*1024 bytes) -->
+    <xs:enumeration value="MiB/s"/>    <!-- Mebibyte (1024*1024 bytes) per second -->
     <xs:enumeration value="bytes"/>    <!-- bytes -->
     <xs:enumeration value="bits/s"/>   <!-- bits per second -->
     <xs:enumeration value="pix"/>      <!-- pixels -->
