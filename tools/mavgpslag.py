@@ -2,6 +2,17 @@
 
 '''
 calculate GPS lag from DF log
+
+The DF log file needs to be generated with ATT, GPS and IMU bits:
+-  On copter (bit0, bit2 and bit18) set on the LOG_BITMASK parameters
+-  On rover  (bit0, bit2 and bit7) set on the LOG_BITMASK parameters
+-  On plane  (bit0, bit2 and bit7) set on the LOG_BITMASK parameters
+Make sure IMU_RAW (bit 19) is not set
+
+For this to work, the vehicle must move at speeds above the --minspeed parameter (defaults to 6m/s)
+The code really only works when there is significant acceleration as well.
+You'll need to fly quite aggressively on a copter to get a result.
+
 '''
 from __future__ import print_function
 from builtins import range
