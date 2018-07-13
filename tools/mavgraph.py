@@ -20,6 +20,11 @@ try:
 except:
     print("WARNING: Numpy missing, mathematical notation will not be supported.")
 
+if sys.version_info[0] >= 3:
+    text_types = frozenset([str,])
+else:
+    text_types = frozenset([unicode, str])
+
 # cope with rename of raw_input in python3
 try:
     input = raw_input
@@ -134,8 +139,31 @@ def plotit(x, y, fields, colors=[]):
                 linestyle = args.linestyle
             else:
                 linestyle = '-'
-            ax.plot_date(x[i], y[i], color=color, label=fields[i],
-                         linestyle=linestyle, marker=marker, tz=None)
+            if len(y[i]) > 0 and type(y[i][0]) in text_types:
+                # assume this is a piece of text to be rendered at a point in time
+                last_text_time = -1
+                last_text = None
+                for n in range(0, len(x[i])):
+                    if last_text is None:
+                        last_text = "[" + y[i][n] + "]"
+                        last_text_time = x[i][n]
+                    elif x[i][n] == last_text_time:
+                        last_text += "[" + y[i][n] + "]"
+                    else:
+                        ax.text(x[i][n], 10, last_text,
+                                rotation=90,
+                                alpha=0.3,
+                                verticalalignment='baseline')
+                        last_text = None
+                        last_label_time = x[i][n]
+                if last_text is not None:
+                    ax.text(x[i][n], 10, last_text,
+                            rotation=90,
+                            alpha=0.3,
+                            verticalalignment='baseline')
+            else:
+                ax.plot_date(x[i], y[i], color=color, label=fields[i],
+                             linestyle=linestyle, marker=marker, tz=None)
         empty = False
     if args.flightmode is not None:
         for i in range(len(modes)-1):
