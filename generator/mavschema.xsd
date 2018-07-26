@@ -194,19 +194,16 @@
 <xs:element name="message">
     <xs:complexType>
         <xs:sequence>
-            <xs:choice minOccurs="0" maxOccurs="2">
-                    <xs:sequence>
-                        <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
-                        <xs:element ref="description" minOccurs="0"/>
-                        <xs:element ref="field" minOccurs="0" maxOccurs="unbounded"/>
-                    </xs:sequence>
-                    <xs:element ref="extensions" minOccurs="0" maxOccurs="1"/>
-
-            </xs:choice>
-                    <xs:sequence>
-                        <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
-                        <xs:element ref="field" minOccurs="0" maxOccurs="unbounded"/>
-                    </xs:sequence>
+            <xs:sequence minOccurs="1" maxOccurs="1">
+                <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
+                <xs:element ref="description" minOccurs="0" maxOccurs="1"/>
+                <xs:element ref="field" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <!-- MavLink 2.0 extensions are optional hence minOccurs="0" -->
+            <xs:sequence minOccurs="0" maxOccurs="1">
+                <xs:element ref="extensions" minOccurs="1" maxOccurs="1"/>
+                <xs:element ref="field" minOccurs="1" maxOccurs="unbounded"/>
+            </xs:sequence>
         </xs:sequence>
         <xs:attribute ref="id" use="required"/>
         <xs:attribute ref="name" use="required"/>
