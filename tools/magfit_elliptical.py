@@ -85,7 +85,7 @@ def sphere_error(p, data):
     ofs = Vector3(x,y,z)
     diag = Vector3(dx, dy, dz)
     offdiag = Vector3(odx, ody, odz)
-        
+
     ret = []
     for d in data:
         mag = correct(d, ofs, diag, offdiag)

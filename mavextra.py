@@ -1013,13 +1013,13 @@ def qroll(MSG):
     q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
     return degrees(q.euler[0])
 
-    
+
 def qpitch(MSG):
     '''return quaternion pitch in degrees'''
     q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
     return degrees(q.euler[1])
 
-    
+
 def qyaw(MSG):
     '''return quaternion yaw in degrees'''
     q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])

@@ -179,7 +179,7 @@ class mavfile(object):
             set_dialect(current_dialect)
         else:
             return
-        # switch protocol 
+        # switch protocol
         (callback, callback_args, callback_kwargs) = (self.mav.callback,
                                                       self.mav.callback_args,
                                                       self.mav.callback_kwargs)
@@ -269,7 +269,7 @@ class mavfile(object):
                 #print("lost %u seq=%u seq2=%u last_seq=%u src_system=%u %s" % (diff, seq, seq2, last_seq, src_system, msg.get_type()))
             self.last_seq[src_tuple] = seq2
             self.mav_count += 1
-        
+
         self.timestamp = msg._timestamp
         if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
             self.target_system = msg.get_srcSystem()
@@ -338,7 +338,7 @@ class mavfile(object):
                 # timeout
                 if numnew == 0:
                     return None
-                
+
     def recv_match(self, condition=None, type=None, blocking=False, timeout=None):
         '''recv the next MAVLink message that matches the given condition
         type can be a string or a list of strings'''
@@ -473,7 +473,7 @@ class mavfile(object):
     def set_mode_flag(self, flag, enable):
         '''
         Enables/ disables MAV_MODE_FLAG
-        @param flag The mode flag, 
+        @param flag The mode flag,
           see MAV_MODE_FLAG enum
         @param enable Enable the flag, (True/False)
         '''
@@ -562,7 +562,7 @@ class mavfile(object):
             self.set_mode_px4(mode, custom_mode, custom_sub_mode)
         else:
             self.set_mode_apm(mode)
-        
+
     def set_mode_rtl(self):
         '''enter RTL mode'''
         if self.mavlink10():
@@ -828,7 +828,7 @@ class mavserial(mavfile):
         except Exception:
             # for pySerial 3.0, which doesn't have setBaudrate()
             self.port.baudrate = baudrate
-    
+
     def close(self):
         self.port.close()
 
@@ -852,7 +852,7 @@ class mavserial(mavfile):
             if self.autoreconnect:
                 self.reset()
             return -1
-            
+
     def reset(self):
         import serial
         try:
@@ -871,7 +871,7 @@ class mavserial(mavfile):
             return True
         except Exception:
             return False
-        
+
 
 class mavudp(mavfile):
     '''a UDP mavlink socket'''
@@ -1035,8 +1035,8 @@ class mavtcpin(mavfile):
                 (self.port, addr) = self.listen.accept()
             except Exception:
                 return ''
-            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
-            self.port.setblocking(0) 
+            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+            self.port.setblocking(0)
             set_close_on_exec(self.port.fileno())
             self.fd = self.port.fileno()
 
@@ -1198,7 +1198,7 @@ class mavchildexec(mavfile):
     def __init__(self, filename, source_system=255, source_component=0, use_native=default_native):
         from subprocess import Popen, PIPE
         import fcntl
-        
+
         self.filename = filename
         self.child = Popen(filename, shell=False, stdout=PIPE, stdin=PIPE, bufsize=0)
         self.fd = self.child.stdout.fileno()
@@ -1267,7 +1267,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         if DFReader.DFReader_is_text_log(device):
             m = DFReader.DFReader_text(device, zero_time_base=zero_time_base)
             mavfile_global = m
-            return m    
+            return m
 
     # list of suffixes to prevent setting DOS paths as UDP sockets
     logsuffixes = ['mavlink', 'log', 'raw', 'tlog' ]
@@ -1293,7 +1293,7 @@ class periodic_event(object):
     def force(self):
         '''force immediate triggering'''
         self.last_time = 0
-        
+
     def trigger(self):
         '''return True if we should trigger now'''
         tnow = time.time()
@@ -1371,9 +1371,9 @@ def auto_detect_serial_win32(preferred_list=['*']):
     # now the rest
     ret.extend(others)
     return ret
-        
 
-        
+
+
 
 def auto_detect_serial_unix(preferred_list=['*']):
     '''try to auto-detect serial ports on unix'''
@@ -1398,7 +1398,7 @@ def auto_detect_serial_unix(preferred_list=['*']):
 
 def auto_detect_serial(preferred_list=['*']):
     '''try to auto-detect serial port'''
-    # see if 
+    # see if
     if os.name == 'nt':
         return auto_detect_serial_win32(preferred_list=preferred_list)
     return auto_detect_serial_unix(preferred_list=preferred_list)
@@ -1425,7 +1425,7 @@ def mode_string_v09(msg):
     MAV_NAV_LANDING = 6
     MAV_NAV_LOST = 7
     MAV_NAV_LOITER = 8
-    
+
     cmode = (mode, nav_mode)
     mapping = {
         (MAV_MODE_UNINIT, MAV_NAV_GROUNDED)  : "INITIALISING",

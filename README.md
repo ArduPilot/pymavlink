@@ -10,11 +10,11 @@ For realtime discussion please see the pymavlink gitter channel here
 https://gitter.im/ArduPilot/pymavlink
 
 
-# Installation 
+# Installation
 
 ## Recommendation
 
-Pymavlink is currently a Python 2 package. It is recommended to install and use it with Python 2. 
+Pymavlink is currently a Python 2 package. It is recommended to install and use it with Python 2.
 
 However an initial Python 3 support is given.
 The following instructions assume you are using Python 2 and a Debian-based (like Ubuntu) installation.
@@ -67,11 +67,11 @@ On the pymavlink directory, you can use :
 sudo MDEF=PATH_TO_message_definitions pip2 install . -v
 ```
 The -v parameter will output the installation commands on the terminal.
-The MDEF usage is require as pip install is done from /tmp directory, so it is necessary to use MDEF variable to 
+The MDEF usage is require as pip install is done from /tmp directory, so it is necessary to use MDEF variable to
 point on the message_definitions directory.
-Use pip should auto install dependencies and allow to keep them up-to-date with pip. 
+Use pip should auto install dependencies and allow to keep them up-to-date with pip.
 
-Or 
+Or
 ```bash
 sudo python2 setup.py install
 ```

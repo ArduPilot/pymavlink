@@ -47,7 +47,7 @@ def check_drops(data, msg, start, end):
     print(msg + ' duration: {0:.3f} seconds'.format(duration))
     avg_rate = float(end - start - 1) / duration
     print('average logging rate: {0:.0f} Hz'.format(avg_rate))
-    ts_mean = numpy.mean(deltas) 
+    ts_mean = numpy.mean(deltas)
     dmin = numpy.min(deltas)
     dmax = numpy.max(deltas)
     print('sample count delta min: {0}, max: {1}'.format(dmin, dmax))
@@ -63,10 +63,10 @@ def check_drops(data, msg, start, end):
             drop_lens.append(deltas[i])
             drop_times.append(ts[start+i])
             print('dropout at sample {0}: length {1}'.format(start+i, deltas[i]))
-    
+
     print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
     return avg_rate
-    
+
 def fft(logfile):
     '''display fft for raw ACC data in logfile'''
 
@@ -110,7 +110,7 @@ def fft(logfile):
     seqcnt = numpy.array(data['ACC1.SampleC'])
 
     print("Extracted %u data points" % len(data['ACC1.AccX']))
-    
+
     # interactive selection of analysis window
     preview = pylab.figure()
     preview.set_size_inches(12, 3, forward=True)
@@ -131,7 +131,7 @@ def fft(logfile):
 
     # outer loop for repeating time window selection
     while True:
-        
+
         while True:
             print('select sample range for fft analysis')
             preview.canvas.set_window_title('select sample range')
@@ -141,22 +141,22 @@ def fft(logfile):
                 currentAxes.set_xlim(s_start, s_end)
             except:
                 break
-            
+
         # process selected samples
         s_start = int(currentAxes.get_xlim()[0])
         s_end = int(currentAxes.get_xlim()[1])
         n_samp = s_end - s_start
         print('sample range: ', s_start, s_end)
         print('N samples: ', n_samp)
-        
+
         # check for dropouts: (delta > 1)
         avg_rate = check_drops(data, 'ACC1', s_start, s_end)
-        
+
         title = 'FFT input: {0:s} ACC1[{1:d}:{2:d}], {3:d} samples'.format(logfile, s_start, s_end, n_samp)
         currentAxes.set_xlabel('sample index : nsamples: {0:d}, avg rate: {1:.0f} Hz'.format(n_samp, avg_rate))
         preview.canvas.set_window_title(title)
         preview.savefig('acc1z.png')
-            
+
         for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2']:
             if msg.startswith('ACC'):
                 prefix = 'Acc'
@@ -164,15 +164,15 @@ def fft(logfile):
             else:
                 prefix = 'Gyr'
                 title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
-            
-            # check for dropouts    
+
+            # check for dropouts
             data[msg+'.rate'] = check_drops(data, msg, s_start, s_end)
             plot_input(data, msg, prefix, s_start, s_end)
-            
+
             fftwin = pylab.figure()
             fftwin.set_size_inches(12, 3, forward=True)
             f_res = float(data[msg+'.rate']) / n_samp
-    
+
             max_fft = 0
             abs_fft = {}
             index = 0
@@ -182,7 +182,7 @@ def fft(logfile):
                 d = data[field][s_start:s_end]
                 if len(d) == 0:
                     continue
-    
+
                 d = numpy.array(d)
                 freq  = numpy.fft.rfftfreq(len(d), 1.0 / data[msg+'.rate'])
                 # remove mean
@@ -197,13 +197,13 @@ def fft(logfile):
                 if (max_fft < thismax):
                     max_fft = thismax
                 index += 1
-                
+
             for axis in ['X', 'Y', 'Z']:
                 # scale to 0dB = max
                 field = msg + '.' + prefix + axis
                 db_fft = 20 * numpy.log10(abs_fft[axis] / max_fft)
                 pylab.plot( freq, db_fft, label=field )
-    
+
             fftwin.canvas.set_window_title(title)
             fftwin.gca().set_ylim(-90, 0)
             pylab.legend(loc='upper right')
@@ -211,14 +211,14 @@ def fft(logfile):
             pylab.ylabel('dB X {0:.3f} Y {1:.3f} Z {2:.3f}\n'.format(avg['X'], avg['Y'], avg['Z']))
             pylab.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.16)
             fftwin.savefig(msg + '_fft.png')
-        
+
         try:
             selection = raw_input('q to proceed to next file, anything else to select a new range: ')
             print(selection)
         except:
             continue
 
-        if (selection == 'q'): 
+        if (selection == 'q'):
             break
 
 pylab.ion()

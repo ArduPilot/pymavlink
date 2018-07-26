@@ -126,5 +126,5 @@ class MAVParmDict(dict):
                 print("%-16.16s %12.4f" % (k, other[k]))
             elif abs(self[k] - other[k]) > self.mindelta:
                 print("%-16.16s %12.4f %12.4f" % (k, other[k], self[k]))
-                
-        
+
+

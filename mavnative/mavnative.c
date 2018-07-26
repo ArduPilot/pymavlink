@@ -168,7 +168,7 @@ MAVLINK_HELPER uint8_t py_mavlink_parse_char(uint8_t c, py_message_t* pymsg, mav
         break;
 
     case MAVLINK_PARSE_STATE_GOT_STX:
-            if (status->msg_received 
+            if (status->msg_received
 /* Support shorter buffers than the
    default maximum packet size */
 #if (MAVLINK_MAX_PAYLOAD_LEN < 255)
@@ -333,9 +333,9 @@ extern void __assert_fail(const char *__assertion, const char *__file, unsigned 
 static unsigned get_field_size(int field_type) {
     unsigned fieldSize;
 
-    switch(field_type) 
+    switch(field_type)
     {
-    case MAVLINK_TYPE_CHAR: 
+    case MAVLINK_TYPE_CHAR:
         fieldSize = 1;
         break;
     case MAVLINK_TYPE_UINT8_T:
@@ -359,15 +359,15 @@ static unsigned get_field_size(int field_type) {
     case MAVLINK_TYPE_UINT64_T:
         fieldSize = 8;
         break;
-    case MAVLINK_TYPE_INT64_T:                 
+    case MAVLINK_TYPE_INT64_T:
         fieldSize = 8;
         break;
-    case MAVLINK_TYPE_FLOAT:              
+    case MAVLINK_TYPE_FLOAT:
         fieldSize = 4;
         break;
-    case MAVLINK_TYPE_DOUBLE:      
+    case MAVLINK_TYPE_DOUBLE:
         fieldSize = 8;
-        break;            
+        break;
     default:
         mavdebug("BAD MAV TYPE %d\n", field_type);
         set_pyerror("Unexpected mavlink type");
@@ -387,7 +387,7 @@ static int get_py_typeinfo(char type_char, int array_size, unsigned *wire_offset
 {
     int type_code;
 
-    switch(type_char) 
+    switch(type_char)
     {
     case 'f': type_code = MAVLINK_TYPE_FLOAT; break;
     case 'd': type_code = MAVLINK_TYPE_DOUBLE; break;
@@ -421,7 +421,7 @@ static int get_py_typeinfo(char type_char, int array_size, unsigned *wire_offset
 */
 static void init_message_info(PyObject *mavlink_map) {
     // static const mavlink_message_info_t src[256] = MAVLINK_MESSAGE_INFO;
-    
+
     PyObject *items_list = PyDict_Values(mavlink_map);
     assert(items_list); // A list of the tuples in mavlink_map
 
@@ -448,7 +448,7 @@ static void init_message_info(PyObject *mavlink_map) {
         assert(type_format);
         char *type_str = PyByteArray_AsString(type_format);
         assert(type_str);
-               
+
         Py_ssize_t num_fields = PyList_Size(fieldname_list);
 
         uint8_t id = (uint8_t) PyInt_AsLong(id_obj);
@@ -469,13 +469,13 @@ static void init_message_info(PyObject *mavlink_map) {
             Py_INCREF(field_name_obj);
 
             PyObject *len_obj = PyList_GetItem(arrlen_list, fnum); // returns a _borrowed_ reference
-            assert(len_obj);                        
+            assert(len_obj);
 
             d->fields[fnum].name = field_name_obj;
             d->fields[fnum].array_length = PyInt_AsLong(len_obj);
             char type_char = type_str[1 + fnum];
             d->fields[fnum].wire_offset = wire_offset; // Store the current offset before advancing
-            d->fields[fnum].type = get_py_typeinfo(type_char, d->fields[fnum].array_length, &wire_offset);            
+            d->fields[fnum].type = get_py_typeinfo(type_char, d->fields[fnum].array_length, &wire_offset);
         }
         d->len = wire_offset;
 
@@ -529,7 +529,7 @@ static PyObject *pyextract_mavlink(const mavlink_message_t *msg, const py_field_
     if(arrayResult != NULL)
         result = arrayResult;
 
-    // Either build a full array of results, or return a single value 
+    // Either build a full array of results, or return a single value
     for(index = 0; index < numValues; index++) {
         PyObject *val = NULL;
 
@@ -538,7 +538,7 @@ static PyObject *pyextract_mavlink(const mavlink_message_t *msg, const py_field_
                 // If we are building a string, stop writing when we see a null char
                 char c = _MAV_RETURN_char(msg, offset);
 
-                if(stringResult && c == 0) 
+                if(stringResult && c == 0)
                     string_ended = TRUE;
 
                 val = PyByteString_FromStringAndSize(&c, 1);
@@ -560,7 +560,7 @@ static PyObject *pyextract_mavlink(const mavlink_message_t *msg, const py_field_
                 val = PyLong_FromLong(_MAV_RETURN_uint32_t(msg, offset));
                 break;
             case MAVLINK_TYPE_INT32_T:
-                val = PyInt_FromLong(_MAV_RETURN_int32_t(msg, offset));   
+                val = PyInt_FromLong(_MAV_RETURN_int32_t(msg, offset));
                 break;
             case MAVLINK_TYPE_UINT64_T:
                 val = PyLong_FromLongLong(_MAV_RETURN_uint64_t(msg, offset));
@@ -573,7 +573,7 @@ static PyObject *pyextract_mavlink(const mavlink_message_t *msg, const py_field_
                 break;
             case MAVLINK_TYPE_DOUBLE:
                 val = PyFloat_FromDouble(_MAV_RETURN_double(msg, offset));
-                break;            
+                break;
             default:
                 mavdebug("BAD MAV TYPE %d\n", field->type);
                 set_pyerror("Unexpected mavlink type");
@@ -582,7 +582,7 @@ static PyObject *pyextract_mavlink(const mavlink_message_t *msg, const py_field_
         offset += fieldSize;
 
         assert(val);
-        if(arrayResult != NULL)  
+        if(arrayResult != NULL)
             PyList_SetItem(arrayResult, index, val);
         else if(stringResult != NULL) {
             if(!string_ended)
@@ -651,7 +651,7 @@ static PyObject *msg_to_py(PyObject* msgclass, const py_message_t *pymsg) {
             PyObject_SetAttr(obj, f->name, val);
             Py_DECREF(val); // We no longer need val, the attribute will keep a ref
         }
-        else 
+        else
             objValid = FALSE;
     }
 
@@ -674,40 +674,40 @@ static int get_expectedlength(NativeConnection *self)
     mavlink_message_t *msg = &self->msg.msg;
 
     switch(self->mav_status.parse_state) {
-        case MAVLINK_PARSE_STATE_UNINIT: 
-        case MAVLINK_PARSE_STATE_IDLE: 
+        case MAVLINK_PARSE_STATE_UNINIT:
+        case MAVLINK_PARSE_STATE_IDLE:
             desired = 8;
             break;
-        case MAVLINK_PARSE_STATE_GOT_STX: 
+        case MAVLINK_PARSE_STATE_GOT_STX:
             desired = 7;
             break;
         case MAVLINK_PARSE_STATE_GOT_LENGTH:
             desired = msg->len + 6;
             break;
-        case MAVLINK_PARSE_STATE_GOT_SEQ: 
+        case MAVLINK_PARSE_STATE_GOT_SEQ:
             desired = msg->len + 5;
             break;
-        case MAVLINK_PARSE_STATE_GOT_SYSID: 
+        case MAVLINK_PARSE_STATE_GOT_SYSID:
             desired = msg->len + 4;
-            break;        
+            break;
         case MAVLINK_PARSE_STATE_GOT_COMPID:
             desired = msg->len + 3;
-            break;         
-        case MAVLINK_PARSE_STATE_GOT_MSGID: 
+            break;
+        case MAVLINK_PARSE_STATE_GOT_MSGID:
             desired = msg->len - self->mav_status.packet_idx + 2;
-            break;          
+            break;
         case MAVLINK_PARSE_STATE_GOT_PAYLOAD:
             desired = 2;
-            break;          
-        case MAVLINK_PARSE_STATE_GOT_CRC1: 
+            break;
+        case MAVLINK_PARSE_STATE_GOT_CRC1:
             desired = 1;
-            break;  
+            break;
         default:
             // Huh?  Just claim 1
             desired = 1;
             break;
-    } 
-    
+    }
+
     mavdebug("in state %d, expected_length=%d\n", (int) self->mav_status.parse_state, desired);
     return desired;
 }
@@ -732,9 +732,9 @@ py_parse_chars(NativeConnection *self, PyObject *args)
         set_pyerror("Invalid arguments");
         return NULL;
     }
-    
+
     assert(PyByteArray_Check(byteObj));
-    Py_ssize_t numBytes = PyByteArray_Size(byteObj);    
+    Py_ssize_t numBytes = PyByteArray_Size(byteObj);
     mavdebug("numbytes %u\n", (unsigned) numBytes);
 
     char *start = PyByteArray_AsString(byteObj);
@@ -742,7 +742,7 @@ py_parse_chars(NativeConnection *self, PyObject *args)
     char *bytes = start;
     PyObject *result = NULL;
 
-    // Generate a list of messages found 
+    // Generate a list of messages found
     while(numBytes) {
         char c = *bytes++;
         numBytes--;
@@ -760,7 +760,7 @@ py_parse_chars(NativeConnection *self, PyObject *args)
     memmove(start, bytes, numBytes);
     PyByteArray_Resize(byteObj, numBytes);
 
-    if(result != NULL) 
+    if(result != NULL)
         return result;
     else
         return createPyNone();
@@ -789,12 +789,12 @@ py_parse_buffer(NativeConnection *self, PyObject *args)
         set_pyerror("Invalid arguments");
         return NULL;
     }
-    
+
     // mavdebug("numbytes %u\n", (unsigned) numBytes);
 
     PyObject* list = PyList_New(0);
 
-    // Generate a list of messages found 
+    // Generate a list of messages found
     while(numBytes--) {
         char c = *bytes++;
         // mavdebug("parse %c\n", c);
@@ -803,7 +803,7 @@ py_parse_buffer(NativeConnection *self, PyObject *args)
             PyObject *obj = msg_to_py(self->MAVLinkMessage, &self->msg);
             if(obj != NULL) {
                 PyList_Append(list, obj);
-            
+
                 // Append will have bummped up the ref count on obj, so we need to release our count
                 Py_DECREF(obj);
             }
@@ -868,7 +868,7 @@ static PyMemberDef NativeConnection_members[] = {
 };
 
 static PyGetSetDef NativeConnection_getseters[] = {
-    {"expected_length", 
+    {"expected_length",
      (getter)NativeConnection_getexpectedlength, NULL,
      "How many characters would the state-machine like to read now",
      NULL},
@@ -877,7 +877,7 @@ static PyGetSetDef NativeConnection_getseters[] = {
 
 static PyMethodDef NativeConnection_methods[] = {
     {"parse_chars",  (PyCFunction) py_parse_chars, METH_VARARGS,
-     "Given a msg class and an array of bytes, Parse chars, returning a message or None"},    
+     "Given a msg class and an array of bytes, Parse chars, returning a message or None"},
     {"parse_buffer",  (PyCFunction) py_parse_buffer, METH_VARARGS,
      "Given a msg class and a string like object, Parse chars, returning a (possibly empty) list of messages"},
     {NULL,  NULL},
