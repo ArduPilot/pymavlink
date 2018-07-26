@@ -150,6 +150,14 @@
     </xs:complexType>
 </xs:element>
 
+<xs:element name="wip">
+    <xs:complexType mixed="true">
+        <xs:sequence>
+            <xs:element ref="description" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+</xs:element>
+
 <xs:element name="field">
     <xs:complexType mixed="true">
         <xs:sequence>
@@ -171,7 +179,10 @@
 <xs:element name="entry">
     <xs:complexType>
         <xs:sequence>
-            <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
+            <xs:choice minOccurs="0" maxOccurs="1">
+                <xs:element ref="deprecated"/>
+                <xs:element ref="wip"/>
+            </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
             <xs:element ref="param" minOccurs="0" maxOccurs="unbounded" />
         </xs:sequence>
@@ -195,7 +206,10 @@
     <xs:complexType>
         <xs:sequence>
             <xs:sequence minOccurs="1" maxOccurs="1">
-                <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
+                <xs:choice minOccurs="0" maxOccurs="1">
+                    <xs:element ref="deprecated"/>
+                    <xs:element ref="wip"/>
+                </xs:choice>
                 <xs:element ref="description" minOccurs="0" maxOccurs="1"/>
                 <xs:element ref="field" minOccurs="0" maxOccurs="unbounded"/>
             </xs:sequence>
