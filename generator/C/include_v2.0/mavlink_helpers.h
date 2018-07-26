@@ -482,7 +482,7 @@ MAVLINK_HELPER void mavlink_update_checksum(mavlink_message_t* msg, uint8_t c)
 #ifndef MAVLINK_GET_MSG_ENTRY
 MAVLINK_HELPER const mavlink_msg_entry_t *mavlink_get_msg_entry(uint32_t msgid)
 {
-	static const mavlink_msg_entry_t mavlink_message_crcs[] = MAVLINK_MESSAGE_CRCS;
+	const mavlink_msg_entry_t mavlink_message_crcs[] = MAVLINK_MESSAGE_CRCS;
         /*
 	  use a bisection search to find the right entry. A perfect hash may be better
 	  Note that this assumes the table is sorted by msgid
