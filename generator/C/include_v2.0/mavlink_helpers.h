@@ -840,7 +840,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		  mavlink_msg_to_send_buffer() won't overwrite the
 		  checksum
 		 */
-            if (NULL != r_message)
+            if (NULL != r_message) {
                 r_message->checksum = rxmsg->ck[0] | (rxmsg->ck[1]<<8);
             }
 	}
