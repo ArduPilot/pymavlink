@@ -8,6 +8,12 @@ before_install:
 install:
   - pip install -r requirements.txt
   - pip install flake8 pytest pytest-mock
+
+addons:
+  apt:
+    packages:
+      - libgtest-dev
+      
 before_script:
   # fail the build if there are Python syntax errors or undefined names
   - flake8 . --count --select=E901,E999,F821,F822,F823 --show-source --statistics
@@ -45,6 +51,8 @@ script:
   - mavgen.py --lang='Swift'      --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0 --strict-units
   - mavgen.py --lang='Java'       --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0 --strict-units
   - mavgen.py --lang='C++11'      --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0 --strict-units # C++11 generator only supports 2.0
+
+  - ./test_generator.sh
 
   # Avoid `spurious errors` caused by ~/.npm permission issues
   # ref: https://github.com/travis-ci/travis-ci/issues/2244
