@@ -43,12 +43,17 @@ parser.add_argument("--show-types", action='store_true', help="Shows all message
 parser.add_argument("--source-system", type=int, default=None, help="filter by source system ID")
 parser.add_argument("--source-component", type=int, default=None, help="filter by source component ID")
 parser.add_argument("--link", type=int, default=None, help="filter by comms link ID")
+parser.add_argument("--mav10", action='store_true', help="parse as MAVLink1")
 parser.add_argument("log", metavar="LOG")
 args = parser.parse_args()
+
+if not args.mav10:
+    os.environ['MAVLINK20'] = '1'
 
 import inspect
 
 from pymavlink import mavutil
+
 
 
 filename = args.log
