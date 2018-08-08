@@ -11,7 +11,6 @@
 <!-- definition of attributes -->
 <xs:attribute name="name"> <!-- enum,entry,message,field -->
 </xs:attribute>
-<xs:attribute name="index" type="xs:unsignedByte"/> <!-- param -->
 <xs:attribute name="id" type="xs:unsignedShort"/> <!-- message -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- field -->
 <xs:attribute name="enum" type="xs:string"/>
@@ -135,10 +134,29 @@
   </xs:restriction>
 </xs:simpleType>
 
+<!-- definition param elements attributes (like the ones used on MAV_CMD for example) -->
+<xs:attribute name="index" type="xs:unsignedByte"/>                    <!-- parameter index -->
+<xs:attribute name="label" type="xs:string"/>                          <!-- parameter label (name) -->
+<xs:attribute name="decimalPlaces" type="xs:unsignedByte"/>            <!-- parameter number of decimal places to be displayed in the GUI -->
+<xs:attribute name="increment" type="xs:float"/>                       <!-- parameter increment -->
+<xs:attribute name="minValue" type="xs:float"/>                        <!-- parameter minimum value -->
+<xs:attribute name="maxValue" type="xs:float"/>                        <!-- parameter maximum value -->
+<xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- parameter has lat/lon location -->
+<xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- parameter is a destination -->
+
 <!-- definition of complex elements -->
 <xs:element name="param">
     <xs:complexType mixed="true">
         <xs:attribute ref="index" use="required"/>
+        <xs:attribute ref="label" use="required"/>
+        <xs:attribute ref="units"/>
+        <xs:attribute ref="enum" />
+        <xs:attribute ref="decimalPlaces"/>
+        <xs:attribute ref="increment"/>
+        <xs:attribute ref="minValue"/>
+        <xs:attribute ref="maxValue"/>
+        <xs:attribute ref="hasLocation"/>
+        <xs:attribute ref="isDestination"/>
     </xs:complexType>
 </xs:element>
 
