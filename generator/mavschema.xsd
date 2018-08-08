@@ -141,8 +141,10 @@
 <xs:attribute name="increment" type="xs:float"/>                       <!-- parameter increment -->
 <xs:attribute name="minValue" type="xs:float"/>                        <!-- parameter minimum value -->
 <xs:attribute name="maxValue" type="xs:float"/>                        <!-- parameter maximum value -->
-<xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- parameter has lat/lon location -->
-<xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- parameter is a destination -->
+
+<!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
+<xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- entry has lat/lon/alt location -->
+<xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- entry is a destination -->
 
 <!-- definition of complex elements -->
 <xs:element name="param">
@@ -155,8 +157,6 @@
         <xs:attribute ref="increment"/>
         <xs:attribute ref="minValue"/>
         <xs:attribute ref="maxValue"/>
-        <xs:attribute ref="hasLocation"/>
-        <xs:attribute ref="isDestination"/>
     </xs:complexType>
 </xs:element>
 
@@ -208,6 +208,8 @@
         </xs:sequence>
         <xs:attribute ref="value" />
         <xs:attribute ref="name" use="required"/>
+        <xs:attribute ref="hasLocation"/>
+        <xs:attribute ref="isDestination"/>
     </xs:complexType>
 </xs:element>
 
