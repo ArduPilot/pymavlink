@@ -30,6 +30,10 @@ class MAVWPLoader(object):
         self.target_system = target_system
         self.target_component = target_component
         self.last_change = time.time()
+        self.colour_for_polygon = {
+            mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION : (255,0,0),
+            mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION : (0,255,0)
+        }
 
     def count(self):
         '''return number of waypoints'''
@@ -388,7 +392,10 @@ class MAVWPLoader(object):
         points = []
         for idx in indexes:
             w = self.wp(idx)
-            points.append((w.x, w.y))
+            if w.command in self.colour_for_polygon:
+                points.append((w.x, w.y, self.colour_for_polygon[w.command]))
+            else:
+                points.append((w.x, w.y))
         return points
 
     def polygon_list(self):
