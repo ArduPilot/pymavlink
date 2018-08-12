@@ -342,7 +342,11 @@ class MAVWPLoader(object):
             if not idx in done:
                 break
             idx += 1
-            
+
+        exclusion_start = -1
+        exclusion_count = -1
+        inclusion_start = -1
+        inclusion_count = -1
         while idx < self.count():
             w = self.wp(idx)
             if idx in done:
@@ -356,6 +360,23 @@ class MAVWPLoader(object):
                 if w.x != 0 or w.y != 0:
                     ret.append(idx)
                 continue
+            # display loops for exclusion and inclusion zones
+            if w.command == mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION:
+                if exclusion_start == -1:
+                    exclusion_count = int(w.param1)
+                    exclusion_start = idx
+                if idx == exclusion_start + exclusion_count - 1:
+                    ret.append(idx)
+                    ret.append(exclusion_start)
+                    return ret
+            if w.command == mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION:
+                if inclusion_start == -1:
+                    inclusion_count = int(w.param1)
+                    inclusion_start = idx
+                if idx == inclusion_start + inclusion_count - 1:
+                    ret.append(idx)
+                    ret.append(inclusion_start)
+                    return ret
             if (w.x != 0 or w.y != 0) and self.is_location_command(w.command):
                 ret.append(idx)
             idx += 1
