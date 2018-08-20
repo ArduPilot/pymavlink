@@ -531,6 +531,8 @@ class DFReader(object):
                 mapping = mavutil.mode_mapping_bynumber(self.mav_type)
                 if mapping is not None and m.ModeNum in mapping:
                     self.flightmode = mapping[m.ModeNum]
+                else:
+                    self.flightmode = 'UNKNOWN'
             else:
                 self.flightmode = mavutil.mode_string_acm(m.Mode)
         if type == 'STAT' and 'MainState' in m._fieldnames:
