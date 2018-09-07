@@ -6,6 +6,7 @@ Generate a message using different MAVLink versions, put in a buffer and then re
 
 from __future__ import print_function
 from builtins import object
+import sys
 
 from pymavlink.dialects.v10 import ardupilotmega as mavlink1
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
