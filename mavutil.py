@@ -149,6 +149,7 @@ class mavfile(object):
         self.altitude = 0
         self.WIRE_PROTOCOL_VERSION = mavlink.WIRE_PROTOCOL_VERSION
         self.last_seq = {}
+        self.missing_seq = {}
         self.mav_loss = 0
         self.mav_count = 0
         self.stop_on_EOF = False
@@ -264,8 +265,23 @@ class mavfile(object):
             seq = (last_seq+1) % 256
             seq2 = msg.get_seq()
             if seq != seq2 and last_seq != -1:
-                diff = (seq2 - seq) % 256
-                self.mav_loss += diff
+                diff = 0
+                if (src_tuple in self.missing_seq and
+                    self.missing_seq[src_tuple] is not None and
+                    self.missing_seq[src_tuple] == seq2):
+                    # found a missing pkt
+                    self.missing_seq[src_tuple] = None
+                    self.mav_loss -= 1
+                    #print("regained seq %u" % seq2)
+                elif seq2 == (seq+1) % 256:
+                    # one packet missing, note it as a possible out-of-order pkt
+                    self.missing_seq[src_tuple] = seq
+                    self.mav_loss += 1
+                    #print("missing single seq %u" % seq)
+                else:
+                    self.missing_seq[src_tuple] = None
+                    diff = (seq2 - seq) % 256
+                    self.mav_loss += diff
                 #print("lost %u seq=%u seq2=%u last_seq=%u src_system=%u %s" % (diff, seq, seq2, last_seq, src_system, msg.get_type()))
             self.last_seq[src_tuple] = seq2
             self.mav_count += 1
