@@ -178,6 +178,8 @@ class DFMessage(object):
             else:
                 if isinstance(v,str):
                     v = bytes(v,'ascii')
+            if isinstance(v, array.array):
+                v = v.tostring()
             if mul is not None:
                 v /= mul
                 v = int(round(v))
