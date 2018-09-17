@@ -81,6 +81,7 @@
     <xs:enumeration value="dm"/>       <!-- decimetres -->
     <xs:enumeration value="dm/s"/>     <!-- decimetres per second -->
     <xs:enumeration value="cm"/>       <!-- centimetres -->
+    <xs:enumeration value="cm^2"/>     <!-- centimetres squared (typically used in variance) -->
     <xs:enumeration value="cm/s"/>     <!-- centimetres per second -->
     <xs:enumeration value="mm"/>       <!-- millimetres -->
     <xs:enumeration value="mm/s"/>     <!-- millimetres per second -->
