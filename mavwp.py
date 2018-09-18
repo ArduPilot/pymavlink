@@ -383,6 +383,12 @@ class MAVWPLoader(object):
                     return ret
             if (w.x != 0 or w.y != 0) and self.is_location_command(w.command):
                 ret.append(idx)
+            exc_zones = [mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION,
+                         mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION]
+            w2 = self.wp(idx+1)
+            if w2 is not None and w.command not in exc_zones and w2.command in exc_zones:
+                # don't draw a line from last WP to first exc zone
+                return ret
             idx += 1
         return ret
 
