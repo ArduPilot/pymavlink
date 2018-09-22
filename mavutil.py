@@ -151,6 +151,9 @@ class mavfile(object):
         self.last_seq = {}
         self.missing_seq = {}
         self.mav_loss = 0
+        self.mav_pps_time = time.time()
+        self.mav_pps_count = 0
+        self.mav_pps = 0
         self.mav_count = 0
         self.stop_on_EOF = False
         self.portdead = False
@@ -236,8 +239,9 @@ class mavfile(object):
         '''default post message call'''
         if '_posted' in msg.__dict__:
             return
+        now = time.time()
         msg._posted = True
-        msg._timestamp = time.time()
+        msg._timestamp = now
         type = msg.get_type()
         if type != 'HEARTBEAT' or self.probably_vehicle_heartbeat(msg):
             self.messages[type] = msg
@@ -285,6 +289,12 @@ class mavfile(object):
                 #print("lost %u seq=%u seq2=%u last_seq=%u src_system=%u %s" % (diff, seq, seq2, last_seq, src_system, msg.get_type()))
             self.last_seq[src_tuple] = seq2
             self.mav_count += 1
+            self.mav_pps_count += 1
+            if now - self.mav_pps_time >= 1.0:
+                self.mav_pps = 0.9 * self.mav_pps + 0.1 * self.mav_pps_count / (now - self.mav_pps_time)
+                self.mav_pps_count = 0
+                self.mav_pps_time = now
+
         
         self.timestamp = msg._timestamp
         if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
