@@ -107,11 +107,12 @@ def null_term(str):
 
 
 class DFMessage(object):
-    def __init__(self, fmt, elements, apply_multiplier):
+    def __init__(self, fmt, elements, apply_multiplier, binary=None):
         self.fmt = fmt
         self._elements = elements
         self._apply_multiplier = apply_multiplier
         self._fieldnames = fmt.columns
+        self.binary = binary
 
     def to_dict(self):
         d = {'mavpackettype': self.fmt.name}
@@ -189,6 +190,9 @@ class DFMessage(object):
 
     def get_fieldnames(self):
         return self._fieldnames
+    
+    def get_raw_msgbuf(self):
+        return self.binary
 
 
 class DFReaderClock(object):
@@ -675,7 +679,7 @@ class DFReader_binary(DFReader):
 
         self.offset += fmt.len-3
         self.remaining -= fmt.len-3
-        m = DFMessage(fmt, elements, True)
+        m = DFMessage(fmt, elements, True, hdr+body)
         self._add_msg(m)
         self.percent = 100.0 * (self.offset / float(self.data_len))
 
@@ -768,7 +772,7 @@ class DFReader_text(DFReader):
                                                  elements[4])
 
         try:
-            m = DFMessage(fmt, elements, False)
+            m = DFMessage(fmt, elements, False, s)
         except ValueError:
             return self._parse_next()
 
