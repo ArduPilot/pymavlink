@@ -616,9 +616,6 @@ class DFReader_binary(DFReader):
         '''rewind to start of log'''
         self._rewind()
 
-    def pread(self, count, offset):
-        return self.data_map[offset:offset+count]
-
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
         self.offsets = []
@@ -637,7 +634,7 @@ class DFReader_binary(DFReader):
         HEAD1 = chr(self.HEAD1)
         HEAD2 = chr(self.HEAD2)
         while ofs < self.data_len:
-            hdr = self.pread(3, ofs)
+            hdr = self.data_map[ofs:ofs+3]
             if hdr[0] != HEAD1 or hdr[1] != HEAD2:
                 print("bad header 0x%02x 0x%02x" % (ord(hdr1), ord(hdr2)), file=sys.stderr)
                 break
@@ -659,7 +656,7 @@ class DFReader_binary(DFReader):
             mlen = fmt.len
 
             if mtype == fmt_type:
-                body = self.pread(mlen-3, ofs)
+                body = self.data_map[ofs:ofs+mlen-3]
                 elements = list(struct.unpack(fmt.msg_struct, body))
                 mfmt = DFFormat(
                     elements[0],
@@ -738,7 +735,7 @@ class DFReader_binary(DFReader):
         if self.data_len - self.offset < 3:
             return None
 
-        hdr = self.pread(3, self.offset)
+        hdr = self.data_map[self.offset:self.offset+3]
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
@@ -751,7 +748,7 @@ class DFReader_binary(DFReader):
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
-            hdr = self.pread(3, self.offset)
+            hdr = self.data_map[self.offset:self.offset+3]
         msg_type = u_ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
@@ -772,7 +769,7 @@ class DFReader_binary(DFReader):
             if self.verbose:
                 print("out of data", file=sys.stderr)
             return None
-        body = self.pread(fmt.len-3, self.offset)
+        body = self.data_map[self.offset:self.offset+fmt.len-3]
         elements = None
         try:
             elements = list(struct.unpack(fmt.msg_struct, body))
