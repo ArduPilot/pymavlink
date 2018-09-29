@@ -699,8 +699,8 @@ class DFReader_binary(DFReader):
         '''skip fwd to next msg matching given type set'''
 
         if self.type_nums is None:
-            # always add MODE so we can track flightmode
-            type.add('MODE')
+            # always add some key msg types so we can track flightmode, params etc
+            type.update(set(['MODE', 'PARM', 'MSG', 'STAT']))
             self.indexes = []
             self.type_nums = []
             for t in type:
