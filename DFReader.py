@@ -633,30 +633,31 @@ class DFReader_binary(DFReader):
         pct = 0
         HEAD1 = chr(self.HEAD1)
         HEAD2 = chr(self.HEAD2)
+        lengths = [-1] * 256
+
         while ofs < self.data_len:
             hdr = self.data_map[ofs:ofs+3]
             if hdr[0] != HEAD1 or hdr[1] != HEAD2:
                 print("bad header 0x%02x 0x%02x" % (ord(hdr1), ord(hdr2)), file=sys.stderr)
                 break
             mtype = ord(hdr[2])
-            if not mtype in self.formats:
-                print("unknown msg type 0x%02x" % mtype, file=sys.stderr)
-                break
             self.offsets[mtype].append(ofs)
-            fmt = self.formats[mtype]
 
-            if not fmt.name in self.messages:
+            if lengths[mtype] == -1:
+                if not mtype in self.formats:
+                    print("unknown msg type 0x%02x" % mtype, file=sys.stderr)
+                    break
                 self.offset = ofs
                 self._parse_next()
-
-            ofs += 3
+                fmt = self.formats[mtype]
+                lengths[mtype] = fmt.len
 
             self.counts[mtype] += 1
-            self._count += 1
-            mlen = fmt.len
+            mlen = lengths[mtype]
 
             if mtype == fmt_type:
-                body = self.data_map[ofs:ofs+mlen-3]
+                body = self.data_map[ofs+3:ofs+mlen]
+                fmt = self.formats[mtype]
                 elements = list(struct.unpack(fmt.msg_struct, body))
                 mfmt = DFFormat(
                     elements[0],
@@ -666,11 +667,14 @@ class DFReader_binary(DFReader):
                 self.name_to_id[mfmt.name] = mfmt.type
                 self.id_to_name[mfmt.type] = mfmt.name
 
-            ofs += mlen-3
+            ofs += mlen
             new_pct = (100 * ofs) // self.data_len
             if progress_callback is not None and new_pct != pct:
                 progress_callback(new_pct)
                 pct = new_pct
+
+        for i in range(256):
+            self._count += self.counts[i]
         self.offset = 0
 
     def flightmode_list(self):
