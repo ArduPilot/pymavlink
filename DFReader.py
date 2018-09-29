@@ -15,6 +15,8 @@ import array
 import math
 import sys
 import os
+import mmap
+import platform
 
 import struct
 import sys
@@ -583,6 +585,10 @@ class DFReader_binary(DFReader):
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
         self.filehandle.seek(0)
+        if platform.system() == "Windows":
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, filename, mmap.ACCESS_READ)
+        else:
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
 
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
@@ -611,8 +617,7 @@ class DFReader_binary(DFReader):
         self._rewind()
 
     def pread(self, count, offset):
-        self.filehandle.seek(offset)
-        return self.filehandle.read(count)
+        return self.data_map[offset:offset+count]
 
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
@@ -629,35 +634,41 @@ class DFReader_binary(DFReader):
         mode_type = None
         ofs = 0
         pct = 0
+        HEAD1 = chr(self.HEAD1)
+        HEAD2 = chr(self.HEAD2)
         while ofs < self.data_len:
-            (hdr1,hdr2,mtype) = struct.unpack("BBB", self.pread(3, ofs))
-            if hdr1 != self.HEAD1 or hdr2 != self.HEAD2:
-                print("bad header 0x%02x 0x%02x" % (hdr1, hdr2), file=sys.stderr)
+            hdr = self.pread(3, ofs)
+            if hdr[0] != HEAD1 or hdr[1] != HEAD2:
+                print("bad header 0x%02x 0x%02x" % (ord(hdr1), ord(hdr2)), file=sys.stderr)
                 break
+            mtype = ord(hdr[2])
             if not mtype in self.formats:
                 print("unknown msg type 0x%02x" % mtype, file=sys.stderr)
                 break
             self.offsets[mtype].append(ofs)
             fmt = self.formats[mtype]
 
-            if not fmt.name in self.name_to_id:
+            if not fmt.name in self.messages:
                 self.offset = ofs
                 self._parse_next()
 
             ofs += 3
 
-            self.name_to_id[fmt.name] = mtype
-            self.id_to_name[mtype] = fmt.name
             self.counts[mtype] += 1
             self._count += 1
             mlen = fmt.len
+
             if mtype == fmt_type:
                 body = self.pread(mlen-3, ofs)
                 elements = list(struct.unpack(fmt.msg_struct, body))
-                self.formats[elements[0]] = DFFormat(
+                mfmt = DFFormat(
                     elements[0],
                     null_term(elements[2]), elements[1],
                     null_term(elements[3]), null_term(elements[4]))
+                self.formats[elements[0]] = mfmt
+                self.name_to_id[mfmt.name] = mfmt.type
+                self.id_to_name[mfmt.type] = mfmt.name
+
             ofs += mlen-3
             new_pct = (100 * ofs) // self.data_len
             if progress_callback is not None and new_pct != pct:
