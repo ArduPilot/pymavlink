@@ -550,9 +550,9 @@ class DFReader(object):
                 type = set([type])
             elif isinstance(type, list):
                 type = set(type)
-        if type is not None:
-            self.skip_to_type(type)
         while True:
+            if type is not None:
+                self.skip_to_type(type)
             m = self.recv_msg()
             if m is None:
                 return None
@@ -628,8 +628,6 @@ class DFReader_binary(DFReader):
         fmt_type = 0x80
         mode_type = None
         ofs = 0
-        import time
-        t0 = time.time()
         pct = 0
         while ofs < self.data_len:
             (hdr1,hdr2,mtype) = struct.unpack("BBB", self.pread(3, ofs))
@@ -674,8 +672,9 @@ class DFReader_binary(DFReader):
         if self._flightmodes is None:
             self._rewind()
             self._flightmodes = []
+            types = set(['MODE'])
             while True:
-                m = self.recv_match(type=set(['MODE']))
+                m = self.recv_match(type=types)
                 if m is None:
                     break
                 tstamp = m._timestamp
@@ -700,7 +699,8 @@ class DFReader_binary(DFReader):
 
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
-            type.update(set(['MODE', 'PARM', 'MSG', 'STAT']))
+            type = type.copy()
+            type.update(set(['MODE','MSG','PARM','STAT']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -747,10 +747,9 @@ class DFReader_binary(DFReader):
                 return None
             print("Skipped %u bad bytes in log at offset %u, type=%s" %
                   (skip_bytes, skip_start, skip_type), file=sys.stderr)
-            self.remaining -= skip_bytes
 
         self.offset += 3
-        self.remaining -= 3
+        self.remaining = self.data_len - self.offset
 
         if msg_type not in self.formats:
             if self.verbose:
@@ -800,7 +799,7 @@ class DFReader_binary(DFReader):
                 return self._parse_next()
 
         self.offset += fmt.len-3
-        self.remaining -= fmt.len-3
+        self.remaining = self.data_len - self.offset
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
         self.percent = 100.0 * (self.offset / float(self.data_len))
