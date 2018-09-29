@@ -1256,7 +1256,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
                        retries=3, use_native=default_native,
-                       force_connected=False):
+                       force_connected=False, progress_callback=None):
     '''open a serial, UDP, TCP or file mavlink connection'''
     global mavfile_global
 
@@ -1288,7 +1288,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
     if device.lower().endswith('.bin') or device.lower().endswith('.px4log'):
         # support dataflash logs
         from pymavlink import DFReader
-        m = DFReader.DFReader_binary(device, zero_time_base=zero_time_base)
+        m = DFReader.DFReader_binary(device, zero_time_base=zero_time_base, progress_callback=progress_callback)
         mavfile_global = m
         return m
 
