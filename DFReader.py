@@ -14,6 +14,7 @@ from builtins import object
 import array
 import math
 import sys
+import os
 
 import struct
 import sys
@@ -544,8 +545,13 @@ class DFReader(object):
     def recv_match(self, condition=None, type=None, blocking=False):
         '''recv the next message that matches the given condition
         type can be a string or a list of strings'''
-        if type is not None and not isinstance(type, list):
-            type = [type]
+        if type is not None:
+            if isinstance(type, str):
+                type = set([type])
+            elif isinstance(type, list):
+                type = set(type)
+        if type is not None:
+            self.skip_to_type(type)
         while True:
             m = self.recv_msg()
             if m is None:
@@ -570,12 +576,13 @@ class DFReader(object):
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
-    def __init__(self, filename, zero_time_base=False):
+    def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        with open(filename, 'rb') as f:
-            self.data = f.read()
-            self.data_len = len(self.data)
+        self.filehandle = open(filename, 'rb')
+        self.filehandle.seek(0, 2)
+        self.data_len = self.filehandle.tell()
+        self.filehandle.seek(0)
 
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
@@ -588,20 +595,139 @@ class DFReader_binary(DFReader):
         }
         self._zero_time_base = zero_time_base
         self.init_clock()
+        self._flightmodes = None
         self._rewind()
+        self.init_arrays(progress_callback)
 
     def _rewind(self):
         '''rewind to start of log'''
         DFReader._rewind(self)
         self.offset = 0
         self.remaining = self.data_len
+        self.type_nums = None
+
+    def rewind(self):
+        '''rewind to start of log'''
+        self._rewind()
+
+    def pread(self, count, offset):
+        self.filehandle.seek(offset)
+        return self.filehandle.read(count)
+
+    def init_arrays(self, progress_callback=None):
+        '''initialise arrays for fast recv_match()'''
+        self.offsets = []
+        self.lengths = []
+        self.counts = []
+        self._count = 0
+        self.name_to_id = {}
+        self.id_to_name = {}
+        for i in range(256):
+            self.offsets.append([])
+            self.counts.append(0)
+        fmt_type = 0x80
+        mode_type = None
+        ofs = 0
+        import time
+        t0 = time.time()
+        pct = 0
+        while ofs < self.data_len:
+            (hdr1,hdr2,mtype) = struct.unpack("BBB", self.pread(3, ofs))
+            if hdr1 != self.HEAD1 or hdr2 != self.HEAD2:
+                print("bad header 0x%02x 0x%02x" % (hdr1, hdr2), file=sys.stderr)
+                break
+            if not mtype in self.formats:
+                print("unknown msg type 0x%02x" % mtype, file=sys.stderr)
+                break
+            self.offsets[mtype].append(ofs)
+            fmt = self.formats[mtype]
+
+            if not fmt.name in self.name_to_id:
+                self.offset = ofs
+                self._parse_next()
+
+            ofs += 3
+
+            self.name_to_id[fmt.name] = mtype
+            self.id_to_name[mtype] = fmt.name
+            self.counts[mtype] += 1
+            self._count += 1
+            mlen = fmt.len
+            if mtype == fmt_type:
+                body = self.pread(mlen-3, ofs)
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                self.formats[elements[0]] = DFFormat(
+                    elements[0],
+                    null_term(elements[2]), elements[1],
+                    null_term(elements[3]), null_term(elements[4]))
+            ofs += mlen-3
+            new_pct = (100 * ofs) // self.data_len
+            if progress_callback is not None and new_pct != pct:
+                progress_callback(new_pct)
+                pct = new_pct
+        self.offset = 0
+
+    def flightmode_list(self):
+        '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
+        tstamp = None
+        fmode = None
+        if self._flightmodes is None:
+            self._rewind()
+            self._flightmodes = []
+            while True:
+                m = self.recv_match(type=set(['MODE']))
+                if m is None:
+                    break
+                tstamp = m._timestamp
+                if self.flightmode == fmode:
+                    continue
+                if len(self._flightmodes) > 0:
+                    (mode, t0, t1) = self._flightmodes[-1]
+                    self._flightmodes[-1] = (mode, t0, tstamp)
+                self._flightmodes.append((self.flightmode, tstamp, None))
+                fmode = self.flightmode
+        if tstamp is not None:
+            (mode, t0, t1) = self._flightmodes[-1]
+            self._flightmodes[-1] = (mode, t0, tstamp)
+
+        self._rewind()
+        return self._flightmodes
+
+
+
+    def skip_to_type(self, type):
+        '''skip fwd to next msg matching given type set'''
+
+        if self.type_nums is None:
+            # always add MODE so we can track flightmode
+            type.add('MODE')
+            self.indexes = []
+            self.type_nums = []
+            for t in type:
+                if not t in self.name_to_id:
+                    continue
+                self.type_nums.append(self.name_to_id[t])
+                self.indexes.append(0)
+        smallest_index = -1
+        smallest_offset = self.data_len
+        for i in range(len(self.type_nums)):
+            mtype = self.type_nums[i]
+            if self.indexes[i] >= self.counts[mtype]:
+                continue
+            ofs = self.offsets[mtype][self.indexes[i]]
+            if ofs < smallest_offset:
+                smallest_offset = ofs
+                smallest_index = i
+        if smallest_index >= 0:
+            self.indexes[smallest_index] += 1
+            self.offset = smallest_offset
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
         if self.data_len - self.offset < 3:
             return None
 
-        hdr = self.data[self.offset:self.offset+3]
+        hdr = self.pread(3, self.offset)
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
@@ -614,7 +740,7 @@ class DFReader_binary(DFReader):
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
-            hdr = self.data[self.offset:self.offset+3]
+            hdr = self.pread(3, self.offset)
         msg_type = u_ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
@@ -636,7 +762,7 @@ class DFReader_binary(DFReader):
             if self.verbose:
                 print("out of data", file=sys.stderr)
             return None
-        body = self.data[self.offset:self.offset+(fmt.len-3)]
+        body = self.pread(fmt.len-3, self.offset)
         elements = None
         try:
             elements = list(struct.unpack(fmt.msg_struct, body))
@@ -719,6 +845,10 @@ class DFReader_text(DFReader):
             if self.lines[self.line].startswith("FMT, "):
                 break
             self.line += 1
+
+    def skip_to_type(self, type):
+        '''skip fwd to next msg matching given type set'''
+        return
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
