@@ -56,7 +56,7 @@ def u_ord(c):
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns):
         self.type = type
-        self.name = name
+        self.name = null_term(name)
         self.len = flen
         self.format = format
         self.columns = columns.split(',')
@@ -93,6 +93,11 @@ class DFFormat(object):
         self.colhash = {}
         for i in range(len(self.columns)):
             self.colhash[self.columns[i]] = i
+        self.a_index = -1
+        for i in range(0, len(self.msg_fmts)):
+            if self.msg_fmts[i] == 'a':
+                self.a_index = i
+                break
 
     def __str__(self):
         return ("DFFormat(%s,%s,%s,%s)" %
@@ -592,6 +597,8 @@ class DFReader_binary(DFReader):
 
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
+        self.HEAD1_chr = chr(self.HEAD1)
+        self.HEAD2_chr = chr(self.HEAD2)
         self.formats = {
             0x80: DFFormat(0x80,
                            'FMT',
@@ -631,8 +638,8 @@ class DFReader_binary(DFReader):
         mode_type = None
         ofs = 0
         pct = 0
-        HEAD1 = chr(self.HEAD1)
-        HEAD2 = chr(self.HEAD2)
+        HEAD1 = self.HEAD1_chr
+        HEAD2 = self.HEAD2_chr
         lengths = [-1] * 256
 
         while ofs < self.data_len:
@@ -743,8 +750,9 @@ class DFReader_binary(DFReader):
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
-        while (u_ord(hdr[0]) != self.HEAD1 or u_ord(hdr[1]) != self.HEAD2 or
-	       u_ord(hdr[2]) not in self.formats):
+        msg_type = u_ord(hdr[2])
+        while (hdr[0] != self.HEAD1_chr or hdr[1] != self.HEAD2_chr or
+               msg_type not in self.formats):
             if skip_type is None:
                 skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
                 skip_start = self.offset
@@ -753,7 +761,7 @@ class DFReader_binary(DFReader):
             if self.data_len - self.offset < 3:
                 return None
             hdr = self.data_map[self.offset:self.offset+3]
-        msg_type = u_ord(hdr[2])
+            msg_type = u_ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
                 return None
@@ -763,10 +771,6 @@ class DFReader_binary(DFReader):
         self.offset += 3
         self.remaining = self.data_len - self.offset
 
-        if msg_type not in self.formats:
-            if self.verbose:
-                print("unknown message type %02x" % msg_type, file=sys.stderr)
-            raise Exception("Unknown message type %02x" % msg_type)
         fmt = self.formats[msg_type]
         if self.remaining < fmt.len-3:
             # out of data - can often happen half way through a message
@@ -789,15 +793,14 @@ class DFReader_binary(DFReader):
                   file=sys.stderr)
         if elements is None:
             return self._parse_next()
-        name = null_term(fmt.name)
+        name = fmt.name
         # transform elements which can't be done at unpack time:
-        for i in range(0, len(elements)):
-            if fmt.msg_fmts[i] == 'a':
-                try:
-                    elements[i] = array.array('h', elements[i])
-                except Exception as e:
-                    print("Failed to transform array: %s" % str(e),
-                          file=sys.stderr)
+        if fmt.a_index != -1:
+            try:
+                elements[self.a_index] = array.array('h', elements[self.a_index])
+            except Exception as e:
+                print("Failed to transform array: %s" % str(e),
+                      file=sys.stderr)
 
         if name == 'FMT':
             # add to formats
@@ -810,7 +813,7 @@ class DFReader_binary(DFReader):
             except Exception:
                 return self._parse_next()
 
-        self.offset += fmt.len-3
+        self.offset += fmt.len - 3
         self.remaining = self.data_len - self.offset
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
