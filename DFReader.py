@@ -643,7 +643,7 @@ class DFReader_binary(DFReader):
         HEAD2 = self.HEAD2
         lengths = [-1] * 256
 
-        while ofs < self.data_len:
+        while ofs+3 < self.data_len:
             hdr = self.data_map[ofs:ofs+3]
             if hdr[0] != HEAD1 or hdr[1] != HEAD2:
                 print("bad header 0x%02x 0x%02x" % (u_ord(hdr[0]), u_ord(hdr[1])), file=sys.stderr)
@@ -665,6 +665,8 @@ class DFReader_binary(DFReader):
 
             if mtype == fmt_type:
                 body = self.data_map[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
                 fmt = self.formats[mtype]
                 elements = list(struct.unpack(fmt.msg_struct, body))
                 mfmt = DFFormat(
