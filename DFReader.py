@@ -597,8 +597,9 @@ class DFReader_binary(DFReader):
 
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
-        self.HEAD1_chr = chr(self.HEAD1)
-        self.HEAD2_chr = chr(self.HEAD2)
+        if sys.version_info.major < 3:
+            self.HEAD1 = chr(self.HEAD1)
+            self.HEAD2 = chr(self.HEAD2)
         self.formats = {
             0x80: DFFormat(0x80,
                            'FMT',
@@ -638,16 +639,16 @@ class DFReader_binary(DFReader):
         mode_type = None
         ofs = 0
         pct = 0
-        HEAD1 = self.HEAD1_chr
-        HEAD2 = self.HEAD2_chr
+        HEAD1 = self.HEAD1
+        HEAD2 = self.HEAD2
         lengths = [-1] * 256
 
         while ofs < self.data_len:
             hdr = self.data_map[ofs:ofs+3]
             if hdr[0] != HEAD1 or hdr[1] != HEAD2:
-                print("bad header 0x%02x 0x%02x" % (ord(hdr1), ord(hdr2)), file=sys.stderr)
+                print("bad header 0x%02x 0x%02x" % (u_ord(hdr[0]), u_ord(hdr[1])), file=sys.stderr)
                 break
-            mtype = ord(hdr[2])
+            mtype = u_ord(hdr[2])
             self.offsets[mtype].append(ofs)
 
             if lengths[mtype] == -1:
@@ -751,7 +752,7 @@ class DFReader_binary(DFReader):
         skip_type = None
         # skip over bad messages
         msg_type = u_ord(hdr[2])
-        while (hdr[0] != self.HEAD1_chr or hdr[1] != self.HEAD2_chr or
+        while (hdr[0] != self.HEAD1 or hdr[1] != self.HEAD2 or
                msg_type not in self.formats):
             if skip_type is None:
                 skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
