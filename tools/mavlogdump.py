@@ -123,9 +123,20 @@ last_timestamp = None
 # Track types found
 available_types = set()
 
+# for DF logs pre-calculate types list
+match_types=None
+if types is not None and hasattr(mlog, 'name_to_id'):
+    for k in mlog.name_to_id.keys():
+        if match_type(k, types):
+            if nottypes is not None and match_type(k, nottypes):
+                continue
+            if match_types is None:
+                match_types = []
+            match_types.append(k)
+
 # Keep track of data from the current timestep. If the following timestep has the same data, it's stored in here as well. Output should therefore have entirely unique timesteps.
 while True:
-    m = mlog.recv_match(blocking=args.follow)
+    m = mlog.recv_match(blocking=args.follow, type=match_types)
     if m is None:
         # FIXME: Make sure to output the last CSV message before dropping out of this loop
         break
