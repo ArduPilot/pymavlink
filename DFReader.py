@@ -93,11 +93,10 @@ class DFFormat(object):
         self.colhash = {}
         for i in range(len(self.columns)):
             self.colhash[self.columns[i]] = i
-        self.a_index = -1
+        self.a_indexes = []
         for i in range(0, len(self.msg_fmts)):
             if self.msg_fmts[i] == 'a':
-                self.a_index = i
-                break
+                self.a_indexes.append(i)
 
     def __str__(self):
         return ("DFFormat(%s,%s,%s,%s)" %
@@ -798,9 +797,9 @@ class DFReader_binary(DFReader):
             return self._parse_next()
         name = fmt.name
         # transform elements which can't be done at unpack time:
-        if fmt.a_index != -1:
+        for a_index in fmt.a_indexes:
             try:
-                elements[self.a_index] = array.array('h', elements[self.a_index])
+                elements[a_index] = array.array('h', elements[a_index])
             except Exception as e:
                 print("Failed to transform array: %s" % str(e),
                       file=sys.stderr)
