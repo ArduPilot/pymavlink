@@ -106,6 +106,7 @@
     <xs:enumeration value="mV"/>       <!-- milli-Volt -->
     <xs:enumeration value="A"/>        <!-- Ampere -->
     <xs:enumeration value="cA"/>       <!-- centi-Ampere -->
+    <xs:enumeration value="mA"/>       <!-- milli-Ampere -->
     <xs:enumeration value="mAh"/>      <!-- milli-Ampere hour -->
     <!-- magnetism -->
     <xs:enumeration value="mT"/>       <!-- milli-Tesla -->
