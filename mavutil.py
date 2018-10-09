@@ -63,6 +63,9 @@ def evaluate_condition(condition, vars):
         return False
     return v
 
+def u_ord(c):
+	return ord(c) if sys.version_info.major < 3 else c
+
 class location(object):
     '''represent a GPS coordinate'''
     def __init__(self, lat, lng, alt=0, heading=0):
@@ -342,7 +345,7 @@ class mavfile(object):
     def recv_match(self, condition=None, type=None, blocking=False, timeout=None):
         '''recv the next MAVLink message that matches the given condition
         type can be a string or a list of strings'''
-        if type is not None and not isinstance(type, list):
+        if type is not None and not isinstance(type, list) and not isinstance(type, set):
             type = [type]
         start_time = time.time()
         while True:
@@ -1187,37 +1190,170 @@ class mavlogfile(mavfile):
         msg._link = self._link
 
 
-class mavmemlog(mavfile):
-    '''a MAVLink log in memory. This allows loading a log into
-    memory to make it easier to do multiple sweeps over a log'''
-    def __init__(self, mav):
-        mavfile.__init__(self, None, 'memlog')
-        self._msgs = []
-        self._index = 0
-        self._count = 0
-        self.messages = {}
-        while True:
-            m = mav.recv_msg()
-            if m is None:
-                break
-            self._msgs.append(m)
-        self._count = len(self._msgs)
+class mavmmaplog(mavlogfile):
+    '''a MAVLink log file accessed via mmap. Used for fast read-only
+    access with low memory overhead where particular message types are wanted'''
+    def __init__(self, filename, progress_callback=None):
+        import platform, mmap
+        mavlogfile.__init__(self, filename)
+        self.f.seek(0, 2)
+        self.data_len = self.f.tell()
+        self.f.seek(0)
+        if platform.system() == "Windows":
+            self.data_map = mmap.mmap(self.f.fileno(), self.data_len, filename, mmap.ACCESS_READ)
+        else:
+            self.data_map = mmap.mmap(self.f.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
+        self._rewind()
+        self.init_arrays(progress_callback)
+        self._flightmodes = None
 
-    def recv_msg(self):
-        '''message receive routine'''
-        if self._index >= self._count:
-            return None
-        m = self._msgs[self._index]
-        self._index += 1
-        self.percent = (100.0 * self._index) / self._count
-        self.messages[m.get_type()] = m
-        return m
+    def _rewind(self):
+        '''rewind to start of log'''
+        self.flightmode = "UNKNOWN"
+        self.offset = 0
+        self.type_nums = None
+        self.f.seek(0)
 
     def rewind(self):
-        '''rewind to start'''
-        self._index = 0
-        self.percent = 0
-        self.messages = {}
+        '''rewind to start of log'''
+        self._rewind()
+        
+    def init_arrays(self, progress_callback=None):
+        '''initialise arrays for fast recv_match()'''
+
+        # dictionary indexed by msgid, mapping to arrays of file offsets where
+        # each instance of a msg type is found
+        self.offsets = {}
+
+        # number of msgs of each msg type
+        self.counts = {}
+        self._count = 0
+
+        # mapping from msg name to msg id
+        self.name_to_id = {}
+
+        # mapping from msg id to name
+        self.id_to_name = {}
+
+        self.type_nums = None
+
+        ofs = 0
+        pct = 0
+
+        MARKER_V1 = 0xFE
+        MARKER_V2 = 0xFD
+        
+        while ofs+8+6 < self.data_len:
+            marker = u_ord(self.data_map[ofs+8])
+            mlen = u_ord(self.data_map[ofs+9]) + 8
+            if marker == MARKER_V1:
+                mtype = u_ord(self.data_map[ofs+13])
+                mlen += 8
+            elif marker == MARKER_V2:
+                mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
+                mlen += 12
+                incompat_flags = u_ord(self.data_map[ofs+10])
+                if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
+                    mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
+
+            if not mtype in self.offsets:
+                self.offsets[mtype] = []
+                self.counts[mtype] = 0
+                msg = mavlink.mavlink_map[mtype]
+                self.name_to_id[msg.name] = mtype
+                self.id_to_name[mtype] = msg.name
+                self.f.seek(ofs)
+                m = self.recv_msg()
+                self.messages[msg.name] = m
+
+            self.offsets[mtype].append(ofs)
+            self.counts[mtype] += 1
+
+            ofs += mlen
+            new_pct = (100 * ofs) // self.data_len
+            if progress_callback is not None and new_pct != pct:
+                progress_callback(new_pct)
+                pct = new_pct
+
+        for mtype in self.counts:
+            self._count += self.counts[mtype]
+        self.offset = 0
+        self._rewind()
+
+    def skip_to_type(self, type):
+        '''skip fwd to next msg matching given type set'''
+        if self.type_nums is None:
+            # always add some key msg types so we can track flightmode, params etc
+            type = type.copy()
+            type.update(set(['HEARTBEAT','PARAM_VALUE']))
+            self.indexes = []
+            self.type_nums = []
+            for t in type:
+                if not t in self.name_to_id:
+                    continue
+                self.type_nums.append(self.name_to_id[t])
+                self.indexes.append(0)
+        smallest_index = -1
+        smallest_offset = self.data_len
+        for i in range(len(self.type_nums)):
+            mtype = self.type_nums[i]
+            if self.indexes[i] >= self.counts[mtype]:
+                continue
+            ofs = self.offsets[mtype][self.indexes[i]]
+            if ofs < smallest_offset:
+                smallest_offset = ofs
+                smallest_index = i
+        if smallest_index >= 0:
+            self.indexes[smallest_index] += 1
+            self.offset = smallest_offset
+            self.f.seek(smallest_offset)
+
+    def recv_match(self, condition=None, type=None, blocking=False):
+        '''recv the next message that matches the given condition
+        type can be a string or a list of strings'''
+        if type is not None:
+            if isinstance(type, str):
+                type = set([type])
+            elif isinstance(type, list):
+                type = set(type)
+        while True:
+            if type is not None:
+                self.skip_to_type(type)
+            m = self.recv_msg()
+            if m is None:
+                return None
+            if type is not None and not m.get_type() in type:
+                continue
+            if not evaluate_condition(condition, self.messages):
+                continue
+            return m
+        
+    def flightmode_list(self):
+        '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
+        tstamp = None
+        fmode = None
+        if self._flightmodes is None:
+            self._rewind()
+            self._flightmodes = []
+            types = set(['HEARTBEAT'])
+            while True:
+                m = self.recv_match(type=types)
+                if m is None:
+                    break
+                tstamp = m._timestamp
+                if self.flightmode == fmode:
+                    continue
+                if len(self._flightmodes) > 0:
+                    (mode, t0, t1) = self._flightmodes[-1]
+                    self._flightmodes[-1] = (mode, t0, tstamp)
+                self._flightmodes.append((self.flightmode, tstamp, None))
+                fmode = self.flightmode
+        if tstamp is not None:
+            (mode, t0, t1) = self._flightmodes[-1]
+            self._flightmodes[-1] = (mode, t0, tstamp)
+
+        self._rewind()
+        return self._flightmodes
 
 class mavchildexec(mavfile):
     '''a MAVLink child processes reader/writer'''
@@ -1309,6 +1445,8 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         if device.endswith(".elf") or device.find("/bin/") != -1:
             print("executing '%s'" % device)
             return mavchildexec(device, source_system=source_system, source_component=source_component, use_native=use_native)
+        elif not write and not append and not notimestamps:
+            return mavmmaplog(device, progress_callback=progress_callback)
         else:
             return mavlogfile(device, planner_format=planner_format, write=write,
                               append=append, robust_parsing=robust_parsing, notimestamps=notimestamps,

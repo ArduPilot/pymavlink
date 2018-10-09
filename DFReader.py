@@ -637,7 +637,6 @@ class DFReader_binary(DFReader):
             self.offsets.append([])
             self.counts.append(0)
         fmt_type = 0x80
-        mode_type = None
         ofs = 0
         pct = 0
         HEAD1 = self.HEAD1
