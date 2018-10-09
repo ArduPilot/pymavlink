@@ -1,26 +1,25 @@
 #!/usr/bin/env python
 
-'''
-extract mavlink parameter values
-'''
+"""
+Extract mavlink parameter values from log files.
+Its works both on dataflashlog (.BIN) and (.log) or telemetry log (.tlog).
+"""
 from __future__ import print_function
-
-
 import time
+from pymavlink import mavutil
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("-c", "--changes", dest="changesOnly", default=False, action="store_true", help="Show only changes to parameters.")
 parser.add_argument("logs", metavar="LOG", nargs="+")
+parser.add_argument("-s", "--save", action="store_true", help="Save the extracted parameters to a file.")
 
 args = parser.parse_args()
 
-from pymavlink import mavutil
-
 parms = {}
-
+saved_file = None
 def mavparms(logfile):
-    '''extract mavlink parameters'''
+    """Extract mavlink parameters."""
     mlog = mavutil.mavlink_connection(filename)
 
     while True:
@@ -42,12 +41,24 @@ def mavparms(logfile):
 
             parms[pname] = value
 
+
 total = 0.0
 for filename in args.logs:
+    print("# Extracting Parameters from %s" % filename)
     mavparms(filename)
 
+
 if (args.changesOnly is False):
+    if args.save:
+        formated_file_name = args.logs[0].rsplit(".", 1)[0] + ".parm"
+        saved_file = open(formated_file_name, "w")
+        print("# Saving extracted parameters to %s" % formated_file_name)
+        saved_file.write("# Parameters extracted from %s file\n" % args.logs[0])
     keys = list(parms.keys())
     keys.sort()
     for p in keys:
-        print("%-15s %.6f" % (p, parms[p]))
+        line = "%-15s %.6f" % (p, parms[p])
+        print(line)
+        if args.save:
+            saved_file.write(line + "\n")
+    saved_file.close()
