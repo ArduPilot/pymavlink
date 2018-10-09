@@ -51,8 +51,10 @@ def PrintSummary(logfile):
     first_gps_msg = None # The last GPS message received
     true_time = None # Track the first timestamp found that corresponds to a UNIX timestamp
 
+    types = set(['HEARTBEAT', 'GPS_RAW_INT'])
+
     while True:
-        m = mlog.recv_match(condition=args.condition)
+        m = mlog.recv_match(condition=args.condition, type=types)
 
         # If there's no match, it means we're done processing the log.
         if m is None:
