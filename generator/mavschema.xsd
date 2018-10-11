@@ -11,7 +11,17 @@
 <!-- definition of attributes -->
 <xs:attribute name="name"> <!-- enum,entry,message,field -->
 </xs:attribute>
+<xs:attribute name="increment" type="xs:float"/> <!-- param -->
 <xs:attribute name="index" type="xs:unsignedByte"/> <!-- param -->
+<xs:attribute name="isDestination" type="xs:boolean" default="true"/> <!-- param -->
+<xs:attribute name="hasLocation" type="xs:boolean" default="true"/> <!-- param -->
+<xs:attribute name="decimalPlaces" type="xs:unsignedByte"/> <!-- param -->
+<xs:attribute name="defaultValue" type="xs:float"/> <!-- param -->
+<xs:attribute name="label" type="xs:string"/> <!-- param -->
+<xs:attribute name="minValue" type="xs:float"/> <!-- param -->
+<xs:attribute name="maxValue" type="xs:float"/> <!-- param -->
+<xs:attribute name="units" type="xs:string"/> <!-- param -->
+<xs:attribute name="paramValue" type="xs:float"/> <!-- paramEnum -->
 <xs:attribute name="id" type="xs:unsignedShort"/> <!-- message -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- field -->
 <xs:attribute name="enum" type="xs:string"/>
@@ -137,9 +147,23 @@
 </xs:simpleType>
 
 <!-- definition of complex elements -->
+<xs:element name="paramEnum">
+    <xs:complexType mixed="true">
+        <xs:attribute ref="paramValue" use="required"/>
+    </xs:complexType>
+</xs:element>
+
 <xs:element name="param">
     <xs:complexType mixed="true">
         <xs:attribute ref="index" use="required"/>
+        <xs:attribute ref="label"/>
+        <xs:attribute ref="units"/>
+        <xs:attribute ref="decimalPlaces"/>
+        <xs:attribute ref="defaultValue"/>
+        <xs:attribute ref="minValue"/>
+        <xs:attribute ref="maxValue"/>
+        <xs:attribute ref="hasLocation"/>
+        <xs:attribute ref="isDestination"/>
     </xs:complexType>
 </xs:element>
 
