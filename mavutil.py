@@ -1257,6 +1257,9 @@ class mavmmaplog(mavlogfile):
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
 
             if not mtype in self.offsets:
+                if not mtype in mavlink.mavlink_map:
+                    ofs += mlen
+                    continue
                 self.offsets[mtype] = []
                 self.counts[mtype] = 0
                 msg = mavlink.mavlink_map[mtype]
