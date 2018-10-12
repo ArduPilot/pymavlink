@@ -1200,7 +1200,7 @@ class mavmmaplog(mavlogfile):
         self.data_len = self.f.tell()
         self.f.seek(0)
         if platform.system() == "Windows":
-            self.data_map = mmap.mmap(self.f.fileno(), self.data_len, filename, mmap.ACCESS_READ)
+            self.data_map = mmap.mmap(self.f.fileno(), self.data_len, None, mmap.ACCESS_READ)
         else:
             self.data_map = mmap.mmap(self.f.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
         self._rewind()

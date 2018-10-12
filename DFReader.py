@@ -592,7 +592,7 @@ class DFReader_binary(DFReader):
         self.data_len = self.filehandle.tell()
         self.filehandle.seek(0)
         if platform.system() == "Windows":
-            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, filename, mmap.ACCESS_READ)
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
         else:
             self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
 
