@@ -598,6 +598,7 @@ class DFReader_binary(DFReader):
 
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
+        self.unpackers = {}
         if sys.version_info.major < 3:
             self.HEAD1 = chr(self.HEAD1)
             self.HEAD2 = chr(self.HEAD2)
@@ -628,7 +629,6 @@ class DFReader_binary(DFReader):
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
         self.offsets = []
-        self.lengths = []
         self.counts = []
         self._count = 0
         self.name_to_id = {}
@@ -783,8 +783,11 @@ class DFReader_binary(DFReader):
         body = self.data_map[self.offset:self.offset+fmt.len-3]
         elements = None
         try:
-            elements = list(struct.unpack(fmt.msg_struct, body))
-        except Exception:
+            if not msg_type in self.unpackers:
+                self.unpackers[msg_type] = struct.Struct(fmt.msg_struct).unpack
+            elements = list(self.unpackers[msg_type](body))
+        except Exception as ex:
+            print(ex)
             if self.remaining < 528:
                 # we can have garbage at the end of an APM2 log
                 return None
