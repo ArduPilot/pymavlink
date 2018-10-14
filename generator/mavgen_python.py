@@ -295,6 +295,7 @@ class %s(MAVLink_message):
         lengths = %s
         array_lengths = %s
         crc_extra = %s
+        unpacker = struct.Struct('%s')
 
         def __init__(self""" % (classname, wrapper.fill(m.description.strip()), 
             m.name.upper(), 
@@ -306,7 +307,8 @@ class %s(MAVLink_message):
             m.order_map,
             m.len_map,
             m.array_len_map,
-            m.crc_extra))
+            m.crc_extra,
+            m.fmtstr))
         for i in range(len(m.fields)):
                 fname = m.fieldnames[i]
                 if m.extensions_start is not None and i >= m.extensions_start:
@@ -463,6 +465,10 @@ class MAVLink(object):
                     self.native = None
                 if native_testing:
                     self.test_buf = bytearray()
+                self.mav20_unpacker = struct.Struct('<cBBBBBBHB')
+                self.mav10_unpacker = struct.Struct('<cBBBBB')
+                self.mav20_h3_unpacker = struct.Struct('BBB')
+                self.mav_csum_unpacker = struct.Struct('<H')
 
         def set_callback(self, callback, *args, **kwargs):
             self.callback = callback
@@ -563,7 +569,7 @@ class MAVLink(object):
                 sbuf = self.buf[self.buf_index:3+self.buf_index]
                 if sys.version_info[0] < 3:
                     sbuf = str(sbuf)
-                (magic, self.expected_length, incompat_flags) = struct.unpack('BBB', sbuf)
+                (magic, self.expected_length, incompat_flags) = self.mav20_h3_unpacker.unpack(sbuf)
                 if magic == PROTOCOL_MARKER_V2 and (incompat_flags & MAVLINK_IFLAG_SIGNED):
                         self.expected_length += MAVLINK_SIGNATURE_BLOCK_LEN
                 self.expected_length += header_len + 2
@@ -605,7 +611,7 @@ class MAVLink(object):
                 msgbuf = msgbuf.tostring()
             timestamp_buf = msgbuf[-12:-6]
             link_id = msgbuf[-13]
-            (tlow, thigh) = struct.unpack('<IH', timestamp_buf)
+            (tlow, thigh) = self.mav_csum_unpacker.unpack(timestamp_buf)
             timestamp = tlow + (thigh<<32)
 
             # see if the timestamp is acceptable
@@ -644,7 +650,7 @@ class MAVLink(object):
                 if msgbuf[0] != PROTOCOL_MARKER_V1:
                     headerlen = 10
                     try:
-                        magic, mlen, incompat_flags, compat_flags, seq, srcSystem, srcComponent, msgIdlow, msgIdhigh = struct.unpack('<cBBBBBBHB', msgbuf[:headerlen])
+                        magic, mlen, incompat_flags, compat_flags, seq, srcSystem, srcComponent, msgIdlow, msgIdhigh = self.mav20_unpacker.unpack(msgbuf[:headerlen])
                     except struct.error as emsg:
                         raise MAVError('Unable to unpack MAVLink header: %s' % emsg)
                     msgId = msgIdlow | (msgIdhigh<<16)
@@ -652,7 +658,7 @@ class MAVLink(object):
                 else:
                     headerlen = 6
                     try:
-                        magic, mlen, seq, srcSystem, srcComponent, msgId = struct.unpack('<cBBBBB', msgbuf[:headerlen])
+                        magic, mlen, seq, srcSystem, srcComponent, msgId = self.mav10_unpacker.unpack(msgbuf[:headerlen])
                         incompat_flags = 0
                         compat_flags = 0
                     except struct.error as emsg:
@@ -680,7 +686,7 @@ class MAVLink(object):
 
                 # decode the checksum
                 try:
-                    crc, = struct.unpack('<H', msgbuf[-(2+signature_len):][:2])
+                    crc, = self.mav_csum_unpacker.unpack(msgbuf[-(2+signature_len):][:2])
                 except struct.error as emsg:
                     raise MAVError('Unable to unpack MAVLink CRC: %s' % emsg)
                 crcbuf = msgbuf[1:-(2+signature_len)]
@@ -717,7 +723,7 @@ class MAVLink(object):
                     if not accept_signature:
                         raise MAVError('Invalid signature')
 
-                csize = struct.calcsize(fmt)
+                csize = type.unpacker.size
                 mbuf = msgbuf[headerlen:-(2+signature_len)]
                 if len(mbuf) < csize:
                     # zero pad to give right size
@@ -727,7 +733,7 @@ class MAVLink(object):
                         type, len(mbuf), csize))
                 mbuf = mbuf[:csize]
                 try:
-                    t = struct.unpack(fmt, mbuf)
+                    t = type.unpacker.unpack(mbuf)
                 except struct.error as emsg:
                     raise MAVError('Unable to unpack MAVLink payload type=%s fmt=%s payloadLength=%u: %s' % (
                         type, fmt, len(mbuf), emsg))
