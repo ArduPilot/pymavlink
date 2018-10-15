@@ -312,7 +312,8 @@ class %s(MAVLink_message):
         for i in range(len(m.fields)):
                 fname = m.fieldnames[i]
                 if m.extensions_start is not None and i >= m.extensions_start:
-                        outf.write(", %s=0" % fname)
+                        fdefault = m.fielddefaults[i]
+                        outf.write(", %s=%s" % (fname, fdefault))
                 else:
                         outf.write(", %s" % fname)
         outf.write("):\n")
@@ -372,6 +373,12 @@ def mavfmt(field):
             return str(field.array_length)+'s'
         return str(field.array_length)+map[field.type]
     return map[field.type]
+
+def mavdefault(field):
+    '''returns default value for field (as string) for mavlink2 extensions'''
+    if field.type == 'char':
+        return "''"
+    return "0"
 
 def generate_mavlink_class(outf, msgs, xml):
     print("Generating MAVLink class")
@@ -799,7 +806,8 @@ def generate_methods(outf, msgs):
             if f.omit_arg:
                 selffieldnames += '%s=%s, ' % (f.name, f.const_value)
             elif m.extensions_start is not None and i >= m.extensions_start:
-                selffieldnames += '%s=0, ' % f.name
+                fdefault = m.fielddefaults[i]
+                selffieldnames += "%s=%s, " % (f.name, fdefault)
             else:
                 selffieldnames += '%s, ' % f.name
         selffieldnames = selffieldnames[:-2]
@@ -844,6 +852,7 @@ def generate(basename, xml):
         filelist.append(os.path.basename(x.filename))
 
     for m in msgs:
+        m.fielddefaults = []
         if xml[0].little_endian:
             m.fmtstr = '<'
         else:
@@ -851,6 +860,7 @@ def generate(basename, xml):
         m.native_fmtstr = m.fmtstr
         for f in m.ordered_fields:
             m.fmtstr += mavfmt(f)
+            m.fielddefaults.append(mavdefault(f))
             m.native_fmtstr += native_mavfmt(f)
         m.order_map = [ 0 ] * len(m.fieldnames)
         m.len_map = [ 0 ] * len(m.fieldnames)
