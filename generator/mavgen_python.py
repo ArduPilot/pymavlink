@@ -797,7 +797,12 @@ def generate_methods(outf, msgs):
     def field_descriptions(fields):
         ret = ""
         for f in fields:
-            ret += "                %-18s        : %s (%s)\n" % (f.name, f.description.strip(), f.type)
+            field_info = ""
+            if f.units: field_info+="%s " % f.units
+            field_info += "(type:%s" % f.type
+            if f.enum: field_info += ", values:%s" % f.enum
+            field_info += ")"
+            ret += "                %-18s        : %s %s\n" % (f.name, f.description.strip(), field_info)
         return ret
 
     wrapper = textwrap.TextWrapper(initial_indent="", subsequent_indent="                ")
@@ -842,7 +847,7 @@ def generate_methods(outf, msgs):
 
 
 def generate(basename, xml):
-    '''generate complete python implemenation'''
+    '''generate complete python implementation'''
     if basename.endswith('.py'):
         filename = basename
     else:
