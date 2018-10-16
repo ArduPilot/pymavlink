@@ -687,6 +687,22 @@ class DFReader_binary(DFReader):
             self._count += self.counts[i]
         self.offset = 0
 
+    def last_timestamp(self):
+        '''get the last timestamp in the log'''
+        highest_offset = 0
+        for i in range(256):
+            if self.counts[i] == -1:
+                continue
+            if len(self.offsets[i]) == 0:
+                continue
+            ofs = self.offsets[i][-1]
+            if ofs > highest_offset:
+                highest_offset = ofs
+        self.offset = highest_offset
+        m = self.recv_msg()
+        return m._timestamp
+
+
     def flightmode_list(self):
         '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
         tstamp = None
@@ -707,9 +723,9 @@ class DFReader_binary(DFReader):
                     self._flightmodes[-1] = (mode, t0, tstamp)
                 self._flightmodes.append((self.flightmode, tstamp, None))
                 fmode = self.flightmode
-        if tstamp is not None:
-            (mode, t0, t1) = self._flightmodes[-1]
-            self._flightmodes[-1] = (mode, t0, tstamp)
+            if tstamp is not None:
+                (mode, t0, t1) = self._flightmodes[-1]
+                self._flightmodes[-1] = (mode, t0, self.last_timestamp())
 
         self._rewind()
         return self._flightmodes
