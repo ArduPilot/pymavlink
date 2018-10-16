@@ -191,8 +191,13 @@ class DFMessage(object):
                 v /= mul
                 v = int(round(v))
             values.append(v)
-        return (struct.pack("BBB", 0xA3, 0x95, self.fmt.type) +
-                struct.pack(self.fmt.msg_struct, *values))
+
+        ret1 = struct.pack("BBB", 0xA3, 0x95, self.fmt.type)
+        try:
+            ret2 = struct.pack(self.fmt.msg_struct, *values)
+        except Exception as ex:
+            return None
+        return ret1 + ret2
 
     def get_fieldnames(self):
         return self._fieldnames
@@ -389,11 +394,15 @@ class DFReader(object):
         self.mav_type = mavutil.mavlink.MAV_TYPE_FIXED_WING
         self.verbose = False
         self.params = {}
+        self._flightmodes = None
 
     def _rewind(self):
         '''reset state on rewind'''
         self.messages = {'MAV': self}
-        self.flightmode = "UNKNOWN"
+        if self._flightmodes is not None and len(self._flightmodes) > 0:
+            self.flightmode = self._flightmodes[0][0]
+        else:
+            self.flightmode = "UNKNOWN"
         self.percent = 0
         if self.clock:
             self.clock.rewind_event()
@@ -581,6 +590,32 @@ class DFReader(object):
             return default
         return self.params[name]
 
+    def flightmode_list(self):
+        '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
+        tstamp = None
+        fmode = None
+        if self._flightmodes is None:
+            self._rewind()
+            self._flightmodes = []
+            types = set(['MODE'])
+            while True:
+                m = self.recv_match(type=types)
+                if m is None:
+                    break
+                tstamp = m._timestamp
+                if self.flightmode == fmode:
+                    continue
+                if len(self._flightmodes) > 0:
+                    (mode, t0, t1) = self._flightmodes[-1]
+                    self._flightmodes[-1] = (mode, t0, tstamp)
+                self._flightmodes.append((self.flightmode, tstamp, None))
+                fmode = self.flightmode
+            if tstamp is not None:
+                (mode, t0, t1) = self._flightmodes[-1]
+                self._flightmodes[-1] = (mode, t0, self.last_timestamp())
+
+        self._rewind()
+        return self._flightmodes
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
@@ -611,7 +646,6 @@ class DFReader_binary(DFReader):
         }
         self._zero_time_base = zero_time_base
         self.init_clock()
-        self._flightmodes = None
         self._rewind()
         self.init_arrays(progress_callback)
 
@@ -621,6 +655,7 @@ class DFReader_binary(DFReader):
         self.offset = 0
         self.remaining = self.data_len
         self.type_nums = None
+        self.timestamp = 0
 
     def rewind(self):
         '''rewind to start of log'''
@@ -701,35 +736,6 @@ class DFReader_binary(DFReader):
         self.offset = highest_offset
         m = self.recv_msg()
         return m._timestamp
-
-
-    def flightmode_list(self):
-        '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
-        tstamp = None
-        fmode = None
-        if self._flightmodes is None:
-            self._rewind()
-            self._flightmodes = []
-            types = set(['MODE'])
-            while True:
-                m = self.recv_match(type=types)
-                if m is None:
-                    break
-                tstamp = m._timestamp
-                if self.flightmode == fmode:
-                    continue
-                if len(self._flightmodes) > 0:
-                    (mode, t0, t1) = self._flightmodes[-1]
-                    self._flightmodes[-1] = (mode, t0, tstamp)
-                self._flightmodes.append((self.flightmode, tstamp, None))
-                fmode = self.flightmode
-            if tstamp is not None:
-                (mode, t0, t1) = self._flightmodes[-1]
-                self._flightmodes[-1] = (mode, t0, self.last_timestamp())
-
-        self._rewind()
-        return self._flightmodes
-
 
 
     def skip_to_type(self, type):
@@ -854,11 +860,17 @@ def DFReader_is_text_log(filename):
 
 class DFReader_text(DFReader):
     '''parse a text dataflash file'''
-    def __init__(self, filename, zero_time_base=False):
+    def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        with open(filename, 'r') as f:
-            self.lines = f.readlines()
+        self.filehandle = open(filename, 'r')
+        self.filehandle.seek(0, 2)
+        self.data_len = self.filehandle.tell()
+        if platform.system() == "Windows":
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
+        else:
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
+        self.offset = 0
 
         self.formats = {
             'FMT': DFFormat(0x80,
@@ -871,36 +883,104 @@ class DFReader_text(DFReader):
         self._zero_time_base = zero_time_base
         self.init_clock()
         self._rewind()
+        self.init_arrays(progress_callback)
 
     def _rewind(self):
         '''rewind to start of log'''
         DFReader._rewind(self)
-        self.line = 0
         # find the first valid line
-        while self.line < len(self.lines):
-            if self.lines[self.line].startswith("FMT, "):
+        self.offset = self.data_map.find(b'FMT, ')
+        self.type_list = None
+
+    def rewind(self):
+        '''rewind to start of log'''
+        self._rewind()
+
+    def init_arrays(self, progress_callback=None):
+        '''initialise arrays for fast recv_match()'''
+        self.offsets = {}
+        self.counts = {}
+        self._count = 0
+        ofs = self.offset
+        pct = 0
+
+        while ofs+16 < self.data_len:
+            mtype = self.data_map[ofs:ofs+4]
+            if mtype[3] == ',':
+                mtype = mtype[0:3]
+            if not mtype in self.offsets:
+                self.counts[mtype] = 0
+                self.offsets[mtype] = []
+                self.offset = ofs
+                self._parse_next()
+            self.offsets[mtype].append(ofs)
+
+            self.counts[mtype] += 1
+
+            if mtype == "FMT":
+                self.offset = ofs
+                self._parse_next()
+
+            ofs = self.data_map.find(b"\n", ofs)
+            if ofs == -1:
                 break
-            self.line += 1
+            ofs += 1
+            new_pct = (100 * ofs) // self.data_len
+            if progress_callback is not None and new_pct != pct:
+                progress_callback(new_pct)
+                pct = new_pct
+
+        for mtype in self.counts.keys():
+            self._count += self.counts[mtype]
+        self.offset = 0
 
     def skip_to_type(self, type):
         '''skip fwd to next msg matching given type set'''
-        return
+
+        if self.type_list is None:
+            # always add some key msg types so we can track flightmode, params etc
+            self.type_list = type.copy()
+            self.type_list.update(set(['MODE','MSG','PARM','STAT']))
+            self.type_list = list(self.type_list)
+            self.indexes = []
+            self.type_nums = []
+            for t in self.type_list:
+                self.indexes.append(0)
+        smallest_index = -1
+        smallest_offset = self.data_len
+        for i in range(len(self.type_list)):
+            mtype = self.type_list[i]
+            if not mtype in self.counts:
+                continue
+            if self.indexes[i] >= self.counts[mtype]:
+                continue
+            ofs = self.offsets[mtype][self.indexes[i]]
+            if ofs < smallest_offset:
+                smallest_offset = ofs
+                smallest_index = i
+        if smallest_index >= 0:
+            self.indexes[smallest_index] += 1
+            self.offset = smallest_offset
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
 
-        this_line = self.line
-        while self.line < len(self.lines):
-            s = self.lines[self.line].rstrip()
+        while True:
+            endline = self.data_map.find(b'\n',self.offset)
+            if endline == -1:
+                endline = self.data_len
+                if endline < self.offset:
+                    break
+            s = self.data_map[self.offset:endline].rstrip()
+            if sys.version_info.major >= 3:
+                s = s.decode('utf-8')
             elements = s.split(", ")
-            this_line = self.line
-            # move to next line
-            self.line += 1
+            self.offset = endline+1
             if len(elements) >= 2:
                 # this_line is good
                 break
 
-        if this_line >= len(self.lines):
+        if self.offset > self.data_len:
             return None
 
         # cope with empty structures
@@ -908,7 +988,7 @@ class DFReader_text(DFReader):
             elements[-1] = ''
             elements.append('')
 
-        self.percent = 100.0 * (this_line / float(len(self.lines)))
+        self.percent = 100.0 * (self.offset / float(self.data_len))
 
         msg_type = elements[0]
 
@@ -927,11 +1007,15 @@ class DFReader_text(DFReader):
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
-            self.formats[elements[2]] = DFFormat(int(elements[0]),
-                                                 elements[2],
-                                                 int(elements[1]),
-                                                 elements[3],
-                                                 elements[4])
+            if elements[2] == 'FMT' and elements[4] == 'Type,Length,Name,Format':
+                # some logs have the 'Columns' column missing from text logs
+                elements[4] = "Type,Length,Name,Format,Columns"
+            new_fmt = DFFormat(int(elements[0]),
+                               elements[2],
+                               int(elements[1]),
+                               elements[3],
+                               elements[4])
+            self.formats[elements[2]] = new_fmt
 
         try:
             m = DFMessage(fmt, elements, False)
@@ -942,6 +1026,18 @@ class DFReader_text(DFReader):
 
         return m
 
+    def last_timestamp(self):
+        '''get the last timestamp in the log'''
+        highest_offset = 0
+        for mtype in self.counts.keys():
+            if len(self.offsets[mtype]) == 0:
+                continue
+            ofs = self.offsets[mtype][-1]
+            if ofs > highest_offset:
+                highest_offset = ofs
+        self.offset = highest_offset
+        m = self.recv_msg()
+        return m._timestamp
 
 if __name__ == "__main__":
     use_profiler = False

@@ -1435,7 +1435,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         # support dataflash text logs
         from pymavlink import DFReader
         if DFReader.DFReader_is_text_log(device):
-            m = DFReader.DFReader_text(device, zero_time_base=zero_time_base)
+            m = DFReader.DFReader_text(device, zero_time_base=zero_time_base, progress_callback=progress_callback)
             mavfile_global = m
             return m    
 
