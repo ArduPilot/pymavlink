@@ -725,6 +725,7 @@ class DFReader_binary(DFReader):
     def last_timestamp(self):
         '''get the last timestamp in the log'''
         highest_offset = 0
+        second_highest_offset = 0
         for i in range(256):
             if self.counts[i] == -1:
                 continue
@@ -732,9 +733,15 @@ class DFReader_binary(DFReader):
                 continue
             ofs = self.offsets[i][-1]
             if ofs > highest_offset:
+                second_highest_offset = highest_offset
                 highest_offset = ofs
+            elif ofs > second_highest_offset:
+                second_highest_offset = ofs
         self.offset = highest_offset
         m = self.recv_msg()
+        if m is None:
+            self.offset = second_highest_offset
+            m = self.recv_msg()
         return m._timestamp
 
 
