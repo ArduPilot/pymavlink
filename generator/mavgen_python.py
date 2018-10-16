@@ -798,9 +798,11 @@ def generate_methods(outf, msgs):
         ret = ""
         for f in fields:
             field_info = ""
-            if f.units: field_info+="%s " % f.units
+            if f.units: 
+                field_info += "%s " % f.units
             field_info += "(type:%s" % f.type
-            if f.enum: field_info += ", values:%s" % f.enum
+            if f.enum: 
+                field_info += ", values:%s" % f.enum
             field_info += ")"
             ret += "                %-18s        : %s %s\n" % (f.name, f.description.strip(), field_info)
         return ret
