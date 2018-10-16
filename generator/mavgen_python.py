@@ -280,6 +280,7 @@ def generate_classes(outf, msgs):
         fieldname_str = ", ".join(["'%s'" % s for s in m.fieldnames])
         ordered_fieldname_str = ", ".join(["'%s'" % s for s in m.ordered_fieldnames])
 
+        fieldtypes_str = ", ".join(["'%s'" % s for s in m.fieldtypes])
         outf.write("""
 class %s(MAVLink_message):
         '''
@@ -289,6 +290,7 @@ class %s(MAVLink_message):
         name = '%s'
         fieldnames = [%s]
         ordered_fieldnames = [ %s ]
+        fieldtypes = [%s]
         format = '%s'
         native_format = bytearray('%s', 'ascii')
         orders = %s
@@ -302,6 +304,7 @@ class %s(MAVLink_message):
             m.name.upper(),
             fieldname_str,
             ordered_fieldname_str,
+            fieldtypes_str,
             m.fmtstr,
             m.native_fmtstr,
             m.order_map,
@@ -574,7 +577,7 @@ class MAVLink(object):
             self.have_prefix_error = False
             if self.buf_len() >= 3:
                 sbuf = self.buf[self.buf_index:3+self.buf_index]
-                if sys.version_info[0] < 3:
+                if sys.version_info.major < 3:
                     sbuf = str(sbuf)
                 (magic, self.expected_length, incompat_flags) = self.mav20_h3_unpacker.unpack(sbuf)
                 if magic == PROTOCOL_MARKER_V2 and (incompat_flags & MAVLINK_IFLAG_SIGNED):
@@ -768,7 +771,9 @@ class MAVLink(object):
 
                 # terminate any strings
                 for i in range(0, len(tlist)):
-                    if isinstance(tlist[i], str):
+                    if type.fieldtypes[i] == 'char':
+                        if sys.version_info.major >= 3:
+                            tlist[i] = tlist[i].decode('utf-8')
                         tlist[i] = str(MAVString(tlist[i]))
                 t = tuple(tlist)
                 # construct the message object
