@@ -411,6 +411,8 @@ class mavfile(object):
             idx = int(name)
             self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
         except Exception:
+            if sys.version_info.major >= 3 and not isinstance(name, bytes):
+                name = bytes(name,'ascii')
             self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
 
     def time_since(self, mtype):
