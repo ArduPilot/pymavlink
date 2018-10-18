@@ -925,6 +925,7 @@ class mavudp(mavfile):
         set_close_on_exec(self.port.fileno())
         self.port.setblocking(0)
         self.last_address = None
+        self.resolved_destination_addr = None
         mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
 
     def close(self):
@@ -951,6 +952,11 @@ class mavudp(mavfile):
                     self.destination_addr = self.last_address
                     self.broadcast = False
                     self.port.connect(self.destination_addr)
+                # turn a (possible) hostname into an IP address to
+                # avoid resolving the hostname for every packet sent:
+                if self.destination_addr[0] != self.resolved_destination_addr:
+                    self.resolved_destination_addr = self.destination_addr[0]
+                    self.destination_addr = (socket.gethostbyname(self.destination_addr[0]), self.destination_addr[1])
                 self.port.sendto(buf, self.destination_addr)
         except socket.error:
             pass
