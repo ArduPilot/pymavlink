@@ -73,9 +73,12 @@ MAVLINK_TYPE_INT64_T  = 8
 MAVLINK_TYPE_FLOAT    = 9
 MAVLINK_TYPE_DOUBLE   = 10
 
-
 class MAVLink_header(object):
     '''MAVLink message header'''
+
+    packer10 = struct.Struct('<BBBBBB')
+    packer20 = struct.Struct('<BBBBBBBHB')
+
     def __init__(self, msgId, incompat_flags=0, compat_flags=0, mlen=0, seq=0, srcSystem=0, srcComponent=0):
         self.mlen = mlen
         self.seq = seq
@@ -87,12 +90,12 @@ class MAVLink_header(object):
 
     def pack(self, force_mavlink1=False):
         if WIRE_PROTOCOL_VERSION == '2.0' and not force_mavlink1:
-            return struct.pack('<BBBBBBBHB', ${PROTOCOL_MARKER}, self.mlen,
-                               self.incompat_flags, self.compat_flags,
-                               self.seq, self.srcSystem, self.srcComponent,
-                               self.msgId&0xFFFF, self.msgId>>16)
-        return struct.pack('<BBBBBB', PROTOCOL_MARKER_V1, self.mlen, self.seq,
-                           self.srcSystem, self.srcComponent, self.msgId)
+            return self.packer20.pack(${PROTOCOL_MARKER}, self.mlen,
+                                      self.incompat_flags, self.compat_flags,
+                                      self.seq, self.srcSystem, self.srcComponent,
+                                      self.msgId&0xFFFF, self.msgId>>16)
+        return self.packer10.pack(PROTOCOL_MARKER_V1, self.mlen, self.seq,
+                                  self.srcSystem, self.srcComponent, self.msgId)
 
 class MAVLink_message(object):
     '''base MAVLink message class'''
