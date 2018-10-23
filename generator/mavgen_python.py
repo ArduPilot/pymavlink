@@ -355,13 +355,15 @@ class %s(MAVLink_message):
                 outf.write("                self.%s = %s\n" % (f.name, f.name))
         outf.write("""
         def pack(self, mav, force_mavlink1=False):
-                return MAVLink_message.pack(self, mav, %u, struct.pack('%s'""" % (m.crc_extra, m.fmtstr))
+                return MAVLink_message.pack(self, mav, %u, self.unpacker.pack(""" % (m.crc_extra))
+        n = []
         for field in m.ordered_fields:
                 if (field.type != "char" and field.array_length > 1):
                         for i in range(field.array_length):
-                                outf.write(", self.{0:s}[{1:d}]".format(field.name, i))
+                                n.append("self.{0:s}[{1:d}]".format(field.name, i))
                 else:
-                        outf.write(", self.{0:s}".format(field.name))
+                        n.append("self.{0:s}".format(field.name))
+        outf.write(", ".join(n))
         outf.write("), force_mavlink1=force_mavlink1)\n")
 
 
