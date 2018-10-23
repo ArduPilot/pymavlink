@@ -386,8 +386,12 @@ def mavfmt(field):
 def mavdefault(field):
     '''returns default value for field (as string) for mavlink2 extensions'''
     if field.type == 'char':
-        return "''"
-    return "0"
+        default_value = "''"
+    else:
+        default_value = "0"
+    if field.array_length == 0:
+        return default_value
+    return "[" + ",".join([default_value] * field.array_length) + "]"
 
 
 def generate_mavlink_class(outf, msgs, xml):
