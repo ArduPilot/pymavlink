@@ -444,6 +444,7 @@ def check_duplicates(xml):
     merge_enums(xml)
 
     msgmap = {}
+    msg_name_map = {}
     enummap = {}
     for x in xml:
         for m in x.message:
@@ -464,6 +465,15 @@ def check_duplicates(xml):
                     return True
                 fieldset.add(f.name)
             msgmap[key] = '%s (%s:%u)' % (m.name, x.filename, m.linenumber)
+            # Check for duplicate message names
+            if m.name in msg_name_map:
+                print("ERROR: Duplicate message name %s for id:%u (%s:%u) also used by %s" % (
+                    m.name,
+                    m.id,
+                    x.filename, m.linenumber,
+                    msg_name_map[m.name]))
+                return True
+            msg_name_map[m.name] = '%s (%s:%u)' % (m.id, x.filename, m.linenumber)
         for enum in x.enum:
             for entry in enum.entry:
                 if entry.autovalue is True and "common.xml" not in entry.origin_file:
