@@ -49,6 +49,8 @@ parser.add_argument("--verbose", action='store_true', help="Dump messages in a m
 parser.add_argument("--mav10", action='store_true', help="parse as MAVLink1")
 parser.add_argument("--reduce", type=int, default=0, help="reduce streaming messages")
 parser.add_argument("log", metavar="LOG")
+parser.add_argument("--profile", action='store_true', help="run the Yappi python profiler")
+
 args = parser.parse_args()
 
 if not args.mav10:
@@ -59,6 +61,9 @@ import inspect
 from pymavlink import mavutil
 
 
+if args.profile:
+    import yappi    # We do the import here so that we won't barf if run normally and yappi not available
+    yappi.start()
 
 filename = args.log
 mlog = mavutil.mavlink_connection(filename, planner_format=args.planner,
@@ -307,3 +312,7 @@ while True:
 if args.show_types:
     for msgType in available_types:
         print(msgType)
+
+if args.profile:
+    yappi.get_func_stats().print_all()
+    yappi.get_thread_stats().print_all()
