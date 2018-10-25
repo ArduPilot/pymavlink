@@ -601,7 +601,7 @@ class MAVLink(object):
             else:
                 # XXX The idea here is if we've read something and there's nothing left in
                 # the buffer, reset it to 0 which frees the memory
-                if self.buf_len() == 0 and self.buf_index != 0:
+                if self.buf_index != 0 and self.buf_len() == 0:
                     self.buf = bytearray()
                     self.buf_index = 0
 
@@ -610,11 +610,15 @@ class MAVLink(object):
         def __parse_char_legacy(self):
             '''input some data bytes, possibly returning a new message (uses no native code)'''
             header_len = HEADER_LEN_V1
-            if self.buf_len() >= 1 and self.buf[self.buf_index] == PROTOCOL_MARKER_V2:
+            buf_len = self.buf_len()
+            if buf_len == 0:
+                return None
+            protocol_marker = self.buf[self.buf_index]
+            if buf_len >= 1 and protocol_marker == PROTOCOL_MARKER_V2:
                 header_len = HEADER_LEN_V2
 
-            if self.buf_len() >= 1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V2:
-                magic = self.buf[self.buf_index]
+            if buf_len >= 1 and protocol_marker != PROTOCOL_MARKER_V1 and protocol_marker != PROTOCOL_MARKER_V2:
+                magic = protocol_marker
                 self.buf_index += 1
                 if self.robust_parsing:
                     m = MAVLink_bad_data(bytearray([magic]), 'Bad prefix')
@@ -627,7 +631,7 @@ class MAVLink(object):
                 self.total_receive_errors += 1
                 raise MAVError("invalid MAVLink prefix '%s'" % magic)
             self.have_prefix_error = False
-            if self.buf_len() >= 3:
+            if buf_len >= 3:
                 sbuf = self.buf[self.buf_index:3+self.buf_index]
                 if sys.version_info.major < 3:
                     sbuf = str(sbuf)
@@ -635,7 +639,7 @@ class MAVLink(object):
                 if magic == PROTOCOL_MARKER_V2 and (incompat_flags & MAVLINK_IFLAG_SIGNED):
                         self.expected_length += MAVLINK_SIGNATURE_BLOCK_LEN
                 self.expected_length += header_len + 2
-            if self.expected_length >= (header_len+2) and self.buf_len() >= self.expected_length:
+            if self.expected_length >= (header_len+2) and buf_len >= self.expected_length:
                 mbuf = array.array('B', self.buf[self.buf_index:self.buf_index+self.expected_length])
                 self.buf_index += self.expected_length
                 self.expected_length = header_len+2
