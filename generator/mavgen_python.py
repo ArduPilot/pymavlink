@@ -790,9 +790,6 @@ class MAVLink(object):
                 if len(mbuf) < csize:
                     # zero pad to give right size
                     mbuf.extend([0]*(csize - len(mbuf)))
-                if len(mbuf) < csize:
-                    raise MAVError('Bad message of type %s length %u needs %s' % (
-                        type, len(mbuf), csize))
                 mbuf = mbuf[:csize]
                 try:
                     t = type.unpacker.unpack(mbuf)
