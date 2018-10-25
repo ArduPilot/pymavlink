@@ -790,7 +790,7 @@ class MAVLink(object):
                 if len(mbuf) < csize:
                     # zero pad to give right size
                     mbuf.extend([0]*(csize - len(mbuf)))
-                mbuf = mbuf[:csize]
+                del mbuf[csize:]
                 try:
                     t = type.unpacker.unpack(mbuf)
                 except struct.error as emsg:
