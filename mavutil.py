@@ -1547,7 +1547,8 @@ class mavmmaplog(mavlogfile):
                 return None
             if type is not None and not m.get_type() in type:
                 continue
-            if not evaluate_condition(condition, self.messages):
+            if (condition is not None and
+                not evaluate_condition(condition, self.messages)):
                 continue
             return m
         
