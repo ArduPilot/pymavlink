@@ -122,12 +122,13 @@ class MAVField(object):
 
 
 class MAVType(object):
-    def __init__(self, name, id, linenumber, description=''):
+    def __init__(self, name, id, linenumber, description='', wip=False):
         self.name = name
         self.name_lower = name.lower()
         self.linenumber = linenumber
         self.id = int(id)
         self.description = description
+        self.wip = wip
         self.fields = []
         self.fieldnames = []
         self.extensions_start = None
@@ -144,10 +145,11 @@ class MAVEnumParam(object):
         self.description = description
 
 class MAVEnumEntry(object):
-    def __init__(self, name, value, description='', end_marker=False, autovalue=False, origin_file='', origin_line=0):
+    def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0):
         self.name = name
         self.value = value
         self.description = description
+        self.wip = wip
         self.param = []
         self.end_marker = end_marker
         self.autovalue = autovalue  # True if value was *not* specified in XML
@@ -225,6 +227,8 @@ class MAVXML(object):
             if in_element == "mavlink.messages.message":
                 check_attrs(attrs, ['name', 'id'], 'message')
                 self.message.append(MAVType(attrs['name'], attrs['id'], p.CurrentLineNumber))
+            elif in_element == "mavlink.messages.message.wip":
+                self.message[-1].wip = True
             elif in_element == "mavlink.messages.message.extensions":
                 self.message[-1].extensions_start = len(self.message[-1].fields)
             elif in_element == "mavlink.messages.message.field":
@@ -257,7 +261,9 @@ class MAVXML(object):
                 if (value > self.enum[-1].highest_value):
                     self.enum[-1].highest_value = value
                 # append the new entry
-                self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, autovalue, self.filename, p.CurrentLineNumber))
+                self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, False, autovalue, self.filename, p.CurrentLineNumber))
+            elif in_element == "mavlink.enums.enum.entry.wip":
+                self.enum[-1].entry[-1].wip = True
             elif in_element == "mavlink.enums.enum.entry.param":
                 check_attrs(attrs, ['index'], 'enum param')
                 self.enum[-1].entry[-1].param.append(MAVEnumParam(attrs['index']))
