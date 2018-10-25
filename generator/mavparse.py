@@ -471,7 +471,7 @@ def check_duplicates(xml):
                     m.name,
                     m.id,
                     x.filename, m.linenumber,
-                    msg_name_map[name]))
+                    msg_name_map[m.name]))
                 return True
             msg_name_map[m.name] = '%s (%s:%u)' % (m.id, x.filename, m.linenumber)
         for enum in x.enum:
