@@ -304,6 +304,15 @@ def generate_classes(outf, msgs):
         fieldunits_str = byname_hash_from_field_attribute(m, "units")
 
         fieldtypes_str = ", ".join(["'%s'" % s for s in m.fieldtypes])
+        char_fields = []
+        for i in range(0, len(m.fieldtypes)):
+            if m.fieldtypes[i] == "char":
+                char_fields.append(i)
+        char_fields_str = ", ".join([str(x) for x in char_fields])
+        if sum(m.len_map) == len(m.len_map):
+            has_arrays = "False"
+        else:
+            has_arrays = "True"
         outf.write("""
 class %s(MAVLink_message):
         '''
@@ -317,11 +326,13 @@ class %s(MAVLink_message):
         fielddisplays_by_name = {%s}
         fieldenums_by_name = {%s}
         fieldunits_by_name = {%s}
+        char_fields = [%s]
         format = '%s'
         native_format = bytearray('%s', 'ascii')
         orders = %s
         lengths = %s
         array_lengths = %s
+        has_arrays = %s
         crc_extra = %s
         unpacker = struct.Struct('%s')
 
@@ -334,11 +345,13 @@ class %s(MAVLink_message):
             fielddisplays_str,
             fieldenums_str,
             fieldunits_str,
+            char_fields_str,
             m.fmtstr,
             m.native_fmtstr,
             m.order_map,
             m.len_map,
             m.array_len_map,
+            has_arrays,
             m.crc_extra,
             m.fmtstr))
         for i in range(len(m.fields)):
@@ -791,7 +804,7 @@ class MAVLink(object):
                 # handle sorted fields
                 if ${sort_fields}:
                     t = tlist[:]
-                    if sum(len_map) == len(len_map):
+                    if not type.has_arrays:
                         # message has no arrays in it
                         for i in range(0, len(tlist)):
                             tlist[i] = t[order_map[i]]
@@ -809,11 +822,10 @@ class MAVLink(object):
                                 tlist.append(t[tip:(tip + L)])
 
                 # terminate any strings
-                for i in range(0, len(tlist)):
-                    if type.fieldtypes[i] == 'char':
-                        if sys.version_info.major >= 3:
-                            tlist[i] = tlist[i].decode('utf-8')
-                        tlist[i] = str(MAVString(tlist[i]))
+                for i in type.char_fields:
+                    if sys.version_info.major >= 3:
+                        tlist[i] = tlist[i].decode('utf-8')
+                    tlist[i] = str(MAVString(tlist[i]))
                 t = tuple(tlist)
                 # construct the message object
                 try:
