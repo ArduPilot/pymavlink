@@ -663,7 +663,7 @@ class MAVLink(object):
             while True:
                 m = self.parse_char("")
                 if m is None:
-                    return ret
+                    break
                 ret.append(m)
             return ret
 
