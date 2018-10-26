@@ -490,6 +490,7 @@ class MAVLink(object):
                 self.mav10_unpacker = struct.Struct('<cBBBBB')
                 self.mav20_h3_unpacker = struct.Struct('BBB')
                 self.mav_csum_unpacker = struct.Struct('<H')
+                self.mav_sign_unpacker = struct.Struct('<IH')
 
         def set_callback(self, callback, *args, **kwargs):
             self.callback = callback
@@ -632,7 +633,7 @@ class MAVLink(object):
                 msgbuf = msgbuf.tostring()
             timestamp_buf = msgbuf[-12:-6]
             link_id = msgbuf[-13]
-            (tlow, thigh) = self.mav_csum_unpacker.unpack(timestamp_buf)
+            (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf)
             timestamp = tlow + (thigh<<32)
 
             # see if the timestamp is acceptable
