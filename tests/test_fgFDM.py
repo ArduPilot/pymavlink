@@ -60,7 +60,7 @@ class fgFDMVariableListTest(unittest.TestCase):
         assert mapping.vars['longitude'].index == 0
         assert mapping.vars['longitude'].units == 'radians'
         assert mapping.vars['rpm'].index == 2
-        assert mapping.vars['rpm'].units == None
+        assert mapping.vars['rpm'].units is None
 
 
 class fgFDMTest(unittest.TestCase):

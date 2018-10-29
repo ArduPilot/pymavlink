@@ -505,7 +505,7 @@ def distance_home(GPS_RAW):
        (hasattr(GPS_RAW, 'Status')   and GPS_RAW.Status   < 2):
         return 0
 
-    if first_fix == None:
+    if first_fix is None:
         first_fix = GPS_RAW
         return 0
     return distance_two(GPS_RAW, first_fix)

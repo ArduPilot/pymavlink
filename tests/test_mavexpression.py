@@ -28,14 +28,14 @@ class ExpressionTest(unittest.TestCase):
     def test_novars(self):
         """Test the evaluate_expression functionality"""
         assert mavexpression.evaluate_expression('1+2', {}) == 3
-        assert mavexpression.evaluate_expression('4/0', {}) == None
-        assert mavexpression.evaluate_expression('A+4', {}) == None
+        assert mavexpression.evaluate_expression('4/0', {}) is None
+        assert mavexpression.evaluate_expression('A+4', {}) is None
 
     def test_vars(self):
         """Test the evaluate_expression functionality with local vars"""
         assert mavexpression.evaluate_expression('lat+10', self.varsDict) == 15.67
         assert mavexpression.evaluate_expression('4.0/speed', self.varsDict) == 0.5
-        assert mavexpression.evaluate_expression('speed+lat+wrong', self.varsDict) == None
+        assert mavexpression.evaluate_expression('speed+lat+wrong', self.varsDict) is None
         
     def test_mavextra(self):
         """Test evaluate_expression using the functions in mavextra.py"""

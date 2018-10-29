@@ -25,7 +25,7 @@ class MAVParmDict(dict):
             tstart = time.time()
             while time.time() - tstart < 1:
                 ack = mav.recv_match(type='PARAM_VALUE', blocking=False)
-                if ack == None:
+                if ack is None:
                     time.sleep(0.1)
                     continue
                 if str(name).upper() == str(ack.param_id).upper():
