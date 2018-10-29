@@ -159,7 +159,7 @@ def convert_file(mavlink_file, pcap_file):
         if next_sof > 0:
             print("skipped " + str(next_sof) + " bytes")
             if write_junk:
-                if skipped_char != None:
+                if skipped_char is not None:
                     junk = skipped_char + data[:next_sof]
                     skipped_char = None
                 write_packet(i, junk, 0x03, len(junk))

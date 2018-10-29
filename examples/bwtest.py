@@ -44,7 +44,7 @@ while True:
         #and return a new message if available
         m = master.recv_msg()
 
-        if m == None: break  #No new message
+        if m is None: break  #No new message
         
         if m.get_type() not in counts:
         #if no messages of this type received, add this type to the counts dict

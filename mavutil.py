@@ -424,7 +424,7 @@ class mavfile(object):
     def param_set_send(self, parm_name, parm_value, parm_type=None):
         '''wrapper for parameter set'''
         if self.mavlink10():
-            if parm_type == None:
+            if parm_type is None:
                 parm_type = mavlink.MAVLINK_TYPE_FLOAT
             self.mav.param_set_send(self.target_system, self.target_component,
                                     parm_name.encode('utf8'), parm_value, parm_type)
@@ -484,9 +484,9 @@ class mavfile(object):
         '''
         if self.mavlink10():
             mode = self.base_mode
-            if (enable == True):
+            if enable:
                 mode = mode | flag
-            elif (enable == False):
+            elif not enable:
                 mode = mode & ~flag
             self.mav.command_long_send(self.target_system, self.target_component,
                                            mavlink.MAV_CMD_DO_SET_MODE, 0,

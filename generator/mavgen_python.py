@@ -163,7 +163,7 @@ class MAVLink_message(object):
         return not self.__eq__(other)
 
     def __eq__(self, other):
-        if other == None:
+        if other is None:
             return False
 
         if self.get_type() != other.get_type():
@@ -555,7 +555,7 @@ class MAVLink(object):
             else:
                 m = self.__parse_char_legacy()
 
-            if m != None:
+            if m is not None:
                 self.total_packets_received += 1
                 self.__callbacks(m)
             else:

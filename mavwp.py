@@ -495,7 +495,7 @@ class MAVRallyLoader(object):
             print("Inavlid rally point number %u" % i)
             return
         self.rally_points[i-1].alt = int(alt)
-        if (break_alt != None):
+        if break_alt is not None:
             self.rally_points[i-1].break_alt = break_alt
         if change_time:
             self.last_change = time.time()
