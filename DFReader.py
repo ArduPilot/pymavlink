@@ -715,7 +715,8 @@ class DFReader_binary(DFReader):
 
             if lengths[mtype] == -1:
                 if not mtype in self.formats:
-                    print("unknown msg type 0x%02x" % mtype, file=sys.stderr)
+                    print("unknown msg type 0x%02x (%u)" % (mtype, mtype),
+                          file=sys.stderr)
                     break
                 self.offset = ofs
                 self._parse_next()
