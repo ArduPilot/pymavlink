@@ -741,10 +741,11 @@ class DFReader_binary(DFReader):
                 self.id_to_name[mfmt.type] = mfmt.name
 
             ofs += mlen
-            new_pct = (100 * ofs) // self.data_len
-            if progress_callback is not None and new_pct != pct:
-                progress_callback(new_pct)
-                pct = new_pct
+            if progress_callback is not None:
+                new_pct = (100 * ofs) // self.data_len
+                if new_pct != pct:
+                    progress_callback(new_pct)
+                    pct = new_pct
 
         for i in range(256):
             self._count += self.counts[i]
