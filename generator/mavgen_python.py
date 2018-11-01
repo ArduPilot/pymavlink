@@ -827,10 +827,9 @@ class MAVLink(object):
                     if sys.version_info.major >= 3:
                         tlist[i] = tlist[i].decode('utf-8')
                     tlist[i] = str(MAVString(tlist[i]))
-                t = tuple(tlist)
                 # construct the message object
                 try:
-                    m = type(*t)
+                    m = type(*tlist)
                 except Exception as emsg:
                     raise MAVError('Unable to instantiate MAVLink message of type %s : %s' % (type, emsg))
                 m._signed = sig_ok
