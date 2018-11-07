@@ -92,9 +92,11 @@ MAVLINK_HELPER uint8_t mavlink_sign_packet(mavlink_signing_t *signing,
 }
 
 /**
- * return new packet length for trimming payload of any trailing zero
- * bytes. Used in MAVLink2 to give simple support for variable length
- * arrays.
+ * @brief Trim payload of any trailing zero-populated bytes (MAVLink 2 only).
+ *
+ * @param payload Serialised payload buffer.
+ * @param length Length of full-width payload buffer.
+ * @return Length of payload after empty bytes trimmed.
  */
 MAVLINK_HELPER uint8_t _mav_trim_payload(const char *payload, uint8_t length)
 {
