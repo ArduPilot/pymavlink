@@ -84,6 +84,7 @@
     <xs:enumeration value="cm/s"/>     <!-- centimetres per second -->
     <xs:enumeration value="mm"/>       <!-- millimetres -->
     <xs:enumeration value="mm/s"/>     <!-- millimetres per second -->
+    <xs:enumeration value="mm/h"/>     <!-- millimetres per hour -->
     <!-- temperature -->
     <xs:enumeration value="K"/>        <!-- Kelvin -->
     <xs:enumeration value="degC"/>     <!-- degrees Celsius -->
