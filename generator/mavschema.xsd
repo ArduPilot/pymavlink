@@ -67,6 +67,7 @@
     <!-- time -->
     <xs:enumeration value="s"/>        <!-- seconds -->
     <xs:enumeration value="ds"/>       <!-- deciseconds -->
+    <xs:enumeration value="cs"/>       <!-- centiseconds -->
     <xs:enumeration value="ms"/>       <!-- milliseconds -->
     <xs:enumeration value="us"/>       <!-- microseconds -->
     <xs:enumeration value="Hz"/>       <!-- Herz -->
