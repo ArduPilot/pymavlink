@@ -124,7 +124,7 @@ last_timestamp = None
 available_types = set()
 
 # for DF logs pre-calculate types list
-match_types=None
+match_types = ['FMT']
 if types is not None and hasattr(mlog, 'name_to_id'):
     for k in mlog.name_to_id.keys():
         if match_type(k, types):
