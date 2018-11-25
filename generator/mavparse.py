@@ -262,6 +262,13 @@ class MAVXML(object):
                 check_attrs(attrs, ['index'], 'enum param')
                 self.enum[-1].entry[-1].param.append(MAVEnumParam(attrs['index']))
 
+        def is_target_system_field(m, f):
+            if f.name == 'target_system':
+                return True
+            if m.name == "MANUAL_CONTROL" and f.name == "target":
+                return True
+            return False
+
         def end_element(name):
             in_element_list.pop()
 
@@ -356,7 +363,7 @@ class MAVXML(object):
                 if f.name.find('[') != -1:
                     raise MAVParseError("invalid field name with array descriptor %s" % f.name)
                 # having flags for target_system and target_component helps a lot for routing code
-                if f.name == 'target_system':
+                if is_target_system_field(m, f):
                     m.message_flags |= FLAG_HAVE_TARGET_SYSTEM
                     m.target_system_ofs = f.wire_offset
                 elif f.name == 'target_component':
