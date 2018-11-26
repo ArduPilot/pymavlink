@@ -80,7 +80,7 @@ class MAVParmDict(dict):
             print("Saved %u parameters to %s" % (count, filename))
 
 
-    def load(self, filename, wildcard='*', mav=None, check=True):
+    def load(self, filename, wildcard='*', mav=None, check=True, use_excludes=True):
         '''load parameters from a file'''
         try:
             f = open(filename, mode='r')
@@ -99,7 +99,7 @@ class MAVParmDict(dict):
                 print("Invalid line: %s" % line)
                 continue
             # some parameters should not be loaded from files
-            if a[0] in self.exclude_load:
+            if use_excludes and a[0] in self.exclude_load:
                 continue
             if not fnmatch.fnmatch(a[0].upper(), wildcard.upper()):
                 continue
@@ -138,10 +138,10 @@ class MAVParmDict(dict):
             if fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 self.show_param_value(str(p), "%f" % self.get(p))
 
-    def diff(self, filename, wildcard='*'):
+    def diff(self, filename, wildcard='*', use_excludes=True):
         '''show differences with another parameter file'''
         other = MAVParmDict()
-        if not other.load(filename):
+        if not other.load(filename, use_excludes=use_excludes):
             return
         keys = sorted(list(set(self.keys()).union(set(other.keys()))))
         for k in keys:
