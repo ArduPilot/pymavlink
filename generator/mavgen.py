@@ -38,6 +38,7 @@ def mavgen(opts, args):
     shell scripts under Unix"""
 
     xml = []
+    all_files = set()
 
     # Enable validation by default, disabling it if explicitly requested
     if opts.validate:
@@ -60,6 +61,41 @@ def mavgen(opts, args):
         except:
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
             opts.validate = False
+
+
+    def expand_includes():
+        """Expand includes in current list of all files, ignoring those already parsed."""
+        for x in xml[:]:
+            for i in x.include:
+                fname = os.path.join(os.path.dirname(x.filename), i)
+
+                # Only parse new include files
+                if fname in all_files:
+                    continue
+                all_files.add(fname)
+
+                # Validate XML file with XSD file if possible.
+                if opts.validate:
+                    print("Validating %s" % fname)
+                    if not mavgen_validate(fname):
+                        return False
+                else:
+                    print("Validation skipped for %s." % fname)
+
+                # Parsing
+                print("Parsing %s" % fname)
+                xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
+
+                # include message lengths and CRCs too
+                x.message_crcs.update(xml[-1].message_crcs)
+                x.message_lengths.update(xml[-1].message_lengths)
+                x.message_min_lengths.update(xml[-1].message_min_lengths)
+                x.message_flags.update(xml[-1].message_flags)
+                x.message_target_system_ofs.update(xml[-1].message_target_system_ofs)
+                x.message_target_component_ofs.update(xml[-1].message_target_component_ofs)
+                x.message_names.update(xml[-1].message_names)
+                x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
+
 
     def mavgen_validate(xmlfile):
         """Uses lxml to validate an XML file. We define mavgen_validate
@@ -90,6 +126,11 @@ def mavgen(opts, args):
 
     # Process all XML files, validating them as necessary.
     for fname in args:
+        #Only add each dialect file argument once.
+        if fname in all_files:
+            continue
+        all_files.add(fname)
+
         if opts.validate:
             print("Validating %s" % fname)
             if not mavgen_validate(fname):
@@ -101,31 +142,12 @@ def mavgen(opts, args):
         xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
 
     # expand includes
-    for x in xml[:]:
-        for i in x.include:
-            fname = os.path.join(os.path.dirname(x.filename), i)
-
-            # Validate XML file with XSD file if possible.
-            if opts.validate:
-                print("Validating %s" % fname)
-                if not mavgen_validate(fname):
-                    return False
-            else:
-                print("Validation skipped for %s." % fname)
-
-            # Parsing
-            print("Parsing %s" % fname)
-            xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
-
-            # include message lengths and CRCs too
-            x.message_crcs.update(xml[-1].message_crcs)
-            x.message_lengths.update(xml[-1].message_lengths)
-            x.message_min_lengths.update(xml[-1].message_min_lengths)
-            x.message_flags.update(xml[-1].message_flags)
-            x.message_target_system_ofs.update(xml[-1].message_target_system_ofs)
-            x.message_target_component_ofs.update(xml[-1].message_target_component_ofs)
-            x.message_names.update(xml[-1].message_names)
-            x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
+    for i in range(5):
+        len_allfiles=len(all_files)
+        expand_includes()
+        if len(all_files) == len_allfiles:
+            #Stop when loop doesn't add any more included files
+            break
 
     # work out max payload size across all includes
     largest_payload = max(x.largest_payload for x in xml) if xml else 0
