@@ -975,6 +975,82 @@ class mavudp(mavfile):
 
         return m
 
+class mavmcast(mavfile):
+    '''a UDP multicast mavlink socket'''
+    def __init__(self, device, broadcast=False, source_system=255, source_component=0, use_native=default_native):
+        a = device.split(':')
+        mcast_ip = "239.255.145.50"
+        mcast_port = 14550
+        if len(a) == 1 and len(a[0]) > 0:
+            mcast_port = int(a[0])
+        elif len(a) > 1:
+            mcast_ip = a[0]
+            mcast_port = int(a[1])
+
+        # first the receiving socket. We use separate sending and receiving
+        # sockets so we can use the port number of the sending socket to detect
+        # packets from ourselves
+        self.port = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        self.port.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.port.bind((mcast_ip, mcast_port))
+        mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
+        self.port.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        self.port.setblocking(0)
+        set_close_on_exec(self.port.fileno())
+
+        # now the sending socket
+        self.port_out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.port_out.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.port_out.setblocking(0)
+        self.port_out.connect((mcast_ip, mcast_port))
+        set_close_on_exec(self.port_out.fileno())
+        self.myport = None
+
+        mavfile.__init__(self, self.port.fileno(), device,
+                         source_system=source_system, source_component=source_component,
+                         input=False, use_native=use_native)
+
+    def close(self):
+        self.port.close()
+        self.port_out.close()
+
+    def recv(self,n=None):
+        try:
+            data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
+            if self.myport is None:
+                try:
+                    (myaddr,self.myport) = self.port_out.getsockname()
+                except Exception:
+                    pass
+        except socket.error as e:
+            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
+                return ""
+            raise
+        if self.myport == new_addr[1]:
+            # data from ourselves, discard
+            return ''
+        return data
+
+    def write(self, buf):
+        try:
+            self.port_out.send(buf)
+        except socket.error as e:
+            pass
+
+    def recv_msg(self):
+        '''message receive routine for UDP link'''
+        self.pre_message()
+        s = self.recv()
+        if len(s) > 0:
+            if self.first_byte:
+                self.auto_mavlink_version(s)
+
+        m = self.mav.parse_char(s)
+        if m is not None:
+            self.post_message(m)
+
+        return m
+    
 
 class mavtcp(mavfile):
     '''a TCP mavlink socket'''
@@ -1431,6 +1507,8 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
     # For legacy purposes we accept the following syntax and let the caller to specify direction
     if device.startswith('udp:'):
         return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native)
+    if device.startswith('mcast:'):
+        return mavmcast(device[6:], source_system=source_system, source_component=source_component, use_native=use_native)
 
     if device.lower().endswith('.bin') or device.lower().endswith('.px4log'):
         # support dataflash logs
