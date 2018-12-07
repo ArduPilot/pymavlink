@@ -637,7 +637,7 @@ def gps_velocity_old(GPS_RAW_INT):
 def gps_velocity_body_(GLOBAL_POSITION_INT, ATTITUDE):
     '''return GPS velocity vector in body frame'''
     r = rotation(ATTITUDE)
-    return r * Vector3(GLOBAL_POSITION_INT.vx, GLOBAL_POSITION_INT.vy, GLOBAL_POSITION_INT.vz) * 0.01
+    return r.transposed() * Vector3(GLOBAL_POSITION_INT.vx, GLOBAL_POSITION_INT.vy, GLOBAL_POSITION_INT.vz) * 0.01
 
 
 def gps_velocity_body_old(GPS_RAW_INT, ATTITUDE):
