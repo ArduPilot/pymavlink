@@ -109,6 +109,22 @@ def set_dialect(dialect):
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
+class mavfile_state(object):
+    '''state for a particular system id'''
+    def __init__(self):
+        self.params = {}
+        self.messages = { 'MAV' : self }
+        self.flightmode = "UNKNOWN"
+        self.vehicle_type = "UNKNOWN"
+        self.mav_type = mavlink.MAV_TYPE_FIXED_WING
+        self.base_mode = 0
+
+        if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
+            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
+            mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
+        else:
+            self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
+
 class mavfile(object):
     '''a generic mavlink port'''
     def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True, use_native=default_native):
@@ -116,16 +132,19 @@ class mavfile(object):
         if input:
             mavfile_global = self
         self.fd = fd
+        self.sysid = (0,0)
         self.address = address
-        self.messages = { 'MAV' : self }
-        if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
-            mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
-        else:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
-        self.params = {}
-        self.target_system = 0
-        self.target_component = 0
+        self.timestamp = 0
+        self.last_seq = {}
+        self.mav_loss = 0
+        self.mav_count = 0
+        self.param_fetch_start = 0
+
+        # state for each (sysid,compid) tuple
+        self.sysid_state = {}
+        self.sysid_state[self.sysid] = mavfile_state()
+
+        # status of param fetch, indexed by sysid,compid tuple
         self.source_system = source_system
         self.source_component = source_component
         self.first_byte = True
@@ -134,29 +153,78 @@ class mavfile(object):
         self.mav.robust_parsing = self.robust_parsing
         self.logfile = None
         self.logfile_raw = None
-        self.param_fetch_in_progress = False
-        self.param_fetch_complete = False
         self.start_time = time.time()
-        self.flightmode = "UNKNOWN"
-        self.vehicle_type = "UNKNOWN"
-        self.mav_type = mavlink.MAV_TYPE_FIXED_WING
-        self.base_mode = 0
-        self.timestamp = 0
         self.message_hooks = []
         self.idle_hooks = []
         self.uptime = 0.0
         self.notimestamps = notimestamps
         self._timestamp = None
-        self.ground_pressure = None
-        self.ground_temperature = None
-        self.altitude = 0
         self.WIRE_PROTOCOL_VERSION = mavlink.WIRE_PROTOCOL_VERSION
-        self.last_seq = {}
-        self.mav_loss = 0
-        self.mav_count = 0
         self.stop_on_EOF = False
         self.portdead = False
 
+    @property
+    def target_system(self):
+        return self.sysid[0]
+
+    @property
+    def target_component(self):
+        return self.sysid[1]
+    
+    @target_system.setter
+    def target_system(self, value):
+        new_sysid = (value, self.sysid[1])
+        if not new_sysid in self.sysid_state:
+            self.sysid_state[new_sysid] = mavfile_state()
+        self.sysid = new_sysid
+
+    @target_component.setter
+    def target_component(self, value):
+        new_sysid = (self.sysid[0], value)
+        if not new_sysid in self.sysid_state:
+            self.sysid_state[new_sysid] = mavfile_state()
+        self.sysid = new_sysid
+
+    @property
+    def params(self):
+        return getattr(self.sysid_state[self.sysid],'params')
+
+    @property
+    def messages(self):
+        return getattr(self.sysid_state[self.sysid],'messages')
+
+    @property
+    def flightmode(self):
+        return getattr(self.sysid_state[self.sysid],'flightmode')
+
+    @flightmode.setter
+    def flightmode(self, value):
+        setattr(self.sysid_state[self.sysid],'flightmode',value)
+
+    @property
+    def vehicle_type(self):
+        return getattr(self.sysid_state[self.sysid],'vehicle_type')
+
+    @vehicle_type.setter
+    def vehicle_type(self, value):
+        setattr(self.sysid_state[self.sysid],'vehicle_type',value)
+
+    @property
+    def mav_type(self):
+        return getattr(self.sysid_state[self.sysid],'mav_type')
+
+    @mav_type.setter
+    def mav_type(self, value):
+        setattr(self.sysid_state[self.sysid],'mav_type',value)
+    
+    @property
+    def base_mode(self):
+        return getattr(self.sysid_state[self.sysid],'base_mode')
+
+    @base_mode.setter
+    def base_mode(self, value):
+        setattr(self.sysid_state[self.sysid],'base_mode',value)
+    
     def auto_mavlink_version(self, buf):
         '''auto-switch mavlink protocol version'''
         global mavlink
@@ -258,7 +326,13 @@ class mavfile(object):
         src_system = msg.get_srcSystem()
         src_component = msg.get_srcComponent()
         src_tuple = (src_system, src_component)
+
         radio_tuple = (ord('3'), ord('D'))
+
+        if not src_tuple in self.sysid_state:
+            # we've seen a new tuple
+            self.sysid_state[src_tuple] = mavfile_state()
+
         if not (src_tuple == radio_tuple or msg.get_type() == 'BAD_DATA'):
             if not src_tuple in self.last_seq:
                 last_seq = -1
@@ -275,17 +349,15 @@ class mavfile(object):
         
         self.timestamp = msg._timestamp
         if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
-            self.target_system = msg.get_srcSystem()
-            self.target_component = msg.get_srcComponent()
+            if self.sysid == (0,0):
+                # lock onto id tuple of first vehicle heartbeat
+                self.sysid = src_tuple
             if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
                 self.flightmode = mode_string_v10(msg)
                 self.mav_type = msg.type
                 self.base_mode = msg.base_mode
         elif type == 'PARAM_VALUE':
             self.params[msg.param_id] = msg.param_value
-            if msg.param_index+1 == msg.param_count:
-                self.param_fetch_in_progress = False
-                self.param_fetch_complete = True
         elif type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
             self.flightmode = mode_string_v09(msg)
         elif type == 'GPS_RAW':
@@ -398,11 +470,10 @@ class mavfile(object):
 
     def param_fetch_all(self):
         '''initiate fetch of all parameters'''
-        if time.time() - getattr(self, 'param_fetch_start', 0) < 2.0:
+        if time.time() - self.param_fetch_start < 2.0:
             # don't fetch too often
             return
         self.param_fetch_start = time.time()
-        self.param_fetch_in_progress = True
         self.mav.param_request_list_send(self.target_system, self.target_component)
 
     def param_fetch_one(self, name):
