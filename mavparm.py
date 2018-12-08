@@ -4,7 +4,8 @@ module for loading/saving sets of mavlink parameters
 from __future__ import print_function
 
 
-import fnmatch, math, time
+import fnmatch, math, time, struct
+from pymavlink import mavutil
 
 class MAVParmDict(dict):
     def __init__(self, *args):
@@ -16,12 +17,34 @@ class MAVParmDict(dict):
         self.mindelta = 0.000001
 
 
-    def mavset(self, mav, name, value, retries=3):
+    def mavset(self, mav, name, value, retries=3, parm_type=None):
         '''set a parameter on a mavlink connection'''
         got_ack = False
+
+        if parm_type is not None and parm_type != mavutil.mavlink.MAV_PARAM_TYPE_REAL32:
+            # need to encode as a float for sending
+            if parm_type == mavutil.mavlink.MAV_PARAM_TYPE_UINT8:
+                vstr = struct.pack(">xxxB", int(value))
+            elif parm_type == mavutil.mavlink.MAV_PARAM_TYPE_INT8:
+                vstr = struct.pack(">xxxb", int(value))
+            elif parm_type == mavutil.mavlink.MAV_PARAM_TYPE_UINT16:
+                vstr = struct.pack(">xxH", int(value))
+            elif parm_type == mavutil.mavlink.MAV_PARAM_TYPE_INT16:
+                vstr = struct.pack(">xxh", int(value))
+            elif parm_type == mavutil.mavlink.MAV_PARAM_TYPE_UINT32:
+                vstr = struct.pack(">I", int(value))
+            elif parm_type == mavutil.mavlink.MAV_PARAM_TYPE_INT32:
+                vstr = struct.pack(">i", int(value))
+            else:
+                print("can't send %s of type %u" % (name, parm_type))
+                return False
+            vfloat, = struct.unpack(">f", vstr)
+        else:
+            vfloat = float(value)
+                
         while retries > 0 and not got_ack:
             retries -= 1
-            mav.param_set_send(name.upper(), float(value))
+            mav.param_set_send(name.upper(), vfloat, parm_type=parm_type)
             tstart = time.time()
             while time.time() - tstart < 1:
                 ack = mav.recv_match(type='PARAM_VALUE', blocking=False)
@@ -33,7 +56,7 @@ class MAVParmDict(dict):
                     self.__setitem__(name, float(value))
                     break
         if not got_ack:
-            print("timeout setting %s to %f" % (name, float(value)))
+            print("timeout setting %s to %f" % (name, vfloat))
             return False
         return True
 
@@ -46,7 +69,11 @@ class MAVParmDict(dict):
         count = 0
         for p in k:
             if p and fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
-                f.write("%-16.16s %f\n" % (p, self.__getitem__(p)))
+                value = self.__getitem__(p)
+                if isinstance(value, float):
+                    f.write("%-16.16s %f\n" % (p, value))
+                else:
+                    f.write("%-16.16s %s\n" % (p, str(value)))
                 count += 1
         f.close()
         if verbose:
@@ -120,11 +147,12 @@ class MAVParmDict(dict):
         for k in keys:
             if not fnmatch.fnmatch(str(k).upper(), wildcard.upper()):
                 continue
+            value = float(self[k])
             if not k in other:
-                print("%-16.16s              %12.4f" % (k, self[k]))
+                print("%-16.16s              %12.4f" % (k, value))
             elif not k in self:
                 print("%-16.16s %12.4f" % (k, other[k]))
             elif abs(self[k] - other[k]) > self.mindelta:
-                print("%-16.16s %12.4f %12.4f" % (k, other[k], self[k]))
+                print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
                 
         
