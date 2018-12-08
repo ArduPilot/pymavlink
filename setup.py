@@ -13,7 +13,7 @@ except LookupError:
 from setuptools import setup, Extension
 import glob, os, shutil, fnmatch, platform, sys
 
-version = '2.3.0'
+version = '2.3.1'
 
 
 def generate_content():
