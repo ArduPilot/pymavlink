@@ -147,12 +147,13 @@ class MAVParmDict(dict):
         for k in keys:
             if not fnmatch.fnmatch(str(k).upper(), wildcard.upper()):
                 continue
-            value = float(self[k])
             if not k in other:
+                value = float(self[k])
                 print("%-16.16s              %12.4f" % (k, value))
             elif not k in self:
-                print("%-16.16s %12.4f" % (k, other[k]))
+                print("%-16.16s %12.4f" % (k, float(other[k])))
             elif abs(self[k] - other[k]) > self.mindelta:
+                value = float(self[k])
                 print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
                 
         
