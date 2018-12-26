@@ -1808,6 +1808,7 @@ mode_mapping_apm = {
     19 : 'QLOITER',
     20 : 'QLAND',
     21 : 'QRTL',
+    22 : 'QAUTOTUNE',
     }
 mode_mapping_acm = {
     0 : 'STABILIZE',
