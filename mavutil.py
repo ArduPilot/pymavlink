@@ -1833,6 +1833,7 @@ mode_mapping_acm = {
     20 : 'GUIDED_NOGPS',
     21 : 'SMART_RTL',
     22 : 'FLOWHOLD',
+    23 : 'FOLLOW',
 }
 mode_mapping_rover = {
     0 : 'MANUAL',
