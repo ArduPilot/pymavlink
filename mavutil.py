@@ -195,7 +195,7 @@ class mavfile(object):
         if value != self.param_sysid[1]:
             self.param_sysid = (self.param_sysid[0], value)
             if not self.param_sysid in self.param_state:
-                self.param_state[self.param_state] = param_state()
+                self.param_state[self.param_sysid] = param_state()
 
     @property
     def params(self):
