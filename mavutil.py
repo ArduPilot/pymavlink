@@ -1485,7 +1485,7 @@ class mavmmaplog(mavlogfile):
             self.offset = smallest_offset
             self.f.seek(smallest_offset)
 
-    def recv_match(self, condition=None, type=None, blocking=False):
+    def recv_match(self, condition=None, type=None, blocking=False, timeout=None):
         '''recv the next message that matches the given condition
         type can be a string or a list of strings'''
         if type is not None:
@@ -1498,6 +1498,14 @@ class mavmmaplog(mavlogfile):
                 self.skip_to_type(type)
             m = self.recv_msg()
             if m is None:
+                if blocking:
+                    for hook in self.idle_hooks:
+                        hook(self)
+                    if timeout is None:
+                        self.select(0.05)
+                    else:
+                        self.select(timeout/2)
+                    continue
                 return None
             if type is not None and not m.get_type() in type:
                 continue
