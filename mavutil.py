@@ -117,6 +117,7 @@ class mavfile_state(object):
         self.vehicle_type = "UNKNOWN"
         self.mav_type = mavlink.MAV_TYPE_FIXED_WING
         self.base_mode = 0
+        self.armed = False # canonical arm state for the vehicle as a whole
 
         if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
             self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
@@ -372,6 +373,8 @@ class mavfile(object):
                 self.flightmode = mode_string_v10(msg)
                 self.mav_type = msg.type
                 self.base_mode = msg.base_mode
+                self.sysid_state[self.sysid].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+
         elif type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
@@ -812,10 +815,7 @@ class mavfile(object):
 
     def motors_armed(self):
         '''return true if motors armed'''
-        if not 'HEARTBEAT' in self.messages:
-            return False
-        m = self.messages['HEARTBEAT']
-        return (m.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
+        return self.sysid_state[self.sysid].armed
 
     def motors_armed_wait(self):
         '''wait for motors to be armed'''
