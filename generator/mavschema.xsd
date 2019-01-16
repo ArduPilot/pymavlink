@@ -31,6 +31,7 @@
         <xs:pattern value="\d{1,10}"/> <!-- base 10 int -->
         <xs:pattern value="0[xX][0-9a-fA-F]{1,8}"/> <!-- base 16 -->
         <xs:pattern value="0[bB][0-1]{1,32}"/> <!-- base 1 -->
+        <xs:pattern value="NaN"/> <!-- Allow not-a-number as a default (for params) -->
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
@@ -149,6 +150,7 @@
 <xs:attribute name="increment" type="xs:float"/>                       <!-- parameter increment -->
 <xs:attribute name="minValue" type="xs:float"/>                        <!-- parameter minimum value -->
 <xs:attribute name="maxValue" type="xs:float"/>                        <!-- parameter maximum value -->
+<xs:attribute name="reserved" type="xs:boolean" default="false"/>      <!-- parameter is reserved -->
 
 <!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
 <xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- entry has lat/lon/alt location -->
@@ -165,6 +167,8 @@
         <xs:attribute ref="increment"/>
         <xs:attribute ref="minValue"/>
         <xs:attribute ref="maxValue"/>
+        <xs:attribute ref="reserved"/>
+        <xs:attribute ref="default"/>
     </xs:complexType>
 </xs:element>
 
