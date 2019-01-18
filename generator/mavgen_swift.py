@@ -59,12 +59,14 @@ def generate_header(outf, filelist, xml_list, filename):
       'FILELIST' : ", ".join(filelist),
       'PARSE_TIME' : xml_list[0].parse_time})
 
-def generate_enums(directory, filelist, xml_list, enums, msgs):
+def generate_enums(directory, filelist, xml_list, enums):
     """Iterate through all enums and create Swift equivalents"""
 
     print("Generating Enumerations")
 
     for enum in enums:
+        if enum.is_a_bitmask:
+            continue
         filename = "%s%sEnum.swift" % (enum.swift_name, enum.basename)
         filepath = os.path.join(directory, filename)
         outf = open(filepath, "w")
@@ -75,6 +77,40 @@ ${{entry:${formatted_description}\tcase ${swift_name} = ${value}\n}}
 }
 
 extension ${swift_name}: Enumeration {
+    public static var typeName = "${name}"
+    public static var typeDescription = "${entity_description}"
+    public static var allMembers = [${all_entities}]
+    public static var membersDescriptions = [${entities_info}]
+    public static var enumEnd = UInt(${enum_end})
+}
+""", enum)
+        outf.close()
+
+def generate_optionsets(directory, filelist, xml_list, enums):
+    """Iterate through all enums and create Swift equivalents"""
+
+    print("Generating Enumerations")
+
+    for enum in enums:
+        if not enum.is_a_bitmask:
+            continue
+        for entry in enum.entry:
+            entry.parent_swift_name = enum.swift_name
+        filename = "%s%sOptionSet.swift" % (enum.swift_name, enum.basename)
+        filepath = os.path.join(directory, filename)
+        outf = open(filepath, "w")
+        generate_header(outf, filelist, xml_list, filename)
+        t.write(outf, """
+${formatted_description}public struct ${swift_name}: OptionSet {
+\tpublic let rawValue: ${raw_value_type}
+
+\tpublic init(rawValue: ${raw_value_type}) {
+\t\tself.rawValue = rawValue
+\t}
+${{entry:${formatted_description}\tpublic static let ${swift_name} = ${parent_swift_name}(rawValue: ${value})\n}}
+}
+
+extension ${swift_name}: MAVLinkBitmask {
     public static var typeName = "${name}"
     public static var typeDescription = "${entity_description}"
     public static var allMembers = [${all_entities}]
@@ -204,6 +240,23 @@ def lower_camel_case_from_underscores(string):
 
     return string
 
+def contains_a_bitmask(enums, enumName):
+    for enum in enums:
+        if enum.name == enumName:
+            return enum.is_a_bitmask
+    return False
+
+def enum_is_a_bitmask(enum):
+    values = []
+    for entry in enum.entry:
+        values.append(entry.value)
+    values.sort()
+    for i, value in enumerate(values):
+        if 2 ** i != value:
+            return False
+    return True
+
+
 def generate_enums_type_info(enums, msgs):
     """Add camel case swift names for enums an entries, descriptions and sort enums alphabetically"""
 
@@ -246,10 +299,11 @@ def generate_enums_type_info(enums, msgs):
         enum.all_entities = ", ".join(all_entities)
         enum.entities_info = ", ".join(entities_info)
         enum.entity_description = enum.description.replace('"','\\"')
+        enum.is_a_bitmask = enum_is_a_bitmask(enum)
 
     enums.sort(key = lambda enum : enum.swift_name)
 
-def generate_messages_type_info(msgs):
+def generate_messages_type_info(msgs, enums):
     """Add proper formated variable names, initializers and type names to use in templates"""
 
     for msg in msgs:
@@ -270,8 +324,13 @@ def generate_messages_type_info(msgs):
             # configure fields initializers
             if field.enum:
                 # handle enums
+
+
                 field.return_type = camel_case_from_underscores(field.enum)
-                field.initial_value = "try data.enumeration(at: %u)" % field.wire_offset
+                if contains_a_bitmask(enums, field.enum):
+                    field.initial_value = "try data.bitmask(at: %u)" % field.wire_offset
+                else:
+                    field.initial_value = "try data.enumeration(at: %u)" % field.wire_offset
                 field.payload_setter = "set(%s, at: %u)" % (field.pack_accessor, field.wire_offset)
             elif field.array_length > 0:
                 if field.return_type == "String":
@@ -314,8 +373,9 @@ def generate(basename, xml_list):
         filelist.append(os.path.basename(xml.filename))
     
     generate_enums_type_info(enums, msgs)
-    generate_messages_type_info(msgs)
+    generate_messages_type_info(msgs, enums)
 
     generate_mavlink(basename, filelist, xml_list, msgs)
-    generate_enums(basename, filelist, xml_list, enums, msgs)
+    generate_enums(basename, filelist, xml_list, enums)
+    generate_optionsets(basename, filelist, xml_list, enums)
     generate_messages(basename, filelist, xml_list, msgs)
