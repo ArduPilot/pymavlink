@@ -108,7 +108,8 @@ extension Message {
     }
     
     public var description: String {
-        let describeField: ((String, Any)) -> String = { (name, value) in
+        let describeField: ((String, Any)) -> String = { (arg) in
+            let (name, value) = arg
             let valueString = value is String ? "\"\(value)\"" : value
             return "\(name): \(valueString)"
         }
@@ -117,7 +118,8 @@ extension Message {
     }
     
     public var debugDescription: String {
-        let describeFieldVerbose: ((String, Any)) -> String = { (name, value) in
+        let describeFieldVerbose: ((String, Any)) -> String = { (arg) in
+            let (name, value) = arg
             let valueString = value is String ? "\"\(value)\"" : value
             let (_, _, _, _, description) = Self.fieldDefinitions.filter { $0.name == name }.first!
             return "\(name) = \(valueString) : \(description)"
@@ -784,11 +786,11 @@ public struct Checksum {
     }
     
     public var lowByte: UInt8 {
-        return UInt8(truncatingBitPattern: value)
+        return UInt8(truncatingIfNeeded: value)
     }
     
     public var highByte: UInt8 {
-        return UInt8(truncatingBitPattern: value >> 8)
+        return UInt8(truncatingIfNeeded: value >> 8)
     }
     
     public private(set) var value: UInt16 = 0
@@ -808,7 +810,7 @@ public struct Checksum {
     ///
     /// - parameter char: New char to hash
     mutating func accumulate(_ char: UInt8) {
-        var tmp: UInt8 = char ^ UInt8(truncatingBitPattern: value)
+        var tmp: UInt8 = char ^ UInt8(truncatingIfNeeded: value)
         tmp ^= (tmp << 4)
         value = (UInt16(value) >> 8) ^ (UInt16(tmp) << 8) ^ (UInt16(tmp) << 3) ^ (UInt16(tmp) >> 4)
     }
@@ -930,7 +932,7 @@ extension Data {
         }
         
         let bytes = subdata(in: range)
-        let emptySubSequence = Data.SubSequence(base: Data(), bounds: 0 ..< 0)
+        let emptySubSequence = Data.SubSequence(capacity: 0)
         let firstSubSequence = bytes.split(separator: 0x0, maxSplits: 1, omittingEmptySubsequences: false).first ?? emptySubSequence
         
         guard let string = String(bytes: firstSubSequence, encoding: .ascii) else {
