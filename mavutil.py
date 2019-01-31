@@ -21,6 +21,8 @@ try:
 except Exception:
     pass
 
+from .generator import mavparse
+
 # maximum packet length for a single receive call - use the UDP limit
 UDP_MAX_PACKET_LEN = 65535
 
@@ -82,7 +84,6 @@ def set_dialect(dialect):
     For example, set_dialect("ardupilotmega")
     '''
     global mavlink, current_dialect
-    from .generator import mavparse
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
         modname = "pymavlink.dialects.v20." + dialect
