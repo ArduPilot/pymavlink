@@ -27,7 +27,7 @@ DEFAULT_ERROR_LIMIT = 200
 DEFAULT_VALIDATE = True
 DEFAULT_STRICT_UNITS = False
 
-MAXIMUM_INCLUDE_FILE_NESTING =  5
+MAXIMUM_INCLUDE_FILE_NESTING = 5
 
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
 supportedLanguages = ["C", "CS", "JavaScript", "Python", "WLua", "ObjC", "Swift", "Java", "C++11"]
@@ -64,7 +64,6 @@ def mavgen(opts, args):
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
             opts.validate = False
 
-
     def expand_includes():
         """Expand includes in current list of all files, ignoring those already parsed."""
         for x in xml[:]:
@@ -98,7 +97,6 @@ def mavgen(opts, args):
                 x.message_names.update(xml[-1].message_names)
                 x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
 
-
     def mavgen_validate(xmlfile):
         """Uses lxml to validate an XML file. We define mavgen_validate
            here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
@@ -128,7 +126,7 @@ def mavgen(opts, args):
 
     # Process all XML files, validating them as necessary.
     for fname in args:
-        #Only add each dialect file argument once.
+        # only add each dialect file argument once.
         if fname in all_files:
             continue
         all_files.add(fname)
@@ -148,7 +146,7 @@ def mavgen(opts, args):
         len_allfiles = len(all_files)
         expand_includes()
         if len(all_files) == len_allfiles:
-            #Stop when loop doesn't add any more included files
+            # stop when loop doesn't add any more included files
             break
 
     # work out max payload size across all includes
@@ -162,7 +160,7 @@ def mavgen(opts, args):
     print("Found %u MAVLink message types in %u XML files" % (
         mavparse.total_msgs(xml), len(xml)))
 
-    # Convert language option to lowercase and validate
+    # convert language option to lowercase and validate
     opts.language = opts.language.lower()
     if opts.language == 'python':
         from . import mavgen_python
@@ -196,6 +194,7 @@ def mavgen(opts, args):
 
     return True
 
+
 # build all the dialects in the dialects subpackage
 class Opts(object):
     def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
@@ -205,6 +204,7 @@ class Opts(object):
         self.output = output
         self.validate = validate
         self.strict_units = strict_units
+
 
 def mavgen_python_dialect(dialect, wire_protocol):
     '''generate the python code on the fly for a MAVLink dialect'''
