@@ -117,6 +117,8 @@
     <xs:enumeration value="hJ"/>       <!-- hecto-Joule -->
     <!-- force -->
     <xs:enumeration value="mG"/>       <!-- milli-G -->
+    <!-- mass -->
+    <xs:enumeration value="g"/>       <!-- grams -->
     <!-- pressure -->
     <xs:enumeration value="Pa"/>       <!-- Pascal -->
     <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
