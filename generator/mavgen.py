@@ -27,6 +27,8 @@ DEFAULT_ERROR_LIMIT = 200
 DEFAULT_VALIDATE = True
 DEFAULT_STRICT_UNITS = False
 
+MAXIMUM_INCLUDE_FILE_NESTING =  5
+
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
 supportedLanguages = ["C", "CS", "JavaScript", "Python", "WLua", "ObjC", "Swift", "Java", "C++11"]
 
@@ -142,8 +144,8 @@ def mavgen(opts, args):
         xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
 
     # expand includes
-    for i in range(5):
-        len_allfiles=len(all_files)
+    for i in range(MAXIMUM_INCLUDE_FILE_NESTING):
+        len_allfiles = len(all_files)
         expand_includes()
         if len(all_files) == len_allfiles:
             #Stop when loop doesn't add any more included files
