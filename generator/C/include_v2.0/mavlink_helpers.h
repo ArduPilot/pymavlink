@@ -243,11 +243,13 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 		buf[9] = (msg->msgid >> 16) & 0xFF;
 	}
 	
-	msg->checksum = crc_calculate(&buf[1], header_len-1);
-	crc_accumulate_buffer(&msg->checksum, _MAV_PAYLOAD(msg), msg->len);
-	crc_accumulate(crc_extra, &msg->checksum);
-	mavlink_ck_a(msg) = (uint8_t)(msg->checksum & 0xFF);
-	mavlink_ck_b(msg) = (uint8_t)(msg->checksum >> 8);
+	uint16_t checksum = crc_calculate(&buf[1], header_len-1);
+	crc_accumulate_buffer(&checksum, _MAV_PAYLOAD(msg), msg->len);
+	crc_accumulate(crc_extra, &checksum);
+	mavlink_ck_a(msg) = (uint8_t)(checksum & 0xFF);
+	mavlink_ck_b(msg) = (uint8_t)(checksum >> 8);
+
+	msg->checksum = checksum;
 
 	if (signing) {
 		mavlink_sign_packet(status->signing,
