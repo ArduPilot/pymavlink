@@ -470,12 +470,16 @@ union __mavlink_bitfield {
 
 MAVLINK_HELPER void mavlink_start_checksum(mavlink_message_t* msg)
 {
-	crc_init(&msg->checksum);
+	uint16_t crcTmp = 0;
+	crc_init(&crcTmp);
+	msg->checksum = crcTmp;
 }
 
 MAVLINK_HELPER void mavlink_update_checksum(mavlink_message_t* msg, uint8_t c)
 {
-	crc_accumulate(c, &msg->checksum);
+	uint16_t checksum = msg->checksum;
+	crc_accumulate(c, &checksum);
+	msg->checksum = checksum;
 }
 
 /*
