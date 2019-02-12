@@ -71,6 +71,7 @@
     <xs:enumeration value="ms"/>       <!-- milliseconds -->
     <xs:enumeration value="us"/>       <!-- microseconds -->
     <xs:enumeration value="Hz"/>       <!-- Herz -->
+    <xs:enumeration value="MHz"/>      <!-- Mega-Herz -->
     <!-- distance -->
     <xs:enumeration value="km"/>       <!-- kilometres -->
     <xs:enumeration value="dam"/>      <!-- decametres -->
@@ -128,6 +129,7 @@
     <xs:enumeration value="d%"/>       <!-- decipercent -->
     <xs:enumeration value="c%"/>       <!-- centipercent -->
     <xs:enumeration value="dB"/>       <!-- Deci-Bell -->
+    <xs:enumeration value="dBm"/>      <!-- Deci-Bell-milliwatts-->
     <!-- digital -->
     <xs:enumeration value="KiB"/>      <!-- Kibibyte (1024 bytes) -->
     <xs:enumeration value="KiB/s"/>    <!-- Kibibyte (1024 bytes) per second -->
