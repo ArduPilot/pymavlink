@@ -323,6 +323,26 @@ class MAVXML(object):
         f.close()
    
 
+        #Post process to add reserved params (for docs)
+        for current_enum in self.enum:
+            if not 'MAV_CMD' in current_enum.name:
+                continue
+            print(current_enum.name)
+            for enum_entry in current_enum.entry:
+                print(enum_entry.name)
+                if len(enum_entry.param) == 7:
+                    continue
+                params_dict=dict()
+                for param_index in range (1,8):
+                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='', 
+                                                        minValue='', maxValue='', default='0', reserved='True')
+
+                for a_param in enum_entry.param:
+                    params_dict[int(a_param.index)] = a_param
+                enum_entry.param=params_dict.values()
+                
+
+
         self.message_lengths = {}
         self.message_min_lengths = {}
         self.message_flags = {}
