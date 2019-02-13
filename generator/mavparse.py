@@ -139,9 +139,27 @@ class MAVType(object):
         return len(self.fields[:self.extensions_start])
 
 class MAVEnumParam(object):
-    def __init__(self, index, description=''):
+    def __init__(self, index, description='', label='', units='', enum='', increment='', minValue='', maxValue='', reserved=False, default=''):
         self.index = index
         self.description = description
+        self.label = label
+        self.units = units
+        self.enum = enum
+        self.increment = increment
+        self.minValue = minValue
+        self.maxValue = maxValue
+        self.reserved = reserved
+        self.default = default
+        if self.reserved and not self.default:
+            self.default = '0'
+        self.set_description(description)
+
+    def set_description(self, description):
+        if not description.strip() and self.reserved:
+            self.description = 'Reserved (default:%s)' % self.default
+        else:
+            self.description = description
+        self.description = '%s: %s' % (self.index, self.description)
 
 class MAVEnumEntry(object):
     def __init__(self, name, value, description='', end_marker=False, autovalue=False, origin_file='', origin_line=0):
@@ -260,7 +278,13 @@ class MAVXML(object):
                 self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, autovalue, self.filename, p.CurrentLineNumber))
             elif in_element == "mavlink.enums.enum.entry.param":
                 check_attrs(attrs, ['index'], 'enum param')
-                self.enum[-1].entry[-1].param.append(MAVEnumParam(attrs['index']))
+                self.enum[-1].entry[-1].param.append(
+                                                MAVEnumParam(attrs['index'], 
+                                                        label=attrs.get('label', ''), units=attrs.get('units', ''), 
+                                                        enum=attrs.get('enum', ''), increment=attrs.get('increment', ''), 
+                                                        minValue=attrs.get('minValue', ''), 
+                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'), 
+                                                        reserved=attrs.get('reserved', False) ))
 
         def is_target_system_field(m, f):
             if f.name == 'target_system':
@@ -284,7 +308,7 @@ class MAVXML(object):
             elif in_element == "mavlink.enums.enum.entry.description":
                 self.enum[-1].entry[-1].description += data
             elif in_element == "mavlink.enums.enum.entry.param":
-                self.enum[-1].entry[-1].param[-1].description += data
+                self.enum[-1].entry[-1].param[-1].set_description(data.strip())
             elif in_element == "mavlink.version":
                 self.version = int(data)
             elif in_element == "mavlink.include":
@@ -297,6 +321,7 @@ class MAVXML(object):
         p.CharacterDataHandler = char_data
         p.ParseFile(f)
         f.close()
+   
 
         self.message_lengths = {}
         self.message_min_lengths = {}
