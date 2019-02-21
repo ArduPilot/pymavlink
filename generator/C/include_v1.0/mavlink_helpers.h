@@ -211,34 +211,12 @@ MAVLINK_HELPER void mavlink_update_checksum(mavlink_message_t* msg, uint8_t c)
  * parser in a library that doesn't use any global variables
  *
  * @param rxmsg    parsing message buffer
- * @param status   parsing starus buffer 
+ * @param status   parsing status buffer 
  * @param c        The char to parse
  *
  * @param r_message NULL if no message could be decoded, otherwise the message data
  * @param r_mavlink_status if a message was decoded, this is filled with the channel's stats
  * @return 0 if no message could be decoded, 1 on good message and CRC, 2 on bad CRC
- *
- * A typical use scenario of this function call is:
- *
- * @code
- * #include <mavlink.h>
- *
- * mavlink_status_t status;
- * mavlink_message_t msg;
- * int chan = 0;
- *
- *
- * while(serial.bytesAvailable > 0)
- * {
- *   uint8_t byte = serial.getNextByte();
- *   if (mavlink_frame_char(chan, byte, &msg, &status) != MAVLINK_FRAMING_INCOMPLETE)
- *     {
- *     printf("Received message with ID %d, sequence: %d from component %d of system %d", msg.msgid, msg.seq, msg.compid, msg.sysid);
- *     }
- * }
- *
- *
- * @endcode
  */
 MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg, 
                                                  mavlink_status_t* status,
@@ -434,9 +412,9 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
  * message is received it is copies into *r_message and the channel's status is
  * copied into *r_mavlink_status.
  *
- * @param chan     ID of the current channel. This allows to parse different channels with this function.
- *                 a channel is not a physical message channel like a serial port, but a logic partition of
- *                 the communication streams in this case. COMM_NB is the limit for the number of channels
+ * @param chan     ID of the channel to be parsed.
+ *                 A channel is not a physical message channel like a serial port, but a logical partition of
+ *                 the communication streams. COMM_NB is the limit for the number of channels
  *                 on MCU (e.g. ARM7), while COMM_NB_HIGH is the limit for the number of channels in Linux/Windows
  * @param c        The char to parse
  *
@@ -485,9 +463,9 @@ MAVLINK_HELPER uint8_t mavlink_frame_char(uint8_t chan, uint8_t c, mavlink_messa
  * message is received it is copies into *r_message and the channel's status is
  * copied into *r_mavlink_status.
  *
- * @param chan     ID of the current channel. This allows to parse different channels with this function.
- *                 a channel is not a physical message channel like a serial port, but a logic partition of
- *                 the communication streams in this case. COMM_NB is the limit for the number of channels
+ * @param chan     ID of the channel to be parsed.
+ *                 A channel is not a physical message channel like a serial port, but a logical partition of
+ *                 the communication streams. COMM_NB is the limit for the number of channels
  *                 on MCU (e.g. ARM7), while COMM_NB_HIGH is the limit for the number of channels in Linux/Windows
  * @param c        The char to parse
  *
