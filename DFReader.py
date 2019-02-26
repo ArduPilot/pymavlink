@@ -103,10 +103,31 @@ class DFFormat(object):
                 (self.type, self.name, self.format, self.columns))
 
 
+def to_string(s):
+    '''desperate attempt to convert a string regardless of what garbage we get'''
+    try:
+        s2 = s.encode('utf-8', 'ignore')
+        x = u"%s" % s2
+        return s2
+    except Exception:
+        pass
+    # so its a nasty one. Let's grab as many characters as we can
+    r = ''
+    while s != '':
+        try:
+            r2 = r + s[0]
+            s = s[1:]
+            r2 = r2.encode('ascii', 'ignore')
+            x = u"%s" % r2
+            r = r2
+        except Exception:
+            break
+    return r + '_XXX'
+    
 def null_term(str):
     '''null terminate a string'''
     if isinstance(str, bytes):
-        str = str.decode("utf-8")
+        str = to_string(str)
     idx = str.find("\0")
     if idx != -1:
         str = str[:idx]
