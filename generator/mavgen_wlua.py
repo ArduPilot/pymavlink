@@ -293,7 +293,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
         
                 msgid = buffer(offset,1):uint()
-                header:add(f.msgid, msgid)
+                header:add(f.msgid, buffer(offset,1), msgid)
                 offset = offset + 1
             else 
                 -- handle truncated header
