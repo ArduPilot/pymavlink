@@ -271,7 +271,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
             if (buffer:len() - 2 - offset > 6) then
                 -- normal header
                 local header = subtree:add("Header")
-                header:add(f.magic,version)
+                header:add(f.magic, buffer(offset,1), version)
                 offset = offset + 1
             
                 local length = buffer(offset,1)
@@ -305,7 +305,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
             if (buffer:len() - 2 - offset > 10) then
                 -- normal header
                 local header = subtree:add("Header")
-                header:add(f.magic,version)
+                header:add(f.magic, buffer(offset,1), version)
                 offset = offset + 1
                 local length = buffer(offset,1)
                 header:add(f.length, length)
