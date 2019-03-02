@@ -93,7 +93,7 @@ f.length = ProtoField.uint8("mavlink_proto.length", "Payload length")
 f.sequence = ProtoField.uint8("mavlink_proto.sequence", "Packet sequence")
 f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.HEX)
 f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.HEX)
-f.msgid = ProtoField.uint8("mavlink_proto.msgid", "Message id", base.HEX)
+f.msgid = ProtoField.uint24("mavlink_proto.msgid", "Message id", base.HEX)
 f.crc = ProtoField.uint16("mavlink_proto.crc", "Message CRC", base.HEX)
 f.payload = ProtoField.uint8("mavlink_proto.payload", "Payload", base.DEC, messageName)
 f.rawheader = ProtoField.bytes("mavlink_proto.rawheader", "Unparsable header fragment")
@@ -320,17 +320,9 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 header:add(f.compid, compid)
                 offset = offset + 1
                 pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
-                local msgidt1 = buffer(offset,1):uint()
-                offset = offset + 1
-                local msgidt2 = buffer(offset,1):uint()
-                offset = offset + 1
-                local msgidt3 = buffer(offset,1):uint()
-                msgidt1 = bit.rshift(msgidt1, 8)
-                msgidt2 = bit.rshift(msgidt2, 16)
-                msgid = msgidt1+msgidt2+msgidt3
-                header:add(f.msgid, msgid)
-                print(msgid)
-                offset = offset + 2
+                msgid = buffer(offset,3):le_uint()
+                header:add(f.msgid, buffer(offset,3), msgid)
+                offset = offset + 3
             end
         end
 
