@@ -90,6 +90,8 @@ def generate_body_fields(outf):
 """
 f.magic = ProtoField.uint8("mavlink_proto.magic", "Magic value / version", base.HEX)
 f.length = ProtoField.uint8("mavlink_proto.length", "Payload length")
+f.incompatibility_flag = ProtoField.uint8("mavlink_proto.incompatibility_flag", "Incompatibility flag")
+f.compatibility_flag = ProtoField.uint8("mavlink_proto.compatibility_flag", "Compatibility flag")
 f.sequence = ProtoField.uint8("mavlink_proto.sequence", "Packet sequence")
 f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.HEX)
 f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.HEX)
@@ -322,7 +324,13 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 offset = offset + 1
                 length = buffer(offset,1)
                 header:add(f.length, length)
-                offset = offset + 3
+                offset = offset + 1
+                local incompatibility_flag = buffer(offset,1)
+                header:add(f.incompatibility_flag, incompatibility_flag)
+                offset = offset + 1
+                local compatibility_flag = buffer(offset,1)
+                header:add(f.compatibility_flag, compatibility_flag)
+                offset = offset + 1
                 local sequence = buffer(offset,1)
                 header:add(f.sequence, sequence)
                 offset = offset + 1
