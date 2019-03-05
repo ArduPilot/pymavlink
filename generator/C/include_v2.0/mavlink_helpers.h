@@ -763,7 +763,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 				}
 			}
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
-			if(NULL != r_message){
+			if (r_message != NULL) {
 				memcpy(r_message, rxmsg, sizeof(mavlink_message_t));
 			}
 		}
@@ -786,7 +786,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 				status->msg_received = MAVLINK_FRAMING_BAD_SIGNATURE;
 			}
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
-			if(NULL != r_message){
+			if (r_message !=NULL) {
 				memcpy(r_message, rxmsg, sizeof(mavlink_message_t));
 			}
 		}
@@ -809,10 +809,10 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		status->packet_rx_success_count++;
 	}
 
-       if (NULL != r_message) {
+       if (r_message != NULL) {
            r_message->len = rxmsg->len; // Provide visibility on how far we are into current msg
        }
-       if (NULL != r_mavlink_status) {	
+       if (r_mavlink_status != NULL) {	
            r_mavlink_status->parse_state = status->parse_state;
            r_mavlink_status->packet_idx = status->packet_idx;
            r_mavlink_status->current_rx_seq = status->current_rx_seq+1;
@@ -830,7 +830,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		  mavlink_msg_to_send_buffer() won't overwrite the
 		  checksum
 		 */
-            if (NULL != r_message) {
+            if (r_message != NULL) {
                 r_message->checksum = rxmsg->ck[0] | (rxmsg->ck[1]<<8);
             }
 	}
