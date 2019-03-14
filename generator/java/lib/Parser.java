@@ -13,7 +13,7 @@ import com.MAVLink.Messages.MAVLinkStats;
  * MAVLink parser that parses @{link MAVLinkPacket}s from a byte stream one byte
  * at a time. 
  *
- * After creating an instance of this class, simply just use the @{link #mavlink_parse_char} 
+ * After creating an instance of this class, simply use the @{link #mavlink_parse_char} 
  * method to parse a byte stream.
  */
 public class Parser {
