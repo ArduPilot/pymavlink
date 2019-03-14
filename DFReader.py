@@ -106,6 +106,10 @@ class DFFormat(object):
 def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
     try:
+        return s.decode("utf-8")
+    except Exception as e:
+        pass
+    try:
         s2 = s.encode('utf-8', 'ignore')
         x = u"%s" % s2
         return s2
