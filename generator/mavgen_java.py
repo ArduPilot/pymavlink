@@ -101,8 +101,6 @@ public class CRC {
     public void finish_checksum(int msgid) {
         if(MAVLINK_MESSAGE_CRCS.containsKey(msgid))
             update_checksum(MAVLINK_MESSAGE_CRCS.get(msgid));
-        else
-            throw new IllegalArgumentException("Invalid msgid");
     }
 
     /**
@@ -177,7 +175,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
         packet.compid = 190;
         packet.msgid = MAVLINK_MSG_ID_${name};
         ${{base_fields:
-        ${packField}    
+        ${packField}
         }}
         if(isMavlink2) {
             ${{extended_fields:
@@ -195,7 +193,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
     public void unpack(MAVLinkPayload payload) {
         payload.resetIndex();
         ${{base_fields:
-        ${unpackField}    
+        ${unpackField}
         }}
         if(isMavlink2) {
             ${{extended_fields:
