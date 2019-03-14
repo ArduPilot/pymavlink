@@ -1,9 +1,10 @@
+[![Build Status](https://travis-ci.org/ArduPilot/pymavlink.svg?branch=master)](https://travis-ci.org/ArduPilot/pymavlink)
 # Pymavlink
 This is a python implementation of the MAVLink protocol.
 
 # Documentation
 
-Please see http://dev.ardupilot.org/ for documentation.
+Please see http://ardupilot.org/dev/docs/mavlink-commands.html for documentation.
 
 For realtime discussion please see the pymavlink gitter channel here
 https://gitter.im/ArduPilot/pymavlink

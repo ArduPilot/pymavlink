@@ -100,7 +100,7 @@ def plotit(x, y, fields, colors=[]):
             color = 'red'
         (tz, tzdst) = time.tzname
         if axes[i] == 2:
-            if ax2 == None:
+            if ax2 is None:
                 ax2 = ax1.twinx()
             ax = ax2
             if not args.xaxis:

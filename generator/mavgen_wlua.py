@@ -6,7 +6,7 @@ Copyright Holger Steinhaus 2012
 Released under GNU GPL version 3 or later
 
 Instructions for use: 
-1. python -m pymavlink.generator.mavgen --lang=wlua mymavlink.xml -o ~/.wireshark/plugins/mymavlink.lua
+1. python -m pymavlink.tools.mavgen --lang=WLua mymavlink.xml -o ~/.wireshark/plugins/mymavlink.lua
 2. convert binary stream int .pcap file format (see ../examples/mav2pcap.py)
 3. open the pcap file in Wireshark
 '''
@@ -75,6 +75,8 @@ def generate_preamble(outf):
 """
 -- Wireshark dissector for the MAVLink protocol (please see http://qgroundcontrol.org/mavlink/start for details) 
 
+unknownFrameBeginOffset = 0
+local bit = require "bit32"
 mavlink_proto = Proto("mavlink_proto", "MAVLink protocol")
 f = mavlink_proto.fields
 
@@ -91,7 +93,7 @@ f.length = ProtoField.uint8("mavlink_proto.length", "Payload length")
 f.sequence = ProtoField.uint8("mavlink_proto.sequence", "Packet sequence")
 f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.HEX)
 f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.HEX)
-f.msgid = ProtoField.uint8("mavlink_proto.msgid", "Message id", base.HEX)
+f.msgid = ProtoField.uint24("mavlink_proto.msgid", "Message id", base.HEX)
 f.crc = ProtoField.uint16("mavlink_proto.crc", "Message CRC", base.HEX)
 f.payload = ProtoField.uint8("mavlink_proto.payload", "Payload", base.DEC, messageName)
 f.rawheader = ProtoField.bytes("mavlink_proto.rawheader", "Unparsable header fragment")
@@ -166,9 +168,19 @@ def generate_field_dissector(outf, msg, field):
             index_text = ''
         t.write(outf,
 """
-    tree:add_le(f.${fmsg}_${fname}${findex}, buffer(offset, ${fbytes}))
-    offset = offset + ${fbytes}
-    
+    if (truncated) then
+        tree:add_le(f.${fmsg}_${fname}${findex}, 0)
+    elseif (offset + ${fbytes} <= limit) then
+        tree:add_le(f.${fmsg}_${fname}${findex}, buffer(offset, ${fbytes}))
+        offset = offset + ${fbytes}
+    elseif (offset < limit) then
+        tree:add_le(f.${fmsg}_${fname}${findex}, buffer(offset, limit - offset))
+        offset = limit
+        truncated = true
+    else
+        tree:add_le(f.${fmsg}_${fname}${findex}, 0)
+        truncated = true
+    end
 """, {'fname':field.name, 'ftype':mtype, 'fmsg': msg.name, 'fbytes':size, 'findex':index_text})
     
 
@@ -177,7 +189,8 @@ def generate_payload_dissector(outf, msg):
     t.write(outf, 
 """
 -- dissect payload of message type ${msgname}
-function payload_fns.payload_${msgid}(buffer, tree, msgid, offset)
+function payload_fns.payload_${msgid}(buffer, tree, msgid, offset, limit)
+    local truncated = false
 """, {'msgid':msg.id, 'msgname':msg.name})
     
     for f in msg.ordered_fields:
@@ -216,6 +229,9 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
             if (version == 0xfe) then
                 protocolString = "MAVLink 1.0"
                 break
+            elseif (version == 0xfd) then
+                protocolString = "MAVLink 2.0"
+                break
             elseif (version == 0x55) then
                 protocolString = "MAVLink 0.9"
                 break
@@ -234,9 +250,9 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                     -- no magic value found in the whole buffer. print the raw data and exit
                     if (unknownFrameBeginOffset ~= 0) then
                         if (msgCount == 1) then
-                            pinfo.cols.info:set("Unkown message")
+                            pinfo.cols.info:set("Unknown message")
                         else
-                            pinfo.cols.info:append("  Unkown message")
+                            pinfo.cols.info:append("  Unknown message")
                         end
                         size = offset - unknownFrameBeginOffset
                         subtree:add(f.rawpayload, buffer(unknownFrameBeginOffset,size))
@@ -248,7 +264,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         end
         
         if (unknownFrameBeginOffset ~= 0) then
-            pinfo.cols.info:append("Unkown message22")
+            pinfo.cols.info:append("Unknown message")
             size = offset - unknownFrameBeginOffset
             subtree:add(f.rawpayload, buffer(unknownFrameBeginOffset,size))
             unknownFrameBeginOffset = 0
@@ -262,64 +278,108 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         -- HEADER ----------------------------------------
     
         local msgid
-        if (buffer:len() - 2 - offset > 6) then
-            -- normal header
-            local header = subtree:add("Header")
-            header:add(f.magic,version)
-            offset = offset + 1
+        local length
+
+        if (version == 0xfe) then
+            if (buffer:len() - 2 - offset > 6) then
+                -- normal header
+                local header = subtree:add("Header")
+                header:add(f.magic, buffer(offset,1), version)
+                offset = offset + 1
+            
+                length = buffer(offset,1)
+                header:add(f.length, length)
+                offset = offset + 1
+            
+                local sequence = buffer(offset,1)
+                header:add(f.sequence, sequence)
+                offset = offset + 1
+            
+                local sysid = buffer(offset,1)
+                header:add(f.sysid, sysid)
+                offset = offset + 1
         
-            local length = buffer(offset,1)
-            header:add(f.length, length)
-            offset = offset + 1
+                local compid = buffer(offset,1)
+                header:add(f.compid, compid)
+                offset = offset + 1
+            
+                pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
         
-            local sequence = buffer(offset,1)
-            header:add(f.sequence, sequence)
-            offset = offset + 1
-        
-            local sysid = buffer(offset,1)
-            header:add(f.sysid, sysid)
-            offset = offset + 1
-    
-            local compid = buffer(offset,1)
-            header:add(f.compid, compid)
-            offset = offset + 1
-        
-            pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
-    
-            msgid = buffer(offset,1)
-            header:add(f.msgid, msgid)
-            offset = offset + 1
-        else 
-            -- handle truncated header
-            local hsize = buffer:len() - 2 - offset
-            subtree:add(f.rawheader, buffer(offset, hsize))
-            offset = offset + hsize
+                msgid = buffer(offset,1):uint()
+                header:add(f.msgid, buffer(offset,1), msgid)
+                offset = offset + 1
+            else 
+                -- handle truncated header
+                local hsize = buffer:len() - 2 - offset
+                subtree:add(f.rawheader, buffer(offset, hsize))
+                offset = offset + hsize
+            end
+        elseif (version == 0xfd) then
+            if (buffer:len() - 2 - offset > 10) then
+                -- normal header
+                local header = subtree:add("Header")
+                header:add(f.magic, buffer(offset,1), version)
+                offset = offset + 1
+                length = buffer(offset,1)
+                header:add(f.length, length)
+                offset = offset + 3
+                local sequence = buffer(offset,1)
+                header:add(f.sequence, sequence)
+                offset = offset + 1
+                local sysid = buffer(offset,1)
+                header:add(f.sysid, sysid)
+                offset = offset + 1
+                local compid = buffer(offset,1)
+                header:add(f.compid, compid)
+                offset = offset + 1
+                pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
+                msgid = buffer(offset,3):le_uint()
+                header:add(f.msgid, buffer(offset,3), msgid)
+                offset = offset + 3
+            else 
+                -- handle truncated header
+                local hsize = buffer:len() - 2 - offset
+                subtree:add(f.rawheader, buffer(offset, hsize))
+                offset = offset + hsize
+            end
         end
 
 
         -- BODY ----------------------------------------
     
         -- dynamically call the type-specific payload dissector    
-        local msgnr = msgid:uint()
+        local msgnr = msgid
         local dissect_payload_fn = "payload_"..tostring(msgnr)
         local fn = payload_fns[dissect_payload_fn]
+        local limit = buffer:len() - 2
+
+        if (length) then
+            length = length:uint()
+        else
+            length = 0
+        end
+
+        if (offset + length < limit) then
+            limit = offset + length
+        end
     
         if (fn == nil) then
-            pinfo.cols.info:append ("Unkown message type   ")
-            subtree:add_expert_info(PI_MALFORMED, PI_ERROR, "Unkown message type")
+            pinfo.cols.info:append ("Unknown message type   ")
+            subtree:add_expert_info(PI_MALFORMED, PI_ERROR, "Unknown message type")
             size = buffer:len() - 2 - offset
             subtree:add(f.rawpayload, buffer(offset,size))
             offset = offset + size
         else
             local payload = subtree:add(f.payload, msgid)
-            pinfo.cols.dst:set(messageName[msgid:uint()])
+            pinfo.cols.dst:set(messageName[msgid])
             if (msgCount == 1) then
             -- first message should over wirte the TCP/UDP info
-                pinfo.cols.info = messageName[msgid:uint()]
+                pinfo.cols.info = messageName[msgid]
             else
-                pinfo.cols.info:append("   "..messageName[msgid:uint()])
+                pinfo.cols.info:append("   "..messageName[msgid])
             end
-            offset = fn(buffer, payload, msgid, offset)
+            fn(buffer, payload, msgid, offset, limit)
+            offset = limit
         end
 
         -- CRC ----------------------------------------

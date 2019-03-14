@@ -238,15 +238,15 @@ typedef bool (*mavlink_accept_unsigned_t)(const mavlink_status_t *status, uint32
 /*
   flags controlling signing
  */
-#define MAVLINK_SIGNING_FLAG_SIGN_OUTGOING 1
+#define MAVLINK_SIGNING_FLAG_SIGN_OUTGOING 1    ///< Enable outgoing signing
 
 /*
   state of MAVLink signing for this channel
  */
 typedef struct __mavlink_signing {
     uint8_t flags;                     ///< MAVLINK_SIGNING_FLAG_*
-    uint8_t link_id;
-    uint64_t timestamp;
+    uint8_t link_id;                   ///< Same as MAVLINK_CHANNEL
+    uint64_t timestamp;                ///< Timestamp, in microseconds since UNIX epoch GMT
     uint8_t secret_key[32];
     mavlink_accept_unsigned_t accept_unsigned_callback;
 } mavlink_signing_t;
@@ -261,10 +261,10 @@ typedef struct __mavlink_signing {
 typedef struct __mavlink_signing_streams {
     uint16_t num_signing_streams;
     struct __mavlink_signing_stream {
-        uint8_t link_id;
-        uint8_t sysid;
-        uint8_t compid;
-        uint8_t timestamp_bytes[6];
+        uint8_t link_id;              ///< ID of the link (MAVLINK_CHANNEL)
+        uint8_t sysid;                ///< Remote system ID
+        uint8_t compid;               ///< Remote component ID
+        uint8_t timestamp_bytes[6];   ///< Timestamp, in microseconds since UNIX epoch GMT
     } stream[MAVLINK_MAX_SIGNING_STREAMS];
 } mavlink_signing_streams_t;
 

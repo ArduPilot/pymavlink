@@ -116,7 +116,7 @@ def magfit(logfile):
         if m.get_type() == "SENSOR_OFFSETS":
             # update offsets that were used during this flight
             offsets = Vector3(m.mag_ofs_x, m.mag_ofs_y, m.mag_ofs_z)
-        if m.get_type() == "RAW_IMU" and offsets != None:
+        if m.get_type() == "RAW_IMU" and offsets is not None:
             # extract one mag vector, removing the offsets that were
             # used during that flight to get the raw sensor values
             mag = Vector3(m.xmag, m.ymag, m.zmag) - offsets

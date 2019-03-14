@@ -19,6 +19,11 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 
+try:
+    raw_input          # Python 2
+except NameError:
+    raw_input = input  # Python 3
+
 def plot_input(data, msg, prefix, start, end):
     preview = pylab.figure()
     preview.set_size_inches(12, 3, forward=True)

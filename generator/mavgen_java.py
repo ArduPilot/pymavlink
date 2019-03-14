@@ -133,7 +133,9 @@ def generate_message_h(directory, m):
     '''generate per-message header for a XML file'''
     f = open(os.path.join(directory, 'msg_%s.java' % m.name_lower), mode='w')
 
-    path=directory.split('/')
+    (path_head, path_tail) = os.path.split(directory)
+    if path_tail == "":
+        (path_head, path_tail) = os.path.split(path_head)
     t.write(f, '''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
  *
@@ -229,7 +231,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
         return "MAVLINK_MSG_ID_${name} - sysid:"+sysid+" compid:"+compid+${{ordered_fields:" ${name}:"+${name}+}}"";
     }
 }
-        ''' % path[len(path)-1], m)
+        ''' % path_tail, m)
     f.close()
 
 

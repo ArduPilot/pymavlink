@@ -3,9 +3,10 @@
 
 #include <array>
 #include <cassert>
+#include <cstring>
+#include <sstream>
 #include <string>
 #include <iostream>
-#include <cstring>
 
 #ifndef MAVLINK_HELPER
 #define MAVLINK_HELPER static inline

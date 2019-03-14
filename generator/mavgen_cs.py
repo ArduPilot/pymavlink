@@ -316,7 +316,7 @@ using System.Reflection;
         winpath=os.environ['WinDir']
         cscCommand = winpath + "\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe"
         
-        if (os.path.exists(cscCommand)==False):
+        if not os.path.exists(cscCommand):
             print("\nError: CS compiler not found. .Net Assembly generation skipped")
             return   
     else:

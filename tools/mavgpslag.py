@@ -2,6 +2,17 @@
 
 '''
 calculate GPS lag from DF log
+
+The DF log file needs to be generated with ATT, GPS and IMU bits:
+-  On copter (bit0, bit2 and bit18) set on the LOG_BITMASK parameters
+-  On rover  (bit0, bit2 and bit7) set on the LOG_BITMASK parameters
+-  On plane  (bit0, bit2 and bit7) set on the LOG_BITMASK parameters
+Make sure IMU_RAW (bit 19) is not set
+
+For this to work, the vehicle must move at speeds above the --minspeed parameter (defaults to 6m/s)
+The code really only works when there is significant acceleration as well.
+You'll need to fly quite aggressively on a copter to get a result.
+
 '''
 from __future__ import print_function
 from builtins import range
@@ -12,6 +23,7 @@ from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--plot", action='store_true', default=False, help="plot errors")
 parser.add_argument("--minspeed", type=float, default=6, help="minimum speed")
+parser.add_argument("--gps", default='', help="GPS number")
 parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
@@ -65,27 +77,32 @@ def gps_lag(logfile):
     accel_indexes = []
     ATT = None
     IMU = None
+    GPS = None
 
     dtsum = 0
     dtcount = 0
 
     while True:
-        m = mlog.recv_match(type=['GPS','IMU','ATT'])
+        m = mlog.recv_match(type=['GPS'+args.gps,'IMU','ATT','GPA'+args.gps])
         if m is None:
             break
         t = m.get_type()
-        if t == 'GPS' and m.Status >= 3 and m.Spd>args.minspeed:
-            v = Vector3(m.Spd*cos(radians(m.GCrs)), m.Spd*sin(radians(m.GCrs)), m.VZ)
+        if t.startswith('GPS') and m.Status >= 3 and m.Spd>args.minspeed:
+            GPS = m;
+        elif t.startswith('GPA') and GPS is not None and GPS.TimeUS == m.TimeUS:
+            v = Vector3(GPS.Spd*cos(radians(GPS.GCrs)), GPS.Spd*sin(radians(GPS.GCrs)), GPS.VZ)
             vel.append(v)
-            timestamps.append(m._timestamp)
+            timestamps.append(m.SMS*0.001)
             accel_indexes.append(max(len(gaccel)-1,0))
         elif t == 'ATT':
             ATT = m
         elif t == 'IMU':
             if ATT is not None:
-                gaccel.append(earth_accel_df(m, ATT))
+                ga = earth_accel_df(m, ATT)
+                ga.z += 9.80665
+                gaccel.append(ga)
                 if IMU is not None:
-                    dt = m._timestamp - IMU._timestamp
+                    dt = (m.TimeUS - IMU.TimeUS) * 1.0e-6
                     dtsum += dt
                     dtcount += 1
                 IMU = m

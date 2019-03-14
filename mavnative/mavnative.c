@@ -291,6 +291,9 @@ MAVLINK_HELPER uint8_t py_mavlink_parse_char(uint8_t c, py_message_t* pymsg, mav
             _MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx+1] = (char)c;
         }
         break;
+
+    case MAVLINK_PARSE_STATE_GOT_BAD_CRC1:  // not used, just to fix compiler warning
+        break;
     }
 
     bufferIndex++;

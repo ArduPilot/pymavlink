@@ -14,8 +14,12 @@ from builtins import object
 import array
 import math
 import sys
+import os
+import mmap
+import platform
 
 import struct
+import sys
 from . import mavutil
 
 try:
@@ -46,11 +50,13 @@ FORMAT_TO_STRUCT = {
     "Q": ("Q", None, long),  # Backward compat
     }
 
+def u_ord(c):
+	return ord(c) if sys.version_info.major < 3 else c
 
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns):
         self.type = type
-        self.name = name
+        self.name = null_term(name)
         self.len = flen
         self.format = format
         self.columns = columns.split(',')
@@ -63,7 +69,7 @@ class DFFormat(object):
         msg_types = []
         msg_fmts = []
         for c in format:
-            if ord(c) == 0:
+            if u_ord(c) == 0:
                 break
             try:
                 msg_fmts.append(c)
@@ -87,14 +93,41 @@ class DFFormat(object):
         self.colhash = {}
         for i in range(len(self.columns)):
             self.colhash[self.columns[i]] = i
+        self.a_indexes = []
+        for i in range(0, len(self.msg_fmts)):
+            if self.msg_fmts[i] == 'a':
+                self.a_indexes.append(i)
 
     def __str__(self):
         return ("DFFormat(%s,%s,%s,%s)" %
                 (self.type, self.name, self.format, self.columns))
 
 
+def to_string(s):
+    '''desperate attempt to convert a string regardless of what garbage we get'''
+    try:
+        s2 = s.encode('utf-8', 'ignore')
+        x = u"%s" % s2
+        return s2
+    except Exception:
+        pass
+    # so its a nasty one. Let's grab as many characters as we can
+    r = ''
+    while s != '':
+        try:
+            r2 = r + s[0]
+            s = s[1:]
+            r2 = r2.encode('ascii', 'ignore')
+            x = u"%s" % r2
+            r = r2
+        except Exception:
+            break
+    return r + '_XXX'
+    
 def null_term(str):
     '''null terminate a string'''
+    if isinstance(str, bytes):
+        str = to_string(str)
     idx = str.find("\0")
     if idx != -1:
         str = str[:idx]
@@ -122,7 +155,10 @@ class DFMessage(object):
             i = self.fmt.colhash[field]
         except Exception:
             raise AttributeError(field)
-        v = self._elements[i]
+        if isinstance(self._elements[i], bytes):
+            v = self._elements[i].decode("utf-8")
+        else:
+            v = self._elements[i]
         if self.fmt.format[i] == 'a':
             pass
         elif self.fmt.format[i] != 'M' or self._apply_multiplier:
@@ -155,6 +191,7 @@ class DFMessage(object):
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
         values = []
+        is_py2 = sys.version_info < (3,0)
         for i in range(len(self.fmt.columns)):
             if i >= len(self.fmt.msg_mults):
                 continue
@@ -163,11 +200,25 @@ class DFMessage(object):
             if name == 'Mode' and 'ModeNum' in self.fmt.columns:
                 name = 'ModeNum'
             v = self.__getattr__(name)
+            if is_py2:
+                if isinstance(v,unicode): # NOQA
+                    v = str(v)
+            else:
+                if isinstance(v,str):
+                    v = bytes(v,'ascii')
+            if isinstance(v, array.array):
+                v = v.tostring()
             if mul is not None:
                 v /= mul
+                v = int(round(v))
             values.append(v)
-        return (struct.pack("BBB", 0xA3, 0x95, self.fmt.type) +
-                struct.pack(self.fmt.msg_struct, *values))
+
+        ret1 = struct.pack("BBB", 0xA3, 0x95, self.fmt.type)
+        try:
+            ret2 = struct.pack(self.fmt.msg_struct, *values)
+        except Exception as ex:
+            return None
+        return ret1 + ret2
 
     def get_fieldnames(self):
         return self._fieldnames
@@ -364,11 +415,15 @@ class DFReader(object):
         self.mav_type = mavutil.mavlink.MAV_TYPE_FIXED_WING
         self.verbose = False
         self.params = {}
+        self._flightmodes = None
 
     def _rewind(self):
         '''reset state on rewind'''
         self.messages = {'MAV': self}
-        self.flightmode = "UNKNOWN"
+        if self._flightmodes is not None and len(self._flightmodes) > 0:
+            self.flightmode = self._flightmodes[0][0]
+        else:
+            self.flightmode = "UNKNOWN"
         self.percent = 0
         if self.clock:
             self.clock.rewind_event()
@@ -506,6 +561,8 @@ class DFReader(object):
                 self.mav_type = mavutil.mavlink.MAV_TYPE_QUADROTOR
             elif m.Message.startswith("Antenna"):
                 self.mav_type = mavutil.mavlink.MAV_TYPE_ANTENNA_TRACKER
+            elif m.Message.find("ArduSub") != -1:
+                self.mav_type = mavutil.mavlink.MAV_TYPE_SUBMARINE
         if type == 'MODE':
             if isinstance(m.Mode, str):
                 self.flightmode = m.Mode.upper()
@@ -513,6 +570,8 @@ class DFReader(object):
                 mapping = mavutil.mode_mapping_bynumber(self.mav_type)
                 if mapping is not None and m.ModeNum in mapping:
                     self.flightmode = mapping[m.ModeNum]
+                else:
+                    self.flightmode = 'UNKNOWN'
             else:
                 self.flightmode = mavutil.mode_string_acm(m.Mode)
         if type == 'STAT' and 'MainState' in m._fieldnames:
@@ -524,9 +583,14 @@ class DFReader(object):
     def recv_match(self, condition=None, type=None, blocking=False):
         '''recv the next message that matches the given condition
         type can be a string or a list of strings'''
-        if type is not None and not isinstance(type, list):
-            type = [type]
+        if type is not None:
+            if isinstance(type, str):
+                type = set([type])
+            elif isinstance(type, list):
+                type = set(type)
         while True:
+            if type is not None:
+                self.skip_to_type(type)
             m = self.recv_msg()
             if m is None:
                 return None
@@ -547,18 +611,53 @@ class DFReader(object):
             return default
         return self.params[name]
 
+    def flightmode_list(self):
+        '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
+        tstamp = None
+        fmode = None
+        if self._flightmodes is None:
+            self._rewind()
+            self._flightmodes = []
+            types = set(['MODE'])
+            while True:
+                m = self.recv_match(type=types)
+                if m is None:
+                    break
+                tstamp = m._timestamp
+                if self.flightmode == fmode:
+                    continue
+                if len(self._flightmodes) > 0:
+                    (mode, t0, t1) = self._flightmodes[-1]
+                    self._flightmodes[-1] = (mode, t0, tstamp)
+                self._flightmodes.append((self.flightmode, tstamp, None))
+                fmode = self.flightmode
+            if tstamp is not None:
+                (mode, t0, t1) = self._flightmodes[-1]
+                self._flightmodes[-1] = (mode, t0, self.last_timestamp())
+
+        self._rewind()
+        return self._flightmodes
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
-    def __init__(self, filename, zero_time_base=False):
+    def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        f = open(filename, mode='rb')
-        self.data = f.read()
-        self.data_len = len(self.data)
-        f.close()
+        self.filehandle = open(filename, 'rb')
+        self.filehandle.seek(0, 2)
+        self.data_len = self.filehandle.tell()
+        self.filehandle.seek(0)
+        if platform.system() == "Windows":
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
+        else:
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
+
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
+        self.unpackers = {}
+        if sys.version_info.major < 3:
+            self.HEAD1 = chr(self.HEAD1)
+            self.HEAD2 = chr(self.HEAD2)
         self.formats = {
             0x80: DFFormat(0x80,
                            'FMT',
@@ -569,58 +668,176 @@ class DFReader_binary(DFReader):
         self._zero_time_base = zero_time_base
         self.init_clock()
         self._rewind()
+        self.init_arrays(progress_callback)
 
     def _rewind(self):
         '''rewind to start of log'''
         DFReader._rewind(self)
         self.offset = 0
         self.remaining = self.data_len
+        self.type_nums = None
+        self.timestamp = 0
+
+    def rewind(self):
+        '''rewind to start of log'''
+        self._rewind()
+
+    def init_arrays(self, progress_callback=None):
+        '''initialise arrays for fast recv_match()'''
+        self.offsets = []
+        self.counts = []
+        self._count = 0
+        self.name_to_id = {}
+        self.id_to_name = {}
+        for i in range(256):
+            self.offsets.append([])
+            self.counts.append(0)
+        fmt_type = 0x80
+        ofs = 0
+        pct = 0
+        HEAD1 = self.HEAD1
+        HEAD2 = self.HEAD2
+        lengths = [-1] * 256
+
+        while ofs+3 < self.data_len:
+            hdr = self.data_map[ofs:ofs+3]
+            if hdr[0] != HEAD1 or hdr[1] != HEAD2:
+                print("bad header 0x%02x 0x%02x" % (u_ord(hdr[0]), u_ord(hdr[1])), file=sys.stderr)
+                break
+            mtype = u_ord(hdr[2])
+            self.offsets[mtype].append(ofs)
+
+            if lengths[mtype] == -1:
+                if not mtype in self.formats:
+                    print("unknown msg type 0x%02x" % mtype, file=sys.stderr)
+                    break
+                self.offset = ofs
+                self._parse_next()
+                fmt = self.formats[mtype]
+                lengths[mtype] = fmt.len
+
+            self.counts[mtype] += 1
+            mlen = lengths[mtype]
+
+            if mtype == fmt_type:
+                body = self.data_map[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                fmt = self.formats[mtype]
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                mfmt = DFFormat(
+                    elements[0],
+                    null_term(elements[2]), elements[1],
+                    null_term(elements[3]), null_term(elements[4]))
+                self.formats[elements[0]] = mfmt
+                self.name_to_id[mfmt.name] = mfmt.type
+                self.id_to_name[mfmt.type] = mfmt.name
+
+            ofs += mlen
+            new_pct = (100 * ofs) // self.data_len
+            if progress_callback is not None and new_pct != pct:
+                progress_callback(new_pct)
+                pct = new_pct
+
+        for i in range(256):
+            self._count += self.counts[i]
+        self.offset = 0
+
+    def last_timestamp(self):
+        '''get the last timestamp in the log'''
+        highest_offset = 0
+        second_highest_offset = 0
+        for i in range(256):
+            if self.counts[i] == -1:
+                continue
+            if len(self.offsets[i]) == 0:
+                continue
+            ofs = self.offsets[i][-1]
+            if ofs > highest_offset:
+                second_highest_offset = highest_offset
+                highest_offset = ofs
+            elif ofs > second_highest_offset:
+                second_highest_offset = ofs
+        self.offset = highest_offset
+        m = self.recv_msg()
+        if m is None:
+            self.offset = second_highest_offset
+            m = self.recv_msg()
+        return m._timestamp
+
+
+    def skip_to_type(self, type):
+        '''skip fwd to next msg matching given type set'''
+
+        if self.type_nums is None:
+            # always add some key msg types so we can track flightmode, params etc
+            type = type.copy()
+            type.update(set(['MODE','MSG','PARM','STAT']))
+            self.indexes = []
+            self.type_nums = []
+            for t in type:
+                if not t in self.name_to_id:
+                    continue
+                self.type_nums.append(self.name_to_id[t])
+                self.indexes.append(0)
+        smallest_index = -1
+        smallest_offset = self.data_len
+        for i in range(len(self.type_nums)):
+            mtype = self.type_nums[i]
+            if self.indexes[i] >= self.counts[mtype]:
+                continue
+            ofs = self.offsets[mtype][self.indexes[i]]
+            if ofs < smallest_offset:
+                smallest_offset = ofs
+                smallest_index = i
+        if smallest_index >= 0:
+            self.indexes[smallest_index] += 1
+            self.offset = smallest_offset
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
         if self.data_len - self.offset < 3:
             return None
 
-        hdr = self.data[self.offset:self.offset+3]
+        hdr = self.data_map[self.offset:self.offset+3]
         skip_bytes = 0
         skip_type = None
         # skip over bad messages
-        while (ord(hdr[0]) != self.HEAD1 or ord(hdr[1]) != self.HEAD2 or
-               ord(hdr[2]) not in self.formats):
+        msg_type = u_ord(hdr[2])
+        while (hdr[0] != self.HEAD1 or hdr[1] != self.HEAD2 or
+               msg_type not in self.formats):
             if skip_type is None:
-                skip_type = (ord(hdr[0]), ord(hdr[1]), ord(hdr[2]))
+                skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
                 skip_start = self.offset
             skip_bytes += 1
             self.offset += 1
             if self.data_len - self.offset < 3:
                 return None
-            hdr = self.data[self.offset:self.offset+3]
-        msg_type = ord(hdr[2])
+            hdr = self.data_map[self.offset:self.offset+3]
+            msg_type = u_ord(hdr[2])
         if skip_bytes != 0:
             if self.remaining < 528:
                 return None
             print("Skipped %u bad bytes in log at offset %u, type=%s" %
                   (skip_bytes, skip_start, skip_type), file=sys.stderr)
-            self.remaining -= skip_bytes
 
         self.offset += 3
-        self.remaining -= 3
+        self.remaining = self.data_len - self.offset
 
-        if msg_type not in self.formats:
-            if self.verbose:
-                print("unknown message type %02x" % msg_type, file=sys.stderr)
-            raise Exception("Unknown message type %02x" % msg_type)
         fmt = self.formats[msg_type]
         if self.remaining < fmt.len-3:
             # out of data - can often happen half way through a message
             if self.verbose:
                 print("out of data", file=sys.stderr)
             return None
-        body = self.data[self.offset:self.offset+(fmt.len-3)]
+        body = self.data_map[self.offset:self.offset+fmt.len-3]
         elements = None
         try:
-            elements = list(struct.unpack(fmt.msg_struct, body))
-        except Exception:
+            if not msg_type in self.unpackers:
+                self.unpackers[msg_type] = struct.Struct(fmt.msg_struct).unpack
+            elements = list(self.unpackers[msg_type](body))
+        except Exception as ex:
+            print(ex)
             if self.remaining < 528:
                 # we can have garbage at the end of an APM2 log
                 return None
@@ -632,15 +849,14 @@ class DFReader_binary(DFReader):
                   file=sys.stderr)
         if elements is None:
             return self._parse_next()
-        name = null_term(fmt.name)
+        name = fmt.name
         # transform elements which can't be done at unpack time:
-        for i in range(0, len(elements)):
-            if fmt.msg_fmts[i] == 'a':
-                try:
-                    elements[i] = array.array('h', elements[i])
-                except Exception as e:
-                    print("Failed to transform array: %s" % str(e),
-                          file=sys.stderr)
+        for a_index in fmt.a_indexes:
+            try:
+                elements[a_index] = array.array('h', elements[a_index])
+            except Exception as e:
+                print("Failed to transform array: %s" % str(e),
+                      file=sys.stderr)
 
         if name == 'FMT':
             # add to formats
@@ -653,11 +869,10 @@ class DFReader_binary(DFReader):
             except Exception:
                 return self._parse_next()
 
-        self.offset += fmt.len-3
-        self.remaining -= fmt.len-3
+        self.offset += fmt.len - 3
+        self.remaining = self.data_len - self.offset
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
-
         self.percent = 100.0 * (self.offset / float(self.data_len))
 
         return m
@@ -665,20 +880,26 @@ class DFReader_binary(DFReader):
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
-    f = open(filename)
-    ret = (f.read(8000).find('FMT, ') != -1)
-    f.close()
+    with open(filename, 'r') as f:
+        ret = (f.read(8000).find('FMT, ') != -1)
+
     return ret
 
 
 class DFReader_text(DFReader):
     '''parse a text dataflash file'''
-    def __init__(self, filename, zero_time_base=False):
+    def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        f = open(filename, mode='r')
-        self.lines = f.readlines()
-        f.close()
+        self.filehandle = open(filename, 'r')
+        self.filehandle.seek(0, 2)
+        self.data_len = self.filehandle.tell()
+        if platform.system() == "Windows":
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
+        else:
+            self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
+        self.offset = 0
+
         self.formats = {
             'FMT': DFFormat(0x80,
                             'FMT',
@@ -690,32 +911,104 @@ class DFReader_text(DFReader):
         self._zero_time_base = zero_time_base
         self.init_clock()
         self._rewind()
+        self.init_arrays(progress_callback)
 
     def _rewind(self):
         '''rewind to start of log'''
         DFReader._rewind(self)
-        self.line = 0
         # find the first valid line
-        while self.line < len(self.lines):
-            if self.lines[self.line].startswith("FMT, "):
+        self.offset = self.data_map.find(b'FMT, ')
+        self.type_list = None
+
+    def rewind(self):
+        '''rewind to start of log'''
+        self._rewind()
+
+    def init_arrays(self, progress_callback=None):
+        '''initialise arrays for fast recv_match()'''
+        self.offsets = {}
+        self.counts = {}
+        self._count = 0
+        ofs = self.offset
+        pct = 0
+
+        while ofs+16 < self.data_len:
+            mtype = self.data_map[ofs:ofs+4]
+            if mtype[3] == ',':
+                mtype = mtype[0:3]
+            if not mtype in self.offsets:
+                self.counts[mtype] = 0
+                self.offsets[mtype] = []
+                self.offset = ofs
+                self._parse_next()
+            self.offsets[mtype].append(ofs)
+
+            self.counts[mtype] += 1
+
+            if mtype == "FMT":
+                self.offset = ofs
+                self._parse_next()
+
+            ofs = self.data_map.find(b"\n", ofs)
+            if ofs == -1:
                 break
-            self.line += 1
+            ofs += 1
+            new_pct = (100 * ofs) // self.data_len
+            if progress_callback is not None and new_pct != pct:
+                progress_callback(new_pct)
+                pct = new_pct
+
+        for mtype in self.counts.keys():
+            self._count += self.counts[mtype]
+        self.offset = 0
+
+    def skip_to_type(self, type):
+        '''skip fwd to next msg matching given type set'''
+
+        if self.type_list is None:
+            # always add some key msg types so we can track flightmode, params etc
+            self.type_list = type.copy()
+            self.type_list.update(set(['MODE','MSG','PARM','STAT']))
+            self.type_list = list(self.type_list)
+            self.indexes = []
+            self.type_nums = []
+            for t in self.type_list:
+                self.indexes.append(0)
+        smallest_index = -1
+        smallest_offset = self.data_len
+        for i in range(len(self.type_list)):
+            mtype = self.type_list[i]
+            if not mtype in self.counts:
+                continue
+            if self.indexes[i] >= self.counts[mtype]:
+                continue
+            ofs = self.offsets[mtype][self.indexes[i]]
+            if ofs < smallest_offset:
+                smallest_offset = ofs
+                smallest_index = i
+        if smallest_index >= 0:
+            self.indexes[smallest_index] += 1
+            self.offset = smallest_offset
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
 
-        this_line = self.line
-        while self.line < len(self.lines):
-            s = self.lines[self.line].rstrip()
+        while True:
+            endline = self.data_map.find(b'\n',self.offset)
+            if endline == -1:
+                endline = self.data_len
+                if endline < self.offset:
+                    break
+            s = self.data_map[self.offset:endline].rstrip()
+            if sys.version_info.major >= 3:
+                s = s.decode('utf-8')
             elements = s.split(", ")
-            this_line = self.line
-            # move to next line
-            self.line += 1
+            self.offset = endline+1
             if len(elements) >= 2:
                 # this_line is good
                 break
 
-        if this_line >= len(self.lines):
+        if self.offset > self.data_len:
             return None
 
         # cope with empty structures
@@ -723,7 +1016,7 @@ class DFReader_text(DFReader):
             elements[-1] = ''
             elements.append('')
 
-        self.percent = 100.0 * (this_line / float(len(self.lines)))
+        self.percent = 100.0 * (self.offset / float(self.data_len))
 
         msg_type = elements[0]
 
@@ -742,11 +1035,15 @@ class DFReader_text(DFReader):
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
-            self.formats[elements[2]] = DFFormat(int(elements[0]),
-                                                 elements[2],
-                                                 int(elements[1]),
-                                                 elements[3],
-                                                 elements[4])
+            if elements[2] == 'FMT' and elements[4] == 'Type,Length,Name,Format':
+                # some logs have the 'Columns' column missing from text logs
+                elements[4] = "Type,Length,Name,Format,Columns"
+            new_fmt = DFFormat(int(elements[0]),
+                               elements[2],
+                               int(elements[1]),
+                               elements[3],
+                               elements[4])
+            self.formats[elements[2]] = new_fmt
 
         try:
             m = DFMessage(fmt, elements, False)
@@ -757,6 +1054,18 @@ class DFReader_text(DFReader):
 
         return m
 
+    def last_timestamp(self):
+        '''get the last timestamp in the log'''
+        highest_offset = 0
+        for mtype in self.counts.keys():
+            if len(self.offsets[mtype]) == 0:
+                continue
+            ofs = self.offsets[mtype][-1]
+            if ofs > highest_offset:
+                highest_offset = ofs
+        self.offset = highest_offset
+        m = self.recv_msg()
+        return m._timestamp
 
 if __name__ == "__main__":
     use_profiler = False

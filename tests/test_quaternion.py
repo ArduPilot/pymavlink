@@ -154,26 +154,26 @@ class QuaternionBaseTest(unittest.TestCase):
             q0 = q
             e = QuaternionBase(q.q).euler
             q1 = QuaternionBase(e)
-            self.assertTrue(q0.close(q1))
+            assert q0.close(q1)
 
             # quaternion -> dcm -> quaternion
             q0 = q
             dcm = QuaternionBase(q.q).dcm
             q1 = QuaternionBase(dcm)
-            self.assertTrue(q0.close(q1))
+            assert q0.close(q1)
 
     def test_inversed(self):
         """Test inverse"""
         for q in self.quaternions:
             q_inv = q.inversed
             q_inv_inv = q_inv.inversed
-            self.assertTrue(q.close(q_inv_inv))
+            assert q.close(q_inv_inv)
 
     def test_mul(self):
         """Test multiplication"""
         for q in self.quaternions:
             for p in self.quaternions:
-                self.assertTrue(q.close(p * p.inversed * q))
+                assert q.close(p * p.inversed * q)
                 r = p * q
                 r_dcm = np.dot(p.dcm, q.dcm)
                 np.testing.assert_almost_equal(r_dcm, r.dcm)
@@ -184,7 +184,7 @@ class QuaternionBaseTest(unittest.TestCase):
             for p in self.quaternions:
                 mul = q * p.inversed
                 div = q / p
-                self.assertTrue(mul.close(div))
+                assert mul.close(div)
 
     def test_transform(self):
         """Test transform"""
@@ -251,7 +251,7 @@ class QuaternionTest(QuaternionBaseTest):
         q_test = Quaternion(quaternion_instance)
         np.testing.assert_almost_equal(q_test.q, q)
         q_test = Quaternion(quaternion_instance)
-        self.assertTrue(q_test.dcm.close(dcm))
+        assert q_test.dcm.close(dcm)
         q_test = Quaternion(quaternion_instance)
         q_euler = Quaternion(q_test.euler)
         assert(np.allclose(q_test.euler, euler) or
@@ -262,7 +262,7 @@ class QuaternionTest(QuaternionBaseTest):
         q_test = Quaternion(quaternion_instance)
         np.testing.assert_almost_equal(q_test.q, q)
         q_test = Quaternion(quaternion_instance)
-        self.assertTrue(q_test.dcm.close(dcm))
+        assert q_test.dcm.close(dcm)
         q_test = Quaternion(quaternion_instance)
         q_euler = Quaternion(q_test.euler)
         assert(np.allclose(q_test.euler, euler) or
@@ -272,7 +272,7 @@ class QuaternionTest(QuaternionBaseTest):
         q_test = Quaternion(q)
         np.testing.assert_almost_equal(q_test.q, q)
         q_test = Quaternion(q)
-        self.assertTrue(q_test.dcm.close(dcm))
+        assert q_test.dcm.close(dcm)
         q_test = Quaternion(q)
         q_euler = Quaternion(q_test.euler)
         assert(np.allclose(q_test.euler, euler) or
@@ -282,7 +282,7 @@ class QuaternionTest(QuaternionBaseTest):
         q_test = Quaternion(euler)
         np.testing.assert_almost_equal(q_test.q, q)
         q_test = Quaternion(euler)
-        self.assertTrue(q_test.dcm.close(dcm))
+        assert q_test.dcm.close(dcm)
         q_test = Quaternion(euler)
         q_euler = Quaternion(q_test.euler)
         assert(np.allclose(q_test.euler, euler) or
@@ -292,7 +292,7 @@ class QuaternionTest(QuaternionBaseTest):
         q_test = Quaternion(dcm)
         np.testing.assert_almost_equal(q_test.q, q)
         q_test = Quaternion(dcm)
-        self.assertTrue(q_test.dcm.close(dcm))
+        assert q_test.dcm.close(dcm)
         q_test = Quaternion(dcm)
         q_euler = Quaternion(q_test.euler)
         assert(np.allclose(q_test.euler, euler) or
@@ -307,13 +307,13 @@ class QuaternionTest(QuaternionBaseTest):
             q0 = q
             e = Quaternion(q.q).euler
             q1 = Quaternion(e)
-            self.assertTrue(q0.close(q1))
+            assert q0.close(q1)
 
             # quaternion -> dcm (Matrix3) -> quaternion
             q0 = q
             dcm = Quaternion(q.q).dcm
             q1 = Quaternion(dcm)
-            self.assertTrue(q0.close(q1))
+            assert q0.close(q1)
 
     def test_transform(self):
         """Test transform"""
@@ -322,18 +322,18 @@ class QuaternionTest(QuaternionBaseTest):
             v = Vector3(1, 2, 3)
             v1 = q.transform(v)
             v1_dcm = q.dcm * v
-            self.assertTrue(v1.close(v1_dcm))
+            assert v1.close(v1_dcm)
             v2 = q_inv.transform(v1)
-            self.assertTrue(v.close(v2))
+            assert v.close(v2)
 
     def test_mul(self):
         """Test multiplication"""
         for q in self.quaternions:
             for p in self.quaternions:
-                self.assertTrue(q.close(p * p.inversed * q))
+                assert q.close(p * p.inversed * q)
                 r = p * q
                 r_dcm = p.dcm * q.dcm
-                self.assertTrue(r_dcm.close(r.dcm))
+                assert r_dcm.close(r.dcm)
 
 
 if __name__ == '__main__':
