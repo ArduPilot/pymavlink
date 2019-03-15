@@ -27,11 +27,10 @@ import java.nio.ByteBuffer;
  * * hash - last 6 bytes of SHA256 hash
  */
 public class Signature {
-    public ByteBuffer signature;
-
     public static final int MAX_SIGNATURE_SIZE = 13;
+    public final ByteBuffer signature;
 
     public Signature() {
-        signature = ByteBuffer.allocate(MAX_SIGNATURE_SIZE);
+    	signature = ByteBuffer.allocate(MAX_SIGNATURE_SIZE);
     }
 }
