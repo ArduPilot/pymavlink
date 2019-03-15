@@ -17,6 +17,12 @@ import com.MAVLink.Messages.MAVLinkStats;
  * method to parse a byte stream.
  */
 public class Parser {
+    static final String TAG = Parser.class.getSimpleName();
+    static final boolean V = false;
+
+    static void logv(String tag, String msg) {
+        if(V) System.out.println(String.format("%s: %s", tag, msg));
+    }
 
     /**
      * States from the parsing state machine
@@ -68,6 +74,8 @@ public class Parser {
 
         // for code clarity, parsing is handled differently depending on if it's a MAVLink1 or MAVLink2 frame
         if(isMavlink2) {
+            logv(TAG, "mavlink2");
+
             // MAVLINK 2 frame
             switch (state) {
                 case MAVLINK_PARSE_STATE_UNINIT:
@@ -75,8 +83,10 @@ public class Parser {
                     if (c == MAVLinkPacket.MAVLINK2_STX) {
                         state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
                         isMavlink2 = true;
+                        logv(TAG, "Turning mavlink2 ON");
                     } else if (c == MAVLinkPacket.MAVLINK1_STX) {
                         state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
+                        logv(TAG, "Turning mavlink2 OFF");
                         isMavlink2 = false;
                     }
                     break;
@@ -156,25 +166,36 @@ public class Parser {
                     } else { // crc is good
                         stats.newPacket(m);
                         m.signature = new Signature();
-//                        state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
-                        // Successfully received the message
-                        state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                        return m;
+                        
+                        // If no signature, then return the message.
+                        // Otherwise we're waiting for signature data.
+                        if(m.incompatFlags == 0x01) {
+                            state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
+                        } else {
+                            logv(TAG, "Got an unsigned message");
+                            state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                            return m;
+                        }
                     }
 
                     break;
                 // TODO: implement signature parsing and validation
-//                case MAVLINK_PARSE_STATE_GOT_CRC2:
-//                    m.signature.signature.put((byte) c);
-//                    if(m.signature.signature.position() == Signature.MAX_SIGNATURE_SIZE) {
-//                        state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-//                        // Successfully received the message
-//                        return m;
-//                    }
-//                    break;
+               case MAVLINK_PARSE_STATE_GOT_CRC2:
+                   m.signature.signature.put((byte) c);
+                   if(m.signature.signature.position() == Signature.MAX_SIGNATURE_SIZE) {
+                       state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                       logv(TAG, "Got a signed message");
+
+                       // Successfully received the message
+                       return m;
+                   }
+
+                   break;
 
             }
         } else {
+            logv(TAG, "mavlink1");
+
             // MAVLINK 1 frame
             switch (state) {
                 case MAVLINK_PARSE_STATE_UNINIT:
