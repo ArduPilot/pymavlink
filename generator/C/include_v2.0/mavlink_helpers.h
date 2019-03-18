@@ -96,7 +96,7 @@ MAVLINK_HELPER uint8_t mavlink_sign_packet(mavlink_signing_t *signing,
  *
  * @param payload Serialised payload buffer.
  * @param length Length of full-width payload buffer.
- * @return Length of payload after empty bytes trimmed.
+ * @return Length of payload after zero-filled bytes are trimmed.
  */
 MAVLINK_HELPER uint8_t _mav_trim_payload(const char *payload, uint8_t length)
 {
