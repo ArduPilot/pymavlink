@@ -1160,12 +1160,14 @@ class mavtcp(mavfile):
 
         self.autoreconnect = autoreconnect
 
-        self.do_connect(retries)
+        self.retries = retries
+        self.do_connect()
 
         mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
-    def do_connect(self, retries=3):
+    def do_connect(self):
         self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        retries = self.retries
         if retries <= 0:
             # try to connect at least once:
             retries = 1
@@ -1186,7 +1188,19 @@ class mavtcp(mavfile):
     def close(self):
         self.port.close()
 
+    def handle_eof(self):
+        # EOF
+        print("EOF on TCP socket")
+        if self.autoreconnect:
+            print("Attempting reconnect")
+            if self.port is not None:
+                self.port.close()
+                self.port = None
+            self.do_connect()
+
     def recv(self,n=None):
+        if self.port is None:
+            self.handle_eof()
         if n is None:
             n = self.mav.bytes_needed()
         try:
@@ -1196,16 +1210,13 @@ class mavtcp(mavfile):
                 return ""
             raise
         if len(data) == 0:
-            # EOF
-            print("EOF on TCP socket")
-            if self.autoreconnect:
-                print("Attempting reconnect")
-                self.port.close()
-                self.do_connect()
+            self.handle_eof()
 
         return data
 
     def write(self, buf):
+        if self.port is None:
+            self.do_connect()
         try:
             self.port.send(buf)
         except socket.error:
