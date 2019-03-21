@@ -90,6 +90,7 @@ def plotit(x, y, fields, colors=[]):
     empty = True
     ax1_labels = []
     ax2_labels = []
+    ax1_axis_labelled = False
     for i in range(0, len(fields)):
         if len(x[i]) == 0:
             print("Failed to find any values for field %s" % fields[i])
@@ -112,6 +113,10 @@ def plotit(x, y, fields, colors=[]):
             ax2_labels.append(label)
         else:
             ax1_labels.append(fields[i])
+            if not ax1_axis_labelled:
+                if fields[i] in field_units:
+                    ax1_axis_labelled = True
+                    ax1.set_ylabel(field_units[fields[i]])
             ax = ax1
         if args.xaxis:
             if args.marker is not None:
@@ -200,6 +205,7 @@ for f in args.logs_fields:
 msg_types = set()
 multiplier = []
 field_types = []
+field_units = {}
 
 colors = [ 'red', 'green', 'blue', 'orange', 'olive', 'black', 'grey', 'yellow', 'brown', 'darkcyan', 'cornflowerblue', 'darkmagenta', 'deeppink', 'darkred']
 
@@ -230,6 +236,11 @@ def add_data(t, msg, vars, flightmode):
         if mtype not in field_types[i]:
             continue
         f = fields[i]
+        if f not in field_units:
+            f_att_re = "[A-Z_][A-Z0-9_]+[.]([a-zA-Z_][a-zA-Z0-9_]+)"
+            def unitgetter(x):
+                return msg.get_unit(x.group(1))
+            field_units[f] = re.sub(f_att_re, unitgetter, f)
         if f.endswith(":2"):
             axes[i] = 2
             f = f[:-2]
