@@ -137,6 +137,7 @@
     <xs:enumeration value="MiB"/>      <!-- Mebibyte (1024*1024 bytes) -->
     <xs:enumeration value="MiB/s"/>    <!-- Mebibyte (1024*1024 bytes) per second -->
     <xs:enumeration value="bytes"/>    <!-- bytes -->
+    <xs:enumeration value="bytes/s"/>  <!-- bytes per second-->
     <xs:enumeration value="bits/s"/>   <!-- bits per second -->
     <xs:enumeration value="pix"/>      <!-- pixels -->
     <xs:enumeration value="dpix"/>     <!-- decipixels -->
