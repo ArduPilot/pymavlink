@@ -80,6 +80,13 @@ local bit = require "bit32"
 mavlink_proto = Proto("mavlink_proto", "MAVLink protocol")
 f = mavlink_proto.fields
 
+-- from http://lua-users.org/wiki/TimeZone
+local function get_timezone()
+    local now = os.time()
+    return os.difftime(now, os.time(os.date("!*t", now)))
+end
+local signature_time_ref = get_timezone() + os.time{year=2015, month=1, day=1, hour=0}
+
 payload_fns = {}
 
 """ )
@@ -96,8 +103,11 @@ f.sequence = ProtoField.uint8("mavlink_proto.sequence", "Packet sequence")
 f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.HEX)
 f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.HEX)
 f.msgid = ProtoField.uint24("mavlink_proto.msgid", "Message id", base.HEX)
-f.crc = ProtoField.uint16("mavlink_proto.crc", "Message CRC", base.HEX)
 f.payload = ProtoField.uint8("mavlink_proto.payload", "Payload", base.DEC, messageName)
+f.crc = ProtoField.uint16("mavlink_proto.crc", "Message CRC", base.HEX)
+f.signature_link = ProtoField.uint8("mavlink_proto.signature_link", "Link id", base.DEC)
+f.signature_time = ProtoField.absolute_time("mavlink_proto.signature_time", "Time")
+f.signature_signature = ProtoField.bytes("mavlink_proto.signature_signature", "Signature")
 f.rawheader = ProtoField.bytes("mavlink_proto.rawheader", "Unparsable header fragment")
 f.rawpayload = ProtoField.bytes("mavlink_proto.rawpayload", "Unparsable payload")
 
@@ -281,6 +291,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
     
         local msgid
         local length
+        local incompatibility_flag
 
         if (version == 0xfe) then
             if (buffer:len() - 2 - offset > 6) then
@@ -325,8 +336,8 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 length = buffer(offset,1)
                 header:add(f.length, length)
                 offset = offset + 1
-                local incompatibility_flag = buffer(offset,1)
-                header:add(f.incompatibility_flag, incompatibility_flag)
+                incompatibility_flag = buffer(offset,1):uint()
+                header:add(f.incompatibility_flag, buffer(offset,1), incompatibility_flag)
                 offset = offset + 1
                 local compatibility_flag = buffer(offset,1)
                 header:add(f.compatibility_flag, compatibility_flag)
@@ -381,7 +392,7 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
             local payload = subtree:add(f.payload, msgid)
             pinfo.cols.dst:set(messageName[msgid])
             if (msgCount == 1) then
-            -- first message should over wirte the TCP/UDP info
+            -- first message should over write the TCP/UDP info
                 pinfo.cols.info = messageName[msgid]
             else
                 pinfo.cols.info:append("   "..messageName[msgid])
@@ -391,9 +402,30 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         end
 
         -- CRC ----------------------------------------
+
         local crc = buffer(offset,2)
         subtree:add_le(f.crc, crc)
         offset = offset + 2
+
+        -- SIGNATURE ----------------------------------
+
+        if (version == 0xfd and incompatibility_flag == 0x01) then
+            local signature = subtree:add("Signature")
+
+            local link = buffer(offset,1)
+            signature:add(f.signature_link, link)
+            offset = offset + 1
+
+            local signature_time = buffer(offset,6):le_uint64()
+            local time_secs = signature_time / 100000
+            local time_nsecs = (signature_time - (time_secs * 100000)) * 10000
+            signature:add(f.signature_time, buffer(offset,6), NSTime.new(signature_time_ref + time_secs:tonumber(), time_nsecs:tonumber()))
+            offset = offset + 6
+
+            local signature_signature = buffer(offset,6)
+            signature:add(f.signature_signature, signature_signature)
+            offset = offset + 6
+        end
 
     end
 end
