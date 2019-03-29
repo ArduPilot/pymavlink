@@ -159,7 +159,6 @@ class MAVEnumParam(object):
             self.description = 'Reserved (default:%s)' % self.default
         else:
             self.description = description
-        self.description = '%s: %s' % (self.index, self.description)
 
 class MAVEnumEntry(object):
     def __init__(self, name, value, description='', end_marker=False, autovalue=False, origin_file='', origin_line=0):
