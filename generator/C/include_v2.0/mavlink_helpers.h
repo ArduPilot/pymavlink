@@ -527,13 +527,23 @@ MAVLINK_HELPER uint8_t mavlink_get_crc_extra(const mavlink_message_t *msg)
 }
 
 /*
-  return the expected message length
+  return the min message length
 */
-#define MAVLINK_HAVE_EXPECTED_MESSAGE_LENGTH
-MAVLINK_HELPER uint8_t mavlink_expected_message_length(const mavlink_message_t *msg)
+#define MAVLINK_HAVE_MIN_MESSAGE_LENGTH
+MAVLINK_HELPER uint8_t mavlink_min_message_length(const mavlink_message_t *msg)
 {
 	const mavlink_msg_entry_t *e = mavlink_get_msg_entry(msg->msgid);
-	return e?e->msg_len:0;
+        return e?e->min_msg_len:0;
+}
+
+/*
+  return the max message length (including extensions)
+*/
+#define MAVLINK_HAVE_MAX_MESSAGE_LENGTH
+MAVLINK_HELPER uint8_t mavlink_max_message_length(const mavlink_message_t *msg)
+{
+	const mavlink_msg_entry_t *e = mavlink_get_msg_entry(msg->msgid);
+        return e?e->max_msg_len:0;
 }
 
 /**
@@ -728,8 +738,8 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
                 rxmsg->ck[0] = c;
 
 		// zero-fill the packet to cope with short incoming packets
-		if (e && status->packet_idx < e->msg_len) {
-			memset(&_MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx], 0, e->msg_len - status->packet_idx);
+                if (e && status->packet_idx < e->max_msg_len) {
+                        memset(&_MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx], 0, e->max_msg_len - status->packet_idx);
 		}
 		break;
         }

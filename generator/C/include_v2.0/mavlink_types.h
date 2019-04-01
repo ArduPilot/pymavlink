@@ -281,11 +281,11 @@ typedef struct __mavlink_signing_streams {
 typedef struct __mavlink_msg_entry {
 	uint32_t msgid;
 	uint8_t crc_extra;
-        uint8_t msg_len;           // minimum message length
-	uint8_t flags;             // MAV_MSG_ENTRY_FLAG_*
+        uint8_t min_msg_len;       // minimum message length
+        uint8_t max_msg_len;       // maximum message length (e.g. including mavlink2 extensions)
+        uint8_t flags;             // MAV_MSG_ENTRY_FLAG_*
 	uint8_t target_system_ofs; // payload offset to target_system, or 0
 	uint8_t target_component_ofs; // payload offset to target_component, or 0
-        uint8_t max_msg_len;       // maximum message length (e.g. including mavlink2 extensions)
 } mavlink_msg_entry_t;
 
 /*
