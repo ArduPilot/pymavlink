@@ -351,6 +351,11 @@ class mavfile(object):
 
         self.sysid_state[src_system].messages[type] = msg
 
+        if src_tuple == radio_tuple:
+            # as a special case radio msgs are added for all sysids
+            for s in self.sysid_state.keys():
+                self.sysid_state[s].messages[type] = msg
+
         if not (src_tuple == radio_tuple or msg.get_type() == 'BAD_DATA'):
             if not src_tuple in self.last_seq:
                 last_seq = -1
