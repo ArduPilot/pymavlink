@@ -1707,7 +1707,7 @@ def is_printable(c):
 def all_printable(buf):
     '''see if a string is all printable'''
     for c in buf:
-        if not is_printable(c) and not c in ['\r', '\n', '\t']:
+        if not is_printable(c) and not c in ['\r', '\n', '\t'] and not c in [ord('\r'), ord('\n'), ord('\t')]:
             return False
     return True
 
