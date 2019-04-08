@@ -138,6 +138,10 @@ public class MAVLinkPayload {
     public float getFloat() {
         return Float.intBitsToFloat(getInt());
     }
+
+    public double getDouble() {
+        return Double.longBitsToDouble(getLong());
+    }   
     
     public void putByte(byte data) {
         add(data);
@@ -200,6 +204,10 @@ public class MAVLinkPayload {
 
     public void putFloat(float data) {
         putInt(Float.floatToIntBits(data));
+    }
+
+    public void putDouble(double data) {
+        putLong(Double.doubleToLongBits(data));
     }
 
 }
