@@ -100,8 +100,6 @@ public class CRC {
     public void finish_checksum(int msgid) {
         if(MAVLINK_MESSAGE_CRCS.containsKey(msgid))
             update_checksum(MAVLINK_MESSAGE_CRCS.get(msgid));
-        else
-            throw new IllegalArgumentException("Invalid msgid");
     }
 
     /**
@@ -176,7 +174,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
         packet.compid = 190;
         packet.msgid = MAVLINK_MSG_ID_${name};
         ${{base_fields:
-        ${packField}    
+        ${packField}
         }}
         if(isMavlink2) {
             ${{extended_fields:
@@ -194,7 +192,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
     public void unpack(MAVLinkPayload payload) {
         payload.resetIndex();
         ${{base_fields:
-        ${unpackField}    
+        ${unpackField}
         }}
         if(isMavlink2) {
             ${{extended_fields:
@@ -318,6 +316,11 @@ public class MAVLinkPacket implements Serializable {
     public static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
     public static final int MAVLINK2_NONPAYLOAD_SIGNED_LEN = MAVLINK2_HEADER_LEN + 2 + Signature.MAX_SIGNATURE_SIZE;
 
+    static final boolean V = false;
+    static void logv(String str) {
+        if(V) System.out.println(String.format("MAVLinkPacket: %s", str));
+    }
+
     /**
      * Payload length
      */
@@ -375,16 +378,6 @@ public class MAVLinkPacket implements Serializable {
      * Flags that can be ignored if not understood
      */
     public int compatFlags;
-
-//    /**
-//     * Optional field for point-to-point messages, used for payload else
-//     */
-//    public int targetSysid;
-//
-//    /**
-//     * Optional field for point-to-point messages, used for payload else
-//     */
-//    public int targetCompid;
 
     /**
      * Signature which allows ensuring that the link is tamper-proof
@@ -487,20 +480,6 @@ public class MAVLinkPacket implements Serializable {
             buffer[i++] = (byte) msgid;
             buffer[i++] = (byte) (msgid >>> 8);
             buffer[i++] = (byte) (msgid >>> 16);
-
-            for (int j = 0; j < payload.size(); j++) {
-                buffer[i++] = payload.payload.get(j);
-            }
-
-            generateCRC();
-            buffer[i++] = (byte) (crc.getLSB());
-            buffer[i++] = (byte) (crc.getMSB());
-
-            // TODO: implement signature
-//            generateSignature();
-//            for (int j = 0; j < Signature.MAX_SIGNATURE_SIZE; j++) {
-//                buffer[i++] = signature.signature.get(j);
-//            }
         } else {
             buffer[i++] = (byte) MAVLINK1_STX;
             buffer[i++] = (byte) len;
@@ -508,15 +487,17 @@ public class MAVLinkPacket implements Serializable {
             buffer[i++] = (byte) sysid;
             buffer[i++] = (byte) compid;
             buffer[i++] = (byte) msgid;
-
-            for (int j = 0; j < payload.size(); j++) {
-                buffer[i++] = payload.payload.get(j);
-            }
-
-            generateCRC();
-            buffer[i++] = (byte) (crc.getLSB());
-            buffer[i++] = (byte) (crc.getMSB());
         }
+
+        for (int j = 0, size = payload.size(); j < size; ++j) {
+            buffer[i++] = payload.payload.get(j);
+        }
+
+        generateCRC();
+        buffer[i++] = (byte) (crc.getLSB());
+        buffer[i++] = (byte) (crc.getMSB());
+
+        logv(String.format("encode: isMavlink2=%s msgid=%d", isMavlink2, msgid));
 
         return buffer;
     }
