@@ -51,8 +51,10 @@ def PrintSummary(logfile):
     first_gps_msg = None # The last GPS message received
     true_time = None # Track the first timestamp found that corresponds to a UNIX timestamp
 
+    types = set(['HEARTBEAT', 'GPS_RAW_INT'])
+
     while True:
-        m = mlog.recv_match(condition=args.condition)
+        m = mlog.recv_match(condition=args.condition, type=types)
 
         # If there's no match, it means we're done processing the log.
         if m is None:
@@ -105,12 +107,12 @@ def PrintSummary(logfile):
             if m.type == mavutil.mavlink.MAV_TYPE_GCS:
                 continue
             if (m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED or
-                m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_AUTO_ENABLED) and autonomous == False:
+                m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_AUTO_ENABLED) and not autonomous:
                 autonomous = True
                 autonomous_sections += 1
                 start_auto_time = timestamp
             elif (not m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED and
-                not m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_AUTO_ENABLED) and autonomous == True:
+                not m.base_mode & mavutil.mavlink.MAV_MODE_FLAG_AUTO_ENABLED) and autonomous:
                 autonomous = False
                 auto_time += timestamp - start_auto_time
 
@@ -120,7 +122,7 @@ def PrintSummary(logfile):
         return
 
     # If the vehicle ends in autonomous mode, make sure we log the total time
-    if autonomous == True:
+    if autonomous:
         auto_time += timestamp - start_auto_time
 
     # Compute the total logtime, checking that timestamps are 2009 or newer for validity
