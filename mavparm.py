@@ -84,8 +84,8 @@ class MAVParmDict(dict):
         '''load parameters from a file'''
         try:
             f = open(filename, mode='r')
-        except:
-            print("Failed to open file '%s'" % filename)
+        except Exception as e:
+            print("Failed to open file '%s': %s" % (filename, str(e)))
             return False
         count = 0
         changed = 0
