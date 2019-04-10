@@ -42,7 +42,7 @@ def generate_classes(dir, registry, msgs, xml):
                 "float": "number", "double": "number", "char": "string"}
 
     with open(registry, "w") as registry_f:
-        registry_f.write("import {MAVLinkMessage} from './mavlink-message';\n")
+        registry_f.write("import {MAVLinkMessage} from 'node-mavlink';\n")
         for m in msgs:
             filename = m.name.replace('_', '-')
             filename = filename.lower()
@@ -55,8 +55,8 @@ def generate_classes(dir, registry, msgs, xml):
                 if xml.wire_protocol_version == '1.0':
                     raise Exception('WireProtocolException', 'Please use WireProtocol = 2.0 only.')
 
-                f.write("import {MAVLinkMessage} from '../mavlink-message';\n")
-                f.write("import {readInt64LE, readUInt64LE} from '../mavlink-message';\n")
+                f.write("import {MAVLinkMessage} from 'node-mavlink';\n")
+                f.write("import {readInt64LE, readUInt64LE} from 'node-mavlink';\n")
                 registry_f.write("import {{{}}} from './messages/{}';\n".format(camelcase(m.name), filename))
                 imported_enums = []
                 for enum in [field.enum for field in m.fields if field.enum != '']:
