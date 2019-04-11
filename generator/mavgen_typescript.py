@@ -23,6 +23,10 @@ def camelcase(str):
 
 def generate_enums(dir, enums):
     print("Generating enums")
+
+    if not os.path.isdir(dir):
+        os.mkdir(dir)
+        
     for e in enums:
         filename = e.name.replace('_', '-')
         filename = filename.lower()
@@ -40,6 +44,9 @@ def generate_classes(dir, registry, msgs, xml):
     ts_types = {"uint8_t": "number", "uint16_t": "number", "uint32_t": "number", "uint64_t": "number",
                 "int8_t": "number", "int16_t": "number", "int32_t": "number", "int64_t": "number",
                 "float": "number", "double": "number", "char": "string"}
+
+    if not os.path.isdir(dir):
+        os.mkdir(dir)
 
     with open(registry, "w") as registry_f:
         registry_f.write("import {MAVLinkMessage} from 'node-mavlink';\n")
@@ -96,10 +103,21 @@ def generate_classes(dir, registry, msgs, xml):
                 f.write("}")
 
         registry_f.write(
-            "export const messageRegistry: Array<[number, new (system_id: number, component_id: number) => MAVLinkMessage]> = [\n")
+            "export const messageRegistry: Array<[number, new (system_id: number, component_id: number) "
+            "=> MAVLinkMessage]> = [\n")
         for m in msgs:
             registry_f.write("\t[{}, {}],\n".format(m.id, camelcase(m.name)))
         registry_f.write("];")
+
+
+def generate_tsconfig(basename):
+    with open('{}/tsconfig.json'.format(basename), "w") as f:
+        f.write(
+            "{\n  \"compilerOptions\": {\n    \"target\": \"es5\",\n    \"module\": \"commonjs\","
+            "\n    \"declaration\": true,\n    \"declarationMap\": true,\n    \"sourceMap\": true,"
+            "\n    \"outDir\": \"./\",\n    \"strict\": true,\n    \"esModuleInterop\": true\n  },"
+            "\n  \"include\": [\n    \"./\"\n  ],\n  \"exclude\": [\n    \"**/*.d.ts\","
+            "\n    \"**/*.d.ts.map\",\n    \"**/*.js\",\n    \"**/*.js.map\"\n  ]\n}")
 
 
 def generate(basename, xml):
@@ -117,3 +135,4 @@ def generate(basename, xml):
 
     generate_enums(enums_dir, enums)
     generate_classes(messages_dir, message_registry, msgs, xml[0])
+    generate_tsconfig(basename)
