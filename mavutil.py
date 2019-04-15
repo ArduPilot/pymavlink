@@ -1446,6 +1446,10 @@ class mavmmaplog(mavlogfile):
                 incompat_flags = u_ord(self.data_map[ofs+10])
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
+            else:
+                # unrecognised marker; probably a malformed log
+                ofs += 1
+                continue
 
             if not mtype in self.offsets:
                 if not mtype in mavlink.mavlink_map:
