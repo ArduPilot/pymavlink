@@ -45,6 +45,10 @@ public class MAVLinkPayload {
         return payload.position();
     }
 
+    public boolean hasRemaining() {
+        return payload.hasRemaining();
+    }
+
     public void add(byte c) {
         payload.put(c);
     }

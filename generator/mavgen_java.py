@@ -656,6 +656,7 @@ def generate_one(basename, xml):
                 
                 f.unpackField = ''' 
         for (int i = 0; i < this.%s.length; i++) {
+            if(!payload.hasRemaining()) break;
             this.%s[i] = payload.get%s();
         }
                 ''' % (f.name, f.name, mavfmt(f, True) )
