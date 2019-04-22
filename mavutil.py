@@ -1196,19 +1196,18 @@ class mavtcp(mavfile):
     def close(self):
         self.port.close()
 
+    def handle_disconnect(self):
+        print("Connection reset or closed by peer on TCP socket")
+        self.reconnect()
+
     def handle_eof(self):
         # EOF
         print("EOF on TCP socket")
-        if self.autoreconnect:
-            print("Attempting reconnect")
-            if self.port is not None:
-                self.port.close()
-                self.port = None
-            self.do_connect()
+        self.reconnect()
 
     def recv(self,n=None):
         if self.port is None:
-            self.handle_eof()
+            self.reconnect()
         if n is None:
             n = self.mav.bytes_needed()
         try:
@@ -1216,6 +1215,8 @@ class mavtcp(mavfile):
         except socket.error as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return ""
+            if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
+                self.handle_disconnect()
             raise
         if len(data) == 0:
             self.handle_eof()
@@ -1224,11 +1225,21 @@ class mavtcp(mavfile):
 
     def write(self, buf):
         if self.port is None:
-            self.do_connect()
+            self.reconnect()
         try:
             self.port.send(buf)
-        except socket.error:
+        except socket.error as e:
+            if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
+                self.handle_disconnect()
             pass
+
+    def reconnect(self):
+        if self.autoreconnect:
+            print("Attempting reconnect")
+            if self.port is not None:
+                self.port.close()
+                self.port = None
+            self.do_connect()
 
 
 class mavtcpin(mavfile):
