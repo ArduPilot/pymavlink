@@ -237,7 +237,7 @@ class DFReaderClock(object):
 
     def _gpsTimeToTime(self, week, msec):
         '''convert GPS week and TOW to a time in seconds since 1970'''
-        epoch = 86400*(10*365 + (1980-1969)/4 + 1 + 6 - 2)
+        epoch = 86400*(10*365 + int((1980-1969)/4) + 1 + 6 - 2)
         return epoch + 86400*7*week + msec*0.001 - 15
 
     def set_timebase(self, base):
