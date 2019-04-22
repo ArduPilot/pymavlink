@@ -1225,7 +1225,10 @@ class mavtcp(mavfile):
 
     def write(self, buf):
         if self.port is None:
-            self.reconnect()
+            try:
+                self.reconnect()
+            except socket.error as e:
+                pass
         try:
             self.port.send(buf)
         except socket.error as e:
