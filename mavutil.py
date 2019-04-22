@@ -1183,6 +1183,9 @@ class mavtcp(mavfile):
                 break
             except Exception as e:
                 if retries == 0:
+                    if self.port is not None:
+                        self.port.close()
+                        self.port = None
                     raise e
                 print(e, "sleeping")
                 time.sleep(1)
