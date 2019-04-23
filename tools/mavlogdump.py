@@ -8,6 +8,7 @@ header. The timestamp is in microseconds since 1970 (unix epoch)
 '''
 from __future__ import print_function
 
+import array
 import fnmatch
 import json
 import os
@@ -217,6 +218,11 @@ while True:
         if args.show_source:
             meta["srcSystem"] = m.get_srcSystem()
             meta["srcComponent"] = m.get_srcComponent()
+
+        # convert any array.array (e.g. packed-16-bit fft readings) into lists:
+        for key in data.keys():
+            if type(data[key]) == array.array:
+                data[key] = list(data[key])
         outMsg = {"meta": meta, "data": data}
 
         # Now print out this object with stringified properly.
