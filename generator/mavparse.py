@@ -307,7 +307,7 @@ class MAVXML(object):
             elif in_element == "mavlink.enums.enum.entry.description":
                 self.enum[-1].entry[-1].description += data
             elif in_element == "mavlink.enums.enum.entry.param":
-                self.enum[-1].entry[-1].param[-1].set_description(data.strip())
+                self.enum[-1].entry[-1].param[-1].description += data
             elif in_element == "mavlink.version":
                 self.version = int(data)
             elif in_element == "mavlink.include":
