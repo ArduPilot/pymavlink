@@ -2256,6 +2256,166 @@ class MavlinkSerialPort(object):
                 self.flushInput()
                 self.debug("Changed baudrate %u" % self.baudrate)
 
+def decode_bitmask(messagetype, field, value):
+    try:
+        _class = eval("mavlink.MAVLink_%s_message" % messagetype.lower())
+    except AttributeError as e:
+        raise AttributeError("No such message type")
+
+    try:
+        display = _class.fielddisplays_by_name[field]
+    except KeyError as e:
+        raise AttributeError("Not a bitmask field (none specified)")
+
+    if display != "bitmask":
+        raise ValueError("Not a bitmask field")
+
+    try:
+        enum_name = _class.fieldenums_by_name[field]
+    except KeyError as e:
+        raise AttributeError("No enum found for bitmask field")
+
+    try:
+        enum = mavlink.enums[enum_name]
+    except KeyError as e:
+        raise AttributeError("Did not find specified enumeration (%s)" % enum_name)
+
+    class EnumBitInfo(object):
+        def __init__(self, offset, value, name):
+            self.offset = offset
+            self.value = value
+            self.name = name
+
+    ret = []
+    for i in range(0, 64):
+        bit_value = (1 << i)
+        try:
+            enum_entry = enum[bit_value]
+            enum_entry_name = enum_entry.name
+        except KeyError as e:
+            enum_entry_name = None
+            if value == 0:
+                continue
+        if value & bit_value:
+            ret.append( EnumBitInfo(i, True, enum_entry_name) )
+            value = value & ~bit_value
+        else:
+            ret.append( EnumBitInfo(i, False, enum_entry_name) )
+    return ret
+
+def dump_message_verbose(f, m):
+    '''write an excruciatingly detailed dump of message m to file descriptor f'''
+    try:
+        # __getattr__ may be overridden on m, thus this try/except
+        timestamp = m._timestamp
+    except IOError as e:
+        timestamp = ""
+    if timestamp != "":
+        timestamp = "%s.%02u: " % (
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
+            int(timestamp*100.0)%100)
+    f.write("%s%s (link=%s) (signed=%s) (seq=%u) (src=%u/%u)\n" % (timestamp, m.get_type(), str(m.get_link_id()), str(m.get_signed()), m.get_seq(), m.get_srcSystem(), m.get_srcComponent()))
+    for fieldname in m.get_fieldnames():
+
+        # format in those most boring way possible:
+        value = m.format_attr(fieldname)
+
+        # try to add units:
+        try:
+            units = m.fieldunits_by_name[fieldname]
+            # perform simple unit conversions:
+            if units == "d%":
+                value = value / 10.0
+                units = "%"
+            if units == "c%":
+                value = value / 100.0
+                units = "%"
+
+            if units == "cA":
+                value = value / 100.0
+                units = "A"
+
+            elif units == "cdegC":
+                value = value / 100.0
+                units = "degC"
+
+            elif units == "cdeg":
+                value = value / 100.0
+                units = "deg"
+
+            elif units == "degE7":
+                value = value / 10000000.0
+                units = "deg"
+
+            elif units == "mG":
+                value = value / 1000.0
+                units = "G"
+
+            elif units == "mrad/s":
+                value = value / 1000.0
+                units = "rad/s"
+
+            elif units == "mV":
+                value = value / 1000.0
+                units = "V"
+
+            # and give radians in degrees too:
+            if units == "rad":
+                value = "%s%s (%sdeg)" % (value, units, math.degrees(value))
+            elif units == "rad/s":
+                value = "%s%s (%sdeg/s)" % (value, units, math.degrees(value))
+            elif units == "rad/s/s":
+                value = "%s%s (%sdeg/s/s)" % (value, units, math.degrees(value))
+            else:
+                value = "%s%s" % (value, units)
+        except AttributeError as e:
+            # e.g. BAD_DATA
+            pass
+        except KeyError as e:
+            pass
+
+        # format any bitmask enumerations:
+        try:
+            enum_name = m.fieldenums_by_name[fieldname]
+            display = m.fielddisplays_by_name[fieldname]
+            if enum_name is not None and display == "bitmask":
+                bits = decode_bitmask(m.get_type(), fieldname, value)
+                f.write("    %s: %s\n" % (fieldname, value))
+                for bit in bits:
+                    value = bit.value
+                    name = bit.name
+                    svalue = " "
+                    if not value:
+                        svalue = "!"
+                    if name is None:
+                        name = "[UNKNOWN]"
+                    f.write("      %s %s\n" % (svalue, name))
+                continue
+#            except NameError as e:
+#                pass
+        except AttributeError as e:
+            # e.g. BAD_DATA
+            pass
+        except KeyError as e:
+            pass
+
+        # add any enumeration name:
+        try:
+            enum_name = m.fieldenums_by_name[fieldname]
+            try:
+                enum_value = mavlink.enums[enum_name][value].name
+                value = "%s (%s)" % (value, enum_value)
+            except KeyError as e:
+                value = "%s (%s)" % (value, "[UNKNOWN]")
+        except AttributeError as e:
+            # e.g. BAD_DATA
+            pass
+        except KeyError as e:
+            pass
+
+        f.write("    %s: %s\n" % (fieldname, value))
+
+
 if __name__ == '__main__':
         serial_list = auto_detect_serial(preferred_list=['*FTDI*',"*Arduino_Mega_2560*", "*3D_Robotics*", "*USB_to_UART*", '*PX4*', '*FMU*'])
         for port in serial_list:
