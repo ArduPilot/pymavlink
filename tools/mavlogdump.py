@@ -13,6 +13,7 @@ import fnmatch
 import json
 import os
 import struct
+import sys
 import time
 
 try:
@@ -44,6 +45,7 @@ parser.add_argument("--show-types", action='store_true', help="Shows all message
 parser.add_argument("--source-system", type=int, default=None, help="filter by source system ID")
 parser.add_argument("--source-component", type=int, default=None, help="filter by source component ID")
 parser.add_argument("--link", type=int, default=None, help="filter by comms link ID")
+parser.add_argument("--verbose", action='store_true', help="Dump messages in a much more verbose (but non-parseable) format")
 parser.add_argument("--mav10", action='store_true', help="parse as MAVLink1")
 parser.add_argument("log", metavar="LOG")
 args = parser.parse_args()
@@ -252,8 +254,14 @@ while True:
                 csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
             else:
                 csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == type and y.split('.')[-1] in data else "" for y in fields]
-    # Otherwise we output in a standard Python dict-style format
+    elif args.show_types:
+        # do nothing
+        pass
+    elif args.verbose and istlog:
+        mavutil.dump_message_verbose(sys.stdout, m)
+        print("")
     else:
+        # Otherwise we output in a standard Python dict-style format
         s = "%s.%02u: %s" % (time.strftime("%Y-%m-%d %H:%M:%S",
                                            time.localtime(timestamp)),
                              int(timestamp*100.0)%100, m)
@@ -261,8 +269,7 @@ while True:
             s += " srcSystem=%u srcComponent=%u" % (m.get_srcSystem(), m.get_srcComponent())
         if args.show_seq:
             s += " seq=%u" % m.get_seq()
-        if not args.show_types:
-            print(s)
+        print(s)
 
     # Update our last timestamp value.
     last_timestamp = timestamp
