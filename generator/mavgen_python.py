@@ -282,6 +282,10 @@ def byname_hash_from_field_attribute(m, attribute):
         value = getattr(field, attribute, None)
         if value is None or value == "":
             continue
+        if attribute == 'units':
+            # hack; remove the square brackets further up
+            if value[0] == "[":
+                value = value[1:-1]
         strings.append('"%s": "%s"' % (field.name, value))
     return ", ".join(strings)
 
@@ -294,6 +298,7 @@ def generate_classes(outf, msgs):
         ordered_fieldname_str = ", ".join(["'%s'" % s for s in m.ordered_fieldnames])
         fielddisplays_str = byname_hash_from_field_attribute(m, "display")
         fieldenums_str = byname_hash_from_field_attribute(m, "enum")
+        fieldunits_str = byname_hash_from_field_attribute(m, "units")
 
         fieldtypes_str = ", ".join(["'%s'" % s for s in m.fieldtypes])
         outf.write("""
@@ -308,6 +313,7 @@ class %s(MAVLink_message):
         fieldtypes = [%s]
         fielddisplays_by_name = {%s}
         fieldenums_by_name = {%s}
+        fieldunits_by_name = {%s}
         format = '%s'
         native_format = bytearray('%s', 'ascii')
         orders = %s
@@ -324,6 +330,7 @@ class %s(MAVLink_message):
             fieldtypes_str,
             fielddisplays_str,
             fieldenums_str,
+            fieldunits_str,
             m.fmtstr,
             m.native_fmtstr,
             m.order_map,
