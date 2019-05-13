@@ -84,7 +84,7 @@ public class CRC {
         data = data & 0xff; //cast because we want an unsigned type
         int tmp = data ^ (crcValue & 0xff);
         tmp ^= (tmp << 4) & 0xff;
-        crcValue = ((crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
+        crcValue = ((crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xff);
     }
 
     /**
@@ -95,7 +95,14 @@ public class CRC {
     *            The message id number
     */
     public void finish_checksum(int msgid) {
-        update_checksum(MAVLINK_MESSAGE_CRCS[msgid]);
+        try {
+
+            update_checksum(MAVLINK_MESSAGE_CRCS[msgid]);
+            }
+        catch (final Exception ex)
+        {
+            // do nothing ...      msgid is wrong and this is a bad packet that will fail in CRC check.
+        }
     }
 
     /**

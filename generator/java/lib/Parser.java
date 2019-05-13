@@ -105,13 +105,11 @@ public class Parser {
             } else {
                 state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID;
             }
-            inputLength =0;
             break;
 
         case MAVLINK_PARSE_STATE_GOT_MSGID:
 
                 m.payload.add((byte) c);
-                inputLength +=1;
                 if (m.payloadIsFilled()) {
                     state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
                 }

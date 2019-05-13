@@ -62,6 +62,11 @@ public class MAVLinkStats /* implements Serializable */{
         crcErrorCount++;
     }
 
+
+    public void mavlinkResetStats() {
+        resetStats();
+    }
+
     public void resetStats() {
         crcErrorCount = 0;
         lostPacketCount = 0;
