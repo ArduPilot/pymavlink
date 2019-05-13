@@ -25,8 +25,11 @@ public class MAVLinkPayload {
     
     public final ByteBuffer payload;
     public int index;
-    // Avoid bad index value when the previous parameter has zero.
-    // e.g ACK msg with command = 11 and all remaining butes are zeros.
+
+    /**
+     * Mavlink2 allows not sending paramaters if the remaining parameter values are zeros.
+     * This variable helps to detect this occurance to avoid bad index value when the previous parameter has zero.
+     */
     public boolean allZeros = false;
 
     public MAVLinkPayload(int payloadSize) {
@@ -64,8 +67,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -83,8 +84,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -103,8 +102,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -122,8 +119,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -144,8 +139,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -165,8 +158,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -192,8 +183,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -202,7 +191,6 @@ public class MAVLinkPayload {
 
 
 
-    // MHEFNY MAVLINK
     public long getDouble() {
 
         if (allZeros) return 0;
@@ -221,8 +209,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         Double.longBitsToDouble(result);
@@ -253,8 +239,6 @@ public class MAVLinkPayload {
         }
         catch (final Exception ex)
         {
-            //https://mavlink.io/en/guide/serialization.html#python-code-example
-            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
             allZeros = true;
         }
         return result;
@@ -306,7 +290,6 @@ public class MAVLinkPayload {
     }
 
 
-    //MHEFNY MAVLINK
     public void putDouble(double ddata) {
 
         long data = Double.doubleToLongBits(ddata);
