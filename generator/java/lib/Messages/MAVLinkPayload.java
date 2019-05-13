@@ -25,6 +25,9 @@ public class MAVLinkPayload {
     
     public final ByteBuffer payload;
     public int index;
+    // Avoid bad index value when the previous parameter has zero.
+    // e.g ACK msg with command = 11 and all remaining butes are zeros.
+    public boolean allZeros = false;
 
     public MAVLinkPayload(int payloadSize) {
        if(payloadSize > MAX_PAYLOAD_SIZE) {
@@ -51,67 +54,180 @@ public class MAVLinkPayload {
     }
 
     public byte getByte() {
+
+        if (allZeros) return 0;
+
         byte result = 0;
-        result |= (payload.get(index + 0) & 0xFF);
-        index += 1;
+        try {
+            result |= (payload.get(index + 0) & 0xFF);
+            index += 1;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
     }
 
     public short getUnsignedByte(){
+
+        if (allZeros) return 0;
+
         short result = 0;
-        result |= payload.get(index + 0) & 0xFF;
-        index+= 1;
-        return result; 
+        try {
+            result |= payload.get(index + 0) & 0xFF;
+            index+= 1;
+
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
+        return result;
     }
 
     public short getShort() {
+
+        if (allZeros) return 0;
+
         short result = 0;
-        result |= (payload.get(index + 1) & 0xFF) << 8;
-        result |= (payload.get(index + 0) & 0xFF);
-        index += 2;
+        try {
+            result |= (payload.get(index + 0) & 0xFF);
+            result |= (payload.get(index + 1) & 0xFF) << 8;
+            index += 2;
+            return result;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
     }
 
     public int getUnsignedShort(){
+
+        if (allZeros) return 0;
+
         int result = 0;
-        result |= (payload.get(index + 1) & 0xFF) << 8;
-        result |= (payload.get(index + 0) & 0xFF);
-        index += 2;
+        try {
+            result |= (payload.get(index + 0) & 0xFF);
+            result |= (payload.get(index + 1) & 0xFF) << 8;
+            index += 2;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
     }
 
     public int getInt() {
+
+        if (allZeros) return 0;
+
         int result = 0;
-        result |= (payload.get(index + 3) & 0xFF) << 24;
-        result |= (payload.get(index + 2) & 0xFF) << 16;
-        result |= (payload.get(index + 1) & 0xFF) << 8;
-        result |= (payload.get(index + 0) & 0xFF);
-        index += 4;
+        try
+        {
+            result |= (payload.get(index + 0) & 0xFF);
+            result |= (payload.get(index + 1) & 0xFF) << 8;
+            result |= (payload.get(index + 2) & 0xFF) << 16;
+            result |= (payload.get(index + 3) & 0xFF) << 24;
+            index += 4;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
     }
 
     public long getUnsignedInt(){
+
+        if (allZeros) return 0;
+
         long result = 0;
-        result |= (payload.get(index + 3) & 0xFFL) << 24;
-        result |= (payload.get(index + 2) & 0xFFL) << 16;
-        result |= (payload.get(index + 1) & 0xFFL) << 8;
-        result |= (payload.get(index + 0) & 0xFFL);
-        index += 4;
+        try {
+            result |= (payload.get(index + 0) & 0xFF);
+            result |= (payload.get(index + 1) & 0xFF) << 8;
+            result |= (payload.get(index + 2) & 0xFF) << 16;
+            result |= (payload.get(index + 3) & 0xFF) << 24;
+            index += 4;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
     }
 
+
+
     public long getLong() {
+
+        if (allZeros) return 0;
+
         long result = 0;
-        result |= (payload.get(index + 7) & 0xFFL) << 56;
-        result |= (payload.get(index + 6) & 0xFFL) << 48;
-        result |= (payload.get(index + 5) & 0xFFL) << 40;
-        result |= (payload.get(index + 4) & 0xFFL) << 32;
-        result |= (payload.get(index + 3) & 0xFFL) << 24;
-        result |= (payload.get(index + 2) & 0xFFL) << 16;
-        result |= (payload.get(index + 1) & 0xFFL) << 8;
-        result |= (payload.get(index + 0) & 0xFFL);
-        index += 8;
+        try {
+            result |= (payload.get(index + 0) & 0xFF);
+            result |= (payload.get(index + 1) & 0xFF) << 8;
+            result |= (payload.get(index + 2) & 0xFF) << 16;
+            result |= (payload.get(index + 3) & 0xFF) << 24;
+            result |= (payload.get(index + 4) & 0xFF) << 32;
+            result |= (payload.get(index + 5) & 0xFF) << 40;
+            result |= (payload.get(index + 6) & 0xFF) << 48;
+            result |= (payload.get(index + 7) & 0xFF) << 56;
+            index += 8;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
+
+    }
+
+
+
+    // MHEFNY MAVLINK
+    public long getDouble() {
+
+        if (allZeros) return 0;
+
+        long result = 0;
+        try {
+            result |= (payload.get(index + 0) & 0xFF);
+            result |= (payload.get(index + 1) & 0xFF) << 8;
+            result |= (payload.get(index + 2) & 0xFF) << 16;
+            result |= (payload.get(index + 3) & 0xFF) << 24;
+            result |= (payload.get(index + 4) & 0xFF) << 32;
+            result |= (payload.get(index + 5) & 0xFF) << 40;
+            result |= (payload.get(index + 6) & 0xFF) << 48;
+            result |= (payload.get(index + 7) & 0xFF) << 56;
+            index += 8;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
+        Double.longBitsToDouble(result);
+        return result;
+
     }
 
     public long getUnsignedLong(){
@@ -119,17 +235,30 @@ public class MAVLinkPayload {
     }
     
     public long getLongReverse() {
+
+        if (allZeros) return 0;
+
         long result = 0;
-        result |= (payload.get(index + 0) & 0xFFL) << 56;
-        result |= (payload.get(index + 1) & 0xFFL) << 48;
-        result |= (payload.get(index + 2) & 0xFFL) << 40;
-        result |= (payload.get(index + 3) & 0xFFL) << 32;
-        result |= (payload.get(index + 4) & 0xFFL) << 24;
-        result |= (payload.get(index + 5) & 0xFFL) << 16;
-        result |= (payload.get(index + 6) & 0xFFL) << 8;
-        result |= (payload.get(index + 7) & 0xFFL);
-        index += 8;
+        try
+        {
+            result |= (payload.get(index + 0) & 0xFF) << 56;
+            result |= (payload.get(index + 1) & 0xFF) << 48;
+            result |= (payload.get(index + 2) & 0xFF) << 40;
+            result |= (payload.get(index + 3) & 0xFF) << 32;
+            result |= (payload.get(index + 4) & 0xFF) << 24;
+            result |= (payload.get(index + 5) & 0xFF) << 16;
+            result |= (payload.get(index + 6) & 0xFF) << 8;
+            result |= (payload.get(index + 7) & 0xFF);
+            index += 8;
+        }
+        catch (final Exception ex)
+        {
+            //https://mavlink.io/en/guide/serialization.html#python-code-example
+            //MAVLink 2 truncates any zero-filled bytes at the end of the payload before the message is sent and sets the packet len field appropriately (MAVLink 1 always sends all bytes)
+            allZeros = true;
+        }
         return result;
+
     }
 
     public float getFloat() {
@@ -176,6 +305,23 @@ public class MAVLinkPayload {
         putInt((int) data);
     }
 
+
+    //MHEFNY MAVLINK
+    public void putDouble(double ddata) {
+
+        long data = Double.doubleToLongBits(ddata);
+
+        add((byte) (data >> 0));
+        add((byte) (data >> 8));
+        add((byte) (data >> 16));
+        add((byte) (data >> 24));
+        add((byte) (data >> 32));
+        add((byte) (data >> 40));
+        add((byte) (data >> 48));
+        add((byte) (data >> 56));
+    }
+
+
     public void putLong(long data) {
         add((byte) (data >> 0));
         add((byte) (data >> 8));
@@ -186,6 +332,7 @@ public class MAVLinkPayload {
         add((byte) (data >> 48));
         add((byte) (data >> 56));
     }
+
 
     public void putUnsignedLong(long data){
         if(data < UNSIGNED_LONG_MIN_VALUE){

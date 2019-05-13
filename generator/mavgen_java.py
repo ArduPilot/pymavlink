@@ -277,6 +277,16 @@ public class MAVLinkPacket implements Serializable {
     public final int len;
 
     /**
+     * Incompatible FLags
+     */
+    public int incompat_flags;
+
+    /**
+     * Compatible FLags
+     */
+    public int compat_flags;
+
+    /**
     * Message sequence
     */
     public int seq;
@@ -336,10 +346,14 @@ public class MAVLinkPacket implements Serializable {
         }
         
         crc.update_checksum(len);
+        crc.update_checksum(incompat_flags);
+        crc.update_checksum(compat_flags);
         crc.update_checksum(seq);
         crc.update_checksum(sysid);
         crc.update_checksum(compid);
         crc.update_checksum(msgid);
+        crc.update_checksum(msgid >>> 8);
+        crc.update_checksum(msgid >>> 16);
 
         payload.resetIndex();
 
@@ -356,15 +370,19 @@ public class MAVLinkPacket implements Serializable {
     * @return Array with bytes to be transmitted
     */
     public byte[] encodePacket() {
-        byte[] buffer = new byte[6 + len + 2];
+        byte[] buffer = new byte[10 + len + 2];
         
         int i = 0;
         buffer[i++] = (byte) MAVLINK_STX;
         buffer[i++] = (byte) len;
+        buffer[i++] = (byte) incompat_flags;
+        buffer[i++] = (byte) compat_flags;
         buffer[i++] = (byte) seq;
         buffer[i++] = (byte) sysid;
         buffer[i++] = (byte) compid;
-        buffer[i++] = (byte) msgid;
+        buffer[i++] = (byte) (msgid & 0xFF);
+        buffer[i++] = (byte) ((msgid & 0xFF00) >> 8);
+        buffer[i++] = (byte) ((msgid & 0xFF0000) >> 16);
 
         final int payloadSize = payload.size();
         for (int j = 0; j < payloadSize; j++) {
