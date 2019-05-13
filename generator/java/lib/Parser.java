@@ -135,7 +135,7 @@ public class Parser {
                 } else { // crc is good
                     stats.newPacket(m);
                     //m.signature = new com.MAVLink.Signature();
-//                        state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
+                    //  state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
                     // Successfully received the message
                     state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
                 return m;
