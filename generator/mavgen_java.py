@@ -84,7 +84,7 @@ public class CRC {
         data = data & 0xff; //cast because we want an unsigned type
         int tmp = data ^ (crcValue & 0xff);
         tmp ^= (tmp << 4) & 0xff;
-        crcValue = ((crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xff);
+        crcValue = ((crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
     }
 
     /**
