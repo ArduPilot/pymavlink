@@ -68,11 +68,9 @@ mavlink.MAVLINK_TYPE_FLOAT    = 9
 mavlink.MAVLINK_TYPE_DOUBLE   = 10
 
 // Mavlink headers incorporate sequence, source system (platform) and source component. 
-mavlink.header = function(msgId, mlen, incompat_flags, compat_flags, seq, srcSystem, srcComponent) {
+mavlink.header = function(msgId, mlen, seq, srcSystem, srcComponent) {
 
     this.mlen = ( typeof mlen === 'undefined' ) ? 0 : mlen;
-    this.incompat_flags = ( typeof incompat_flags === 'undefined' ) ? 0 : incompat_flags;
-    this.compat_flags = ( typeof compat_flags === 'undefined' ) ? 0 : compat_flags;
     this.seq = ( typeof seq === 'undefined' ) ? 0 : seq;
     this.srcSystem = ( typeof srcSystem === 'undefined' ) ? 0 : srcSystem;
     this.srcComponent = ( typeof srcComponent === 'undefined' ) ? 0 : srcComponent;
@@ -81,8 +79,7 @@ mavlink.header = function(msgId, mlen, incompat_flags, compat_flags, seq, srcSys
 }
 
 mavlink.header.prototype.pack = function() {
-    return jspack.Pack('BBBBBBBB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq, this.srcSystem, this.srcComponent
-    , (this.msgId & 0x000000FF), (this.msgId & 0x0000FF00) >> 8, (this.msgId & 0x00FF0000) >> 16]);
+    return jspack.Pack('BBBBBB', [${PROTOCOL_MARKER}, this.mlen, this.seq, this.srcSystem, this.srcComponent, this.msgId]);
 }
 
 // Base class declaration: mavlink.message will be the parent class for each
@@ -101,7 +98,7 @@ mavlink.message.prototype.set = function(args) {
 mavlink.message.prototype.pack = function(mav, crc_extra, payload) {
 
     this.payload = payload;
-    this.header = new mavlink.header(this.id, payload.length, mav.incompat_flags, mav.compat_flags, mav.seq, mav.srcSystem, mav.srcComponent);    
+    this.header = new mavlink.header(this.id, payload.length, mav.seq, mav.srcSystem, mav.srcComponent);    
     this.msgbuf = this.header.pack().concat(payload);
     var crc = mavlink.x25Crc(this.msgbuf.slice(1));
 
@@ -453,30 +450,23 @@ MAVLink.prototype.parseBuffer = function(s) {
 /* decode a buffer as a MAVLink message */
 MAVLink.prototype.decode = function(msgbuf) {
 
-    var magic, mlen, incompat_flags, compat_flags, seq, srcSystem, srcComponent, unpacked, msgId;
+    var magic, mlen, seq, srcSystem, srcComponent, unpacked, msgId;
 
     // decode the header
     try {
-        // OLD MHEFY z
-        unpacked = jspack.Unpack('cBBBBBBBBB', msgbuf.slice(0, 10));
+        unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         magic = unpacked[0];
         mlen = unpacked[1];
-        incompat_flags = unpacked[2];
-        compat_flags = unpacked[3];
-        seq = unpacked[4];
-        srcSystem = unpacked[5];
-        srcComponent = unpacked[6];
-        msgId  = unpacked[7]  & 0x000000FF;
-        msgId |= ((unpacked[8] & 0xFF) << 8);
-        msgId |= ((unpacked[9] & 0xFF)  << 16);
-
+        seq = unpacked[2];
+        srcSystem = unpacked[3];
+        srcComponent = unpacked[4];
+        msgId = unpacked[5];
     }
     catch(e) {
         throw new Error('Unable to unpack MAVLink header: ' + e.message);
     }
 
-    // OLD MHEFY 254
-    if (magic.charCodeAt(0) != 253) {
+    if (magic.charCodeAt(0) != 254) {
         throw new Error("Invalid MAVLink prefix ("+magic.charCodeAt(0)+")");
     }
 
@@ -509,9 +499,8 @@ MAVLink.prototype.decode = function(msgbuf) {
     }
 
     // Decode the payload and reorder the fields to match the order map.
-    // OLD MHEFY 6
     try {
-        var t = jspack.Unpack(decoder.format, msgbuf.slice(8, msgbuf.length));
+        var t = jspack.Unpack(decoder.format, msgbuf.slice(6, msgbuf.length));
     }
     catch (e) {
         throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ msgbuf.slice(6, -2).length +': '+ e.message);
@@ -532,8 +521,7 @@ MAVLink.prototype.decode = function(msgbuf) {
         throw new Error('Unable to instantiate MAVLink message of type '+decoder.type+' : ' + e.message);
     }
     m.msgbuf = msgbuf;
-    // OLD MHEFY z
-    m.payload = msgbuf.slice(8);
+    m.payload = msgbuf.slice(6);
     m.crc = receivedChecksum;
     m.header = new mavlink.header(msgId, mlen, seq, srcSystem, srcComponent);
     this.log(m);
