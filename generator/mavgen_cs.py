@@ -328,7 +328,8 @@ using System.Reflection;
     
     generatedCsFiles = [ serfilename, structsfilename]
     
-    includedCsFiles =  [ 'CS/common/ByteArrayUtil.cs', 'CS/common/FrameworkBitConverter.cs', 'CS/common/Mavlink.cs'  ]
+    cur_dir = os.path.dirname(os.path.abspath(__file__)) + '/'
+    includedCsFiles = [cur_dir + 'CS/common/ByteArrayUtil.cs', cur_dir + 'CS/common/FrameworkBitConverter.cs', cur_dir + 'CS/common/Mavlink.cs' ]
     
     outputLibraryPath = os.path.normpath(dir + "/mavlink.dll")
     
