@@ -245,7 +245,7 @@ public class MAVLinkPayload {
 
 
 
-    public long getDouble() {
+    public double getDouble() {
 
         if (allZeros) return 0;
 
@@ -273,8 +273,8 @@ public class MAVLinkPayload {
         {
             allZeros = true;
         }
-        Double.longBitsToDouble(result);
-        return result;
+        
+        return Double.longBitsToDouble(result);;
 
     }
 
