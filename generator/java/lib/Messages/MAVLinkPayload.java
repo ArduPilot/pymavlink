@@ -38,6 +38,8 @@ public class MAVLinkPayload {
         } else {
             payload = ByteBuffer.allocate(payloadSize);
         }
+
+        resetIndex();
     }
 
     public ByteBuffer getData() {
@@ -115,10 +117,11 @@ public class MAVLinkPayload {
             if (index + 2 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF);
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 8;
             index += 2;
         }
@@ -140,10 +143,11 @@ public class MAVLinkPayload {
             if (index + 2 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF);
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 8;
             index += 2;
         }
@@ -166,12 +170,15 @@ public class MAVLinkPayload {
             if (index + 4 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF);
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 8;
+            if (index + 2 == len) return result ;
             result |= (payload.get(index + 2) & 0xFF) << 16;
+            if (index + 3 == len) return result ;
             result |= (payload.get(index + 3) & 0xFF) << 24;
             index += 4;
         }
@@ -193,12 +200,15 @@ public class MAVLinkPayload {
             if (index + 4 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF);
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 8;
+            if (index + 2 == len) return result ;
             result |= (payload.get(index + 2) & 0xFF) << 16;
+            if (index + 3 == len) return result ;
             result |= (payload.get(index + 3) & 0xFF) << 24;
             index += 4;
         }
@@ -222,16 +232,23 @@ public class MAVLinkPayload {
             if (index + 8 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF);
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 8;
+            if (index + 2 == len) return result ;
             result |= (payload.get(index + 2) & 0xFF) << 16;
+            if (index + 3 == len) return result ;
             result |= (payload.get(index + 3) & 0xFF) << 24;
+            if (index + 4 == len) return result ;
             result |= (payload.get(index + 4) & 0xFF) << 32;
+            if (index + 5 == len) return result ;
             result |= (payload.get(index + 5) & 0xFF) << 40;
+            if (index + 6 == len) return result ;
             result |= (payload.get(index + 6) & 0xFF) << 48;
+            if (index + 7 == len) return result ;
             result |= (payload.get(index + 7) & 0xFF) << 56;
             index += 8;
         }
@@ -256,16 +273,23 @@ public class MAVLinkPayload {
             if (index + 8 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF);
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 8;
+            if (index + 2 == len) return result ;
             result |= (payload.get(index + 2) & 0xFF) << 16;
+            if (index + 3 == len) return result ;
             result |= (payload.get(index + 3) & 0xFF) << 24;
+            if (index + 4 == len) return result ;
             result |= (payload.get(index + 4) & 0xFF) << 32;
+            if (index + 5 == len) return result ;
             result |= (payload.get(index + 5) & 0xFF) << 40;
+            if (index + 6 == len) return result ;
             result |= (payload.get(index + 6) & 0xFF) << 48;
+            if (index + 7 == len) return result ;
             result |= (payload.get(index + 7) & 0xFF) << 56;
             index += 8;
         }
@@ -274,7 +298,7 @@ public class MAVLinkPayload {
             allZeros = true;
         }
         
-        return Double.longBitsToDouble(result);;
+        return Double.longBitsToDouble(result);
 
     }
 
@@ -294,16 +318,23 @@ public class MAVLinkPayload {
             if (index + 8 > len)
             {
                 allZeros = true;
-                return result;
             }
 
+            if (index == len) return result ;
             result |= (payload.get(index + 0) & 0xFF) << 56;
+            if (index + 1 == len) return result ;
             result |= (payload.get(index + 1) & 0xFF) << 48;
+            if (index + 2 == len) return result ;
             result |= (payload.get(index + 2) & 0xFF) << 40;
+            if (index + 3 == len) return result ;
             result |= (payload.get(index + 3) & 0xFF) << 32;
+            if (index + 4 == len) return result ;
             result |= (payload.get(index + 4) & 0xFF) << 24;
+            if (index + 5 == len) return result ;
             result |= (payload.get(index + 5) & 0xFF) << 16;
+            if (index + 6 == len) return result ;
             result |= (payload.get(index + 6) & 0xFF) << 8;
+            if (index + 7 == len) return result ;
             result |= (payload.get(index + 7) & 0xFF);
             index += 8;
         }

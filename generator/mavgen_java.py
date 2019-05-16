@@ -276,7 +276,9 @@ ${importString}
 public class MAVLinkPacket implements Serializable {
     private static final long serialVersionUID = 2095947771227815314L;
 
-    public static final int MAVLINK_STX = 254;
+    public static final int MAVLINK_STX_V1 = 0xFE; // 254;
+    public static final int MAVLINK_STX_V2 = 0xFD; // 253;
+    private  static final int MAVLINK2_HEADER_LEN = 10;
 
     /**
     * Message length. NOT counting STX, LENGTH, SEQ, SYSID, COMPID, MSGID, CRC1 and CRC2
@@ -342,9 +344,16 @@ public class MAVLinkPacket implements Serializable {
     }
 
     /**
+     * Update CRC for this packet.
+     */
+    public void generateCRC() {
+        generateCRC(len);
+    }
+
+    /**
     * Update CRC for this packet.
     */
-    public void generateCRC(){
+    public void generateCRC(final int length){
         if(crc == null){
             crc = new CRC();
         }
@@ -352,7 +361,7 @@ public class MAVLinkPacket implements Serializable {
             crc.start_checksum();
         }
         
-        crc.update_checksum(len);
+        crc.update_checksum(length);
         crc.update_checksum(incompat_flags);
         crc.update_checksum(compat_flags);
         crc.update_checksum(seq);
@@ -364,12 +373,34 @@ public class MAVLinkPacket implements Serializable {
 
         payload.resetIndex();
 
-        final int payloadSize = payload.size();
-        for (int i = 0; i < payloadSize; i++) {
+        for (int i = 0; i < length; i++) {
             crc.update_checksum(payload.getByte());
         }
         crc.finish_checksum(msgid);
     }
+
+    /**
+     * Return length of actual data after triming zeros at the end.
+     * @param payload
+     * @return minimum length of valid data
+     */
+    private int mavTrimPayload (final MAVLinkPayload payload)
+    {
+
+        byte[] array = payload.payload.array();
+        int offset = payload.payload.position();
+
+        for (int i= offset-1; i>=0;--i)
+        {
+            if (array[i] != 0)
+            {
+                return i+1; 
+            }
+        }
+
+        return len;
+    }
+    
 
     /**
     * Encode this packet for transmission.
@@ -377,11 +408,12 @@ public class MAVLinkPacket implements Serializable {
     * @return Array with bytes to be transmitted
     */
     public byte[] encodePacket() {
-        byte[] buffer = new byte[10 + len + 2];
+        final int lenTrimmed = mavTrimPayload (payload);
+        byte[] buffer = new byte[MAVLINK2_HEADER_LEN + lenTrimmed + 2];
         
         int i = 0;
-        buffer[i++] = (byte) MAVLINK_STX;
-        buffer[i++] = (byte) len;
+        buffer[i++] = (byte) MAVLINK_STX_V2;
+        buffer[i++] = (byte) lenTrimmed;
         buffer[i++] = (byte) incompat_flags;
         buffer[i++] = (byte) compat_flags;
         buffer[i++] = (byte) seq;
@@ -391,12 +423,11 @@ public class MAVLinkPacket implements Serializable {
         buffer[i++] = (byte) ((msgid & 0xFF00) >> 8);
         buffer[i++] = (byte) ((msgid & 0xFF0000) >> 16);
 
-        final int payloadSize = payload.size();
-        for (int j = 0; j < payloadSize; j++) {
+        for (int j = 0; j < lenTrimmed; j++) {
             buffer[i++] = payload.payload.get(j);
         }
 
-        generateCRC();
+        generateCRC(lenTrimmed);
         buffer[i++] = (byte) (crc.getLSB());
         buffer[i++] = (byte) (crc.getMSB());
         return buffer;
