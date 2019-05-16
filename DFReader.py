@@ -58,14 +58,18 @@ class DFFormat(object):
         self.type = type
         self.name = null_term(name)
         self.len = flen
-        self.format = format
+        self.format = format # map field offset to field type
         self.columns = columns.split(',')
+        self.unit_id_to_unit_name = None # all possible units (id -> unit-name)
+        self.multiplier_id_to_multiplier = None # all possible multipliers (id -> multiplier)
+        self.unit_multipliers = None # map from field offset to multiplier-id
+        self.unit_ids = None # map from field offset to unit-id
 
         if self.columns == ['']:
             self.columns = []
 
         msg_struct = "<"
-        msg_mults = []
+        msg_mults = [] # multipliers infered from format type (e.g. "h" = *100)
         msg_types = []
         msg_fmts = []
         for c in format:
@@ -99,9 +103,101 @@ class DFFormat(object):
                 self.a_indexes.append(i)
 
     def __str__(self):
-        return ("DFFormat(%s,%s,%s,%s)" %
-                (self.type, self.name, self.format, self.columns))
+        return "DFFormat(%s,%s,%s,%s,%s)" % (self.type,
+                                             self.name,
+                                             self.format,
+                                             self.columns,
+                                             self.unit_id_to_unit_name)
 
+    def multiplier_for_field(self, offset):
+        # use unit multipliers in preference to type multipliers
+        if self.unit_multipliers is not None:
+            multiplier_id = self.unit_multipliers[offset]
+            if multiplier_id == '-':
+                return 1
+            elif multiplier_id == '?':
+                return 1
+            else:
+                return self.multiplier_id_to_multiplier[ord(multiplier_id)]
+
+        if self.msg_mults[offset] is None:
+            return 1
+
+        label = self.columns[offset]
+
+        if self.name == "GPS" or self.name == "GPS2" or self.name == "GPS3":
+            if label == "T":
+                return 0.001
+            if label == "TimeUS":
+                return 0.000001
+        else:
+            if label == "TimeUS":
+                return 0.000001;
+            if label == "TimeMS":
+                return 0.001;
+
+        return self.msg_mults[offset]
+
+    def dump_field_units(self):
+        print("%s" % (self.name))
+        if self.unit_ids is None or len(self.unit_ids) == 0:
+            print("     No units for (%s)" % (self.name), file=sys.stderr)
+            return
+
+        if self.unit_ids is None or len(self.unit_ids) < len(self.columns):
+            print("    Too few units for (%s) (%d < %d)" % (self.name, len(self.unit_ids), len(self.columns)), file=sys.stderr)
+            return
+        if self.unit_multipliers is None or len(self.unit_multipliers) < len(self.columns):
+            print("    Too few multipliers for (%s) (%d < %d)" % (self.name, len(self.unit_multipliers), len(self.columns)), file=sys.stderr)
+            return
+
+        for i in range(0, len(self.columns)):
+            column = self.columns[i]
+            unit_id = self.unit_ids[i]
+            if unit_id == '-':
+                unit = None
+            elif unit_id == '?':
+                unit = "Unknown"
+            else:
+                unit = self.unit_id_to_unit_name[ord(self.unit_ids[i])].label()
+            unit_multiplier_id = self.unit_multipliers[i]
+            if unit_multiplier_id == '-':
+                unit_multiplier = None
+            elif unit_multiplier_id == '?':
+                unit_multiplier = "Unknown"
+            else:
+                unit_multiplier = self.unit_multipliers[i]
+
+                if self.multiplier_id_to_multiplier is not None:
+                    unit_multiplier = self.multiplier_id_to_multiplier[ord(unit_multiplier)]
+
+            if self.msg_mults[i] is not None:
+                mult = self.msg_mults[i]
+            else:
+                mult = None
+
+            if unit_multiplier == "Unknown" or unit_multiplier is None:
+                pass
+            else:
+                if mult != None:
+                    fexp = float(unit_multiplier)
+                    fmult = float(mult)
+                    if abs(fexp - fmult) > 0.00001:
+                        print("    Old Multiplier/New Multiplier: new=%.10f != old=%.10f" % (fexp,fmult), file=sys.stderr)
+            print("    %s units=(%s)*(%s)" % (column, unit, unit_multiplier))
+        print("\n")
+
+class DFUnit(object):
+
+    def __init__(self, id, label):
+        self.id = id
+        self._label = label
+
+    def label(self):
+        return self._label
+
+    def __str__(self):
+        return "ID=%s LABEL=%s" % (self.id, self._label)
 
 def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
@@ -169,12 +265,31 @@ class DFMessage(object):
             v = self.fmt.msg_types[i](v)
         if self.fmt.msg_types[i] == str:
             v = null_term(v)
-        if self.fmt.msg_mults[i] is not None and self._apply_multiplier:
-            v *= self.fmt.msg_mults[i]
+        if self._apply_multiplier:
+            if self.fmt.unit_multipliers is not None:
+                v *= self.fmt.multiplier_for_field(i)
+            elif self.fmt.msg_mults[i] is not None:
+                v *= self.fmt.msg_mults[i]
         return v
 
     def get_type(self):
         return self.fmt.name
+
+    def get_unit(self, field):
+        try:
+            i = self.fmt.colhash[field]
+            if type(self.fmt.unit_ids) == bytes:
+                unit_id = self.fmt.unit_ids[i]
+                if type(unit_id) == str:
+                    unit_id = ord(unit_id)
+            else:
+                unit_id = ord(self.fmt.unit_ids[i])
+        except Exception as e:
+            return None
+        unit = self.fmt.unit_id_to_unit_name[unit_id]
+        if unit is None:
+            return None
+        return unit.label()
 
     def __str__(self):
         ret = "%s {" % self.fmt.name
@@ -258,9 +373,9 @@ class DFReaderClock_usec(DFReaderClock):
     def find_time_base(self, gps, first_us_stamp):
         '''work out time basis for the log - even newer style'''
         t = self._gpsTimeToTime(gps.GWk, gps.GMS)
-        self.set_timebase(t - gps.TimeUS*0.000001)
+        self.set_timebase(t - gps.TimeUS)
         # this ensures FMT messages get appropriate timestamp:
-        self.timestamp = self.timebase + first_us_stamp*0.000001
+        self.timestamp = self.timebase + first_us_stamp
 
     def type_has_good_TimeMS(self, type):
         '''The TimeMS in some messages is not from *our* clock!'''
@@ -282,7 +397,7 @@ class DFReaderClock_usec(DFReaderClock):
     def set_message_timestamp(self, m):
         if 'TimeUS' == m._fieldnames[0]:
             # only format messages don't have a TimeUS in them...
-            m._timestamp = self.timebase + m.TimeUS*0.000001
+            m._timestamp = self.timebase + m.TimeUS
         elif self.should_use_msec_field0(m):
             # ... in theory. I expect there to be some logs which are not
             # "pure":
@@ -669,6 +784,12 @@ class DFReader_binary(DFReader):
                            'BBnNZ',
                            "Type,Length,Name,Format,Columns")
         }
+        self.unit_id_to_unit_name = {
+            # 'A' : "Angstroms"
+        }
+        self.multiplier_id_to_multiplier = {
+            # '2' : 100.0f
+        }
         self._zero_time_base = zero_time_base
         self.prev_type = None
         self.init_clock()
@@ -890,8 +1011,34 @@ class DFReader_binary(DFReader):
             except Exception:
                 return self._parse_next()
 
+        if name == 'UNIT':
+            unit_id = elements[1]
+            label = null_term(elements[2])
+#            print("%s => %s" % (unit_id, label))
+            self.unit_id_to_unit_name[unit_id] = DFUnit(unit_id, label)
+
+        if name == 'MULT':
+            mult_id = elements[1]
+            multiplier = elements[2]
+#            print("%s => %s" % (mult_id, multiplier))
+            self.multiplier_id_to_multiplier[elements[1]] = multiplier
+
+        if name == 'FMTU':
+            format_type = elements[1]
+            unit_ids = elements[2]
+            unit_multipliers = null_term(elements[3])
+
+            # the format gets a copy of the units we know about:
+            dfformat = self.formats[format_type]
+            dfformat.unit_id_to_unit_name = self.unit_id_to_unit_name
+            dfformat.multiplier_id_to_multiplier = self.multiplier_id_to_multiplier
+            dfformat.unit_ids = unit_ids
+            dfformat.unit_multipliers = unit_multipliers
+#            dfformat.dump_field_units()
+
         self.offset += fmt.len - 3
         self.remaining = self.data_len - self.offset
+
         m = DFMessage(fmt, elements, True)
         self._add_msg(m)
         self.percent = 100.0 * (self.offset / float(self.data_len))
