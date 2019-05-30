@@ -1155,7 +1155,7 @@ class mavtcp(mavfile):
                  autoreconnect=False,
                  source_system=255,
                  source_component=0,
-                 retries=3,
+                 retries=6,
                  use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
