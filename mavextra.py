@@ -1241,7 +1241,6 @@ def earth_field_error(GPS,NKF2):
         return Vector3(0,0,0)
     ef = Vector3(NKF2.MN,NKF2.ME,NKF2.MD)
     ret = ef - earth_field
-    print(ret)
     return ret
 
 
