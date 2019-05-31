@@ -374,58 +374,6 @@ def mag_roll(RAW_IMU, inclination, declination):
     (r, p, y) = m.to_euler()
     return degrees(r)
 
-def expected_mag(RAW_IMU, ATTITUDE, inclination, declination):
-    '''return expected mag vector'''
-    m_body = Vector3(RAW_IMU.xmag, RAW_IMU.ymag, RAW_IMU.zmag)
-    field_strength = m_body.length()
-
-    m = rotation(ATTITUDE)
-
-    r = Matrix3()
-    r.from_euler(0, -radians(inclination), radians(declination))
-    m_earth = r * Vector3(field_strength, 0, 0)
-
-    return m.transposed() * m_earth
-
-def mag_discrepancy(RAW_IMU, ATTITUDE, inclination, declination=None):
-    '''give the magnitude of the discrepancy between observed and expected magnetic field'''
-    if declination is None:
-        from . import mavutil
-        declination = degrees(mavutil.mavfile_global.param('COMPASS_DEC', 0))
-    expected = expected_mag(RAW_IMU, ATTITUDE, inclination, declination)
-    mag = Vector3(RAW_IMU.xmag, RAW_IMU.ymag, RAW_IMU.zmag)
-    return degrees(expected.angle(mag))
-
-
-def mag_inclination(RAW_IMU, ATTITUDE, declination=None):
-    '''give the magnitude of the discrepancy between observed and expected magnetic field'''
-    if declination is None:
-        from . import mavutil
-        declination = degrees(mavutil.mavfile_global.param('COMPASS_DEC', 0))
-    r = rotation(ATTITUDE)
-    mag1 = Vector3(RAW_IMU.xmag, RAW_IMU.ymag, RAW_IMU.zmag)
-    mag1 = r * mag1
-    mag2 = Vector3(cos(radians(declination)), sin(radians(declination)), 0)
-    inclination = degrees(mag1.angle(mag2))
-    if RAW_IMU.zmag < 0:
-        inclination = -inclination
-    return inclination
-
-def expected_magx(RAW_IMU, ATTITUDE, inclination, declination):
-    '''estimate  from mag'''
-    v = expected_mag(RAW_IMU, ATTITUDE, inclination, declination)
-    return v.x
-
-def expected_magy(RAW_IMU, ATTITUDE, inclination, declination):
-    '''estimate  from mag'''
-    v = expected_mag(RAW_IMU, ATTITUDE, inclination, declination)
-    return v.y
-
-def expected_magz(RAW_IMU, ATTITUDE, inclination, declination):
-    '''estimate  from mag'''
-    v = expected_mag(RAW_IMU, ATTITUDE, inclination, declination)
-    return v.z
-
 def gravity(RAW_IMU, SENSOR_OFFSETS=None, ofs=None, mul=None, smooth=0.7):
     '''estimate pitch from accelerometer'''
     if hasattr(RAW_IMU, 'xacc'):
