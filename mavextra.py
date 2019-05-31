@@ -1184,35 +1184,47 @@ def get_mag_field_ef(latitude_deg, longitude_deg):
 
 earth_field = None
 
-def expected_mag(GPS,ATT,roll_adjust=0,pitch_adjust=0,yaw_adjust=0):
-    '''return expected magnetic field for a location and attitude'''
+def expected_earth_field(GPS):
+    '''return expected magnetic field for a location'''
     global earth_field
+    if earth_field is not None:
+        return earth_field
 
     if hasattr(GPS,'fix_type'):
         gps_status = GPS.fix_type
-        roll = degrees(ATT.roll)+roll_adjust
-        pitch = degrees(ATT.pitch)+pitch_adjust
-        yaw = degrees(ATT.yaw)+yaw_adjust
         lat = GPS.lat*1.0e-7
         lon = GPS.lon*1.0e-7
     else:
         gps_status = GPS.Status
-        roll = ATT.Roll+roll_adjust
-        pitch = ATT.Pitch+pitch_adjust
-        yaw = ATT.Yaw+yaw_adjust
         lat = GPS.Lat
         lon = GPS.Lng
 
-    if gps_status < 3 and earth_field is None:
+    if gps_status < 3:
         return Vector3(0,0,0)
+    field_var = get_mag_field_ef(lat, lon)
+    mag_ef = Vector3(field_var[2]*1000.0, 0.0, 0.0)
+    R = Matrix3()
+    R.from_euler(0.0, -radians(field_var[1]), radians(field_var[0]))
+    mag_ef = R * mag_ef
+    earth_field = mag_ef
+    return earth_field
+
+def expected_mag(GPS,ATT,roll_adjust=0,pitch_adjust=0,yaw_adjust=0):
+    '''return expected magnetic field for a location and attitude'''
+    global earth_field
+
+    expected_earth_field(GPS)
     if earth_field is None:
-        field_var = get_mag_field_ef(lat, lon)
-        mag_ef = Vector3(field_var[2]*1000.0, 0.0, 0.0)
-        R = Matrix3()
-        R.from_euler(0.0, -radians(field_var[1]), radians(field_var[0]))
-        mag_ef = R * mag_ef
-        earth_field = mag_ef
-        #print('earth_field: ', earth_field, field_var)
+        return Vector3(0,0,0)
+
+    if hasattr(ATT,'roll'):
+        roll = degrees(ATT.roll)+roll_adjust
+        pitch = degrees(ATT.pitch)+pitch_adjust
+        yaw = degrees(ATT.yaw)+yaw_adjust
+    else:
+        roll = ATT.Roll+roll_adjust
+        pitch = ATT.Pitch+pitch_adjust
+        yaw = ATT.Yaw+yaw_adjust
 
     rot = Matrix3()
     rot.from_euler(radians(roll), radians(pitch), radians(yaw))
@@ -1220,6 +1232,18 @@ def expected_mag(GPS,ATT,roll_adjust=0,pitch_adjust=0,yaw_adjust=0):
     field = rot.transposed() * earth_field
 
     return field
+
+def earth_field_error(GPS,NKF2):
+    '''return vector error in earth field estimate'''
+    global earth_field
+    expected_earth_field(GPS)
+    if earth_field is None:
+        return Vector3(0,0,0)
+    ef = Vector3(NKF2.MN,NKF2.ME,NKF2.MD)
+    ret = ef - earth_field
+    print(ret)
+    return ret
+
 
 def distance_home_df(GPS,ORGN):
     '''distance from home origin'''
