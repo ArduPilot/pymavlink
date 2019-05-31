@@ -139,7 +139,7 @@ setup (name = 'pymavlink',
                                                      'C/include_v2.0/*.h',
                                                      'C/include_v2.0/*.hpp',
                                                      'CPP11/include_v2.0/*.hpp',
-                                                     'CS/common/*.cs',
+                                                     'CS/*.*',
                                                      'swift/*.swift',],
                         'pymavlink'              : ['mavnative/*.h',
                                                     'message_definitions/v*/*.xml']
