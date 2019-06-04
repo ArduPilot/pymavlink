@@ -11,9 +11,19 @@ class MAVParmDict(dict):
     def __init__(self, *args):
         dict.__init__(self, args)
         # some parameters should not be loaded from files
-        self.exclude_load = ['SYSID_SW_MREV', 'SYS_NUM_RESETS', 'ARSPD_OFFSET', 'GND_ABS_PRESS',
-                             'GND_TEMP', 'CMD_TOTAL', 'CMD_INDEX', 'LOG_LASTFILE', 'FENCE_TOTAL',
-                             'FORMAT_VERSION' ]
+        self.exclude_load = [
+            'ARSPD_OFFSET',
+            'CMD_INDEX',
+            'CMD_TOTAL',
+            'FENCE_TOTAL',
+            'FORMAT_VERSION',
+            'GND_ABS_PRESS',
+            'GND_TEMP',
+            'LOG_LASTFILE',
+            'MIS_TOTAL',
+            'SYSID_SW_MREV',
+            'SYS_NUM_RESETS',
+        ]
         self.mindelta = 0.000001
 
 
