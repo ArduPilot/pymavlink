@@ -893,7 +893,11 @@ class DFReader_binary(DFReader):
         self.offset += fmt.len - 3
         self.remaining = self.data_len - self.offset
         m = DFMessage(fmt, elements, True)
-        self._add_msg(m)
+        try:
+            self._add_msg(m)
+        except Exception as ex:
+            print("bad msg at offset %u" % self.offset, ex)
+            pass
         self.percent = 100.0 * (self.offset / float(self.data_len))
 
         return m
