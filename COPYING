@@ -1,6 +1,19 @@
 This repository contains the generator for the MAVLink protocol. The generator itself is
-(L)GPL v3 licensed, while the generated code is subject to different licenses:
+(L)GPL v3 licensed, while the generated code is subject to the MIT license.
 
+Copyright 2010-2019
+Andrew Tridgell
+Lorenz Meier
+Peter Barker
+Thomas Gubler
+James Goppert
+Andreas Daniel Antener
+Amilcar do Carmo Lucas
+Pierre Kancir
+Vladimir Ermakov
+Max Odnovolyk
+Michael Day
+and other contributors
 
 ========================================================================================
 
