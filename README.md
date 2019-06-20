@@ -1,6 +1,8 @@
 [![Build Status](https://travis-ci.org/ArduPilot/pymavlink.svg?branch=master)](https://travis-ci.org/ArduPilot/pymavlink)
 # Pymavlink
 This is a python implementation of the MAVLink protocol.
+It includes a source code generator (generator/mavgen.py) to create MAVLink protocol implementations for other programming languages as well.
+Also contains tools for analizing flight logs.
 
 # Documentation
 
@@ -12,11 +14,8 @@ https://gitter.im/ArduPilot/pymavlink
 
 # Installation 
 
-## Recommendation
+Pymavlink supports both python2 and python3.
 
-Pymavlink is currently a Python 2 package. It is recommended to install and use it with Python 2. 
-
-However an initial Python 3 support is given.
 The following instructions assume you are using Python 2 and a Debian-based (like Ubuntu) installation.
 
 ## Dependencies
@@ -77,7 +76,7 @@ sudo python2 setup.py install
 ```
 
 
-### Advance usage
+### Advanced usage
 
 Please see Pip documentation : https://pip.pypa.io/en/stable/
 
@@ -86,4 +85,3 @@ Please see Pip documentation : https://pip.pypa.io/en/stable/
 
 pymavlink is released under the GNU Lesser General Public License v3 or later.
 
-Join the chat at https://gitter.im/ArduPilot/pymavlink
