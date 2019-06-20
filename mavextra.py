@@ -1300,3 +1300,19 @@ def constrain(v, minv, maxv):
     if v > maxv:
         v = maxv
     return v
+
+def sim_body_rates(SIM):
+    '''return body frame rates from simulator attitudes'''
+    rollRate = delta(SIM.Roll,'sbr',SIM.TimeUS)
+    pitchRate = delta(SIM.Pitch,'sbp',SIM.TimeUS)
+    yawRate = delta(SIM.Yaw,'sby',SIM.TimeUS)
+    phi = radians(SIM.Roll)
+    theta = radians(SIM.Pitch)
+    phiDot = radians(rollRate)
+    thetaDot = radians(pitchRate)
+    psiDot = radians(yawRate)
+
+    p = phiDot - psiDot*sin(theta)
+    q = cos(phi)*thetaDot + sin(phi)*psiDot*cos(theta)
+    r = cos(phi)*psiDot*cos(theta) - sin(phi)*thetaDot
+    return Vector3(p, q, r)
