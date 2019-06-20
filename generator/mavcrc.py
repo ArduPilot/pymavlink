@@ -1,4 +1,9 @@
-'''MAVLink X25 CRC code'''
+'''
+MAVLink X25 CRC code
+
+Copyright Andrew Tridgell
+Released under GNU LGPL version 3 or later
+'''
 from builtins import object
 
 
