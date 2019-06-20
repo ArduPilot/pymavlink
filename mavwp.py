@@ -1,5 +1,8 @@
 '''
 module for loading/saving waypoints
+
+Copyright the ArduPilot Project
+Released under GNU LGPL version 3 or later
 '''
 from __future__ import print_function
 from builtins import range
