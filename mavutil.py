@@ -1899,6 +1899,7 @@ mode_mapping_acm = {
     21 : 'SMART_RTL',
     22 : 'FLOWHOLD',
     23 : 'FOLLOW',
+    24 : 'ZIGZAG',
 }
 mode_mapping_rover = {
     0 : 'MANUAL',
