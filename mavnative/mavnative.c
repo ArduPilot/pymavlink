@@ -322,7 +322,11 @@ static void set_pyerror(const char *msg) {
 }
 
 // Pass assertion failures back to python (if we can)
+#ifdef __GLIBC__
 extern void __assert_fail(const char *__assertion, const char *__file, unsigned int __line, const char *__function)
+#else
+extern void __assert_fail(const char *__assertion, const char *__file, int __line, const char *__function)
+#endif
 {
     char msg[256];
 
