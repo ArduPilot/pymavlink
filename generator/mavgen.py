@@ -64,38 +64,81 @@ def mavgen(opts, args):
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
             opts.validate = False
 
+
     def expand_includes():
-        """Expand includes in current list of all files, ignoring those already parsed."""
-        for x in xml[:]:
-            for i in x.include:
-                fname = os.path.join(os.path.dirname(x.filename), i)
+        """Expand includes. XML files from arguments already parsed inot xml list."""
+        
+        def expand_oneiteration():
+            noincludeadded = True
 
-                # Only parse new include files
-                if fname in all_files:
-                    continue
-                all_files.add(fname)
+            for x in xml[:]:
+                try:
+                    if not x.parent:
+                        pass
+                except:
+                    x.parent=set()
 
-                # Validate XML file with XSD file if possible.
-                if opts.validate:
-                    print("Validating %s" % fname)
-                    if not mavgen_validate(fname):
-                        return False
-                else:
-                    print("Validation skipped for %s." % fname)
+                for i in x.include:
+                    fname = os.path.join(os.path.dirname(x.filename), i)
+                    # Only parse new include files
+                    if fname in all_files:
+                        continue
+                    all_files.add(fname)
+                    # Validate XML file with XSD file if possible.
+                    if opts.validate:
+                        print("Validating %s" % fname)
+                        if not mavgen_validate(fname):
+                            print("ERROR Validation of %s failed" % fname)
+                            exit(1)
+                    else:
+                        print("Validation skipped for %s." % fname)
 
-                # Parsing
-                print("Parsing %s" % fname)
-                xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
+                    # Parsing
+                    print("Parsing %s" % fname)
 
-                # include message lengths and CRCs too
-                x.message_crcs.update(xml[-1].message_crcs)
-                x.message_lengths.update(xml[-1].message_lengths)
-                x.message_min_lengths.update(xml[-1].message_min_lengths)
-                x.message_flags.update(xml[-1].message_flags)
-                x.message_target_system_ofs.update(xml[-1].message_target_system_ofs)
-                x.message_target_component_ofs.update(xml[-1].message_target_component_ofs)
-                x.message_names.update(xml[-1].message_names)
+                    parsed_xml = mavparse.MAVXML(fname, opts.wire_protocol)
+                    #add all parent(s) into included file
+                    parsed_xml.parent=set()
+                    parsed_xml.parent.add(x.basename)
+                    parsed_xml.parent.update(x.parent)
+                    xml.append(parsed_xml)
+
+                    noincludeadded = False
+            return noincludeadded        
+                    
+        for i in range(MAXIMUM_INCLUDE_FILE_NESTING):
+            if expand_oneiteration(): 
+                break
+
+        xml_dict=dict()
+        # Add children to parent.child lists.
+        for x in xml:
+            xml_dict[x.basename] = x
+            try:
+                if not x.child:
+                    pass
+            except:
+                x.child=set()
+            for a_parent in x.parent:
+               for x_inner in xml:
+                   if x_inner.basename == a_parent:
+                       #x is a child of x_inner
+                       x_inner.child.add(x.basename)
+
+
+        # Update parents with child CRCs, message lengths, etc. 
+        for x in xml:
+            for child in x.child:
+                x.message_crcs.update(xml_dict[child].message_crcs)
+                x.message_lengths.update(xml_dict[child].message_lengths)
+                x.message_min_lengths.update(xml_dict[child].message_min_lengths)
+                x.message_flags.update(xml_dict[child].message_flags)
+                x.message_target_system_ofs.update(xml_dict[child].message_target_system_ofs)
+                x.message_target_component_ofs.update(xml_dict[child].message_target_component_ofs)
+                x.message_names.update(xml_dict[child].message_names)
                 x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
+
+
 
     def mavgen_validate(xmlfile):
         """Uses lxml to validate an XML file. We define mavgen_validate
@@ -142,12 +185,7 @@ def mavgen(opts, args):
         xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
 
     # expand includes
-    for i in range(MAXIMUM_INCLUDE_FILE_NESTING):
-        len_allfiles = len(all_files)
-        expand_includes()
-        if len(all_files) == len_allfiles:
-            # stop when loop doesn't add any more included files
-            break
+    expand_includes()
 
     # work out max payload size across all includes
     largest_payload = max(x.largest_payload for x in xml) if xml else 0
