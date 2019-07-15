@@ -128,6 +128,7 @@ def mavgen(opts, args):
 
         # Update parents with child CRCs, message lengths, etc. 
         for x in xml:
+            
             for child in x.child:
                 x.message_crcs.update(xml_dict[child].message_crcs)
                 x.message_lengths.update(xml_dict[child].message_lengths)
@@ -136,7 +137,7 @@ def mavgen(opts, args):
                 x.message_target_system_ofs.update(xml_dict[child].message_target_system_ofs)
                 x.message_target_component_ofs.update(xml_dict[child].message_target_component_ofs)
                 x.message_names.update(xml_dict[child].message_names)
-                # x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
+                x.largest_payload = max(x.largest_payload, xml_dict[child].largest_payload)
 
 
 
@@ -187,10 +188,6 @@ def mavgen(opts, args):
     # expand includes
     expand_includes()
 
-    # work out max payload size across all includes
-    largest_payload = max(x.largest_payload for x in xml) if xml else 0
-    for x in xml:
-        x.largest_payload = largest_payload
 
     if mavparse.check_duplicates(xml):
         sys.exit(1)
