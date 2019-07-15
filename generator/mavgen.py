@@ -136,7 +136,7 @@ def mavgen(opts, args):
                 x.message_target_system_ofs.update(xml_dict[child].message_target_system_ofs)
                 x.message_target_component_ofs.update(xml_dict[child].message_target_component_ofs)
                 x.message_names.update(xml_dict[child].message_names)
-                x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
+                # x.largest_payload = max(x.largest_payload, xml[-1].largest_payload)
 
 
 
