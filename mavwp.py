@@ -26,8 +26,8 @@ class MAVWPError(Exception):
         self.message = msg
 
 
-class MAVWPLoader(object):
-    '''MAVLink waypoint loader'''
+class MissionItemProtocol(object):
+    '''Base class for transfering items based on the MISSION_ITEM protocol'''
     def __init__(self, target_system=0, target_component=0):
         self.wpoints = []
         self.target_system = target_system
@@ -43,25 +43,17 @@ class MAVWPLoader(object):
         return len(self.wpoints)
 
     def wp(self, i):
-        '''return a waypoint'''
+        '''alias for backwards compatability'''
+        return self.item(i)
+
+    def item(self, i):
+        '''return an item'''
         try:
             the_wp = self.wpoints[i]
         except:
             the_wp = None
 
         return the_wp
-
-    def wp_is_loiter(self, i):
-        '''return true if waypoint is a loiter waypoint'''
-        loiter_cmds = [mavutil.mavlink.MAV_CMD_NAV_LOITER_UNLIM,
-                mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
-                mavutil.mavlink.MAV_CMD_NAV_LOITER_TIME,
-                mavutil.mavlink.MAV_CMD_NAV_LOITER_TO_ALT]
-
-        if (self.wpoints[i].command in loiter_cmds):
-            return True    
-
-        return False
 
     def add(self, w, comment=''):
         '''add a waypoint'''
@@ -102,21 +94,6 @@ class MAVWPLoader(object):
             w.seq = i
         self.last_change = time.time()
 
-    def add_latlonalt(self, lat, lon, altitude, terrain_alt=False):
-        '''add a point via latitude/longitude/altitude'''
-        if terrain_alt:
-            frame = mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT
-        else:
-            frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
-        p = mavutil.mavlink.MAVLink_mission_item_message(self.target_system,
-                                                         self.target_component,
-                                                         0,
-                                                         frame,
-                                                         mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                                                         0, 0, 0, 0, 0, 0,
-                                                         lat, lon, altitude)
-        self.add(p)
-
     def set(self, w, idx):
         '''set a waypoint'''
         w.seq = idx
@@ -142,53 +119,6 @@ class MAVWPLoader(object):
         self.wpoints = []
         self.last_change = time.time()
 
-    def _read_waypoints_v100(self, file):
-        '''read a version 100 waypoint'''
-        cmdmap = {
-            2 : mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-            3 : mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
-            4 : mavutil.mavlink.MAV_CMD_NAV_LAND,
-            24: mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-            26: mavutil.mavlink.MAV_CMD_NAV_LAND,
-            25: mavutil.mavlink.MAV_CMD_NAV_WAYPOINT ,
-            27: mavutil.mavlink.MAV_CMD_NAV_LOITER_UNLIM
-            }
-        comment = ''
-        for line in file:
-            if line.startswith('#'):
-                comment = line[1:].lstrip()
-                continue
-            line = line.strip()
-            if not line:
-                continue
-            a = line.split()
-            if len(a) != 13:
-                raise MAVWPError("invalid waypoint line with %u values" % len(a))
-            if mavutil.mavlink10():
-                fn = mavutil.mavlink.MAVLink_mission_item_message
-            else:
-                fn = mavutil.mavlink.MAVLink_waypoint_message
-            w = fn(self.target_system, self.target_component,
-                   int(a[0]),    # seq
-                   int(a[1]),    # frame
-                   int(a[2]),    # action
-                   int(a[7]),    # current
-                   int(a[12]),   # autocontinue
-                   float(a[5]),  # param1,
-                   float(a[6]),  # param2,
-                   float(a[3]),  # param3
-                   float(a[4]),  # param4
-                   float(a[9]),  # x, latitude
-                   float(a[8]),  # y, longitude
-                   float(a[10])  # z
-                   )
-            if not w.command in cmdmap:
-                raise MAVWPError("Unknown v100 waypoint action %u" % w.command)
-
-            w.command = cmdmap[w.command]
-            self.add(w, comment)
-            comment = ''
-
     def _read_waypoints_v110(self, file):
         '''read a version 110 waypoint'''
         comment = ''
@@ -202,24 +132,32 @@ class MAVWPLoader(object):
             a = line.split()
             if len(a) != 12:
                 raise MAVWPError("invalid waypoint line with %u values" % len(a))
-            if mavutil.mavlink10():
+            args = [
+                self.target_system,
+                self.target_component,
+                int(a[0]),    # seq
+                int(a[2]),    # frame
+                int(a[3]),    # command
+                int(a[1]),    # current
+                int(a[11]),   # autocontinue
+                float(a[4]),  # param1,
+                float(a[5]),  # param2,
+                float(a[6]),  # param3
+                float(a[7]),  # param4
+                float(a[8]),  # x (latitude)
+                float(a[9]),  # y (longitude)
+                float(a[10]), # z (altitude)
+            ]
+            if mavutil.mavlink20():
                 fn = mavutil.mavlink.MAVLink_mission_item_message
+                args.append(self.mav_mission_type())
+            elif mavutil.mavlink10():
+                fn = mavutil.mavlink.MAVLink_mission_item_message
+                if self.mav_mission_type() != mavutil.mavlink.MAV_MISSION_TYPE_MISSION:
+                    raise ValueError("Not using mavlink2")
             else:
                 fn = mavutil.mavlink.MAVLink_waypoint_message
-            w = fn(self.target_system, self.target_component,
-                   int(a[0]),    # seq
-                   int(a[2]),    # frame
-                   int(a[3]),    # command
-                   int(a[1]),    # current
-                   int(a[11]),   # autocontinue
-                   float(a[4]),  # param1,
-                   float(a[5]),  # param2,
-                   float(a[6]),  # param3
-                   float(a[7]),  # param4
-                   float(a[8]),  # x (latitude)
-                   float(a[9]),  # y (longitude)
-                   float(a[10])  # z (altitude)
-                   )
+            w = fn(*args)
             if w.command == 0 and w.seq == 0 and self.count() == 0:
                 # special handling for Mission Planner created home wp
                 w.command = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
@@ -336,19 +274,6 @@ class MAVWPLoader(object):
                 w.x, w.y, w.z, w.autocontinue))
         f.close()
 
-    def is_location_command(self, cmd):
-        '''see if cmd is a MAV_CMD with a latitude/longitude'''
-        mav_cmd = mavutil.mavlink.enums['MAV_CMD']
-        if not cmd in mav_cmd:
-            return False
-        return getattr(mav_cmd[cmd],'has_location',True)
-
-    def is_location_wp(self, w):
-        '''see if w.command is a MAV_CMD with a latitude/longitude'''
-        if w.x == 0 and w.y == 0:
-            return False
-        return self.is_location_command(w.command)
-
     def view_indexes(self, done=None):
         '''return a list waypoint indexes in view order'''
         ret = []
@@ -443,11 +368,118 @@ class MAVWPLoader(object):
                 ret.append(p)
         return ret
 
+class MAVWPLoader(MissionItemProtocol):
+    '''MAVLink waypoint loader'''
+    def mav_mission_type(self):
+        '''returns type of mission this object transfers'''
+        return mavutil.mavlink.MAV_MISSION_TYPE_MISSION
+
+    def wp_is_loiter(self, i):
+        '''return true if waypoint is a loiter waypoint'''
+        loiter_cmds = [mavutil.mavlink.MAV_CMD_NAV_LOITER_UNLIM,
+                mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS,
+                mavutil.mavlink.MAV_CMD_NAV_LOITER_TIME,
+                mavutil.mavlink.MAV_CMD_NAV_LOITER_TO_ALT]
+
+        if (self.wpoints[i].command in loiter_cmds):
+            return True
+
+        return False
+
+    def add_latlonalt(self, lat, lon, altitude, terrain_alt=False):
+        '''add a point via latitude/longitude/altitude'''
+        if terrain_alt:
+            frame = mavutil.mavlink.MAV_FRAME_GLOBAL_TERRAIN_ALT
+        else:
+            frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
+        p = mavutil.mavlink.MAVLink_mission_item_message(self.target_system,
+                                                         self.target_component,
+                                                         0,
+                                                         frame,
+                                                         mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                                                         0, 0, 0, 0, 0, 0,
+                                                         lat, lon, altitude)
+        self.add(p)
+
+    def _read_waypoints_v100(self, file):
+        '''read a version 100 waypoint'''
+        cmdmap = {
+            2 : mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            3 : mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH,
+            4 : mavutil.mavlink.MAV_CMD_NAV_LAND,
+            24: mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
+            26: mavutil.mavlink.MAV_CMD_NAV_LAND,
+            25: mavutil.mavlink.MAV_CMD_NAV_WAYPOINT ,
+            27: mavutil.mavlink.MAV_CMD_NAV_LOITER_UNLIM
+            }
+        comment = ''
+        for line in file:
+            if line.startswith('#'):
+                comment = line[1:].lstrip()
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            a = line.split()
+            if len(a) != 13:
+                raise MAVWPError("invalid waypoint line with %u values" % len(a))
+            if mavutil.mavlink10():
+                fn = mavutil.mavlink.MAVLink_mission_item_message
+            else:
+                fn = mavutil.mavlink.MAVLink_waypoint_message
+            w = fn(self.target_system, self.target_component,
+                   int(a[0]),    # seq
+                   int(a[1]),    # frame
+                   int(a[2]),    # action
+                   int(a[7]),    # current
+                   int(a[12]),   # autocontinue
+                   float(a[5]),  # param1,
+                   float(a[6]),  # param2,
+                   float(a[3]),  # param3
+                   float(a[4]),  # param4
+                   float(a[9]),  # x, latitude
+                   float(a[8]),  # y, longitude
+                   float(a[10])  # z
+                   )
+            if not w.command in cmdmap:
+                raise MAVWPError("Unknown v100 waypoint action %u" % w.command)
+
+            w.command = cmdmap[w.command]
+            self.add(w, comment)
+            comment = ''
+
+    def is_location_command(self, cmd):
+        '''see if cmd is a MAV_CMD with a latitude/longitude'''
+        mav_cmd = mavutil.mavlink.enums['MAV_CMD']
+        if not cmd in mav_cmd:
+            return False
+        return getattr(mav_cmd[cmd],'has_location',True)
+
+    def is_location_wp(self, w):
+        '''see if w.command is a MAV_CMD with a latitude/longitude'''
+        if w.x == 0 and w.y == 0:
+            return False
+        return self.is_location_command(w.command)
+
+
+class MissionItemProtocol_Rally(MissionItemProtocol):
+    '''New mission-item-protocol-based class for sending rally points to
+    autopilot'''
+
+    def mav_mission_type(self):
+        '''returns type of mission this object transfers'''
+        return mavutil.mavlink.MAV_MISSION_TYPE_RALLY
+
+    def is_location_command(self, cmd):
+        '''returns true if cmd nominates a location in param5/param6/param7'''
+        return True
+
 class MAVRallyError(Exception):
     '''MAVLink rally point error class'''
     def __init__(self, msg):
         Exception.__init__(self, msg)
         self.message = msg
+
 
 class MAVRallyLoader(object):
     '''MAVLink Rally points and Rally Land points loader'''
