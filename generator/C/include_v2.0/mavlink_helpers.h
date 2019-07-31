@@ -809,14 +809,15 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 	// If a message has been sucessfully decoded, check index
 	if (status->msg_received == MAVLINK_FRAMING_OK)
 	{
-		//while(status->current_seq != rxmsg->seq)
-		//{
-		//	status->packet_rx_drop_count++;
-		//               status->current_seq++;
-		//}
+		if (status->packet_rx_success_count == 0) { // Initial condition: If no packet has been received so far, drop count is undefined
+			status->packet_rx_drop_count = 0;
+		} else {
+			uint8_t expected_seq = status->current_rx_seq + 1;
+			uint8_t lost_packets = rxmsg->seq - expected_seq;
+			status->packet_rx_drop_count += lost_packets;
+		}
+
 		status->current_rx_seq = rxmsg->seq;
-		// Initial condition: If no packet has been received so far, drop count is undefined
-		if (status->packet_rx_success_count == 0) status->packet_rx_drop_count = 0;
 		// Count this packet as received
 		status->packet_rx_success_count++;
 	}
@@ -829,7 +830,8 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
            r_mavlink_status->packet_idx = status->packet_idx;
            r_mavlink_status->current_rx_seq = status->current_rx_seq+1;
            r_mavlink_status->packet_rx_success_count = status->packet_rx_success_count;
-           r_mavlink_status->packet_rx_drop_count = status->parse_error;
+           r_mavlink_status->packet_rx_drop_count = status->packet_rx_drop_count;
+           r_mavlink_status->parse_error += status->parse_error;
            r_mavlink_status->flags = status->flags;
        }
        status->parse_error = 0;
