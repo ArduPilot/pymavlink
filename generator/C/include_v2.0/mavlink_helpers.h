@@ -49,6 +49,14 @@ MAVLINK_HELPER mavlink_message_t* mavlink_get_channel_buffer(uint8_t chan)
 }
 #endif // MAVLINK_GET_CHANNEL_BUFFER
 
+/* Enable this option to check the length of each message.
+    This allows invalid messages to be caught much sooner. Use if the transmission
+    medium is prone to missing (or extra) characters (e.g. a radio that fades in
+    and out). Only use if the channel will only contain messages types listed in
+    the headers.
+*/
+//#define MAVLINK_CHECK_MESSAGE_LENGTH
+
 /**
  * @brief Reset the status of a channel.
  */
@@ -566,19 +574,6 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
                                                  mavlink_message_t* r_message, 
                                                  mavlink_status_t* r_mavlink_status)
 {
-	/* Enable this option to check the length of each message.
-	   This allows invalid messages to be caught much sooner. Use if the transmission
-	   medium is prone to missing (or extra) characters (e.g. a radio that fades in
-	   and out). Only use if the channel will only contain messages types listed in
-	   the headers.
-	*/
-#ifdef MAVLINK_CHECK_MESSAGE_LENGTH
-#ifndef MAVLINK_MESSAGE_LENGTH
-	static const uint8_t mavlink_message_lengths[256] = MAVLINK_MESSAGE_LENGTHS;
-#define MAVLINK_MESSAGE_LENGTH(msgid) mavlink_message_lengths[msgid]
-#endif
-#endif
-
 	int bufferIndex = 0;
 
 	status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
@@ -674,23 +669,23 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 	case MAVLINK_PARSE_STATE_GOT_COMPID:
 		rxmsg->msgid = c;
 		mavlink_update_checksum(rxmsg, c);
-                if (status->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1) {
-                    if(rxmsg->len > 0){
-                        status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID3;
-                    } else {
-                        status->parse_state = MAVLINK_PARSE_STATE_GOT_PAYLOAD;
-                    }
+		if (status->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1) {
+			if(rxmsg->len > 0) {
+				status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID3;
+			} else {
+				status->parse_state = MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+			}
 #ifdef MAVLINK_CHECK_MESSAGE_LENGTH
-                    if (rxmsg->len != MAVLINK_MESSAGE_LENGTH(rxmsg->msgid))
-                    {
-			_mav_parse_error(status);
-			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
-			break;
-                    }
+			if (rxmsg->len < mavlink_min_message_length(rxmsg) ||
+				rxmsg->len > mavlink_max_message_length(rxmsg)) {
+				_mav_parse_error(status);
+				status->parse_state = MAVLINK_PARSE_STATE_IDLE;
+				break;
+			}
 #endif
-                } else {
-                    status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID1;
-                }
+		} else {
+			status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID1;
+		}
 		break;
 
 	case MAVLINK_PARSE_STATE_GOT_MSGID1:
@@ -708,12 +703,13 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 			status->parse_state = MAVLINK_PARSE_STATE_GOT_PAYLOAD;
 		}
 #ifdef MAVLINK_CHECK_MESSAGE_LENGTH
-	        if (rxmsg->len != MAVLINK_MESSAGE_LENGTH(rxmsg->msgid))
-		{
+        if (rxmsg->len < mavlink_min_message_length(rxmsg) ||
+            rxmsg->len > mavlink_max_message_length(rxmsg))
+        {
 			_mav_parse_error(status);
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 			break;
-                }
+        }
 #endif
 		break;
                 
