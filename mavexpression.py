@@ -31,4 +31,6 @@ def evaluate_expression(expression, vars):
         return None
     except ZeroDivisionError:
         return None
+    except IndexError:
+        return None
     return v
