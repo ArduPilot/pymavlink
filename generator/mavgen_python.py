@@ -681,8 +681,13 @@ class MAVLink(object):
             h = hashlib.new('sha256')
             h.update(self.signing.secret_key)
             h.update(msgbuf[:-6])
-            sig1 = str(h.digest())[:6]
-            sig2 = str(msgbuf)[-6:]
+            if str(type(msgbuf)) == "<class 'bytes'>":
+                # Python 3
+                sig1 = h.digest()[:6]
+                sig2 = msgbuf[-6:]
+            else:
+                sig1 = str(h.digest())[:6]
+                sig2 = str(msgbuf)[-6:]
             if sig1 != sig2:
                 # print('sig mismatch')
                 return False
