@@ -64,19 +64,15 @@ def mavgen(opts, args):
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
             opts.validate = False
 
-
     def expand_includes():
-        """Expand includes. XML files from arguments already parsed inot xml list."""
-        
+        """Expand includes for XML files passed in as mavgen arguments."""
+
         def expand_oneiteration():
-            noincludeadded = True
+            includeadded = False
 
             for x in xml[:]:
-                try:
-                    if not x.parent:
-                        pass
-                except:
-                    x.parent=set()
+                if getattr(x, 'parent', None) is None:
+                    x.parent = set()
 
                 for i in x.include:
                     fname = os.path.join(os.path.dirname(x.filename), i)
@@ -97,38 +93,38 @@ def mavgen(opts, args):
                     print("Parsing %s" % fname)
 
                     parsed_xml = mavparse.MAVXML(fname, opts.wire_protocol)
-                    #add all parent(s) into included file
-                    parsed_xml.parent=set()
+                    # Add all parent(s) into included file
+                    parsed_xml.parent = set()
                     parsed_xml.parent.add(x.basename)
                     parsed_xml.parent.update(x.parent)
                     xml.append(parsed_xml)
 
-                    noincludeadded = False
-            return noincludeadded        
-                    
-        for i in range(MAXIMUM_INCLUDE_FILE_NESTING):
-            if expand_oneiteration(): 
-                break
+                    includeadded = True
+            return includeadded
 
-        xml_dict=dict()
+        for i in range(MAXIMUM_INCLUDE_FILE_NESTING):
+            if not expand_oneiteration():
+                break
+        if expand_oneiteration():
+            print("ERROR Nesting level greater than maximum: %s" % MAXIMUM_INCLUDE_FILE_NESTING)
+            exit(1)
+
+        xml_dict = dict()
         # Add children to parent.child lists.
         for x in xml:
             xml_dict[x.basename] = x
-            try:
-                if not x.child:
-                    pass
-            except:
-                x.child=set()
+
+            if getattr(x, 'child', None) is None:
+                x.child = set()
             for a_parent in x.parent:
-               for x_inner in xml:
-                   if x_inner.basename == a_parent:
-                       #x is a child of x_inner
-                       x_inner.child.add(x.basename)
+                for x_inner in xml:
+                    if x_inner.basename == a_parent:
+                        # x is a child of x_inner
+                        x_inner.child.add(x.basename)
 
-
-        # Update parents with child CRCs, message lengths, etc. 
+        # Update parents with child CRCs, message lengths, etc.
         for x in xml:
-            
+
             for child in x.child:
                 x.message_crcs.update(xml_dict[child].message_crcs)
                 x.message_lengths.update(xml_dict[child].message_lengths)
@@ -139,11 +135,10 @@ def mavgen(opts, args):
                 x.message_names.update(xml_dict[child].message_names)
                 x.largest_payload = max(x.largest_payload, xml_dict[child].largest_payload)
 
-
-
     def mavgen_validate(xmlfile):
-        """Uses lxml to validate an XML file. We define mavgen_validate
-           here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
+        """Uses lxml to validate an XML file.
+           We define mavgen_validate here because it relies on the XML libs
+           that were loaded in mavgen(), so it can't be called standalone"""
         xmlvalid = True
         try:
             with open(xmlfile, 'r') as f:
@@ -187,7 +182,6 @@ def mavgen(opts, args):
 
     # expand includes
     expand_includes()
-
 
     if mavparse.check_duplicates(xml):
         sys.exit(1)
