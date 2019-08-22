@@ -10,6 +10,8 @@ from builtins import object
 
 import time, copy
 import logging
+import re
+
 from . import mavutil
 try:
     from google.protobuf import text_format
@@ -473,6 +475,61 @@ class MissionItemProtocol_Rally(MissionItemProtocol):
     def is_location_command(self, cmd):
         '''returns true if cmd nominates a location in param5/param6/param7'''
         return True
+
+    def load(self, filename):
+        '''attempts to load from legacy rally file'''
+        f = open(filename, mode='r')
+        version_line = f.readline().strip()
+        f.close()
+        if not re.match("^RALLY ", version_line):
+            return super(MissionItemProtocol_Rally, self).load(filename)
+
+        points = []
+        # this code shamelessly copy-and-pasted from the old
+        # MAVWPLoader, below
+        seq = 0
+        f = open(filename, mode='r')
+        for line in f:
+            if line.startswith('#'):
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            a = line.split()
+            if len(a) != 7:
+                raise MAVRallyError("invalid rally file line: %s" % line)
+
+            if (a[0].lower() == "rally"):
+                lat_deg = float(a[1])
+                lng_deg = float(a[2])
+                alt = float(a[3])
+#                break_alt = float(a[4])
+#                land_dir = float(a[5])
+#                flags = int(a[6])
+                w = mavutil.mavlink.MAVLink_mission_item_int_message(
+                    self.target_system, self.target_component,
+                    seq,    # seq
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,  # frame
+                    mavutil.mavlink.MAV_CMD_NAV_RALLY_POINT,        # command
+                    0,  # current
+                    0,  # autocontinue
+                    0,  # param1,
+                    0,  # param2,
+                    0,  # param3
+                    0,  # param4
+                    int(lat_deg * 1e7),  # x (latitude)
+                    int(lng_deg * 1e7),  # y (longitude)
+                    alt * 1e3,      # z (altitude)
+                    self.mav_mission_type(),
+                )
+                points.append(w)
+                seq += 1
+        f.close()
+
+        self.clear()
+        for point in points:
+            self.add(point)
+
 
 class MAVRallyError(Exception):
     '''MAVLink rally point error class'''
