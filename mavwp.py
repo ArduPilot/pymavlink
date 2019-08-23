@@ -464,6 +464,18 @@ class MAVWPLoader(MissionItemProtocol):
         return self.is_location_command(w.command)
 
 
+class MissionItemProtocol_Fence(MissionItemProtocol):
+    '''New mission-item-protocol-based class for sending fence points to
+    autopilot'''
+
+    def mav_mission_type(self):
+        '''returns type of mission this object transfers'''
+        return mavutil.mavlink.MAV_MISSION_TYPE_FENCE
+
+    def is_location_command(self, cmd):
+        '''returns true if cmd nominates a location in param5/param6/param7'''
+        return True
+
 class MissionItemProtocol_Rally(MissionItemProtocol):
     '''New mission-item-protocol-based class for sending rally points to
     autopilot'''
