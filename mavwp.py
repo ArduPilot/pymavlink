@@ -121,7 +121,11 @@ class MAVWPLoader(object):
 
     def remove(self, w):
         '''remove a waypoint'''
-        self.wpoints.remove(w)
+        if isinstance(w, list):
+            for point in w:
+                self.wpoints.remove(point)
+        else:
+            self.wpoints.remove(w)
         self.last_change = time.time()
         self.reindex()
 
