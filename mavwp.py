@@ -464,6 +464,19 @@ class MAVWPLoader(MissionItemProtocol):
         return self.is_location_command(w.command)
 
 
+def get_first_line_from_file(filename):
+    '''return line from filename that doesn't start with a #'''
+    f = open(filename, mode='r')
+    while True:
+        line = f.readline().strip()
+        if len(line) == 0:
+            return None
+        if not line.startswith("#"):
+            break
+
+    f.close()
+    return line
+
 class MissionItemProtocol_Fence(MissionItemProtocol):
     '''New mission-item-protocol-based class for sending fence points to
     autopilot'''
@@ -475,6 +488,83 @@ class MissionItemProtocol_Fence(MissionItemProtocol):
     def is_location_command(self, cmd):
         '''returns true if cmd nominates a location in param5/param6/param7'''
         return True
+
+    def load(self, filename):
+        '''try to load from an old "FENCE_POINT" format file (just a list of
+        latlon pairs - or fall back to QGC formats'''
+
+        version_line = get_first_line_from_file(filename)
+
+        if (version_line is None or
+            not re.match("[-0-9.]+\s+[-0-9.]+", version_line)):
+            return super(MissionItemProtocol_Fence, self).load(filename)
+
+        # shamelessly copy-and-pasted from traditional loader, below
+        f = open(filename, mode='r')
+        points = []
+        for line in f:
+            if line.startswith('#'):
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            a = line.split()
+            if len(a) != 2:
+                raise MAVFenceError("invalid fence point line: %s" % line)
+            points.append((float(a[0]),float(a[1])))
+        f.close()
+
+        # 1 return point
+        # at least 3 vertex points
+        # 1 closing point
+        if len(points) < 5:
+            print("Insufficient points in file")
+            return
+
+        items = []
+        # return point:
+        (ret_lat, ret_lng) = points[0]
+        items.append(
+            mavutil.mavlink.MAVLink_mission_item_int_message(
+                self.target_system,
+                self.target_component,
+                0,    # seq
+                mavutil.mavlink.MAV_FRAME_GLOBAL,  # frame
+                mavutil.mavlink.MAV_CMD_NAV_FENCE_RETURN_POINT, # command
+                0,  # current
+                0,  # autocontinue
+                0,  # param1,
+                0,  # param2,
+                0,  # param3
+                0,  # param4
+                int(ret_lat * 1e7),  # x (latitude)
+                int(ret_lng * 1e7),  # y (longitude)
+                0,      # z (altitude)
+                self.mav_mission_type(),
+            ))
+        for i in range(1, len(points)-1):
+            (lat, lng) = points[i]
+            item = mavutil.mavlink.MAVLink_mission_item_int_message(
+                self.target_system,
+                self.target_component,
+                0,    # seq
+                mavutil.mavlink.MAV_FRAME_GLOBAL,  # frame
+                mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION, # command
+                0,  # current
+                0,  # autocontinue
+                len(points)-2,  # param1,
+                0,  # param2,
+                0,  # param3
+                0,  # param4
+                int(lat * 1e7),  # x (latitude)
+                int(lng * 1e7),  # y (longitude)
+                0,      # z (altitude)
+                self.mav_mission_type(),
+            )
+            items.append(item)
+
+        self.clear()
+        self.add(items)
 
 class MissionItemProtocol_Rally(MissionItemProtocol):
     '''New mission-item-protocol-based class for sending rally points to
@@ -490,10 +580,8 @@ class MissionItemProtocol_Rally(MissionItemProtocol):
 
     def load(self, filename):
         '''attempts to load from legacy rally file'''
-        f = open(filename, mode='r')
-        version_line = f.readline().strip()
-        f.close()
-        if not re.match("^RALLY ", version_line):
+        version_line = get_first_line_from_file(filename)
+        if version_line is None or not re.match("^RALLY ", version_line):
             return super(MissionItemProtocol_Rally, self).load(filename)
 
         points = []
