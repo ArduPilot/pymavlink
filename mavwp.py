@@ -32,7 +32,7 @@ class MAVWPLoader(object):
         self.wpoints = []
         self.target_system = target_system
         self.target_component = target_component
-        self.last_change = time.time()
+        self.last_change = 0
         self.colour_for_polygon = {
             mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION : (255,0,0),
             mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION : (0,255,0)
