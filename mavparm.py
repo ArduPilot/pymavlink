@@ -51,7 +51,7 @@ class MAVParmDict(dict):
             vfloat, = struct.unpack(">f", vstr)
         else:
             vfloat = float(value)
-                
+
         while retries > 0 and not got_ack:
             retries -= 1
             mav.param_set_send(name.upper(), vfloat, parm_type=parm_type)
@@ -148,7 +148,7 @@ class MAVParmDict(dict):
             if fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 self.show_param_value(str(p), "%f" % self.get(p))
 
-    def diff(self, filename, wildcard='*', use_excludes=True):
+    def diff(self, filename, wildcard='*', use_excludes=True, use_tabs=False):
         '''show differences with another parameter file'''
         other = MAVParmDict()
         if not other.load(filename, use_excludes=use_excludes):
@@ -164,6 +164,7 @@ class MAVParmDict(dict):
                 print("%-16.16s %12.4f" % (k, float(other[k])))
             elif abs(self[k] - other[k]) > self.mindelta:
                 value = float(self[k])
-                print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
-                
-        
+                if use_tabs:
+                    print("%s\t%.4f\t%.4f" % (k, other[k], value))
+                else:
+                    print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
