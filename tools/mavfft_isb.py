@@ -10,11 +10,17 @@ import os
 import pylab
 import sys
 import time
+import copy
 
 from argparse import ArgumentParser
+
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by condition")
 parser.add_argument("logs", metavar="LOG", nargs="+")
+parser.add_argument("--scale", dest='fft_scale', default='db', action='store', help="scale to use for displaying frequency information: 'db' or 'linear'")
+parser.add_argument("--window", dest='fft_window', default='hanning', action='store', help="windowing function to use for processing the data: 'hanning', 'blackman' or 'None'")
+parser.add_argument("--overlap", dest='fft_overlap', default=False, action='store_true', help="whether or not to use window overlap when analysing data")
+parser.add_argument("--output", dest='fft_output', default='psd', action='store', help="whether to output frequency spectrum information as power or linear spectral density: 'psd' or 'lsd'")
 
 args = parser.parse_args()
 
@@ -55,6 +61,19 @@ def mavfft_fttd(logfile):
             self.data["Y"].extend(fftd.y)
             self.data["Z"].extend(fftd.z)
 
+        def overlap_windows(self, plotdata):
+            newplotdata = copy.deepcopy(self)
+            if plotdata.tag() != self.tag():
+                print("Invalid FFT data tag (%s vs %s) for window overlap" % (plotdata.tag(), self.tag()))
+                return self
+            if plotdata.fftnum <= self.fftnum:
+                print("Invalid FFT sequence (%u vs %u) for window overlap" % (plotdata.fftnum, self.fftnum))
+                return self
+            newplotdata.data["X"] = numpy.split(numpy.asarray(self.data["X"]), 2)[1].tolist() + numpy.split(numpy.asarray(plotdata.data["X"]), 2)[0].tolist()
+            newplotdata.data["Y"] = numpy.split(numpy.asarray(self.data["Y"]), 2)[1].tolist() + numpy.split(numpy.asarray(plotdata.data["Y"]), 2)[0].tolist()
+            newplotdata.data["Z"] = numpy.split(numpy.asarray(self.data["Z"]), 2)[1].tolist() + numpy.split(numpy.asarray(plotdata.data["Z"]), 2)[0].tolist()
+            return newplotdata
+
         def prefix(self):
             if self.sensor_type == 0:
                 return "Accel"
@@ -72,8 +91,10 @@ def mavfft_fttd(logfile):
     print("Processing log %s" % filename)
     mlog = mavutil.mavlink_connection(filename)
 
+    # see https://holometer.fnal.gov/GH_FFT.pdf for a description of the techniques used here
     things_to_plot = []
     plotdata = None
+    prev_plotdata = {}
     msgcount = 0
     start_time = time.time()
     while True:
@@ -86,15 +107,19 @@ def mavfft_fttd(logfile):
         msg_type = m.get_type()
         if msg_type == "ISBH":
             if plotdata is not None:
+                sensor = plotdata.tag()
                 # close off previous data collection
+                # in order to get 50% window overlap we need half the old data + half the new data and then the new data itself
+                if args.fft_overlap and sensor in prev_plotdata:
+                    things_to_plot.append(prev_plotdata[sensor].overlap_windows(plotdata))
                 things_to_plot.append(plotdata)
-            # initialise plot-data collection object
+                prev_plotdata[sensor] = plotdata
             plotdata = PlotData(m)
             continue
 
         if msg_type == "ISBD":
             if plotdata is None:
-                print("Skipping ISBD outside ISBH (fftnum=%u)\n" % m.N)
+                sys.stderr.write("?(fftnum=%u)" % m.N)
                 continue
             plotdata.add_fftd(m)
 
@@ -105,37 +130,91 @@ def mavfft_fttd(logfile):
 
     sum_fft = {}
     freqmap = {}
-    count = 0
+    sample_rates = {}
+    counts = {}
+    window = None
+    S2 = 0
 
     first_freq = None
     for thing_to_plot in things_to_plot:
+        if thing_to_plot.tag() not in sum_fft:
+            sum_fft[thing_to_plot.tag()] = {
+                "X": numpy.zeros(len(thing_to_plot.data["X"])/2+1),
+                "Y": numpy.zeros(len(thing_to_plot.data["Y"])/2+1),
+                "Z": numpy.zeros(len(thing_to_plot.data["Z"])/2+1),
+            }
+            counts[thing_to_plot.tag()] = 0
+
         for axis in [ "X","Y","Z" ]:
-            d = numpy.array(thing_to_plot.data[axis])/float(thing_to_plot.multiplier)
+            # normalize data and convert to dps in order to produce more meaningful magnitudes
+            if thing_to_plot.sensor_type == 1:
+                d = numpy.array(numpy.degrees(thing_to_plot.data[axis])) / float(thing_to_plot.multiplier)
+            else:
+                d = numpy.array(thing_to_plot.data[axis]) / float(thing_to_plot.multiplier)
             if len(d) == 0:
                 print("No data?!?!?!")
                 continue
-            
-            avg = numpy.sum(d) / len(d)
-            d -= avg
+
+            if window is None:
+                if args.fft_window == 'hanning':
+                    # create hanning window
+                    window = numpy.hanning(len(d))
+                elif args.fft_window == 'blackman':
+                    # create blackman window
+                    window = numpy.blackman(len(d))
+                else:
+                    window = numpy.arange(len(d))
+                    window.fill(1)
+                # calculate NEBW constant
+                S2 = numpy.inner(window, window)
+
+            # apply window to the input
+            d *= window
+            # perform RFFT
             d_fft = numpy.fft.rfft(d)
-            if thing_to_plot.tag() not in sum_fft:
-                sum_fft[thing_to_plot.tag()] = {
-                    "X": 0,
-                    "Y": 0,
-                    "Z": 0
-                }
-            sum_fft[thing_to_plot.tag()][axis] = numpy.add(sum_fft[thing_to_plot.tag()][axis], d_fft)
-            count += 1
+            # convert to squared complex magnitude
+            d_fft = numpy.square(abs(d_fft))
+            # remove DC component
+            d_fft[0] = 0
+            d_fft[-1] = 0
+            # accumulate the sums
+            sum_fft[thing_to_plot.tag()][axis] += d_fft
             freq = numpy.fft.rfftfreq(len(d), 1.0/thing_to_plot.sample_rate_hz)
             freqmap[thing_to_plot.tag()] = freq
 
+        sample_rates[thing_to_plot.tag()] = thing_to_plot.sample_rate_hz
+        counts[thing_to_plot.tag()] += 1
+
+    numpy.seterr(divide = 'ignore')
     for sensor in sum_fft:
         print("Sensor: %s" % str(sensor))
         pylab.figure(str(sensor))
         for axis in [ "X","Y","Z" ]:
-            pylab.plot(freqmap[sensor], numpy.abs(sum_fft[sensor][axis]/count), label=axis)
+            # normalize output to averaged PSD
+            psd = 2 * (sum_fft[sensor][axis] / counts[sensor]) / (sample_rates[sensor] * S2)
+            # linerize of requested
+            if args.fft_output == 'lsd':
+                psd = numpy.sqrt(psd)
+            # convert to db if requested
+            if args.fft_scale == 'db':
+                psd = 10 * numpy.log10 (psd)
+            pylab.plot(freqmap[sensor], psd, label=axis)
         pylab.legend(loc='upper right')
         pylab.xlabel('Hz')
+        scale_label=''
+        psd_label='PSD'
+        if args.fft_scale =='db':
+            scale_label="dB "
+        if args.fft_output == 'lsd':
+            if str(sensor).startswith("Gyro"):
+                pylab.ylabel('LSD $' + scale_label + 'd/s/\sqrt{Hz}$')
+            else:
+                pylab.ylabel('LSD $' + scale_label + 'm/s^2/\sqrt{Hz}$')
+        else:
+            if str(sensor).startswith("Gyro"):
+                pylab.ylabel('PSD $' + scale_label + 'd^2/s^2/Hz$')
+            else:
+                pylab.ylabel('PSD $' + scale_label + 'm^2/s^4/Hz$')
 
 for filename in args.logs:
     mavfft_fttd(filename)
