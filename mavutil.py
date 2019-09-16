@@ -2309,7 +2309,7 @@ def dump_message_verbose(f, m):
     try:
         # __getattr__ may be overridden on m, thus this try/except
         timestamp = m._timestamp
-    except IOError as e:
+    except AttributeError as e:
         timestamp = ""
     if timestamp != "":
         timestamp = "%s.%02u: " % (
