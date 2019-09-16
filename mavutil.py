@@ -1229,6 +1229,8 @@ class mavtcp(mavfile):
                 self.reconnect()
             except socket.error as e:
                 pass
+        if self.port is None:
+            return
         try:
             self.port.send(buf)
         except socket.error as e:
