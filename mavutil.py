@@ -1910,6 +1910,8 @@ mode_mapping_rover = {
     3 : 'STEERING',
     4 : 'HOLD',
     5 : 'LOITER',
+    6 : 'FOLLOW',
+    7 : 'SIMPLE',
     10 : 'AUTO',
     11 : 'RTL',
     12 : 'SMART_RTL',
