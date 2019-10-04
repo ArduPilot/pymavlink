@@ -88,8 +88,8 @@ def mavfft_fttd(logfile):
         def __str__(self):
             return "%s[%u]" % (self.prefix(), self.instance)
 
-    print("Processing log %s" % filename)
-    mlog = mavutil.mavlink_connection(filename)
+    print("Processing log %s" % logfile)
+    mlog = mavutil.mavlink_connection(logfile)
 
     # see https://holometer.fnal.gov/GH_FFT.pdf for a description of the techniques used here
     things_to_plot = []
@@ -132,18 +132,34 @@ def mavfft_fttd(logfile):
     freqmap = {}
     sample_rates = {}
     counts = {}
-    window = None
-    S2 = 0
+    window = {}
+    S2 = {}
 
     first_freq = None
     for thing_to_plot in things_to_plot:
+
+        fft_len = len(thing_to_plot.data["X"])
+
         if thing_to_plot.tag() not in sum_fft:
             sum_fft[thing_to_plot.tag()] = {
-                "X": numpy.zeros(len(thing_to_plot.data["X"])/2+1),
-                "Y": numpy.zeros(len(thing_to_plot.data["Y"])/2+1),
-                "Z": numpy.zeros(len(thing_to_plot.data["Z"])/2+1),
+                "X": numpy.zeros(fft_len/2+1),
+                "Y": numpy.zeros(fft_len/2+1),
+                "Z": numpy.zeros(fft_len/2+1),
             }
             counts[thing_to_plot.tag()] = 0
+
+        if thing_to_plot.tag() not in window:
+            if args.fft_window == 'hanning':
+                # create hanning window
+                window[thing_to_plot.tag()] = numpy.hanning(fft_len)
+            elif args.fft_window == 'blackman':
+                # create blackman window
+                window[thing_to_plot.tag()] = numpy.blackman(fft_len)
+            else:
+                window[thing_to_plot.tag()] = numpy.arange(fft_len)
+                window[thing_to_plot.tag()].fill(1)
+            # calculate NEBW constant
+            S2[thing_to_plot.tag()] = numpy.inner(window[thing_to_plot.tag()], window[thing_to_plot.tag()])
 
         for axis in [ "X","Y","Z" ]:
             # normalize data and convert to dps in order to produce more meaningful magnitudes
@@ -155,21 +171,8 @@ def mavfft_fttd(logfile):
                 print("No data?!?!?!")
                 continue
 
-            if window is None:
-                if args.fft_window == 'hanning':
-                    # create hanning window
-                    window = numpy.hanning(len(d))
-                elif args.fft_window == 'blackman':
-                    # create blackman window
-                    window = numpy.blackman(len(d))
-                else:
-                    window = numpy.arange(len(d))
-                    window.fill(1)
-                # calculate NEBW constant
-                S2 = numpy.inner(window, window)
-
             # apply window to the input
-            d *= window
+            d *= window[thing_to_plot.tag()]
             # perform RFFT
             d_fft = numpy.fft.rfft(d)
             # convert to squared complex magnitude
@@ -191,7 +194,7 @@ def mavfft_fttd(logfile):
         pylab.figure(str(sensor))
         for axis in [ "X","Y","Z" ]:
             # normalize output to averaged PSD
-            psd = 2 * (sum_fft[sensor][axis] / counts[sensor]) / (sample_rates[sensor] * S2)
+            psd = 2 * (sum_fft[sensor][axis] / counts[sensor]) / (sample_rates[sensor] * S2[sensor])
             # linerize of requested
             if args.fft_output == 'lsd':
                 psd = numpy.sqrt(psd)
