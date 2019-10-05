@@ -27,10 +27,15 @@ def mavmission(logfile):
         if m is None:
             break
         if m.get_type() == 'CMD':
+            try:
+                frame = m.Frame
+            except AttributeError:
+                print("Warning: assuming frame is GLOBAL_RELATIVE_ALT")
+                frame = mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT
             m = mavutil.mavlink.MAVLink_mission_item_message(0,
                                                              0,
                                                              m.CNum,
-                                                             mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                                                             frame,
                                                              m.CId,
                                                              0, 1,
                                                              m.Prm1, m.Prm2, m.Prm3, m.Prm4,
