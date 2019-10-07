@@ -23,7 +23,7 @@ def mavmission(logfile):
     wp = mavwp.MAVWPLoader()
 
     while True:
-        m = mlog.recv_match(type=['MISSION_ITEM','CMD','WAYPOINT'])
+        m = mlog.recv_match(type=['MISSION_ITEM','CMD','WAYPOINT','MISSION_ITEM_INT'])
         if m is None:
             break
         if m.get_type() == 'CMD':
@@ -40,6 +40,21 @@ def mavmission(logfile):
                                                              0, 1,
                                                              m.Prm1, m.Prm2, m.Prm3, m.Prm4,
                                                              m.Lat, m.Lng, m.Alt)
+        if m.get_type() == 'MISSION_ITEM_INT':
+            m = mavutil.mavlink.MAVLink_mission_item_message(m.target_system,
+                                                             m.target_component,
+                                                             m.seq,
+                                                             m.frame,
+                                                             m.command,
+                                                             m.current,
+                                                             m.autocontinue,
+                                                             m.param1,
+                                                             m.param2,
+                                                             m.param3,
+                                                             m.param4,
+                                                             m.x*1.0e-7,
+                                                             m.y*1.0e-7,
+                                                             m.z)
         if m.current >= 2:
             continue
 
