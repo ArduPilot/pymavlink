@@ -1867,6 +1867,7 @@ mode_mapping_apm = {
     10 : 'AUTO',
     11 : 'RTL',
     12 : 'LOITER',
+    13 : 'TAKEOFF',
     14 : 'LAND',
     15 : 'GUIDED',
     16 : 'INITIALISING',
