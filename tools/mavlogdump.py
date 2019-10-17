@@ -177,7 +177,10 @@ if isbin and args.format == 'csv':
 while True:
     m = mlog.recv_match(blocking=args.follow, type=match_types)
     if m is None:
-        # FIXME: Make sure to output the last CSV message before dropping out of this loop
+        # write the final csv line before exiting
+        if args.format == 'csv' and csv_out:
+          csv_out[0] = "{:.8f}".format(last_timestamp)
+          print(args.csv_sep.join(csv_out))
         break
     available_types.add(m.get_type())
     if isbin and m.get_type() == "FMT" and args.format == 'csv':
