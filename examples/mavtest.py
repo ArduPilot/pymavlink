@@ -34,11 +34,13 @@ def test_protocol(mavlink, signing=False):
         mav.signing.sign_outgoing = True
 
     # set the WP_RADIUS parameter on the MAV at the end of the link
-    mav.param_set_send(7, 1, "WP_RADIUS", 101, mavlink.MAV_PARAM_TYPE_REAL32)
+    # The encoder requires that parameter names are byte sequences in python3,
+    # hence the b'xxx' syntax. In python2, this has no effect
+    mav.param_set_send(7, 1, b'WP_RADIUS', 101, mavlink.MAV_PARAM_TYPE_REAL32)
 
     # alternatively, produce a MAVLink_param_set object 
     # this can be sent via your own transport if you like
-    m = mav.param_set_encode(7, 1, "WP_RADIUS", 101, mavlink.MAV_PARAM_TYPE_REAL32)
+    m = mav.param_set_encode(7, 1, b'WP_RADIUS', 101, mavlink.MAV_PARAM_TYPE_REAL32)
 
     m.pack(mav)
 
