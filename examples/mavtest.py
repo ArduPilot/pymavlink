@@ -28,7 +28,7 @@ def test_protocol(mavlink, signing=False):
     mav = mavlink.MAVLink(f)
 
     if signing:
-        mav.signing.secret_key = chr(42)*32
+        mav.signing.secret_key = bytearray(chr(42)*32, 'utf-8' )
         mav.signing.link_id = 0
         mav.signing.timestamp = 0
         mav.signing.sign_outgoing = True

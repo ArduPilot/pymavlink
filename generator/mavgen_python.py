@@ -730,7 +730,7 @@ class MAVLink(object):
             h = hashlib.new('sha256')
             h.update(self.signing.secret_key)
             h.update(msgbuf[:-6])
-            if str(type(msgbuf)) == "<class 'bytes'>":
+            if str(type(msgbuf)) == "<class 'bytes'>" or str(type(msgbuf)) == "<class 'bytearray'>":
                 # Python 3
                 sig1 = h.digest()[:6]
                 sig2 = msgbuf[-6:]
