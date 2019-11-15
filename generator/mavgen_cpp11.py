@@ -337,10 +337,11 @@ def generate_one(basename, xml):
     # we sort with primary key msgid
     xml.message_entry_len = len(xml.message_crcs)
     xml.message_entry_array = ', '.join([
-        '{%u, %u, %u, %u, %u, %u}' % (
+        '{%u, %u, %u, %u, %u, %u, %u}' % (
             msgid,
             xml.message_crcs[msgid],
             xml.message_min_lengths[msgid],
+            xml.message_lengths[msgid],
             xml.message_flags[msgid],
             xml.message_target_system_ofs[msgid],
             xml.message_target_component_ofs[msgid])
