@@ -39,7 +39,7 @@ public:
 	}
 
 	template<typename _T>
-	void operator<< (const _T data);
+	void operator<< (const _T &data);
 
 	template<class _T, size_t _Size>
 	void operator<< (const std::array<_T, _Size> &data);
@@ -55,9 +55,6 @@ private:
 	const mavlink_message_t *cmsg;	// for deserialization
 	size_t pos;
 
-	template<typename _T, typename _Tin>
-	inline void msg_swap_memcpy(_T &buf, _Tin data);
-
 	template<typename _T, typename _Tout>
 	inline void cmsg_memcpy_bzero_swap_set_data(_T &buf, _Tout &data);
 };
@@ -66,70 +63,47 @@ private:
 
 // implementation
 
-template<typename _T, typename _Tin>
-void mavlink::MsgMap::msg_swap_memcpy(_T &buf, _Tin data)
-{
-	if (std::is_floating_point<_Tin>::value) {
-		buf = *static_cast<const _T *>(static_cast<const void *>(&data));
-	} else {
-		buf = data;
-	}
-
-	// htoleXX functions may be empty macros,
-	// switch will be optimized-out
-	switch (sizeof(_T)) {
-	case 2:
-		buf = htole16(buf);
-		break;
-
-	case 4:
-		buf = htole32(buf);
-		break;
-
-	case 8:
-		buf = htole64(buf);
-		break;
-
-	default:
-		assert(false);
-	}
-
-	memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &buf, sizeof(buf));
-}
-
 template<typename _T>
-void mavlink::MsgMap::operator<< (const _T data)
+void mavlink::MsgMap::operator<< (const _T &data)
 {
-	assert(msg);
-	assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
+    assert(msg);
+    assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
 
-	switch (sizeof(_T)) {
-	case 1:
-		_MAV_PAYLOAD_NON_CONST(msg)[pos] = data;
-		break;
+    // htoleXX functions may be empty macros
+    switch (sizeof(_T)) {
+    case 1:
+        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data, sizeof(_T));
+        break;
 
-	case 2:
-		uint16_t data_le16;
-		msg_swap_memcpy(data_le16, data);
-		break;
+    case 2:
+    {
+        uint16_t data_le16;
+        memcpy(&data_le16, &data, sizeof(_T));
+        data_le16 = htole16(data_le16);
+        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le16, sizeof(_T));
+        break;
+    }
+    case 4:
+    {
+        uint32_t data_le32;
+        memcpy(&data_le32, &data, sizeof(_T));
+        data_le32 = htole32(data_le32);
+        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le32, sizeof(_T));
+        break;
+    }
+    case 8:
+    {
+        uint64_t data_le64;
+        memcpy(&data_le64, &data, sizeof(_T));
+        data_le64 = htole64(data_le64);
+        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le64, sizeof(_T));
+        break;
+    }
+    default:
+        assert(false);
+    }
 
-	case 4:
-		uint32_t data_le32;
-		msg_swap_memcpy(data_le32, data);
-		break;
-
-	case 8:
-		uint64_t data_le64;
-		msg_swap_memcpy(data_le64, data);
-		break;
-
-	default:
-		assert(false);
-	}
-
-	//std::cout << "M< s: " << sizeof(_T) << " p: " << pos << " d: " << data << std::endl;
-
-	pos += sizeof(_T);
+    pos += sizeof(_T);
 }
 
 template<class _T, size_t _Size>
