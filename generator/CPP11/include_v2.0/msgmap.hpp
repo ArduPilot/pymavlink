@@ -39,7 +39,7 @@ public:
 	}
 
 	template<typename _T>
-	void operator<< (const _T &data);
+	void operator<< (const _T data);
 
 	template<class _T, size_t _Size>
 	void operator<< (const std::array<_T, _Size> &data);
@@ -64,45 +64,53 @@ private:
 // implementation
 
 template<typename _T>
-void mavlink::MsgMap::operator<< (const _T &data)
+typename std::enable_if<sizeof(_T) == 1 && !std::is_floating_point<_T>::value, uint8_t>::type to_little_endian(uint8_t data)
+{
+    return data;
+}
+
+template<typename _T>
+typename std::enable_if<sizeof(_T) == 2 && !std::is_floating_point<_T>::value, uint16_t>::type to_little_endian(uint16_t data)
+{
+    return htole16(data);
+}
+
+template<typename _T>
+typename std::enable_if<sizeof(_T) == 4 && !std::is_floating_point<_T>::value, uint32_t>::type to_little_endian(uint32_t data)
+{
+    return htole32(data);
+}
+
+template<typename _T>
+typename std::enable_if<sizeof(_T) == 8 && !std::is_floating_point<_T>::value, uint64_t>::type to_little_endian(uint64_t data)
+{
+    return htole64(data);
+}
+
+template<typename _T>
+typename std::enable_if<sizeof(_T) == 4 && std::is_floating_point<_T>::value, uint32_t>::type to_little_endian(_T data)
+{
+    uint32_t buf;
+    memcpy(&buf, &data, sizeof(_T));
+    return to_little_endian<uint32_t>(buf);
+}
+
+template<typename _T>
+typename std::enable_if<sizeof(_T) == 8 && std::is_floating_point<_T>::value, uint64_t>::type to_little_endian(_T data)
+{
+    uint64_t buf;
+    memcpy(&buf, &data, sizeof(_T));
+    return to_little_endian<uint64_t>(buf);
+}
+
+template<typename _T>
+void mavlink::MsgMap::operator<< (const _T data)
 {
     assert(msg);
     assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
 
-    // htoleXX functions may be empty macros
-    switch (sizeof(_T)) {
-    case 1:
-        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data, sizeof(_T));
-        break;
-
-    case 2:
-    {
-        uint16_t data_le16;
-        memcpy(&data_le16, &data, sizeof(_T));
-        data_le16 = htole16(data_le16);
-        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le16, sizeof(_T));
-        break;
-    }
-    case 4:
-    {
-        uint32_t data_le32;
-        memcpy(&data_le32, &data, sizeof(_T));
-        data_le32 = htole32(data_le32);
-        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le32, sizeof(_T));
-        break;
-    }
-    case 8:
-    {
-        uint64_t data_le64;
-        memcpy(&data_le64, &data, sizeof(_T));
-        data_le64 = htole64(data_le64);
-        memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le64, sizeof(_T));
-        break;
-    }
-    default:
-        assert(false);
-    }
-
+    auto data_le = to_little_endian<_T>(data);
+    memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le, sizeof(data_le));
     pos += sizeof(_T);
 }
 
