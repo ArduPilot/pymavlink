@@ -125,6 +125,7 @@
     <!-- pressure -->
     <xs:enumeration value="Pa"/>       <!-- Pascal -->
     <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
+    <xs:enumeration value="kPa"/>      <!-- kilo-Pascal -->
     <xs:enumeration value="mbar"/>     <!-- millibar -->
     <!-- ratio -->
     <xs:enumeration value="%"/>        <!-- percent -->
@@ -142,6 +143,8 @@
     <xs:enumeration value="bits/s"/>   <!-- bits per second -->
     <xs:enumeration value="pix"/>      <!-- pixels -->
     <xs:enumeration value="dpix"/>     <!-- decipixels -->
+    <!-- flow -->
+    <xs:enumeration value="g/min"/>    <!-- grams/minute -->
   </xs:restriction>
 </xs:simpleType>
 
