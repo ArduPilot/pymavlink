@@ -1,7 +1,7 @@
 #!/bin/sh
 
-for protocol in 1.0; do
- for xml in ../../message_definitions/v$protocol/*.xml; do
+for protocol in 1.0 2.0; do
+ for xml in ../../message_definitions/v1.0/*.xml; do
      base=$(basename $xml .xml)
      mkdir -p javascript/implementations/mavlink_${base}_v${protocol}
 

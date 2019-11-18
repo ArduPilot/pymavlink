@@ -39,17 +39,17 @@ Buffer.prototype.toByteArray = function () {
 mavlink = function(){};
 
 // Implement the X25CRC function (present in the Python version through the mavutil.py package)
-mavlink.x25Crc = function(buffer, crc) {
+mavlink.x25Crc = function(buffer, crcIN) {
 
     var bytes = buffer;
-    var crc = crc || 0xffff;
+    var crcOUT = crcIN || 0xffff;
     _.each(bytes, function(e) {
-        var tmp = e ^ (crc & 0xff);
+        var tmp = e ^ (crcOUT & 0xff);
         tmp = (tmp ^ (tmp << 4)) & 0xff;
-        crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
-        crc = crc & 0xffff;
+        crcOUT = (crcOUT >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
+        crcOUT = crcOUT & 0xffff;
     });
-    return crc;
+    return crcOUT;
 
 }
 
@@ -67,19 +67,28 @@ mavlink.MAVLINK_TYPE_INT64_T  = 8
 mavlink.MAVLINK_TYPE_FLOAT    = 9
 mavlink.MAVLINK_TYPE_DOUBLE   = 10
 
+mavlink.MAVLINK_IFLAG_SIGNED = 0x01
+
 // Mavlink headers incorporate sequence, source system (platform) and source component. 
-mavlink.header = function(msgId, mlen, seq, srcSystem, srcComponent) {
+mavlink.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0,) {
 
     this.mlen = ( typeof mlen === 'undefined' ) ? 0 : mlen;
     this.seq = ( typeof seq === 'undefined' ) ? 0 : seq;
     this.srcSystem = ( typeof srcSystem === 'undefined' ) ? 0 : srcSystem;
     this.srcComponent = ( typeof srcComponent === 'undefined' ) ? 0 : srcComponent;
     this.msgId = msgId
+    this.incompat_flags = incompat_flags
+    this.compat_flags = compat_flags
 
 }
 
 mavlink.header.prototype.pack = function() {
-    return jspack.Pack('BBBBBB', [${PROTOCOL_MARKER}, this.mlen, this.seq, this.srcSystem, this.srcComponent, this.msgId]);
+    if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+        return jspack.Pack('BBBBBBBHB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq, this.srcSystem, this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]);
+    }
+    else {
+        return jspack.Pack('BBBBBB', [${PROTOCOL_MARKER}, this.mlen, this.seq, this.srcSystem, this.srcComponent, this.msgId]);
+    }
 }
 
 // Base class declaration: mavlink.message will be the parent class for each
@@ -98,8 +107,18 @@ mavlink.message.prototype.set = function(args) {
 mavlink.message.prototype.pack = function(mav, crc_extra, payload) {
 
     this.payload = payload;
-    this.header = new mavlink.header(this.id, payload.length, mav.seq, mav.srcSystem, mav.srcComponent);    
-    this.msgbuf = this.header.pack().concat(payload);
+    var plen = this.payload.length;
+    //in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
+    // variable length arrays and smaller packets
+    if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+        while (plen > 1 && this.payload[plen-1] == 0) {
+                plen = plen - 1;
+        }
+        this.payload = this.payload.slice(0, plen);
+    }
+    var incompat_flags = 0;
+    this.header = new mavlink.header(this.id, this.payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);    
+    this.msgbuf = this.header.pack().concat(this.payload);
     var crc = mavlink.x25Crc(this.msgbuf.slice(1));
 
     // For now, assume always using crc_extra = True.  TODO: check/fix this.
@@ -112,7 +131,7 @@ mavlink.message.prototype.pack = function(mav, crc_extra, payload) {
 """, {'FILELIST' : ",".join(args),
       'PROTOCOL_MARKER' : xml.protocol_marker,
       'crc_extra' : xml.crc_extra,
-      'WIRE_PROTOCOL_VERSION' : xml.wire_protocol_version })
+      'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0") })
 
 def generate_enums(outf, enums):
     print("Generating enums")
@@ -255,23 +274,28 @@ mavlink.messages.bad_data = function(data, reason) {
 }
 
 /* MAVLink protocol handling class */
-MAVLink = function(logger, srcSystem, srcComponent) {
+MAVLinkProcessor = function(logger, srcSystem, srcComponent) {
 
     this.logger = logger;
 
     this.seq = 0;
-    this.buf = new Buffer(0);
-    this.bufInError = new Buffer(0);
+    this.buf = new Buffer.from([]);
+    this.bufInError = new Buffer.from([]);
    
     this.srcSystem = (typeof srcSystem === 'undefined') ? 0 : srcSystem;
     this.srcComponent =  (typeof srcComponent === 'undefined') ? 0 : srcComponent;
 
-    // The first packet we expect is a valid header, 6 bytes.
-    this.expected_length = 6;
-
     this.have_prefix_error = false;
 
-    this.protocol_marker = 254;
+    // The first packet we expect is a valid header, 6 bytes.
+    if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+        this.protocol_marker = 253; //0xFD
+        this.expected_length = 10;
+    }
+    else {
+        this.protocol_marker = 254; //0xFE
+        this.expected_length = 6;
+    }
     this.little_endian = true;
 
     this.crc_extra = true;
@@ -286,23 +310,23 @@ MAVLink = function(logger, srcSystem, srcComponent) {
 }
 
 // Implements EventEmitter
-util.inherits(MAVLink, events.EventEmitter);
+util.inherits(MAVLinkProcessor, events.EventEmitter);
 
 // If the logger exists, this function will add a message to it.
 // Assumes the logger is a winston object.
-MAVLink.prototype.log = function(message) {
+MAVLinkProcessor.prototype.log = function(message) {
     if(this.logger) {
         this.logger.info(message);
     }
 }
 
-MAVLink.prototype.log = function(level, message) {
+MAVLinkProcessor.prototype.log = function(level, message) {
     if(this.logger) {
         this.logger.log(level, message);
     }
 }
 
-MAVLink.prototype.send = function(mavmsg) {
+MAVLinkProcessor.prototype.send = function(mavmsg) {
     buf = mavmsg.pack(this);
     this.file.write(buf);
     this.seq = (this.seq + 1) % 256;
@@ -311,13 +335,13 @@ MAVLink.prototype.send = function(mavmsg) {
 }
 
 // return number of bytes needed for next parsing stage
-MAVLink.prototype.bytes_needed = function() {
+MAVLinkProcessor.prototype.bytes_needed = function() {
     ret = this.expected_length - this.buf.length;
     return ( ret <= 0 ) ? 1 : ret;
 }
 
 // add data to the local buffer
-MAVLink.prototype.pushBuffer = function(data) {
+MAVLinkProcessor.prototype.pushBuffer = function(data) {
     if(data) {
         this.buf = Buffer.concat([this.buf, data]);
         this.total_bytes_received += data.length;
@@ -325,16 +349,21 @@ MAVLink.prototype.pushBuffer = function(data) {
 }
 
 // Decode prefix.  Elides the prefix.
-MAVLink.prototype.parsePrefix = function() {
+MAVLinkProcessor.prototype.parsePrefix = function() {
 
     // Test for a message prefix.
-    if( this.buf.length >= 1 && this.buf[0] != 254 ) {
+    if( this.buf.length >= 1 && this.buf[0] != this.protocol_marker ) {
 
         // Strip the offending initial byte and throw an error.
         var badPrefix = this.buf[0];
         this.bufInError = this.buf.slice(0,1);
         this.buf = this.buf.slice(1);
-        this.expected_length = 6;
+        if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+            this.expected_length = 10;
+        }
+        else {
+            this.expected_length = 6;
+        }
 
         // TODO: enable subsequent prefix error suppression if robust_parsing is implemented
         //if(!this.have_prefix_error) {
@@ -343,24 +372,30 @@ MAVLink.prototype.parsePrefix = function() {
         //}
 
     }
-    //else if( this.buf.length >= 1 && this.buf[0] == 254 ) {
+    //else if( this.buf.length >= 1 && this.buf[0] == this.protocol_marker ) {
     //    this.have_prefix_error = false;
     //}
 
 }
 
 // Determine the length.  Leaves buffer untouched.
-MAVLink.prototype.parseLength = function() {
+MAVLinkProcessor.prototype.parseLength = function() {
     
     if( this.buf.length >= 2 ) {
         var unpacked = jspack.Unpack('BB', this.buf.slice(0, 2));
-        this.expected_length = unpacked[1] + 8; // length of message + header + CRC
+        if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+            this.expected_length = unpacked[1] + 12; // length of message + header + CRC
+        }
+        else {
+            this.expected_length = unpacked[1] + 8; // length of message + header + CRC
+        }
+        
     }
 
 }
 
 // input some data bytes, possibly returning a new message
-MAVLink.prototype.parseChar = function(c) {
+MAVLinkProcessor.prototype.parseChar = function(c) {
 
     var m = null;
 
@@ -376,7 +411,7 @@ MAVLink.prototype.parseChar = function(c) {
         this.log('error', e.message);
         this.total_receive_errors += 1;
         m = new mavlink.messages.bad_data(this.bufInError, e.message);
-        this.bufInError = new Buffer(0);
+        this.bufInError = new Buffer.from([]);
         
     }
 
@@ -389,7 +424,7 @@ MAVLink.prototype.parseChar = function(c) {
 
 }
 
-MAVLink.prototype.parsePayload = function() {
+MAVLinkProcessor.prototype.parsePayload = function() {
 
     var m = null;
 
@@ -422,7 +457,7 @@ MAVLink.prototype.parsePayload = function() {
 }
 
 // input some data bytes, possibly returning an array of new messages
-MAVLink.prototype.parseBuffer = function(s) {
+MAVLinkProcessor.prototype.parseBuffer = function(s) {
     
     // Get a message, if one is available in the stream.
     var m = this.parseChar(s);
@@ -443,34 +478,51 @@ MAVLink.prototype.parseBuffer = function(s) {
         }
         ret.push(m);
     }
-    return ret;
 
 }
 
 /* decode a buffer as a MAVLink message */
-MAVLink.prototype.decode = function(msgbuf) {
+MAVLinkProcessor.prototype.decode = function(msgbuf) {
 
-    var magic, mlen, seq, srcSystem, srcComponent, unpacked, msgId;
+    var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId;
 
     // decode the header
     try {
-        unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
-        magic = unpacked[0];
-        mlen = unpacked[1];
-        seq = unpacked[2];
-        srcSystem = unpacked[3];
-        srcComponent = unpacked[4];
-        msgId = unpacked[5];
+        if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+            unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));
+            magic = unpacked[0];
+            mlen = unpacked[1];
+            incompat_flags = unpacked[2];
+            compat_flags = unpacked[3];
+            seq = unpacked[4];
+            srcSystem = unpacked[5];
+            srcComponent = unpacked[6];
+            var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF);
+            var msgIDhigh = unpacked[8];
+            msgId = msgIDlow | (msgIDhigh<<16);
+        }
+        else {
+            unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
+            magic = unpacked[0];
+            mlen = unpacked[1];
+            seq = unpacked[2];
+            srcSystem = unpacked[3];
+            srcComponent = unpacked[4];
+            msgId = unpacked[5];
+        }
     }
     catch(e) {
         throw new Error('Unable to unpack MAVLink header: ' + e.message);
     }
 
-    if (magic.charCodeAt(0) != 254) {
+    if (magic.charCodeAt(0) != this.protocol_marker) {
         throw new Error("Invalid MAVLink prefix ("+magic.charCodeAt(0)+")");
     }
 
-    if( mlen != msgbuf.length - 8 ) {
+    if( mlen != msgbuf.length - 12 && mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+        throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - 12) + " expected " + mlen + ", msgId=" + msgId);
+    }
+    else if (mlen != msgbuf.length - 8 && mavlink.WIRE_PROTOCOL_VERSION == '1.0'){
         throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - 8) + " expected " + mlen + ", msgId=" + msgId);
     }
 
@@ -498,12 +550,34 @@ MAVLink.prototype.decode = function(msgbuf) {
         throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checkum as 0x'+messageChecksum );
     }
 
+    var paylen = jspack.CalcLength(decoder.format);
+    if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+        var payload = msgbuf.slice(10, msgbuf.length - 2);
+    }
+    else {
+        var payload = msgbuf.slice(6, msgbuf.length - 2);
+    }
+    //put any truncated 0's back in
+    if (paylen > payload.length && mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+        payload =  Buffer.concat([payload, Buffer.alloc(paylen - payload.length)]);
+    }
+
     // Decode the payload and reorder the fields to match the order map.
     try {
-        var t = jspack.Unpack(decoder.format, msgbuf.slice(6, msgbuf.length));
+        if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+            var t = jspack.Unpack(decoder.format, payload);
+        }
+        else {
+            var t = jspack.Unpack(decoder.format, payload);
+        }
     }
     catch (e) {
-        throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ msgbuf.slice(6, -2).length +': '+ e.message);
+        if (mavlink.WIRE_PROTOCOL_VERSION == '2.0') {
+            throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payload +': '+ e.message);
+        }
+        else {
+            throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payload +': '+ e.message);
+        }
     }
 
     // Reorder the fields to match the order map
@@ -521,9 +595,9 @@ MAVLink.prototype.decode = function(msgbuf) {
         throw new Error('Unable to instantiate MAVLink message of type '+decoder.type+' : ' + e.message);
     }
     m.msgbuf = msgbuf;
-    m.payload = msgbuf.slice(6);
+    m.payload = payload
     m.crc = receivedChecksum;
-    m.header = new mavlink.header(msgId, mlen, seq, srcSystem, srcComponent);
+    m.header = new mavlink.header(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags, compat_flags);
     this.log(m);
     return m;
 }
@@ -534,7 +608,7 @@ def generate_footer(outf):
     t.write(outf, """
 
 // Expose this code as a module
-module.exports = mavlink;
+module.exports = {mavlink, MAVLinkProcessor};
 
 """)
 
