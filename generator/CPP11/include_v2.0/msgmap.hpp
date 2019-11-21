@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <endian.h>
 #include <type_traits>
 
@@ -54,53 +55,84 @@ private:
 	mavlink_message_t *msg;		// for serialization
 	const mavlink_message_t *cmsg;	// for deserialization
 	size_t pos;
-
-	template<typename _T, typename _Tout>
-	inline void cmsg_memcpy_bzero_swap_set_data(_T &buf, _Tout &data);
 };
 
 } // namespace mavlink
 
 // implementation
 
+template<size_t _N>
+struct UintBufferHelper;
+
+template<>
+struct UintBufferHelper<1>
+{
+    typedef uint8_t Type;
+};
+
+template<>
+struct UintBufferHelper<2>
+{
+    typedef uint16_t Type;
+};
+
+template<>
+struct UintBufferHelper<4>
+{
+    typedef uint32_t Type;
+};
+
+template<>
+struct UintBufferHelper<8>
+{
+    typedef uint64_t Type;
+};
+
 template<typename _T>
-typename std::enable_if<sizeof(_T) == 1 && !std::is_floating_point<_T>::value, uint8_t>::type to_little_endian(uint8_t data)
+struct UintBuffer
+{
+    typedef typename UintBufferHelper<sizeof(_T)>::Type Type;
+};
+
+template<typename _T>
+_T to_little_endian_internal(_T);
+
+template<>
+inline uint8_t to_little_endian_internal<uint8_t>(uint8_t data)
 {
     return data;
 }
 
-template<typename _T>
-typename std::enable_if<sizeof(_T) == 2 && !std::is_floating_point<_T>::value, uint16_t>::type to_little_endian(uint16_t data)
+template<>
+inline uint16_t to_little_endian_internal<uint16_t>(uint16_t data)
 {
     return htole16(data);
 }
 
-template<typename _T>
-typename std::enable_if<sizeof(_T) == 4 && !std::is_floating_point<_T>::value, uint32_t>::type to_little_endian(uint32_t data)
+template<>
+inline uint32_t to_little_endian_internal<uint32_t>(uint32_t data)
 {
     return htole32(data);
 }
 
-template<typename _T>
-typename std::enable_if<sizeof(_T) == 8 && !std::is_floating_point<_T>::value, uint64_t>::type to_little_endian(uint64_t data)
+template<>
+inline uint64_t to_little_endian_internal<uint64_t>(uint64_t data)
 {
     return htole64(data);
 }
 
 template<typename _T>
-typename std::enable_if<sizeof(_T) == 4 && std::is_floating_point<_T>::value, uint32_t>::type to_little_endian(_T data)
+typename UintBuffer<_T>::Type to_little_endian(_T data)
 {
-    uint32_t buf;
-    memcpy(&buf, &data, sizeof(_T));
-    return to_little_endian<uint32_t>(buf);
-}
+    typedef typename UintBuffer<_T>::Type ReturnType;
 
-template<typename _T>
-typename std::enable_if<sizeof(_T) == 8 && std::is_floating_point<_T>::value, uint64_t>::type to_little_endian(_T data)
-{
-    uint64_t buf;
-    memcpy(&buf, &data, sizeof(_T));
-    return to_little_endian<uint64_t>(buf);
+    if constexpr (std::is_floating_point<_T>::value) {
+        ReturnType buf;
+        memcpy(&buf, &data, sizeof(ReturnType));
+        return to_little_endian_internal<ReturnType>(buf);
+    } else {
+        return to_little_endian_internal<ReturnType>(data);
+    }
 }
 
 template<typename _T>
@@ -122,94 +154,74 @@ void mavlink::MsgMap::operator<< (const std::array<_T, _Size> &data)
 	}
 }
 
-template<typename _T, typename _Tout>
-void mavlink::MsgMap::cmsg_memcpy_bzero_swap_set_data(_T &buf, _Tout &data)
+template<typename _T>
+_T to_host_from_little_endian_internal(_T);
+
+template<>
+inline uint8_t to_host_from_little_endian_internal<uint8_t>(uint8_t data)
 {
-	memcpy(&buf, &_MAV_PAYLOAD(cmsg)[pos], sizeof(_T));
+    return data;
+}
 
-	// if message is trimmed - bzero tail
-	if (pos + sizeof(_T) > cmsg->len) {
-		union {
-			_T d;
-			uint8_t u8[sizeof(_T)];
-		} bz;
+template<>
+inline uint16_t to_host_from_little_endian_internal<uint16_t>(uint16_t data)
+{
+    return le16toh(data);
+}
 
-		size_t toclean = (pos + sizeof(_T)) - cmsg->len;
-		size_t start_pos = sizeof(_T) - toclean;
+template<>
+inline uint32_t to_host_from_little_endian_internal<uint32_t>(uint32_t data)
+{
+    return le32toh(data);
+}
 
-		//std::cout << "B> bzero s: " << sizeof(_T) << " c: " << toclean << " p: " << start_pos << std::endl;
+template<>
+inline uint64_t to_host_from_little_endian_internal<uint64_t>(uint64_t data)
+{
+    return le64toh(data);
+}
 
-		bz.d = buf;
-		memset(&bz.u8[start_pos], 0, toclean);
-		buf = bz.d;
-	}
+template<typename _TOutput, typename _TInput, class = typename std::enable_if<std::is_unsigned<_TInput>::value>::type>
+_TOutput to_host_from_little_endian(_TInput data)
+{
+    static_assert(sizeof(_TInput) == sizeof(_TOutput));
 
-	// leXXtoh functions may be empty macros,
-	// switch will be optimized-out
-	switch (sizeof(_T)) {
-	case 2:
-		buf = le16toh(buf);
-		break;
+    data = to_host_from_little_endian_internal(data);
 
-	case 4:
-		buf = le32toh(buf);
-		break;
-
-	case 8:
-		buf = le64toh(buf);
-		break;
-
-	default:
-		assert(false);
-	}
-
-	if (std::is_floating_point<_Tout>::value) {
-		data = *static_cast<_Tout *>(static_cast<void *>(&buf));
-	} else {
-		data = buf;
-	}
+    if constexpr (std::is_floating_point<_TOutput>::value) {
+        _TOutput buf;
+        memcpy(&buf, &data, sizeof(_TOutput));
+        return buf;
+    } else {
+        return data;
+    }
 }
 
 template<typename _T>
 void mavlink::MsgMap::operator>> (_T &data)
 {
-	assert(cmsg);
-	assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
+    assert(cmsg);
+    assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
 
-	// message is trimmed - fill with zeroes
-	if (pos >= cmsg->len) {
-		data = 0;
-		pos += sizeof(_T);
-		return;
-	}
+    int remaining_non_zero_data = cmsg->len - pos;
+    typename UintBuffer<_T>::Type buf;
 
-	switch (sizeof(_T)) {
-	case 1:
-		data = _MAV_PAYLOAD(cmsg)[pos];
-		break;
+    if (static_cast<int>(sizeof(_T)) <= remaining_non_zero_data) { // field is not truncated
+        memcpy(&buf, &_MAV_PAYLOAD(cmsg)[pos], sizeof(_T));
+    } else { // field is trimmed - pad with zeroes
+        // here remaining_non_zero_data < sizeof(_T) holds
+        size_t non_zero_count = std::max(remaining_non_zero_data, 0);
+        size_t pad_zero_count = sizeof(_T) - non_zero_count;
 
-	case 2:
-		uint16_t data_le16;
-		cmsg_memcpy_bzero_swap_set_data(data_le16, data);
-		break;
+        std::array<char, sizeof(_T)> raw_buf;
+        memcpy(raw_buf.data(), &_MAV_PAYLOAD(cmsg)[pos], non_zero_count);
+        memset(raw_buf.data() + non_zero_count, 0, pad_zero_count);
 
-	case 4:
-		uint32_t data_le32;
-		cmsg_memcpy_bzero_swap_set_data(data_le32, data);
-		break;
+        memcpy(&buf, raw_buf.data(), raw_buf.size());
+    }
 
-	case 8:
-		uint64_t data_le64;
-		cmsg_memcpy_bzero_swap_set_data(data_le64, data);
-		break;
-
-	default:
-		assert(false);
-	}
-
-	//std::cout << "M> s: " << sizeof(_T) << " p: " << pos << " d: " << data << std::endl;
-
-	pos += sizeof(_T);
+    data = to_host_from_little_endian<_T>(buf);
+    pos += sizeof(_T);
 }
 
 template<class _T, size_t _Size>
