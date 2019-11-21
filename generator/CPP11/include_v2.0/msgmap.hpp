@@ -122,17 +122,18 @@ inline uint64_t to_little_endian_internal<uint64_t>(uint64_t data)
 }
 
 template<typename _T>
-typename UintBuffer<_T>::Type to_little_endian(_T data)
+typename std::enable_if<std::is_floating_point<_T>::value, typename UintBuffer<_T>::Type>::type to_little_endian(_T data)
 {
     typedef typename UintBuffer<_T>::Type ReturnType;
+    ReturnType buf;
+    memcpy(&buf, &data, sizeof(ReturnType));
+    return to_little_endian_internal<ReturnType>(buf);
+}
 
-    if constexpr (std::is_floating_point<_T>::value) {
-        ReturnType buf;
-        memcpy(&buf, &data, sizeof(ReturnType));
-        return to_little_endian_internal<ReturnType>(buf);
-    } else {
-        return to_little_endian_internal<ReturnType>(data);
-    }
+template<typename _T>
+typename std::enable_if<std::is_integral<_T>::value, typename UintBuffer<_T>::Type>::type to_little_endian(_T data)
+{
+    return to_little_endian_internal<typename UintBuffer<_T>::Type>(data);
 }
 
 template<typename _T>
@@ -181,20 +182,24 @@ inline uint64_t to_host_from_little_endian_internal<uint64_t>(uint64_t data)
     return le64toh(data);
 }
 
-template<typename _TOutput, typename _TInput, class = typename std::enable_if<std::is_unsigned<_TInput>::value>::type>
-_TOutput to_host_from_little_endian(_TInput data)
+template<typename _TOutput, typename _TInput,
+         class = typename std::enable_if<std::is_unsigned<_TInput>::value>::type>
+typename std::enable_if<std::is_floating_point<_TOutput>::value, _TOutput>::type to_host_from_little_endian(_TInput data)
 {
     static_assert(sizeof(_TInput) == sizeof(_TOutput));
-
     data = to_host_from_little_endian_internal(data);
 
-    if constexpr (std::is_floating_point<_TOutput>::value) {
-        _TOutput buf;
-        memcpy(&buf, &data, sizeof(_TOutput));
-        return buf;
-    } else {
-        return data;
-    }
+    _TOutput buf;
+    memcpy(&buf, &data, sizeof(_TOutput));
+    return buf;
+}
+
+template<typename _TOutput, typename _TInput,
+         class = typename std::enable_if<std::is_unsigned<_TInput>::value>::type>
+typename std::enable_if<std::is_integral<_TOutput>::value, _TOutput>::type to_host_from_little_endian(_TInput data)
+{
+    static_assert(sizeof(_TInput) == sizeof(_TOutput));
+    return to_host_from_little_endian_internal(data);
 }
 
 template<typename _T>
