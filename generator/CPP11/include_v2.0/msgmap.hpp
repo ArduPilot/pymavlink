@@ -57,9 +57,7 @@ private:
 	size_t pos;
 };
 
-} // namespace mavlink
-
-// implementation
+namespace impl {
 
 template<size_t _N>
 struct UintBufferHelper;
@@ -93,6 +91,7 @@ struct UintBuffer
 {
     typedef typename UintBufferHelper<sizeof(_T)>::Type Type;
 };
+
 
 template<typename _T>
 _T to_little_endian_internal(_T);
@@ -137,25 +136,6 @@ typename std::enable_if<std::is_integral<_T>::value, typename UintBuffer<_T>::Ty
 }
 
 template<typename _T>
-void mavlink::MsgMap::operator<< (const _T data)
-{
-    assert(msg);
-    assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
-
-    auto data_le = to_little_endian<_T>(data);
-    memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le, sizeof(data_le));
-    pos += sizeof(_T);
-}
-
-template<class _T, size_t _Size>
-void mavlink::MsgMap::operator<< (const std::array<_T, _Size> &data)
-{
-	for (auto &v : data) {
-		*this << v;
-	}
-}
-
-template<typename _T>
 _T to_host_from_little_endian_internal(_T);
 
 template<>
@@ -186,7 +166,7 @@ template<typename _TOutput, typename _TInput,
          class = typename std::enable_if<std::is_unsigned<_TInput>::value>::type>
 typename std::enable_if<std::is_floating_point<_TOutput>::value, _TOutput>::type to_host_from_little_endian(_TInput data)
 {
-    static_assert(sizeof(_TInput) == sizeof(_TOutput));
+    static_assert(sizeof(_TInput) == sizeof(_TOutput), "Size of input and output must match");
     data = to_host_from_little_endian_internal(data);
 
     _TOutput buf;
@@ -198,8 +178,32 @@ template<typename _TOutput, typename _TInput,
          class = typename std::enable_if<std::is_unsigned<_TInput>::value>::type>
 typename std::enable_if<std::is_integral<_TOutput>::value, _TOutput>::type to_host_from_little_endian(_TInput data)
 {
-    static_assert(sizeof(_TInput) == sizeof(_TOutput));
+    static_assert(sizeof(_TInput) == sizeof(_TOutput), "Size of input and output must match");
     return to_host_from_little_endian_internal(data);
+}
+
+} // namespace impl
+} // namespace mavlink
+
+// implementation
+
+template<typename _T>
+void mavlink::MsgMap::operator<< (const _T data)
+{
+    assert(msg);
+    assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
+
+    auto data_le = mavlink::impl::to_little_endian<_T>(data);
+    memcpy(&_MAV_PAYLOAD_NON_CONST(msg)[pos], &data_le, sizeof(data_le));
+    pos += sizeof(_T);
+}
+
+template<class _T, size_t _Size>
+void mavlink::MsgMap::operator<< (const std::array<_T, _Size> &data)
+{
+	for (auto &v : data) {
+		*this << v;
+	}
 }
 
 template<typename _T>
@@ -208,14 +212,14 @@ void mavlink::MsgMap::operator>> (_T &data)
     assert(cmsg);
     assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
 
-    int remaining_non_zero_data = cmsg->len - pos;
-    typename UintBuffer<_T>::Type buf;
+    ssize_t remaining_non_zero_data = cmsg->len - pos;
+    typename mavlink::impl::UintBuffer<_T>::Type buf;
 
     if (static_cast<int>(sizeof(_T)) <= remaining_non_zero_data) { // field is not truncated
         memcpy(&buf, &_MAV_PAYLOAD(cmsg)[pos], sizeof(_T));
     } else { // field is trimmed - pad with zeroes
         // here remaining_non_zero_data < sizeof(_T) holds
-        size_t non_zero_count = std::max(remaining_non_zero_data, 0);
+        size_t non_zero_count = std::max<decltype(remaining_non_zero_data)>(remaining_non_zero_data, 0);
         size_t pad_zero_count = sizeof(_T) - non_zero_count;
 
         std::array<char, sizeof(_T)> raw_buf;
@@ -225,7 +229,7 @@ void mavlink::MsgMap::operator>> (_T &data)
         memcpy(&buf, raw_buf.data(), raw_buf.size());
     }
 
-    data = to_host_from_little_endian<_T>(buf);
+    data = mavlink::impl::to_host_from_little_endian<_T>(buf);
     pos += sizeof(_T);
 }
 
@@ -236,4 +240,3 @@ void mavlink::MsgMap::operator>> (std::array<_T, _Size> &data)
 		*this >> v;
 	}
 }
-
