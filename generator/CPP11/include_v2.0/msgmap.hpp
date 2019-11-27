@@ -215,8 +215,11 @@ void mavlink::MsgMap::operator>> (_T &data)
     ssize_t remaining_non_zero_data = cmsg->len - pos;
     typename mavlink::impl::UintBuffer<_T>::Type buf;
 
-    if (static_cast<int>(sizeof(_T)) <= remaining_non_zero_data) { // field is not truncated
+    if (static_cast<ssize_t>(sizeof(_T)) <= remaining_non_zero_data) { // field is not truncated
         memcpy(&buf, &_MAV_PAYLOAD(cmsg)[pos], sizeof(_T));
+    } else if (remaining_non_zero_data <= 0) {
+        // there is no non-zero data left, so just fill with 0
+        buf = 0;
     } else { // field is trimmed - pad with zeroes
         // here remaining_non_zero_data < sizeof(_T) holds
         size_t non_zero_count = std::max<decltype(remaining_non_zero_data)>(remaining_non_zero_data, 0);
