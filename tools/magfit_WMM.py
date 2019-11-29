@@ -338,7 +338,7 @@ def magfit(logfile):
 
     c.show_parms()
 
-    fig, axs = pyplot.subplots(2, 1, constrained_layout=True, sharex=True)
+    fig, axs = pyplot.subplots(2, 1, sharex=True)
 
     for axis in ['x','y','z']:
         axs[0].plot(numpy.array(x), numpy.array(uncorrected[axis]), label='Uncorrected %s' % axis.upper() )
