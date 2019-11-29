@@ -22,6 +22,7 @@ parser.add_argument("--max-cmot", type=float, default=10.0, help="max compassmot
 parser.add_argument("--elliptical", action='store_true', help="fit elliptical corrections")
 parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
 parser.add_argument("--plot", action='store_true', help="plot result")
+parser.add_argument("--plotyaw", action='store_true', help="plot yaw result")
 parser.add_argument("log", metavar="LOG")
 
 args = parser.parse_args()
@@ -278,9 +279,12 @@ def magfit(logfile):
         old_corrections.cmot = Vector3(parameters.get('COMPASS_MOT%s_X' % idx,0.0),
                                        parameters.get('COMPASS_MOT%s_Y' % idx,0.0),
                                        parameters.get('COMPASS_MOT%s_Z' % idx,0.0))
-    old_corrections.scaling = parameters.get('COMPASS_SCALE%s' % idx, 1.0)
-    if old_corrections.scaling < 0.001:
+    old_corrections.scaling = parameters.get('COMPASS_SCALE%s' % idx, None)
+    if old_corrections.scaling is None:
+        force_scale = False
         old_corrections.scaling = 1.0
+    else:
+        force_scale = True
 
     # remove existing corrections
     for (MAG,ATT,BAT) in data:
@@ -294,10 +298,11 @@ def magfit(logfile):
     c = fit_WWW()
 
     # normalise diagonals to scale factor
-    avgdiag = (c.diag.x + c.diag.y + c.diag.z)/3.0
-    c.scaling *= avgdiag
-    c.diag *= 1.0/avgdiag
-    c.offdiag *= 1.0/avgdiag
+    if force_scale:
+        avgdiag = (c.diag.x + c.diag.y + c.diag.z)/3.0
+        c.scaling *= avgdiag
+        c.diag *= 1.0/avgdiag
+        c.offdiag *= 1.0/avgdiag
 
     print("New: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
         c.offsets, c.diag, c.offdiag, c.cmot, c.scaling))
@@ -308,13 +313,18 @@ def magfit(logfile):
     x = []
 
     corrected = {}
+    corrected['Yaw'] = []
     expected = {}
     uncorrected = {}
+    uncorrected['Yaw'] = []
     for i in range(len(data)):
         (MAG,ATT,BAT) = data[i]
         ATT.Yaw = get_yaw(ATT,MAG,BAT,c)
+        corrected['Yaw'].append(ATT.Yaw)
         ef = expected_field(ATT)
         cf = correct(MAG, BAT, c)
+        ATT.Yaw = get_yaw(ATT,MAG,BAT,old_corrections)
+        uncorrected['Yaw'].append(ATT.Yaw)
         uf = correct(MAG, BAT, old_corrections)
         for axis in ['x','y','z']:
             if not axis in corrected:
@@ -328,7 +338,7 @@ def magfit(logfile):
 
     c.show_parms()
 
-    fig, axs = pyplot.subplots(2, 1, constrained_layout=True)
+    fig, axs = pyplot.subplots(2, 1, constrained_layout=True, sharex=True)
 
     for axis in ['x','y','z']:
         axs[0].plot(numpy.array(x), numpy.array(uncorrected[axis]), label='Uncorrected %s' % axis.upper() )
@@ -343,6 +353,13 @@ def magfit(logfile):
         axs[1].set_title('Corrected')
         axs[1].set_ylabel('Field (mGauss)')
 
+    if args.plotyaw:
+        ax02 = axs[0].twinx()
+        ax02.plot(numpy.array(x), numpy.array(uncorrected['Yaw']), label='Yaw')
+
+        ax12 = axs[1].twinx()
+        ax12.plot(numpy.array(x), numpy.array(corrected['Yaw']), label='Yaw')
+        
     pyplot.show()
 
 
