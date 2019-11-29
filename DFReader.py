@@ -194,6 +194,16 @@ class DFMessage(object):
             v *= self.fmt.msg_mults[i]
         return v
 
+    def __setattr__(self, field, value):
+        '''override field setter'''
+        if not field[0].isupper() or not field in self.fmt.colhash:
+            super(DFMessage,self).__setattr__(field, value)
+        else:
+            i = self.fmt.colhash[field]
+            if self.fmt.msg_mults[i] is not None and self._apply_multiplier:
+                value /= self.fmt.msg_mults[i]
+            self._elements[i] = value
+
     def get_type(self):
         return self.fmt.name
 
