@@ -220,6 +220,28 @@ class Matrix3(object):
         self.c.x = -s3*c2
         self.c.y = s2
 
+    def determinant(self):
+        '''return determinant'''
+        ret =  self.a.x * (self.b.y * self.c.z - self.b.z * self.c.y)
+        ret += self.a.y * (self.b.z * self.c.x - self.b.x * self.c.z)
+        ret += self.a.z * (self.b.x * self.c.y - self.b.y * self.c.x)
+        return ret
+
+    def invert(self):
+        '''invert 3x3 matrix, returning new matrix'''
+        d = self.determinant()
+        inv = Matrix3()
+        inv.a.x = (self.b.y * self.c.z - self.c.y * self.b.z) / d
+        inv.a.y = (self.a.z * self.c.y - self.a.y * self.c.z) / d
+        inv.a.z = (self.a.y * self.b.z - self.a.z * self.b.y) / d
+        inv.b.x = (self.b.z * self.c.x - self.b.x * self.c.z) / d
+        inv.b.y = (self.a.x * self.c.z - self.a.z * self.c.x) / d
+        inv.b.z = (self.b.x * self.a.z - self.a.x * self.b.z) / d
+        inv.c.x = (self.b.x * self.c.y - self.c.x * self.b.y) / d
+        inv.c.y = (self.c.x * self.a.y - self.a.x * self.c.y) / d
+        inv.c.z = (self.a.x * self.b.y - self.b.x * self.a.y) / d
+        return inv
+
     def __add__(self, m):
         return Matrix3(self.a + m.a, self.b + m.b, self.c + m.c)
 
