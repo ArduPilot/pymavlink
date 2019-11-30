@@ -9,7 +9,7 @@ import sys, time, os, math, copy
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by condition")
-parser.add_argument("--mag2", action='store_true', help="use 2nd mag from DF log")
+parser.add_argument("--mag", type=int, help="mag index, 1 for first mag")
 parser.add_argument("--reduce", type=int, default=1, help="reduce data points by given factor")
 parser.add_argument("--min-scale", type=float, default=0.6, help="min scale factor")
 parser.add_argument("--max-scale", type=float, default=1.5, help="max scale factor")
@@ -39,6 +39,11 @@ import numpy
 earth_field = None
 declination = None
 
+if args.mag > 1:
+    mag_idx = str(args.mag)
+else:
+    mag_idx = ''
+
 class Correction:
     def __init__(self):
         self.offsets = Vector3(0.0, 0.0, 0.0)
@@ -48,23 +53,19 @@ class Correction:
         self.scaling = 1.0
 
     def show_parms(self):
-        if args.mag2:
-            idx = '2'
-        else:
-            idx = ''
-        print("COMPASS_OFS%s_X %d" % (idx, int(self.offsets.x)))
-        print("COMPASS_OFS%s_Y %d" % (idx, int(self.offsets.y)))
-        print("COMPASS_OFS%s_Z %d" % (idx, int(self.offsets.z)))
-        print("COMPASS_DIA%s_X %.3f" % (idx, self.diag.x))
-        print("COMPASS_DIA%s_Y %.3f" % (idx, self.diag.y))
-        print("COMPASS_DIA%s_Z %.3f" % (idx, self.diag.z))
-        print("COMPASS_ODI%s_X %.3f" % (idx, self.offdiag.x))
-        print("COMPASS_ODI%s_Y %.3f" % (idx, self.offdiag.y))
-        print("COMPASS_ODI%s_Z %.3f" % (idx, self.offdiag.z))
-        print("COMPASS_MOT%s_X %.3f" % (idx, self.cmot.x))
-        print("COMPASS_MOT%s_Y %.3f" % (idx, self.cmot.y))
-        print("COMPASS_MOT%s_Z %.3f" % (idx, self.cmot.z))
-        print("COMPASS_SCALE%s %.2f" % (idx, self.scaling))
+        print("COMPASS_OFS%s_X %d" % (mag_idx, int(self.offsets.x)))
+        print("COMPASS_OFS%s_Y %d" % (mag_idx, int(self.offsets.y)))
+        print("COMPASS_OFS%s_Z %d" % (mag_idx, int(self.offsets.z)))
+        print("COMPASS_DIA%s_X %.3f" % (mag_idx, self.diag.x))
+        print("COMPASS_DIA%s_Y %.3f" % (mag_idx, self.diag.y))
+        print("COMPASS_DIA%s_Z %.3f" % (mag_idx, self.diag.z))
+        print("COMPASS_ODI%s_X %.3f" % (mag_idx, self.offdiag.x))
+        print("COMPASS_ODI%s_Y %.3f" % (mag_idx, self.offdiag.y))
+        print("COMPASS_ODI%s_Z %.3f" % (mag_idx, self.offdiag.z))
+        print("COMPASS_MOT%s_X %.3f" % (mag_idx, self.cmot.x))
+        print("COMPASS_MOT%s_Y %.3f" % (mag_idx, self.cmot.y))
+        print("COMPASS_MOT%s_Z %.3f" % (mag_idx, self.cmot.z))
+        print("COMPASS_SCALE%s %.2f" % (mag_idx, self.scaling))
 
 def correct(MAG, BAT, c):
     '''correct a mag sample, returning a Vector3'''
@@ -85,7 +86,8 @@ def correct(MAG, BAT, c):
     mag = mat * mag
 
     # apply compassmot corrections
-    mag += c.cmot * BAT.Curr
+    if BAT is not None:
+        mag += c.cmot * BAT.Curr
 
     return mag
 
@@ -158,11 +160,12 @@ def wmm_error(p):
 def fit_WWW():
     from scipy import optimize
 
-    p = [0.0, 0.0, 0.0, 1.0]
+    c = copy.copy(old_corrections)
+    p = [c.offsets.x, c.offsets.y, c.offsets.z, c.scaling]
     if args.elliptical:
-        p.extend([1.0, 1.0, 1.0, 0.0, 0.0, 0.0])
+        p.extend([c.diag.x, c.diag.y, c.diag.z, c.offdiag.x, c.offdiag.y, c.offdiag.z])
     if args.cmot:
-        p.extend([0.0, 0.0, 0.0])
+        p.extend([c.cmot.x, c.cmot.y, c.cmot.z])
 
     ofs = args.max_offset
     bounds = [(-ofs,ofs),(-ofs,ofs),(-ofs,ofs),(args.min_scale,args.max_scale)]
@@ -180,7 +183,6 @@ def fit_WWW():
     p = optimize.fmin_slsqp(wmm_error, p, bounds=bounds)
     p = list(p)
 
-    c = copy.copy(old_corrections)
     c.offsets = Vector3(p.pop(0), p.pop(0), p.pop(0))
     c.scaling = p.pop(0)
 
@@ -205,7 +207,8 @@ def remove_offsets(MAG, BAT, c):
     correction_matrix = correction_matrix.invert()
 
     field = Vector3(MAG.MagX, MAG.MagY, MAG.MagZ)
-    field -= c.cmot * BAT.Curr
+    if BAT is not None:
+        field -= c.cmot * BAT.Curr
     field = correction_matrix * field
     field *= 1.0 / c.scaling
     field -= Vector3(MAG.OfsX, MAG.OfsY, MAG.OfsZ)
@@ -228,12 +231,7 @@ def magfit(logfile):
     ATT = None
     BAT = None
 
-    if args.mag2:
-        mag_msg = 'MAG2'
-        idx = 2
-    else:
-        mag_msg = 'MAG'
-        idx = ''
+    mag_msg = 'MAG%s' % mag_idx
 
     count = 0
     parameters = {}
@@ -249,7 +247,7 @@ def magfit(logfile):
 
     # extract MAG data
     while True:
-        msg = mlog.recv_match(type=['GPS',mag_msg,'ATT','CTUN','BARO','BAT'], condition=args.condition)
+        msg = mlog.recv_match(type=['GPS',mag_msg,'ATT','CTUN','BARO', 'BAT'], condition=args.condition)
         if msg is None:
             break
         if msg.get_type() == 'GPS' and msg.Status >= 3 and earth_field is None:
@@ -265,21 +263,21 @@ def magfit(logfile):
                 data.append((msg,ATT,BAT))
             count += 1
 
-    old_corrections.offsets = Vector3(parameters.get('COMPASS_OFS%s_X' % idx,0.0),
-                                      parameters.get('COMPASS_OFS%s_Y' % idx,0.0),
-                                      parameters.get('COMPASS_OFS%s_Z' % idx,0.0))
-    old_corrections.diag = Vector3(parameters.get('COMPASS_DIA%s_X' % idx,1.0),
-                                   parameters.get('COMPASS_DIA%s_Y' % idx,1.0),
-                                   parameters.get('COMPASS_DIA%s_Z' % idx,1.0))
-    old_corrections.offdiag = Vector3(parameters.get('COMPASS_ODI%s_X' % idx,0.0),
-                                      parameters.get('COMPASS_ODI%s_Y' % idx,0.0),
-                                      parameters.get('COMPASS_ODI%s_Z' % idx,0.0))
+    old_corrections.offsets = Vector3(parameters.get('COMPASS_OFS%s_X' % mag_idx,0.0),
+                                      parameters.get('COMPASS_OFS%s_Y' % mag_idx,0.0),
+                                      parameters.get('COMPASS_OFS%s_Z' % mag_idx,0.0))
+    old_corrections.diag = Vector3(parameters.get('COMPASS_DIA%s_X' % mag_idx,1.0),
+                                   parameters.get('COMPASS_DIA%s_Y' % mag_idx,1.0),
+                                   parameters.get('COMPASS_DIA%s_Z' % mag_idx,1.0))
+    old_corrections.offdiag = Vector3(parameters.get('COMPASS_ODI%s_X' % mag_idx,0.0),
+                                      parameters.get('COMPASS_ODI%s_Y' % mag_idx,0.0),
+                                      parameters.get('COMPASS_ODI%s_Z' % mag_idx,0.0))
     if parameters.get('COMPASS_MOTCT',0) == 2:
         # only support current based corrections for now
-        old_corrections.cmot = Vector3(parameters.get('COMPASS_MOT%s_X' % idx,0.0),
-                                       parameters.get('COMPASS_MOT%s_Y' % idx,0.0),
-                                       parameters.get('COMPASS_MOT%s_Z' % idx,0.0))
-    old_corrections.scaling = parameters.get('COMPASS_SCALE%s' % idx, None)
+        old_corrections.cmot = Vector3(parameters.get('COMPASS_MOT%s_X' % mag_idx,0.0),
+                                       parameters.get('COMPASS_MOT%s_Y' % mag_idx,0.0),
+                                       parameters.get('COMPASS_MOT%s_Z' % mag_idx,0.0))
+    old_corrections.scaling = parameters.get('COMPASS_SCALE%s' % mag_idx, None)
     if old_corrections.scaling is None:
         force_scale = False
         old_corrections.scaling = 1.0
@@ -314,26 +312,30 @@ def magfit(logfile):
 
     corrected = {}
     corrected['Yaw'] = []
-    expected = {}
+    expected1 = {}
+    expected2 = {}
     uncorrected = {}
     uncorrected['Yaw'] = []
     for i in range(len(data)):
         (MAG,ATT,BAT) = data[i]
         ATT.Yaw = get_yaw(ATT,MAG,BAT,c)
         corrected['Yaw'].append(ATT.Yaw)
-        ef = expected_field(ATT)
+        ef1 = expected_field(ATT)
         cf = correct(MAG, BAT, c)
         ATT.Yaw = get_yaw(ATT,MAG,BAT,old_corrections)
+        ef2 = expected_field(ATT)
         uncorrected['Yaw'].append(ATT.Yaw)
         uf = correct(MAG, BAT, old_corrections)
         for axis in ['x','y','z']:
             if not axis in corrected:
                 corrected[axis] = []
                 uncorrected[axis] = []
-                expected[axis] = []
+                expected1[axis] = []
+                expected2[axis] = []
             corrected[axis].append(getattr(cf, axis))
             uncorrected[axis].append(getattr(uf, axis))
-            expected[axis].append(getattr(ef, axis))
+            expected1[axis].append(getattr(ef1, axis))
+            expected2[axis].append(getattr(ef2, axis))
         x.append(i)
 
     c.show_parms()
@@ -342,13 +344,13 @@ def magfit(logfile):
 
     for axis in ['x','y','z']:
         axs[0].plot(numpy.array(x), numpy.array(uncorrected[axis]), label='Uncorrected %s' % axis.upper() )
-        axs[0].plot(numpy.array(x), numpy.array(expected[axis]), label='Expected %s' % axis.upper() )
+        axs[0].plot(numpy.array(x), numpy.array(expected2[axis]), label='Expected %s' % axis.upper() )
         axs[0].legend(loc='upper left')
         axs[0].set_title('Original')
         axs[0].set_ylabel('Field (mGauss)')
 
         axs[1].plot(numpy.array(x), numpy.array(corrected[axis]), label='Corrected %s' % axis.upper() )
-        axs[1].plot(numpy.array(x), numpy.array(expected[axis]), label='Expected %s' % axis.upper() )
+        axs[1].plot(numpy.array(x), numpy.array(expected1[axis]), label='Expected %s' % axis.upper() )
         axs[1].legend(loc='upper left')
         axs[1].set_title('Corrected')
         axs[1].set_ylabel('Field (mGauss)')
