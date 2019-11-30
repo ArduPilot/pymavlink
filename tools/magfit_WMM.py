@@ -22,7 +22,6 @@ parser.add_argument("--max-cmot", type=float, default=10.0, help="max compassmot
 parser.add_argument("--elliptical", action='store_true', help="fit elliptical corrections")
 parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
 parser.add_argument("--plot", action='store_true', help="plot result")
-parser.add_argument("--plotyaw", action='store_true', help="plot yaw result")
 parser.add_argument("log", metavar="LOG")
 
 args = parser.parse_args()
@@ -86,7 +85,7 @@ def correct(MAG, BAT, c):
     mag = mat * mag
 
     # apply compassmot corrections
-    if BAT is not None:
+    if BAT is not None and not math.isnan(BAT.Curr):
         mag += c.cmot * BAT.Curr
 
     return mag
@@ -108,13 +107,12 @@ def get_yaw(ATT,MAG,BAT,c):
         yaw += 360
     return yaw
 
-def expected_field(ATT):
+def expected_field(ATT, yaw):
     '''return expected magnetic field for attitude'''
     global earth_field
 
     roll = ATT.Roll
     pitch = ATT.Pitch
-    yaw = ATT.Yaw
 
     rot = Matrix3()
     rot.from_euler(math.radians(roll), math.radians(pitch), math.radians(yaw))
@@ -146,8 +144,8 @@ def wmm_error(p):
     ret = 0
 
     for (MAG,ATT,BAT) in data:
-        ATT.Yaw = get_yaw(ATT,MAG,BAT,c)
-        expected = expected_field(ATT)
+        yaw = get_yaw(ATT,MAG,BAT,c)
+        expected = expected_field(ATT, yaw)
         observed = correct(MAG,BAT,c)
 
         error = (expected - observed).length()
@@ -207,15 +205,18 @@ def remove_offsets(MAG, BAT, c):
     correction_matrix = correction_matrix.invert()
 
     field = Vector3(MAG.MagX, MAG.MagY, MAG.MagZ)
-    if BAT is not None:
+    if BAT is not None and not math.isnan(BAT.Curr):
         field -= c.cmot * BAT.Curr
     field = correction_matrix * field
     field *= 1.0 / c.scaling
     field -= Vector3(MAG.OfsX, MAG.OfsY, MAG.OfsZ)
 
+    if math.isnan(field.x) or math.isnan(field.y) or math.isnan(field.z):
+        return False
     MAG.MagX = int(field.x)
     MAG.MagY = int(field.y)
     MAG.MagZ = int(field.z)
+    return True
 
 def magfit(logfile):
     '''find best magnetometer offset fit to a log file'''
@@ -285,8 +286,11 @@ def magfit(logfile):
         force_scale = True
 
     # remove existing corrections
+    data2 = []
     for (MAG,ATT,BAT) in data:
-        remove_offsets(MAG, BAT, old_corrections)
+        if remove_offsets(MAG, BAT, old_corrections):
+            data2.append((MAG,ATT,BAT))
+    data = data2
 
     print("Extracted %u points" % len(data))
     print("Current: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
@@ -316,16 +320,22 @@ def magfit(logfile):
     expected2 = {}
     uncorrected = {}
     uncorrected['Yaw'] = []
+    yaw_change1 = []
+    yaw_change2 = []
     for i in range(len(data)):
         (MAG,ATT,BAT) = data[i]
-        ATT.Yaw = get_yaw(ATT,MAG,BAT,c)
-        corrected['Yaw'].append(ATT.Yaw)
-        ef1 = expected_field(ATT)
+        yaw1 = get_yaw(ATT,MAG,BAT,c)
+        corrected['Yaw'].append(yaw1)
+        ef1 = expected_field(ATT, yaw1)
         cf = correct(MAG, BAT, c)
-        ATT.Yaw = get_yaw(ATT,MAG,BAT,old_corrections)
-        ef2 = expected_field(ATT)
-        uncorrected['Yaw'].append(ATT.Yaw)
+
+        yaw2 = get_yaw(ATT,MAG,BAT,old_corrections)
+        ef2 = expected_field(ATT, yaw2)
+        uncorrected['Yaw'].append(yaw2)
         uf = correct(MAG, BAT, old_corrections)
+
+        yaw_change1.append(mavextra.wrap_180(yaw1 - yaw2))
+        yaw_change2.append(mavextra.wrap_180(yaw1 - ATT.Yaw))
         for axis in ['x','y','z']:
             if not axis in corrected:
                 corrected[axis] = []
@@ -340,7 +350,7 @@ def magfit(logfile):
 
     c.show_parms()
 
-    fig, axs = pyplot.subplots(2, 1, sharex=True)
+    fig, axs = pyplot.subplots(3, 1, sharex=True)
 
     for axis in ['x','y','z']:
         axs[0].plot(numpy.array(x), numpy.array(uncorrected[axis]), label='Uncorrected %s' % axis.upper() )
@@ -355,13 +365,12 @@ def magfit(logfile):
         axs[1].set_title('Corrected')
         axs[1].set_ylabel('Field (mGauss)')
 
-    if args.plotyaw:
-        ax02 = axs[0].twinx()
-        ax02.plot(numpy.array(x), numpy.array(uncorrected['Yaw']), label='Yaw')
+    # show change in yaw estimate from old corrections to new
+    axs[2].plot(numpy.array(x), numpy.array(yaw_change1), label='Mag Yaw Change')
+    axs[2].plot(numpy.array(x), numpy.array(yaw_change2), label='ATT Yaw Change')
+    axs[2].set_title('Yaw Change (degrees)')
+    axs[2].legend(loc='upper left')
 
-        ax12 = axs[1].twinx()
-        ax12.plot(numpy.array(x), numpy.array(corrected['Yaw']), label='Yaw')
-        
     pyplot.show()
 
 
