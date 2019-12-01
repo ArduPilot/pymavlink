@@ -9,7 +9,7 @@ import sys, time, os, math, copy
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by condition")
-parser.add_argument("--mag", type=int, help="mag index, 1 for first mag")
+parser.add_argument("--mag", type=int, default=1, help="mag index, 1 for first mag")
 parser.add_argument("--reduce", type=int, default=1, help="reduce data points by given factor")
 parser.add_argument("--min-scale", type=float, default=0.6, help="min scale factor")
 parser.add_argument("--max-scale", type=float, default=1.5, help="max scale factor")
