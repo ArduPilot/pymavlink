@@ -23,6 +23,7 @@ def generate_content():
     # path to message_definitions directory
     if os.getenv("MDEF",None) is not None:
         mdef_paths = [os.getenv("MDEF")]
+
     else:
         mdef_paths = [os.path.join('..', 'message_definitions'),
                       os.path.join('mavlink', 'message_definitions'),
@@ -75,7 +76,14 @@ def generate_content():
                 sys.exit(1)
 
 extensions = []  # Assume we might be unable to build native code
-if platform.system() != 'Windows':
+# check if we need to compile mavnative
+disable_mavnative = os.getenv("DISABLE_MAVNATIVE", False)
+if type(disable_mavnative) is str and disable_mavnative in ["True", "true", "1"]:
+    disable_mavnative = True
+else:
+    disable_mavnative = False
+
+if platform.system() != 'Windows' and not disable_mavnative:
     extensions = [ Extension('mavnative',
                    sources=['mavnative/mavnative.c'],
                    include_dirs=[
@@ -85,7 +93,9 @@ if platform.system() != 'Windows':
                        ]
                    ) ]
 else:
-    print("Skipping mavnative due to Windows possibly missing a compiler...")
+    print("###################################")
+    print("Skipping mavnative")
+    print("###################################")
 
 
 class custom_build_py(build_py):
