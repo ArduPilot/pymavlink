@@ -146,6 +146,11 @@ package com.mavlink.%s;
 import com.mavlink.MAVLinkPacket;
 import com.mavlink.messages.MAVLinkMessage;
 import com.mavlink.messages.MAVLinkPayload;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
         
 /**
  * ${description}
@@ -155,7 +160,6 @@ public class msg_${name_lower} extends MAVLinkMessage {
     public static final int MAVLINK_MSG_ID_${name} = ${id};
     public static final int MAVLINK_MSG_LENGTH = ${wire_length};
     private static final long serialVersionUID = MAVLINK_MSG_ID_${name};
-
 
     ${{ordered_fields:  
     /**
@@ -173,14 +177,13 @@ public class msg_${name_lower} extends MAVLinkMessage {
         packet.sysid = 255;
         packet.compid = 190;
         packet.msgid = MAVLINK_MSG_ID_${name};
-        ${{base_fields:
-        ${packField}
+        
+        ${{base_fields:${packField}
         }}
+        ${{extended_fields:
         if(isMavlink2) {
-            ${{extended_fields:
             ${packField}
-            }}
-        }
+        }}}
         return packet;
     }
 
@@ -191,21 +194,43 @@ public class msg_${name_lower} extends MAVLinkMessage {
      */
     public void unpack(MAVLinkPayload payload) {
         payload.resetIndex();
-        ${{base_fields:
-        ${unpackField}
+        
+        ${{base_fields:${unpackField}
         }}
+        ${{extended_fields:
         if(isMavlink2) {
-            ${{extended_fields:
             ${unpackField}
-            }}
-        }
+        }}}
     }
 
     /**
      * Constructor for a new message, just initializes the msgid
      */
     public msg_${name_lower}() {
-        msgid = MAVLINK_MSG_ID_${name};
+        this.msgid = MAVLINK_MSG_ID_${name};
+    }
+    
+    /**
+     * Constructor for a new message, initializes msgid and all payload variables
+     */
+    public msg_${name_lower}(${{ordered_fields: ${type}${array_suffix_empty} ${name},}}) {
+        this.msgid = MAVLINK_MSG_ID_${name};
+
+        ${{ordered_fields:this.${name} = ${name};
+        }}
+    }
+    
+    /**
+     * Constructor for a new message, initializes everything
+     */
+    public msg_${name_lower}(${{ordered_fields: ${type}${array_suffix_empty} ${name},}}, int sysid, int compid, boolean isMavlink2) {
+        this.msgid = MAVLINK_MSG_ID_${name};
+        this.sysid = sysid;
+        this.compid = compid;
+        this.isMavlink2 = isMavlink2;
+
+        ${{ordered_fields:this.${name} = ${name};
+        }}
     }
 
     /**
@@ -214,11 +239,40 @@ public class msg_${name_lower} extends MAVLinkMessage {
      *
      */
     public msg_${name_lower}(MAVLinkPacket mavLinkPacket) {
+        this.msgid = MAVLINK_MSG_ID_${name};
+        
         this.sysid = mavLinkPacket.sysid;
         this.compid = mavLinkPacket.compid;
-        this.msgid = MAVLINK_MSG_ID_${name};
         this.isMavlink2 = mavLinkPacket.isMavlink2;
-        unpack(mavLinkPacket.payload);        
+        unpack(mavLinkPacket.payload);
+    }
+
+    /**
+     * Constructor for a new message, initializes the message with the payload
+     * from JSON Object
+     */
+    public msg_${name_lower}(JSONObject jo) {
+        this.msgid = MAVLINK_MSG_ID_${name};
+
+        readJSONheader(jo);
+        
+        ${{base_fields:${fromJsonField}
+        }}
+        ${{extended_fields:${fromJsonField}
+        }}
+    }
+    
+    /**
+     * Convert this class to a JSON Object
+     */
+    public JSONObject toJSON() throws JSONException {
+        final JSONObject jo = getJSONheader();
+        
+        ${{base_fields:${toJsonField}
+        }}
+        ${{extended_fields:${toJsonField}
+        }}
+        return jo;
     }
 
     ${{ordered_fields: ${getText} }}
@@ -257,6 +311,7 @@ import java.io.Serializable;
 import com.mavlink.messages.MAVLinkPayload;
 import com.mavlink.messages.MAVLinkMessage;
 import com.mavlink.${basename}.CRC;
+import org.json.JSONObject;
 
 ${importString}
 
@@ -519,7 +574,9 @@ public class MAVLinkPacket implements Serializable {
 
         return buffer;
     }
-
+        ''', xml_list[0])
+    
+    f.write('''
     /**
      * Unpack the data in this packet and return a MAVLink message
      *
@@ -527,8 +584,7 @@ public class MAVLinkPacket implements Serializable {
      */
     public MAVLinkMessage unpack() {
         switch (msgid) {
-        ''', xml_list[0])
-
+        ''')
 
     # sort msgs by id
     xml_msgs = []
@@ -547,11 +603,55 @@ public class MAVLinkPacket implements Serializable {
                 return null;
         }
     }
+''')
 
-}
+
+
+
+    f.write('''
+    /**
+     * Unpack the data in this JSON Object and return a MAVLink message
+     *
+     * @return MAVLink message decoded from JSON
+     */
+    public static MAVLinkMessage fromJSON(JSONObject jo) {
+        final JSONObject json_header = (jo.has("header")) ? jo.getJSONObject("header") : jo;
+        final int json_msgid;
+
+        if (json_header.has("msgId")) {
+            json_msgid = json_header.optInt("msgId", -1);
+        } else if (json_header.has("msgid")) {
+            json_msgid = json_header.optInt("msgid", -1);
+        } else {
+            json_msgid = -1;
+        }
         
+        switch (json_msgid) {
         ''')
-    
+
+    for msg in xml_msgs:
+        t.write(f, ''' 
+            case msg_${name_lower}.MAVLINK_MSG_ID_${name}:
+                return new msg_${name_lower}(jo);
+            ''',msg)
+    f.write('''
+            default:
+            case -1:
+                return null;
+        }
+    }
+''')
+
+
+
+
+
+
+    f.write('''
+}
+
+
+        ''')
     f.close()
 
 def copy_fixed_headers(directory, xml):
@@ -578,27 +678,25 @@ class mav_include(object):
         self.base = base
 
 
-def mavfmt(field, typeInfo=False):
+def mavfmt(field, typeInfo=0):
     '''work out the struct format for a type'''
+    ''' last column is needed for JSON parsing where we can not getShort() or getByte()'''
     map = {
-        'float'    : ('float', 'Float'),
-        'double'   : ('double', 'Double'),
-        'char'     : ('byte', 'Byte'),
-        'int8_t'   : ('byte', 'Byte'),
-        'uint8_t'  : ('short', 'UnsignedByte'),
-        'uint8_t_mavlink_version'  : ('short', 'UnsignedByte'),
-        'int16_t'  : ('short', 'Short'),
-        'uint16_t' : ('int', 'UnsignedShort'),
-        'int32_t'  : ('int', 'Int'),
-        'uint32_t' : ('long', 'UnsignedInt'),
-        'int64_t'  : ('long', 'Long'),
-        'uint64_t' : ('long', 'UnsignedLong'),
+        'float'    : ('float', 'Float', 'Float', 'Float'),
+        'double'   : ('double', 'Double', 'Double', 'Double'),
+        'char'     : ('byte', 'Byte', 'Short', 'Int'),
+        'int8_t'   : ('byte', 'Byte', 'Short', 'Int'),
+        'uint8_t'  : ('short', 'UnsignedByte', 'Short', 'Int'),
+        'uint8_t_mavlink_version'  : ('short', 'UnsignedByte', 'Short', 'Int'),
+        'int16_t'  : ('short', 'Short', 'Short', 'Int'),
+        'uint16_t' : ('int', 'UnsignedShort', 'Int', 'Int'),
+        'int32_t'  : ('int', 'Int', 'Int', 'Int'),
+        'uint32_t' : ('long', 'UnsignedInt', 'Long', 'Long'),
+        'int64_t'  : ('long', 'Long', 'Long', 'Long'),
+        'uint64_t' : ('long', 'UnsignedLong', 'Long', 'Long'),
     }
     
-    if typeInfo:
-        return map[field.type][1]
-    else:
-        return map[field.type][0]
+    return map[field.type][typeInfo]
 
 def generate_one(basename, xml):
     '''generate headers for one XML file'''
@@ -664,6 +762,7 @@ def generate_one(basename, xml):
             f.getText = ''
             if f.array_length != 0:
                 f.array_suffix = '[] = new %s[%u]' % (mavfmt(f),f.array_length)
+                f.array_suffix_empty = '[]'
                 f.array_prefix = '*'
                 f.array_tag = '_array'
                 f.array_arg = ', %u' % f.array_length
@@ -672,16 +771,31 @@ def generate_one(basename, xml):
                 f.decode_left = ''
                 f.decode_right = 'm.%s' % (f.name)
                 
+                f.fromJsonField = ''' 
+        JSONArray ja_%s = jo.optJSONArray("%s");
+        for (int i = 0; i < Math.min(this.%s.length, ja_%s.length()); i++) {
+            this.%s[i] = (%s)ja_%s.get%s(i);
+        }
+                ''' % (f.name, f.name, f.name, f.name, f.name, mavfmt(f,0), f.name, mavfmt(f,3))
+                
+                f.toJsonField = ''' 
+        JSONArray ja_%s = new JSONArray();
+        for (int i = 0; i < this.%s.length; i++) {
+            ja_%s.put(this.%s[i]);
+        }
+        jo.put("%s", (Object)ja_%s);
+                ''' % (f.name, f.name, f.name, f.name, f.name, f.name)
+                
                 f.unpackField = ''' 
         for (int i = 0; i < this.%s.length; i++) {
             this.%s[i] = payload.get%s();
         }
-                ''' % (f.name, f.name, mavfmt(f, True) )
+                ''' % (f.name, f.name, mavfmt(f, 1) )
                 f.packField = '''
         for (int i = 0; i < %s.length; i++) {
             packet.payload.put%s(%s[i]);
         }
-                    ''' % (f.name, mavfmt(f, True),f.name)
+                    ''' % (f.name, mavfmt(f, 1),f.name)
                 f.return_type = 'uint16_t'
                 f.get_arg = ', %s *%s' % (f.type, f.name)
                 if f.type == 'char':
@@ -723,6 +837,7 @@ def generate_one(basename, xml):
                     f.c_test_value = '{ %s }' % ', '.join(test_strings)
             else:
                 f.array_suffix = ''
+                f.array_suffix_empty = ''
                 f.array_prefix = ''
                 f.array_tag = ''
                 f.array_arg = ''
@@ -730,10 +845,12 @@ def generate_one(basename, xml):
                 f.array_const = ''
                 f.decode_left =  '%s' % (f.name)
                 f.decode_right = ''
-                f.unpackField = 'this.%s = payload.get%s();' % (f.name, mavfmt(f, True))
-                f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, True),f.name)                   
-                
-                
+                f.unpackField = 'this.%s = payload.get%s();' % (f.name, mavfmt(f, 1))
+                f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1),f.name)
+
+                f.fromJsonField = 'this.%s = (%s)jo.opt%s("%s");' % (f.name, mavfmt(f, 0), mavfmt(f, 3), f.name)
+                f.toJsonField ='jo.put("%s", %s);' % (f.name, f.name)
+
                 f.get_arg = ''
                 f.return_type = f.type
                 if f.type == 'char':
