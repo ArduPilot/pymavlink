@@ -686,18 +686,18 @@ def mavfmt(field, typeInfo=0):
     '''work out the struct format for a type'''
     ''' last column is needed for JSON parsing where we can not getShort() or getByte() or getFloat() on older versions of org.JSON including Android sdk29'''
     map = {
-        'float'    : ('float', 'Float', 'Float', 'Double'),
-        'double'   : ('double', 'Double', 'Double', 'Double'),
-        'char'     : ('byte', 'Byte', 'Short', 'Int'),
-        'int8_t'   : ('byte', 'Byte', 'Short', 'Int'),
-        'uint8_t'  : ('short', 'UnsignedByte', 'Short', 'Int'),
-        'uint8_t_mavlink_version'  : ('short', 'UnsignedByte', 'Short', 'Int'),
-        'int16_t'  : ('short', 'Short', 'Short', 'Int'),
-        'uint16_t' : ('int', 'UnsignedShort', 'Int', 'Int'),
-        'int32_t'  : ('int', 'Int', 'Int', 'Int'),
-        'uint32_t' : ('long', 'UnsignedInt', 'Long', 'Long'),
-        'int64_t'  : ('long', 'Long', 'Long', 'Long'),
-        'uint64_t' : ('long', 'UnsignedLong', 'Long', 'Long'),
+        'float'    : ('float', 'Float', 'Float', 'Double', 'double'),
+        'double'   : ('double', 'Double', 'Double', 'Double', 'double'),
+        'char'     : ('byte', 'Byte', 'Short', 'Int', 'int'),
+        'int8_t'   : ('byte', 'Byte', 'Short', 'Int', 'int'),
+        'uint8_t'  : ('short', 'UnsignedByte', 'Short', 'Int', 'int'),
+        'uint8_t_mavlink_version'  : ('short', 'UnsignedByte', 'Short', 'Int', 'int'),
+        'int16_t'  : ('short', 'Short', 'Short', 'Int', 'int'),
+        'uint16_t' : ('int', 'UnsignedShort', 'Int', 'Int', 'int'),
+        'int32_t'  : ('int', 'Int', 'Int', 'Int', 'int'),
+        'uint32_t' : ('long', 'UnsignedInt', 'Long', 'Long', 'long'),
+        'int64_t'  : ('long', 'Long', 'Long', 'Long', 'long'),
+        'uint64_t' : ('long', 'UnsignedLong', 'Long', 'Long', 'long'),
     }
     
     return map[field.type][typeInfo]
@@ -795,7 +795,7 @@ def generate_one(basename, xml):
         for (int i = 0; i < this.%s.length; i++) {
             ja_%s.put(this.%s[i]);
         }
-        jo.put("%s", (Object)ja_%s);
+        jo.putOpt("%s", (Object)ja_%s);
                 ''' % (f.name, f.name, f.name, f.name, f.name, f.name)
                 
                 f.unpackField = ''' 
@@ -878,7 +878,7 @@ def generate_one(basename, xml):
                 f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1),f.name)
 
                 f.fromJsonField = 'this.%s = (%s)jo.opt%s("%s",0);' % (f.name, mavfmt(f, 0), mavfmt(f, 3), f.name)
-                f.toJsonField ='jo.put("%s", %s);' % (f.name, f.name)
+                f.toJsonField ='jo.put("%s", (%s)%s);' % (f.name, mavfmt(f, 4), f.name)
 
                 f.get_arg = ''
                 f.return_type = f.type
