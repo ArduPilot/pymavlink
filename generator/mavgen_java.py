@@ -684,9 +684,9 @@ class mav_include(object):
 
 def mavfmt(field, typeInfo=0):
     '''work out the struct format for a type'''
-    ''' last column is needed for JSON parsing where we can not getShort() or getByte()'''
+    ''' last column is needed for JSON parsing where we can not getShort() or getByte() or getFloat() on older versions of org.JSON including Android sdk29'''
     map = {
-        'float'    : ('float', 'Float', 'Float', 'Float'),
+        'float'    : ('float', 'Float', 'Float', 'Double'),
         'double'   : ('double', 'Double', 'Double', 'Double'),
         'char'     : ('byte', 'Byte', 'Short', 'Int'),
         'int8_t'   : ('byte', 'Byte', 'Short', 'Int'),
@@ -776,11 +776,19 @@ def generate_one(basename, xml):
                 f.decode_right = 'm.%s' % (f.name)
                 
                 f.fromJsonField = ''' 
-        JSONArray ja_%s = jo.optJSONArray("%s");
-        for (int i = 0; i < Math.min(this.%s.length, ja_%s.length()); i++) {
-            this.%s[i] = (%s)ja_%s.get%s(i);
+        if (jo.has("%s")) {
+            JSONArray ja_%s = jo.optJSONArray("%s");
+            if (ja_%s == null) {
+                this.%s[0] = (%s)jo.opt%s("%s", 0);
+            } else {
+                for (int i = 0; i < Math.min(this.%s.length, ja_%s.length()); i++) {
+                    this.%s[i] = (%s)ja_%s.opt%s(i,0);
+                }
+            }
         }
-                ''' % (f.name, f.name, f.name, f.name, f.name, mavfmt(f,0), f.name, mavfmt(f,3))
+                    ''' % (f.name, f.name, f.name, f.name,
+                    f.name, mavfmt(f, 0), mavfmt(f, 3), f.name,
+                    f.name, f.name, f.name, mavfmt(f,0), f.name, mavfmt(f,3))
                 
                 f.toJsonField = ''' 
         JSONArray ja_%s = new JSONArray();
@@ -803,6 +811,23 @@ def generate_one(basename, xml):
                 f.return_type = 'uint16_t'
                 f.get_arg = ', %s *%s' % (f.type, f.name)
                 if f.type == 'char':
+                    f.fromJsonField = ''' 
+        if (jo.has("%s")) {
+            JSONArray ja_%s = jo.optJSONArray("%s");
+            if (ja_%s == null) {
+                final String js_string_%s = jo.optString("%s");
+                final byte[] b_%s = js_string_%s.getBytes();
+                System.arraycopy(b_%s, 0, this.%s, 0, Math.min(this.%s.length, b_%s.length));
+            } else {
+                for (int i = 0; i < Math.min(this.%s.length, ja_%s.length()); i++) {
+                    this.%s[i] = (%s)ja_%s.opt%s(i,0);
+                }
+            }
+        }
+                    ''' % (f.name, f.name, f.name, f.name,
+                    f.name, f.name, f.name, f.name, f.name, f.name, f.name, f.name,
+                    f.name, f.name, f.name, mavfmt(f,0), f.name, mavfmt(f,3))
+
                     f.c_test_value = '"%s"' % f.test_value
                     f.getText = '''
     /**
@@ -852,7 +877,7 @@ def generate_one(basename, xml):
                 f.unpackField = 'this.%s = payload.get%s();' % (f.name, mavfmt(f, 1))
                 f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1),f.name)
 
-                f.fromJsonField = 'this.%s = (%s)jo.opt%s("%s");' % (f.name, mavfmt(f, 0), mavfmt(f, 3), f.name)
+                f.fromJsonField = 'this.%s = (%s)jo.opt%s("%s",0);' % (f.name, mavfmt(f, 0), mavfmt(f, 3), f.name)
                 f.toJsonField ='jo.put("%s", %s);' % (f.name, f.name)
 
                 f.get_arg = ''
