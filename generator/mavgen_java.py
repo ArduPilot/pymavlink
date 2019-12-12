@@ -885,9 +885,40 @@ def generate_one(basename, xml):
                 if f.type == 'char':
                     f.c_test_value = "'%s'" % f.test_value
                 elif f.type == 'uint64_t':
-                    f.c_test_value = "%sULL" % f.test_value                    
+                    f.c_test_value = "%sULL" % f.test_value
+                    f.fromJsonField = ''' 
+        if (jo.has("%s")) {
+            final JSONArray ja_%s = jo.optJSONArray("%s");
+            if (ja_%s == null) {
+                this.%s = (%s)jo.opt%s("%s", 0);
+            } else if (ja_%s.length() > 0) {
+                this.%s = (%s)ja_%s.opt%s(0, 0);
+            }
+        }
+                    ''' % (f.name, 
+                    f.name, f.name,
+                    f.name,
+                    f.name, mavfmt(f,0), mavfmt(f,3), f.name,
+                    f.name,
+                    f.name, mavfmt(f,0), f.name, mavfmt(f,3))
+
                 elif f.type == 'int64_t':
                     f.c_test_value = "%sLL" % f.test_value                    
+                    f.fromJsonField = ''' 
+        if (jo.has("%s")) {
+            final JSONArray ja_%s = jo.optJSONArray("%s");
+            if (ja_%s == null) {
+                this.%s = (%s)jo.opt%s("%s", 0);
+            } else if (ja_%s.length() > 0) {
+                this.%s = (%s)ja_%s.opt%s(0, 0);
+            }
+        }
+                    ''' % (f.name, 
+                    f.name, f.name,
+                    f.name,
+                    f.name, mavfmt(f,0), mavfmt(f,3), f.name,
+                    f.name,
+                    f.name, mavfmt(f,0), f.name, mavfmt(f,3))
                 else:
                     f.c_test_value = f.test_value
     
