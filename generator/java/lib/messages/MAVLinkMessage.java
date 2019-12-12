@@ -28,6 +28,8 @@ public abstract class MAVLinkMessage implements Serializable {
     public abstract MAVLinkPacket pack();
     public abstract void unpack(MAVLinkPayload payload);
     public abstract JSONObject toJSON();
+    public abstract String toString();
+    public abstract String name();
 
     public final static String[] header_sysid = {"sysid", "sysId", "srcSystem"};
     public final static String[] header_compid = {"compid", "compId", "srcComponent"};

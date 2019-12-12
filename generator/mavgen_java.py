@@ -287,6 +287,14 @@ public class msg_${name_lower} extends MAVLinkMessage {
     public String toString() {
         return "MAVLINK_MSG_ID_${name} - sysid:"+sysid+" compid:"+compid+${{ordered_fields:" ${name}:"+${name}+}}"";
     }
+    
+    /**
+     * Returns a human-readable string of the name of the message
+     */
+    @Override
+    public String name() {
+        return "MAVLINK_MSG_ID_${name}";
+    }
 }
         ''' % path_tail, m)
     f.close()
