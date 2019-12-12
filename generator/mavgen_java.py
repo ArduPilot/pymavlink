@@ -172,6 +172,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
      * Generates the payload for a mavlink message for a message of this type
      * @return
      */
+    @Override
     public MAVLinkPacket pack() {
         MAVLinkPacket packet = new MAVLinkPacket(MAVLINK_MSG_LENGTH,isMavlink2);
         packet.sysid = 255;
@@ -180,10 +181,10 @@ public class msg_${name_lower} extends MAVLinkMessage {
         
         ${{base_fields:${packField}
         }}
-        ${{extended_fields:
-        if(isMavlink2) {
-            ${packField}
-        }}}
+        if (isMavlink2) {
+            ${{extended_fields: ${packField}
+            }}
+        }
         return packet;
     }
 
@@ -192,15 +193,16 @@ public class msg_${name_lower} extends MAVLinkMessage {
      *
      * @param payload The message to decode
      */
+    @Override
     public void unpack(MAVLinkPayload payload) {
         payload.resetIndex();
         
         ${{base_fields:${unpackField}
         }}
-        ${{extended_fields:
-        if(isMavlink2) {
-            ${unpackField}
-        }}}
+        if (isMavlink2) {
+            ${{extended_fields: ${unpackField}
+            }}
+        }
     }
 
     /**
@@ -265,6 +267,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
     /**
      * Convert this class to a JSON Object
      */
+    @Override
     public JSONObject toJSON() throws JSONException {
         final JSONObject jo = getJSONheader();
         
@@ -279,6 +282,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
     /**
      * Returns a string with the MSG name and data
      */
+    @Override
     public String toString() {
         return "MAVLINK_MSG_ID_${name} - sysid:"+sysid+" compid:"+compid+${{ordered_fields:" ${name}:"+${name}+}}"";
     }
