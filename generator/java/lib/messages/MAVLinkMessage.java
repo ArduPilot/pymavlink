@@ -26,7 +26,7 @@ public abstract class MAVLinkMessage implements Serializable {
     public boolean isMavlink2;
 
     public abstract MAVLinkPacket pack();
-    public abstract void unpack(MAVLinkPayload payload);
+    public abstract void unpack(com.mavlink.messages.MAVLinkPayload payload);
     public abstract JSONObject toJSON();
     public abstract String toString();
     public abstract String name();
