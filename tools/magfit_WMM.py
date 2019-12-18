@@ -279,7 +279,7 @@ def magfit(logfile):
                                        parameters.get('COMPASS_MOT%s_Y' % mag_idx,0.0),
                                        parameters.get('COMPASS_MOT%s_Z' % mag_idx,0.0))
     old_corrections.scaling = parameters.get('COMPASS_SCALE%s' % mag_idx, None)
-    if old_corrections.scaling is None:
+    if old_corrections.scaling is None or old_corrections.scaling < 0.1:
         force_scale = False
         old_corrections.scaling = 1.0
     else:
