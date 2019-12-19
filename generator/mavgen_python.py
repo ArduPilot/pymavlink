@@ -106,11 +106,37 @@ class MAVLink_message(object):
         self._signed     = False
         self._link_id    = None
 
+    # swiped from DFReader.py
+    def to_string(self, s):
+        '''desperate attempt to convert a string regardless of what garbage we get'''
+        try:
+            return s.decode("utf-8")
+        except Exception as e:
+            pass
+        try:
+            s2 = s.encode('utf-8', 'ignore')
+            x = u"%s" % s2
+            return s2
+        except Exception:
+            pass
+        # so its a nasty one. Let's grab as many characters as we can
+        r = ''
+        while s != '':
+            try:
+                r2 = r + s[0]
+                s = s[1:]
+                r2 = r2.encode('ascii', 'ignore')
+                x = u"%s" % r2
+                r = r2
+            except Exception:
+                break
+        return r + '_XXX'
+
     def format_attr(self, field):
         '''override field getter'''
         raw_attr = getattr(self,field)
         if isinstance(raw_attr, bytes):
-            raw_attr = raw_attr.decode("utf-8").rstrip("\\00")
+            raw_attr = self.to_string(raw_attr).rstrip("\\00")
         return raw_attr
 
     def get_msgbuf(self):
@@ -697,6 +723,32 @@ class MAVLink(object):
             self.signing.timestamp = max(self.signing.timestamp, timestamp)
             return True
 
+        # swiped from DFReader.py
+        def to_string(self, s):
+            '''desperate attempt to convert a string regardless of what garbage we get'''
+            try:
+                return s.decode("utf-8")
+            except Exception as e:
+                pass
+            try:
+                s2 = s.encode('utf-8', 'ignore')
+                x = u"%s" % s2
+                return s2
+            except Exception:
+                pass
+            # so its a nasty one. Let's grab as many characters as we can
+            r = ''
+            while s != '':
+                try:
+                    r2 = r + s[0]
+                    s = s[1:]
+                    r2 = r2.encode('ascii', 'ignore')
+                    x = u"%s" % r2
+                    r = r2
+                except Exception:
+                    break
+            return r + '_XXX'
+
         def decode(self, msgbuf):
                 '''decode a buffer as a MAVLink message'''
                 # decode the header
@@ -816,7 +868,7 @@ class MAVLink(object):
                 for i in range(0, len(tlist)):
                     if type.fieldtypes[i] == 'char':
                         if sys.version_info.major >= 3:
-                            tlist[i] = tlist[i].decode('utf-8')
+                            tlist[i] = self.to_string(tlist[i])
                         tlist[i] = str(MAVString(tlist[i]))
                 t = tuple(tlist)
                 # construct the message object
