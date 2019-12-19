@@ -122,7 +122,7 @@ class DFFormat(object):
         return ("DFFormat(%s,%s,%s,%s)" %
                 (self.type, self.name, self.format, self.columns))
 
-
+# Swiped into mavgen_python.py
 def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
     try:
