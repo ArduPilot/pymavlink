@@ -1,26 +1,26 @@
-var {mavlink, MAVLinkProcessor} = require('../implementations/mavlink_common_v2.0/mavlink.js'),
+var {mavlink20, MAVLink20Processor} = require('../implementations/mavlink_common_v2.0/mavlink.js'),
 should = require('should');
 
 describe('MAVLink 2.0 message registry', function() {
 
     it('defines constructors for every message', function() {
-        mavlink.messages['gps_raw_int'].should.be.a.function;
+        mavlink20.messages['gps_raw_int'].should.be.a.function;
     });
 
     it('assigns message properties, format with int64 (q), gps_raw_int', function() {
-        var m = new mavlink.messages['gps_raw_int']();
+        var m = new mavlink20.messages['gps_raw_int']();
         m.format.should.equal("<QiiiHHHHBBiIIIIH");
         m.order_map.should.eql([0, 8, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]); // should.eql = shallow comparison
         m.crc_extra.should.equal(24);
-        m.id.should.equal(mavlink.MAVLINK_MSG_ID_GPS_RAW_INT);
+        m.id.should.equal(mavlink20.MAVLINK_MSG_ID_GPS_RAW_INT);
     });
 
     it('assigns message properties, heartbeat', function() {
-        var m = new mavlink.messages['heartbeat']();
+        var m = new mavlink20.messages['heartbeat']();
         m.format.should.equal("<IBBBBB");
         m.order_map.should.eql([1, 2, 3, 0, 4, 5]); // should.eql = shallow comparison
         m.crc_extra.should.equal(50);
-        m.id.should.equal(mavlink.MAVLINK_MSG_ID_HEARTBEAT);
+        m.id.should.equal(mavlink20.MAVLINK_MSG_ID_HEARTBEAT);
     });
 
 });
@@ -28,14 +28,14 @@ describe('MAVLink 2.0 message registry', function() {
 describe('Complete MAVLink 2.0 packet', function() {
 
     beforeEach(function() {
-        this.mav = new MAVLinkProcessor(null, 42, 150);
+        this.mav = new MAVLink20Processor(null, 42, 150);
     });
 
     it('encode gps_raw_int', function() {
 
         // 0x75bcd15 = 123456789
         // as long as the number is no bigger than max signed int (2147483648) it can be passed like the following
-        var gpsraw = new mavlink.messages.gps_raw_int(
+        var gpsraw = new mavlink20.messages.gps_raw_int(
             time_usec=[123456789, 0]
             , fix_type=3
             , lat=47123456
@@ -60,7 +60,7 @@ describe('Complete MAVLink 2.0 packet', function() {
 
         // number ~2^60
         // 1152221500606846977 = 0xffd8359 9e3d1801
-        var gpsraw = new mavlink.messages.gps_raw_int(
+        var gpsraw = new mavlink20.messages.gps_raw_int(
             time_usec=[0x9e3d1801, 0xffd8359]
             , fix_type=3
             , lat=47123456
@@ -83,7 +83,7 @@ describe('Complete MAVLink 2.0 packet', function() {
 
     it('encode heartbeat', function() {
 
-        var heartbeat = new mavlink.messages.heartbeat(
+        var heartbeat = new mavlink20.messages.heartbeat(
             type=5
             , autopilot=3
             , base_mode=45
@@ -108,7 +108,7 @@ describe('Complete MAVLink 2.0 packet', function() {
         // Create a buffer that matches what the Python version of MAVLink creates
         var reference = new Buffer.from([0xfd, 0x1e, 0x00, 0x00, 0x05, 0x2a, 0x96, 0x18, 0x00, 0x00, 0x01, 0x18, 0x3d, 0x9e, 0x59, 0x83, 0xfd, 0x0f, 0x00, 0x0c, 0xcf, 0x02, 0x40, 0xf4, 0x7b, 0x00, 0x50, 0xc3, 0x00, 0x00, 0x90, 0x19, 0xd6, 0x11, 0xd3, 0x04, 0xd2, 0x04, 0x03, 0x09, 0xa2, 0xd3]);
 
-        var m = new MAVLinkProcessor();
+        var m = new MAVLink20Processor();
 
         var msg = m.parseBuffer(reference);
 
@@ -136,7 +136,7 @@ describe('Complete MAVLink 2.0 packet', function() {
 
 describe('MAVLink 2.0 header', function() {
     beforeEach(function() {
-        this.h = new mavlink.header(mavlink.MAVLINK_MSG_ID_PARAM_REQUEST_LIST, 1, 2, 3, 4);
+        this.h = new mavlink20.header(mavlink20.MAVLINK_MSG_ID_PARAM_REQUEST_LIST, 1, 2, 3, 4);
     });
 
     it('Can pack itself', function() {
@@ -149,25 +149,25 @@ describe('MAVLink 2.0 message', function() {
 
     beforeEach(function() {
         // This is a heartbeat packet from a GCS to the APM.
-        this.heartbeat = new mavlink.messages.heartbeat(
-            mavlink.MAV_TYPE_GCS, // 6
-            mavlink.MAV_AUTOPILOT_INVALID, // 8
+        this.heartbeat = new mavlink20.messages.heartbeat(
+            mavlink20.MAV_TYPE_GCS, // 6
+            mavlink20.MAV_AUTOPILOT_INVALID, // 8
             0, // base mode, mavlink.MAV_MODE_FLAG_***
             0, // custom mode
-            mavlink.MAV_STATE_STANDBY, // system status
+            mavlink20.MAV_STATE_STANDBY, // system status
             3 // MAVLink version
         );
 
-        this.mav = new MAVLinkProcessor();
+        this.mav = new MAVLink20Processor();
 
     });
 
     it('has a set function to facilitate vivifying the object', function() {
-        this.heartbeat.type.should.equal(mavlink.MAV_TYPE_GCS);
-        this.heartbeat.autopilot.should.equal(mavlink.MAV_AUTOPILOT_INVALID);
+        this.heartbeat.type.should.equal(mavlink20.MAV_TYPE_GCS);
+        this.heartbeat.autopilot.should.equal(mavlink20.MAV_AUTOPILOT_INVALID);
         this.heartbeat.base_mode.should.equal(0);
         this.heartbeat.custom_mode.should.equal(0);
-        this.heartbeat.system_status.should.equal(mavlink.MAV_STATE_STANDBY);
+        this.heartbeat.system_status.should.equal(mavlink20.MAV_STATE_STANDBY);
     });
 
     // TODO: the length below (9) should perhaps be instead 7.  See mavlink.unpack().
@@ -175,14 +175,14 @@ describe('MAVLink 2.0 message', function() {
     it('Can pack itself', function() {
 
         var packed = this.heartbeat.pack(this.mav);
-        packed.should.eql([253, 9, 0, 0, 0, 0, 0, mavlink.MAVLINK_MSG_ID_HEARTBEAT, 0, 0, // that bit is the header,
+        packed.should.eql([253, 9, 0, 0, 0, 0, 0, mavlink20.MAVLINK_MSG_ID_HEARTBEAT, 0, 0, // that bit is the header,
             // this is the payload, arranged in the order map specified in the protocol,
             // which differs from the constructor.
             0, 0, 0, 0, // custom bitfield -- length 4 (type=I)
-            mavlink.MAV_TYPE_GCS,
-            mavlink.MAV_AUTOPILOT_INVALID,
+            mavlink20.MAV_TYPE_GCS,
+            mavlink20.MAV_AUTOPILOT_INVALID,
             0,
-            mavlink.MAV_STATE_STANDBY,
+            mavlink20.MAV_STATE_STANDBY,
             3,
             207, // CRC
             58 // CRC
@@ -193,7 +193,7 @@ describe('MAVLink 2.0 message', function() {
     describe('decode 2.0 function', function() {
 
         beforeEach(function() {
-            this.m = new MAVLinkProcessor();
+            this.m = new MAVLink20Processor();
         });
 
         // need to add tests for the header fields as well, specifying seq etc.
@@ -203,11 +203,11 @@ describe('MAVLink 2.0 message', function() {
             var message = this.m.decode(packed);
 
             // this.fieldnames = ['type', 'autopilot', 'base_mode', 'custom_mode', 'system_status', 'mavlink_version'];
-            message.type.should.equal(mavlink.MAV_TYPE_GCS);  // supposed to be 6
-            message.autopilot.should.equal(mavlink.MAV_AUTOPILOT_INVALID); // supposed to be 8
+            message.type.should.equal(mavlink20.MAV_TYPE_GCS);  // supposed to be 6
+            message.autopilot.should.equal(mavlink20.MAV_AUTOPILOT_INVALID); // supposed to be 8
             message.base_mode.should.equal(0); // supposed to be 0
             message.custom_mode.should.equal(0);
-            message.system_status.should.equal(mavlink.MAV_STATE_STANDBY); // supposed to be 3
+            message.system_status.should.equal(mavlink20.MAV_STATE_STANDBY); // supposed to be 3
             message.mavlink_version.should.equal(3); //?
 
         });

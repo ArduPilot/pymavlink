@@ -1,4 +1,4 @@
-var {mavlink, MAVLinkProcessor} = require('../implementations/mavlink_common_v2.0/mavlink.js'),
+var {mavlink20, MAVLink20Processor} = require('../implementations/mavlink_common_v2.0/mavlink.js'),
     should = require('should'),
     sinon = require('sinon'),
     fs = require('fs');
@@ -11,7 +11,7 @@ global.fixtures.serialStream = fs.readFileSync("test/capture.mavlink");
 describe("Generated MAVLink 2.0 protocol handler object", function() {
 
     beforeEach(function() {
-        this.m = new MAVLinkProcessor();
+        this.m = new MAVLink20Processor();
 
         // Valid heartbeat payload
         this.heartbeatPayload = new Buffer.from([0xfd, 0x09, 0x00, 0x00, 0x03, 0xff , 0x00, 0x00, 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x06 , 0x08 , 0x00 , 0x00 , 0x03, 0xc5, 0xa5]);
@@ -23,14 +23,14 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
     describe("message header handling", function() {
         
         it("IDs and sequence numbers are set on send", function(){
-            var mav = new MAVLinkProcessor(null, 42, 99);
+            var mav = new MAVLink20Processor(null, 42, 99);
             var writer = {
                 write: function(){}
             };
             mav.file = writer;
             var spy = sinon.spy(writer, 'write');
 
-            var msg = new mavlink.messages['heartbeat']();
+            var msg = new mavlink20.messages['heartbeat']();
             mav.send(msg);
 
             spy.calledOnce.should.be.true;
@@ -40,14 +40,14 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
         });
 
         it("sequence number increases on send", function(){
-            var mav = new MAVLinkProcessor(null, 42, 99);
+            var mav = new MAVLink20Processor(null, 42, 99);
             var writer = {
                 write: function(){}
             };
             mav.file = writer;
             var spy = sinon.spy(writer, 'write');
 
-            var msg = new mavlink.messages['heartbeat']();
+            var msg = new mavlink20.messages['heartbeat']();
             mav.send(msg);
             mav.send(msg);
 
@@ -61,14 +61,14 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
         });
 
         it("sequence number turns over at 256", function(){
-            var mav = new MAVLinkProcessor(null, 42, 99);
+            var mav = new MAVLink20Processor(null, 42, 99);
             var writer = {
                 write: function(){}
             };
             mav.file = writer;
             var spy = sinon.spy(writer, 'write');
 
-            var msg = new mavlink.messages['heartbeat']();
+            var msg = new mavlink20.messages['heartbeat']();
 
             for(var i = 0; i < 258; i++){
                 mav.send(msg);
@@ -109,12 +109,12 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
         it("returns a bad_data message if a borked message is encountered", function() {
             var b = new Buffer.from([3, 0, 1, 2, 3, 4, 5]); // invalid message
             var message = this.m.parseChar(b);
-            message.should.be.an.instanceof(mavlink.messages.bad_data);      
+            message.should.be.an.instanceof(mavlink20.messages.bad_data);      
         });
 
         it("emits a 'message' event, provisioning callbacks with the message", function(done) {
             this.m.on('message', function(message) {
-                message.should.be.an.instanceof(mavlink.messages.heartbeat);
+                message.should.be.an.instanceof(mavlink20.messages.heartbeat);
                 done();
             });
             this.m.parseChar(this.heartbeatPayload);
@@ -123,7 +123,7 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
         it("emits a 'message' event for bad messages, provisioning callbacks with the message", function(done) {
             var b = new Buffer.from([3, 0, 1, 2, 3, 4, 5, 6, 7]); // invalid message
             this.m.on('message', function(message) {
-                message.should.be.an.instanceof(mavlink.messages.bad_data);
+                message.should.be.an.instanceof(mavlink20.messages.bad_data);
                 done();
             });
             this.m.parseChar(b);
@@ -260,7 +260,7 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
             this.m.pushBuffer(this.heartbeatPayload);
             this.m.parseLength();
             var message = this.m.parsePayload();
-            message.should.be.an.instanceof(mavlink.messages.heartbeat);
+            message.should.be.an.instanceof(mavlink20.messages.heartbeat);
         });
 
         it("increments the total packets received if a good packet is decoded", function() {
@@ -289,13 +289,13 @@ describe("MAVLink 2.0 X25CRC Decoder", function() {
     // This test matches the output directly taken by inspecting what the Python implementation
     // generated for the above packet.
     it('implements x25crc function', function() {
-            mavlink.x25Crc(this.heartbeatMessage).should.equal(27276);
+            mavlink20.x25Crc(this.heartbeatMessage).should.equal(27276);
     });
 
     // Heartbeat crc_extra value is 50.
     it('can accumulate further bytes as needed (crc_extra)', function() {
-            var crc = mavlink.x25Crc(this.heartbeatMessage);
-            crc = mavlink.x25Crc([50], crc);
+            var crc = mavlink20.x25Crc(this.heartbeatMessage);
+            crc = mavlink20.x25Crc([50], crc);
             crc.should.eql(23711)
     });
 

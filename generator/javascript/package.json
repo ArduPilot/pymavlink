@@ -19,7 +19,7 @@
       "preinstall": "rm -rf implementations",
       "install": "cd .. && ./gen_js.sh",
       "pretest": "npm install",
-      "test": "mocha test/*10.js && mocha test/*20.js",
+      "test": "mocha test",
       "lint": "./node_modules/.bin/eslint ./implementations/mavlink_common_v1.0/mavlink.js ./implementations/mavlink_common_v2.0/mavlink.js"
     }
 }
