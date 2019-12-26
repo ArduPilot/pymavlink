@@ -89,15 +89,32 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
     this.compat_flags = compat_flags
 
 }
+""", {'FILELIST' : ",".join(args),
+      'PROTOCOL_MARKER' : xml.protocol_marker,
+      'crc_extra' : xml.crc_extra,
+      'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0"),
+      'MAVHEAD': get_mavhead(xml),
+      'HEADERLEN': ("10" if xml.protocol_marker == 253 else "6")})
+
+    # Mavlink2
+    if (xml.protocol_marker == 253):
+        t.write(outf, """
+${MAVHEAD}.header.prototype.pack = function() {
+    return jspack.Pack('BBBBBBBHB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq, this.srcSystem, this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]);
+}
+        """, {'PROTOCOL_MARKER' : xml.protocol_marker,
+              'MAVHEAD': get_mavhead(xml)})
+    # Mavlink1
+    else:
+        t.write(outf, """
 
 ${MAVHEAD}.header.prototype.pack = function() {
-    if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-        return jspack.Pack('BBBBBBBHB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq, this.srcSystem, this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]);
-    }
-    else {
-        return jspack.Pack('BBBBBB', [${PROTOCOL_MARKER}, this.mlen, this.seq, this.srcSystem, this.srcComponent, this.msgId]);
-    }
+    return jspack.Pack('BBBBBB', [${PROTOCOL_MARKER}, this.mlen, this.seq, this.srcSystem, this.srcComponent, this.msgId]);
 }
+        """, {'PROTOCOL_MARKER' : xml.protocol_marker,
+              'MAVHEAD': get_mavhead(xml)})
+
+    t.write(outf, """
 
 // Base class declaration: mavlink.message will be the parent class for each
 // concrete implementation in mavlink.messages.
@@ -116,14 +133,20 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
 
     this.payload = payload;
     var plen = this.payload.length;
-    //in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
-    // variable length arrays and smaller packets
-    if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
+""", {'MAVHEAD': get_mavhead(xml)})
+
+    # Mavlink2 only
+    if (xml.protocol_marker == 253):
+        t.write(outf, """
+        //in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
+        // variable length arrays and smaller packets
         while (plen > 1 && this.payload[plen-1] == 0) {
                 plen = plen - 1;
         }
         this.payload = this.payload.slice(0, plen);
-    }
+    """)
+
+    t.write(outf, """
     var incompat_flags = 0;
     this.header = new ${MAVHEAD}.header(this.id, this.payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);    
     this.msgbuf = this.header.pack().concat(this.payload);
@@ -136,12 +159,7 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
 
 }
 
-""", {'FILELIST' : ",".join(args),
-      'PROTOCOL_MARKER' : xml.protocol_marker,
-      'crc_extra' : xml.crc_extra,
-      'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0"),
-      'MAVHEAD': get_mavhead(xml),
-      'HEADERLEN': ("10" if xml.protocol_marker == 253 else "6")})
+""", {'MAVHEAD': get_mavhead(xml)})
 
 def generate_enums(outf, enums, xml):
     print("Generating enums")
@@ -304,14 +322,8 @@ ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
     this.have_prefix_error = false;
 
     // The first packet we expect is a valid header, 6 bytes.
-    if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-        this.protocol_marker = 253; //0xFD
-        this.expected_length = 10;
-    }
-    else {
-        this.protocol_marker = 254; //0xFE
-        this.expected_length = 6;
-    }
+    this.protocol_marker = ${PROTOCOL_MARKER};   
+    this.expected_length = ${MAVHEAD}.HEADER_LEN;
     this.little_endian = true;
 
     this.crc_extra = true;
@@ -374,12 +386,7 @@ ${MAVPROCESSOR}.prototype.parsePrefix = function() {
         var badPrefix = this.buf[0];
         this.bufInError = this.buf.slice(0,1);
         this.buf = this.buf.slice(1);
-        if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-            this.expected_length = 10;
-        }
-        else {
-            this.expected_length = 6;
-        }
+        this.expected_length = ${MAVHEAD}.HEADER_LEN;
 
         // TODO: enable subsequent prefix error suppression if robust_parsing is implemented
         //if(!this.have_prefix_error) {
@@ -399,13 +406,7 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
     
     if( this.buf.length >= 2 ) {
         var unpacked = jspack.Unpack('BB', this.buf.slice(0, 2));
-        if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-            this.expected_length = unpacked[1] + 12; // length of message + header + CRC
-        }
-        else {
-            this.expected_length = unpacked[1] + 8; // length of message + header + CRC
-        }
-        
+        this.expected_length = unpacked[1] + ${MAVHEAD}.HEADER_LEN + 2 // length of message + header + CRC
     }
 
 }
@@ -504,29 +505,38 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
 
     // decode the header
     try {
-        if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-            unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));
-            magic = unpacked[0];
-            mlen = unpacked[1];
-            incompat_flags = unpacked[2];
-            compat_flags = unpacked[3];
-            seq = unpacked[4];
-            srcSystem = unpacked[5];
-            srcComponent = unpacked[6];
-            var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF);
-            var msgIDhigh = unpacked[8];
-            msgId = msgIDlow | (msgIDhigh<<16);
-        }
-        else {
-            unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
-            magic = unpacked[0];
-            mlen = unpacked[1];
-            seq = unpacked[2];
-            srcSystem = unpacked[3];
-            srcComponent = unpacked[4];
-            msgId = unpacked[5];
-        }
-    }
+        """, {'MAVPROCESSOR': get_mavprocessor(xml),
+              'MAVHEAD': get_mavhead(xml),
+              'PROTOCOL_MARKER': xml.protocol_marker})
+    # Mavlink2 only
+    if (xml.protocol_marker == 253):
+        t.write(outf, """
+unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));
+        magic = unpacked[0];
+        mlen = unpacked[1];
+        incompat_flags = unpacked[2];
+        compat_flags = unpacked[3];
+        seq = unpacked[4];
+        srcSystem = unpacked[5];
+        srcComponent = unpacked[6];
+        var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF);
+        var msgIDhigh = unpacked[8];
+        msgId = msgIDlow | (msgIDhigh<<16);
+        """, {'MAVHEAD': get_mavhead(xml)})
+    # Mavlink1
+    else:
+        t.write(outf, """
+unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
+        magic = unpacked[0];
+        mlen = unpacked[1];
+        seq = unpacked[2];
+        srcSystem = unpacked[3];
+        srcComponent = unpacked[4];
+        msgId = unpacked[5];
+        """, {'MAVHEAD': get_mavhead(xml)})
+
+    t.write(outf, """
+}
     catch(e) {
         throw new Error('Unable to unpack MAVLink header: ' + e.message);
     }
@@ -535,11 +545,8 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
         throw new Error("Invalid MAVLink prefix ("+magic.charCodeAt(0)+")");
     }
 
-    if( mlen != msgbuf.length - 12 && ${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-        throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - 12) + " expected " + mlen + ", msgId=" + msgId);
-    }
-    else if (mlen != msgbuf.length - 8 && ${MAVHEAD}.WIRE_PROTOCOL_VERSION == '1.0'){
-        throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - 8) + " expected " + mlen + ", msgId=" + msgId);
+    if( mlen != msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) {
+        throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) + " expected " + mlen + ", msgId=" + msgId);
     }
 
     if( false === _.has(${MAVHEAD}.map, msgId) ) {
@@ -567,33 +574,27 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
     }
 
     var paylen = jspack.CalcLength(decoder.format);
-    if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-        var payload = msgbuf.slice(10, msgbuf.length - 2);
-    }
-    else {
-        var payload = msgbuf.slice(6, msgbuf.length - 2);
-    }
-    //put any truncated 0's back in
-    if (paylen > payload.length && ${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
+    var payload = msgbuf.slice(${MAVHEAD}.HEADER_LEN, msgbuf.length - 2);
+
+    """, {'MAVPROCESSOR': get_mavprocessor(xml),
+          'MAVHEAD': get_mavhead(xml)})
+
+    # Mavlink2 only
+    if (xml.protocol_marker == 253):
+        t.write(outf, """
+//put any truncated 0's back in
+    if (paylen > payload.length) {
         payload =  Buffer.concat([payload, Buffer.alloc(paylen - payload.length)]);
     }
+""")
 
+    t.write(outf, """
     // Decode the payload and reorder the fields to match the order map.
     try {
-        if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-            var t = jspack.Unpack(decoder.format, payload);
-        }
-        else {
-            var t = jspack.Unpack(decoder.format, payload);
-        }
+        var t = jspack.Unpack(decoder.format, payload);
     }
     catch (e) {
-        if (${MAVHEAD}.WIRE_PROTOCOL_VERSION == '2.0') {
-            throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payload +': '+ e.message);
-        }
-        else {
-            throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payload +': '+ e.message);
-        }
+        throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payload +': '+ e.message);
     }
 
     // Reorder the fields to match the order map
@@ -618,7 +619,7 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
     return m;
 }
 
-""", {'MAVHEAD': get_mavhead(xml), 'MAVPROCESSOR': get_mavprocessor(xml)})
+""", {'MAVHEAD': get_mavhead(xml), 'MAVPROCESSOR': get_mavprocessor(xml), 'PROTOCOL_MARKER' : xml.protocol_marker})
 
 def generate_footer(outf, xml):
     t.write(outf, """
