@@ -1868,7 +1868,7 @@ mode_mapping_apm = {
     11 : 'RTL',
     12 : 'LOITER',
     13 : 'TAKEOFF',
-    14 : 'LAND',
+    14 : 'AVOID_ADSB',
     15 : 'GUIDED',
     16 : 'INITIALISING',
     17 : 'QSTABILIZE',
@@ -1877,6 +1877,7 @@ mode_mapping_apm = {
     20 : 'QLAND',
     21 : 'QRTL',
     22 : 'QAUTOTUNE',
+    23 : 'QACRO',
     }
 mode_mapping_acm = {
     0 : 'STABILIZE',
