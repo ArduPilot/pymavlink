@@ -72,6 +72,15 @@ sudo pip2 install -U pymavlink
 
 The -U parameter allow to update pymavlink version if it is already installed.
 
+#### Mavnative
+
+By default, pymavlink will try to compile and install mavnative which is a C extension for parsing mavlink. Mavnative only supports mavlink1.
+To skip mavnative installation and reduce dependencies like `gcc` and `python-dev`, you can pass `DISABLE_MAVNATIVE=True` environment variable to the installation command:
+
+```bash
+sudo DISABLE_MAVNATIVE=True pip2 install -U pymavlink
+```
+
 ### For developers
 
 On the pymavlink directory, you can use :
