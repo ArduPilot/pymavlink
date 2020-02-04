@@ -5,6 +5,7 @@
 #include "mavlink_types.h"
 #include "mavlink_conversions.h"
 #include <stdio.h>
+#include "monocypher.h"
 
 #ifndef MAVLINK_HELPER
 #define MAVLINK_HELPER
@@ -312,6 +313,10 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
 	uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
 	bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
 	bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
+	bool encryption = (!mavlink1) && (status->encryption->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+
+	uint8_t encryption_len = encryption? MAVLINK_ENCRYPTION_BLOCK_LEN:0;
+
 
         if (mavlink1) {
             length = min_length;
@@ -356,15 +361,26 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
 		signature_len = mavlink_sign_packet(status->signing, signature, buf, header_len+1,
 						    (const uint8_t *)packet, length, ck);
 	}
+
+	uint8_t mac[16];
+	uint8_t packet_encrypted[255];
+
+	if(encryption){
+		crypto_lock(mac, packet_encrypted, status->encryption->key, status->encryption->nonce, packet, length); 
+	}
 	
-	MAVLINK_START_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len);
+	MAVLINK_START_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len + 24 + 16);
 	_mavlink_send_uart(chan, (const char *)buf, header_len+1);
-	_mavlink_send_uart(chan, packet, length);
+	_mavlink_send_uart(chan, packet_encrypted, length);
 	_mavlink_send_uart(chan, (const char *)ck, 2);
 	if (signature_len != 0) {
 		_mavlink_send_uart(chan, (const char *)signature, signature_len);
 	}
-	MAVLINK_END_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len);
+	if (encryption) {
+		_mavlink_send_uart(chan, (const char *)status->encryption->nonce, 24);
+		_mavlink_send_uart(chan, (const char *)mac, 16);
+	}
+	MAVLINK_END_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len + 24 + 16);
 }
 
 /**

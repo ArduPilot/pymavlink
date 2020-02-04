@@ -31,6 +31,7 @@ namespace mavlink {
 #define MAVLINK_NUM_NON_PAYLOAD_BYTES (MAVLINK_NUM_HEADER_BYTES + MAVLINK_NUM_CHECKSUM_BYTES)
 
 #define MAVLINK_SIGNATURE_BLOCK_LEN 13
+#define MAVLINK_ENCRYPTION_BLOCK_LEN 41 //nounce (24bytes) + mac (16bytes) + targetid (1byte)   
 
 #define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN) ///< Maximum packet length
 
@@ -227,6 +228,7 @@ typedef struct __mavlink_status {
     uint8_t flags;                      ///< MAVLINK_STATUS_FLAG_*
     uint8_t signature_wait;             ///< number of signature bytes left to receive
     struct __mavlink_signing *signing;  ///< optional signing state
+    struct __mavlink_encryption *encryption; ///< optional signing state
     struct __mavlink_signing_streams *signing_streams; ///< global record of stream timestamps
 } mavlink_status_t;
 
@@ -239,7 +241,7 @@ typedef bool (*mavlink_accept_unsigned_t)(const mavlink_status_t *status, uint32
   flags controlling signing
  */
 #define MAVLINK_SIGNING_FLAG_SIGN_OUTGOING 1    ///< Enable outgoing signing
-
+#define MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING 1 //< Enable outgoing encryption
 /*
   state of MAVLink signing for this channel
  */
@@ -250,6 +252,17 @@ typedef struct __mavlink_signing {
     uint8_t secret_key[32];
     mavlink_accept_unsigned_t accept_unsigned_callback;
 } mavlink_signing_t;
+
+/*
+  state of MAVLink signing for this channel
+ */
+typedef struct __mavlink_encryption {
+    uint8_t flags;                     ///< MAVLINK_SIGNING_FLAG_*
+    uint8_t target_id[8]               ///< Multiple target ids
+    uint8_t nonce[24];                 ///< Random value to mix encryption
+    uint8_t key[32][8];                ///< Key storage for encryption 
+    uint8_t number_of_keys             ///< Number of stored keys
+} mavlink_encryption_t;
 
 /*
   timestamp state of each logical signing stream. This needs to be the same structure for all
@@ -292,6 +305,7 @@ typedef struct __mavlink_msg_entry {
   incompat_flags bits
  */
 #define MAVLINK_IFLAG_SIGNED  0x01
+#define MAVLINK_IFLAG_ENCRYPTED  0x02
 #define MAVLINK_IFLAG_MASK    0x01 // mask of all understood bits
 
 #ifdef MAVLINK_USE_CXX_NAMESPACE
