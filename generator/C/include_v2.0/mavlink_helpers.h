@@ -362,6 +362,7 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
 	uint8_t mac[16];
 	uint8_t packet_encrypted[255];
 
+
 	if(encryption){
 		crypto_lock(mac, packet_encrypted, status->encryption->key, status->encryption->nonce, packet, length); 
 	}
@@ -1112,7 +1113,8 @@ MAVLINK_HELPER void mavlink_set_encryption_key(uint8_t *key)
 {
 	mavlink_status_t *status = mavlink_get_channel_status(chan);
 	if(status->encryption->number_of_keys < 8){
-		status->encryption->key[status->encryption->number_of_keys] = key;
+		memcpy (status->encryption->key[status->encryption->number_of_keys], key, sizeof(key));
+		status->encryption->flags |= MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING;
 	}
 }
 
@@ -1121,10 +1123,10 @@ MAVLINK_HELPER void mavlink_set_encryption_key(uint8_t *key)
  *
  * @param nonce 		Random public 24 bytes value
  */
-MAVLINK_HELPER unsigned int mavlink_set_encryption_nonce(uint8_t *nonce)
+MAVLINK_HELPER void mavlink_set_encryption_nonce(uint8_t *nonce)
 {
 	mavlink_status_t *status = mavlink_get_channel_status(chan);
-	status->encryption->nonce = nonce;
+	memcpy (status->encryption->nonce, nonce, sizeof(nonce));
 }
 
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
