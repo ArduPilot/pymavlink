@@ -315,9 +315,6 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
 	bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
 	bool encryption = (!mavlink1) && (status->encryption->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
 
-	uint8_t encryption_len = encryption? MAVLINK_ENCRYPTION_BLOCK_LEN:0;
-
-
         if (mavlink1) {
             length = min_length;
             if (msgid > 255) {
@@ -1103,6 +1100,31 @@ MAVLINK_HELPER uint8_t put_bitfield_n_by_index(int32_t b, uint8_t bits, uint8_t 
 	// If a partly filled byte is present, mark this as consumed
 	if (i_bit_index != 7) i_byte_index++;
 	return i_byte_index - packet_index;
+}
+
+/**
+ * Set encryption key 
+ *
+ * @param key 		Encryption key (32 bytes)
+ */
+
+MAVLINK_HELPER void mavlink_set_encryption_key(uint8_t *key)
+{
+	mavlink_status_t *status = mavlink_get_channel_status(chan);
+	if(status->encryption->number_of_keys < 8){
+		status->encryption->key[status->encryption->number_of_keys] = key;
+	}
+}
+
+/**
+ * Set random nonce 
+ *
+ * @param nonce 		Random public 24 bytes value
+ */
+MAVLINK_HELPER unsigned int mavlink_set_encryption_nonce(uint8_t *nonce)
+{
+	mavlink_status_t *status = mavlink_get_channel_status(chan);
+	status->encryption->nonce = nonce;
 }
 
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
