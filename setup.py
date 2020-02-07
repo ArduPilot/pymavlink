@@ -165,6 +165,7 @@ setup (name = 'pymavlink',
                    'tools/mavsummarize.py',
                    'tools/MPU6KSearch.py',
                    'tools/mavlink_bitmask_decoder.py',
+                   'tools/magfit_WMM.py',
        ],
        install_requires=[
             'future',
