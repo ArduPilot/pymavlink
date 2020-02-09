@@ -1,3 +1,4 @@
+#pragma once
 // Monocypher version 3.0.0
 //
 // This file is dual-licensed.  Choose whichever licence you want from
@@ -51,8 +52,6 @@
 // with this software.  If not, see
 // <https://creativecommons.org/publicdomain/zero/1.0/>
 
-#include "monocypher.h"
-
 /////////////////
 /// Utilities ///
 /////////////////
@@ -70,6 +69,65 @@ typedef uint32_t u32;
 typedef int32_t  i32;
 typedef int64_t  i64;
 typedef uint64_t u64;
+
+////////////////////////
+/// Type definitions ///
+////////////////////////
+
+// Vtable for EdDSA with a custom hash.
+// Instantiate it to define a custom hash.
+// Its size, contents, and layout, are part of the public API.
+typedef struct {
+    void (*hash)(uint8_t hash[64], const uint8_t *message, size_t message_size);
+    void (*init  )(void *ctx);
+    void (*update)(void *ctx, const uint8_t *message, size_t message_size);
+    void (*final )(void *ctx, uint8_t hash[64]);
+    size_t ctx_size;
+} crypto_sign_vtable;
+
+// Do not rely on the size or contents of any of the types below,
+// they may change without notice.
+
+// Poly1305
+typedef struct {
+    uint32_t r[4];   // constant multiplier (from the secret key)
+    uint32_t h[5];   // accumulated hash
+    uint32_t c[5];   // chunk of the message
+    uint32_t pad[4]; // random number added at the end (from the secret key)
+    size_t   c_idx;  // How many bytes are there in the chunk.
+} crypto_poly1305_ctx;
+
+// Hash (Blake2b)
+typedef struct {
+    uint64_t hash[8];
+    uint64_t input_offset[2];
+    uint64_t input[16];
+    size_t   input_idx;
+    size_t   hash_size;
+} crypto_blake2b_ctx;
+
+// Signatures (EdDSA)
+typedef struct {
+    const crypto_sign_vtable *hash;
+    uint8_t buf[96];
+    uint8_t pk [32];
+} crypto_sign_ctx_abstract;
+typedef crypto_sign_ctx_abstract crypto_check_ctx_abstract;
+
+typedef struct {
+    crypto_sign_ctx_abstract ctx;
+    crypto_blake2b_ctx       hash;
+} crypto_sign_ctx;
+typedef crypto_sign_ctx crypto_check_ctx;
+
+// vtable for signatures
+//static crypto_sign_vtable crypto_blake2b_vtable;
+
+
+// Key exchange (x25519 + HChacha20)
+// ---------------------------------
+#define crypto_key_exchange_public_key crypto_x25519_public_key
+
 
 static const u8 zero[128] = {0};
 
@@ -124,16 +182,16 @@ static u64 x16(const u8 a[16], const u8 b[16])
 }
 static u64 x32(const u8 a[32],const u8 b[32]){return x16(a,b)| x16(a+16, b+16);}
 static u64 x64(const u8 a[64],const u8 b[64]){return x32(a,b)| x32(a+32, b+32);}
-int crypto_verify16(const u8 a[16], const u8 b[16]){ return neq0(x16(a, b)); }
-int crypto_verify32(const u8 a[32], const u8 b[32]){ return neq0(x32(a, b)); }
-int crypto_verify64(const u8 a[64], const u8 b[64]){ return neq0(x64(a, b)); }
+MAVLINK_HELPER int crypto_verify16(const u8 a[16], const u8 b[16]){ return neq0(x16(a, b)); }
+MAVLINK_HELPER int crypto_verify32(const u8 a[32], const u8 b[32]){ return neq0(x32(a, b)); }
+MAVLINK_HELPER int crypto_verify64(const u8 a[64], const u8 b[64]){ return neq0(x64(a, b)); }
 
 static int zerocmp32(const u8 p[32])
 {
     return crypto_verify32(p, zero);
 }
 
-void crypto_wipe(void *secret, size_t size)
+MAVLINK_HELPER void crypto_wipe(void *secret, size_t size)
 {
     volatile u8 *v_secret = (u8*)secret;
     FOR (i, 0, size) {
@@ -235,7 +293,7 @@ static u64 chacha20_core(u32 input[16], u8 *cipher_text, const u8 *plain_text,
     return input[12] + ((u64)input[13] << 32) + (text_size > 0);
 }
 
-void crypto_hchacha20(u8 out[32], const u8 key[32], const u8 in [16])
+MAVLINK_HELPER void crypto_hchacha20(u8 out[32], const u8 key[32], const u8 in [16])
 {
     u32 block[16];
     chacha20_init_key(block, key);
@@ -252,7 +310,7 @@ void crypto_hchacha20(u8 out[32], const u8 key[32], const u8 in [16])
     WIPE_BUFFER(block);
 }
 
-u64 crypto_chacha20_ctr(u8 *cipher_text, const u8 *plain_text,
+MAVLINK_HELPER u64 crypto_chacha20_ctr(u8 *cipher_text, const u8 *plain_text,
                         size_t text_size, const u8 key[32], const u8 nonce[8],
                         u64 ctr)
 {
@@ -267,7 +325,7 @@ u64 crypto_chacha20_ctr(u8 *cipher_text, const u8 *plain_text,
     return ctr;
 }
 
-u32 crypto_ietf_chacha20_ctr(u8 *cipher_text, const u8 *plain_text,
+MAVLINK_HELPER u32 crypto_ietf_chacha20_ctr(u8 *cipher_text, const u8 *plain_text,
                              size_t text_size,
                              const u8 key[32], const u8 nonce[12], u32 ctr)
 {
@@ -282,7 +340,7 @@ u32 crypto_ietf_chacha20_ctr(u8 *cipher_text, const u8 *plain_text,
     return ctr;
 }
 
-u64 crypto_xchacha20_ctr(u8 *cipher_text, const u8 *plain_text,
+MAVLINK_HELPER u64 crypto_xchacha20_ctr(u8 *cipher_text, const u8 *plain_text,
                          size_t text_size,
                          const u8 key[32], const u8 nonce[24], u64 ctr)
 {
@@ -294,20 +352,20 @@ u64 crypto_xchacha20_ctr(u8 *cipher_text, const u8 *plain_text,
     return ctr;
 }
 
-void crypto_chacha20(u8 *cipher_text, const u8 *plain_text, size_t text_size,
+MAVLINK_HELPER void crypto_chacha20(u8 *cipher_text, const u8 *plain_text, size_t text_size,
                      const u8 key[32], const u8 nonce[8])
 {
     crypto_chacha20_ctr(cipher_text, plain_text, text_size, key, nonce, 0);
 
 }
-void crypto_ietf_chacha20(u8 *cipher_text, const u8 *plain_text,
+MAVLINK_HELPER void crypto_ietf_chacha20(u8 *cipher_text, const u8 *plain_text,
                           size_t text_size,
                           const u8 key[32], const u8 nonce[12])
 {
     crypto_ietf_chacha20_ctr(cipher_text, plain_text, text_size, key, nonce, 0);
 }
 
-void crypto_xchacha20(u8 *cipher_text, const u8 *plain_text, size_t text_size,
+MAVLINK_HELPER void crypto_xchacha20(u8 *cipher_text, const u8 *plain_text, size_t text_size,
                       const u8 key[32], const u8 nonce[24])
 {
     crypto_xchacha20_ctr(cipher_text, plain_text, text_size, key, nonce, 0);
@@ -395,7 +453,7 @@ static void poly_update(crypto_poly1305_ctx *ctx,
     }
 }
 
-void crypto_poly1305_init(crypto_poly1305_ctx *ctx, const u8 key[32])
+MAVLINK_HELPER void crypto_poly1305_init(crypto_poly1305_ctx *ctx, const u8 key[32])
 {
     // Initial hash is zero
     FOR (i, 0, 5) {
@@ -410,7 +468,7 @@ void crypto_poly1305_init(crypto_poly1305_ctx *ctx, const u8 key[32])
     FOR (i, 0, 4) { ctx->pad[i] = load32_le(key + i*4 + 16);              }
 }
 
-void crypto_poly1305_update(crypto_poly1305_ctx *ctx,
+MAVLINK_HELPER void crypto_poly1305_update(crypto_poly1305_ctx *ctx,
                             const u8 *message, size_t message_size)
 {
     // Align ourselves with block boundaries
@@ -437,7 +495,7 @@ void crypto_poly1305_update(crypto_poly1305_ctx *ctx,
     poly_update(ctx, message, message_size);
 }
 
-void crypto_poly1305_final(crypto_poly1305_ctx *ctx, u8 mac[16])
+MAVLINK_HELPER void crypto_poly1305_final(crypto_poly1305_ctx *ctx, u8 mac[16])
 {
     // Process the last block (if any)
     if (ctx->c_idx != 0) {
@@ -472,7 +530,7 @@ void crypto_poly1305_final(crypto_poly1305_ctx *ctx, u8 mac[16])
     WIPE_CTX(ctx);
 }
 
-void crypto_poly1305(u8     mac[16],  const u8 *message,
+MAVLINK_HELPER void crypto_poly1305(u8     mac[16],  const u8 *message,
                      size_t message_size, const u8  key[32])
 {
     crypto_poly1305_ctx ctx;
@@ -599,33 +657,7 @@ static void blake2b_update(crypto_blake2b_ctx *ctx,
     }
 }
 
-void crypto_blake2b_general_init(crypto_blake2b_ctx *ctx, size_t hash_size,
-                                 const u8           *key, size_t key_size)
-{
-    // initial hash
-    FOR (i, 0, 8) {
-        ctx->hash[i] = iv[i];
-    }
-    ctx->hash[0] ^= 0x01010000 ^ (key_size << 8) ^ hash_size;
-
-    ctx->input_offset[0] = 0;         // beginning of the input, no offset
-    ctx->input_offset[1] = 0;         // beginning of the input, no offset
-    ctx->hash_size       = hash_size; // remember the hash size we want
-    ctx->input_idx       = 0;
-
-    // if there is a key, the first block is that key (padded with zeroes)
-    if (key_size > 0) {
-        crypto_blake2b_update(ctx, key ,       key_size);
-        crypto_blake2b_update(ctx, zero, 128 - key_size);
-    }
-}
-
-void crypto_blake2b_init(crypto_blake2b_ctx *ctx)
-{
-    crypto_blake2b_general_init(ctx, 64, 0, 0);
-}
-
-void crypto_blake2b_update(crypto_blake2b_ctx *ctx,
+MAVLINK_HELPER void crypto_blake2b_update(crypto_blake2b_ctx *ctx,
                            const u8 *message, size_t message_size)
 {
     // Align ourselves with block boundaries
@@ -649,7 +681,35 @@ void crypto_blake2b_update(crypto_blake2b_ctx *ctx,
     blake2b_update(ctx, message, message_size);
 }
 
-void crypto_blake2b_final(crypto_blake2b_ctx *ctx, u8 *hash)
+MAVLINK_HELPER void crypto_blake2b_general_init(crypto_blake2b_ctx *ctx, size_t hash_size,
+                                 const u8           *key, size_t key_size)
+{
+    // initial hash
+    FOR (i, 0, 8) {
+        ctx->hash[i] = iv[i];
+    }
+    ctx->hash[0] ^= 0x01010000 ^ (key_size << 8) ^ hash_size;
+
+    ctx->input_offset[0] = 0;         // beginning of the input, no offset
+    ctx->input_offset[1] = 0;         // beginning of the input, no offset
+    ctx->hash_size       = hash_size; // remember the hash size we want
+    ctx->input_idx       = 0;
+
+    // if there is a key, the first block is that key (padded with zeroes)
+    if (key_size > 0) {
+        crypto_blake2b_update(ctx, key ,       key_size);
+        crypto_blake2b_update(ctx, zero, 128 - key_size);
+    }
+}
+
+MAVLINK_HELPER void crypto_blake2b_init(crypto_blake2b_ctx *ctx)
+{
+    crypto_blake2b_general_init(ctx, 64, 0, 0);
+}
+
+
+
+MAVLINK_HELPER void crypto_blake2b_final(crypto_blake2b_ctx *ctx, u8 *hash)
 {
     // Pad the end of the block with zeroes
     FOR (i, ctx->input_idx, 128) {
@@ -667,7 +727,7 @@ void crypto_blake2b_final(crypto_blake2b_ctx *ctx, u8 *hash)
     WIPE_CTX(ctx);
 }
 
-void crypto_blake2b_general(u8       *hash   , size_t hash_size,
+MAVLINK_HELPER void crypto_blake2b_general(u8       *hash   , size_t hash_size,
                             const u8 *key    , size_t key_size,
                             const u8 *message, size_t message_size)
 {
@@ -677,7 +737,7 @@ void crypto_blake2b_general(u8       *hash   , size_t hash_size,
     crypto_blake2b_final(&ctx, hash);
 }
 
-void crypto_blake2b(u8 hash[64], const u8 *message, size_t message_size)
+MAVLINK_HELPER void crypto_blake2b(u8 hash[64], const u8 *message, size_t message_size)
 {
     crypto_blake2b_general(hash, 64, 0, 0, message, message_size);
 }
@@ -782,17 +842,17 @@ static void extended_hash(u8       *digest, u32 digest_size,
 }
 
 #define LSB(x) ((x) & 0xffffffff)
-#define G(a, b, c, d)                                            \
+#define Z(a, b, c, d)                                            \
     a += b + 2 * LSB(a) * LSB(b);  d ^= a;  d = rotr64(d, 32);   \
     c += d + 2 * LSB(c) * LSB(d);  b ^= c;  b = rotr64(b, 24);   \
     a += b + 2 * LSB(a) * LSB(b);  d ^= a;  d = rotr64(d, 16);   \
     c += d + 2 * LSB(c) * LSB(d);  b ^= c;  b = rotr64(b, 63)
 #define ROUND(v0,  v1,  v2,  v3,  v4,  v5,  v6,  v7,    \
               v8,  v9, v10, v11, v12, v13, v14, v15)    \
-    G(v0, v4,  v8, v12);  G(v1, v5,  v9, v13);          \
-    G(v2, v6, v10, v14);  G(v3, v7, v11, v15);          \
-    G(v0, v5, v10, v15);  G(v1, v6, v11, v12);          \
-    G(v2, v7,  v8, v13);  G(v3, v4,  v9, v14)
+    Z(v0, v4,  v8, v12);  Z(v1, v5,  v9, v13);          \
+    Z(v2, v6, v10, v14);  Z(v3, v7, v11, v15);          \
+    Z(v0, v5, v10, v15);  Z(v1, v6, v11, v12);          \
+    Z(v2, v7,  v8, v13);  Z(v3, v4,  v9, v14)
 
 // Core of the compression function G.  Computes Z from R in place.
 static void g_rounds(block *work_block)
@@ -949,7 +1009,7 @@ static u32 gidx_next(gidx_ctx *ctx)
 }
 
 // Main algorithm
-void crypto_argon2i_general(u8       *hash,      u32 hash_size,
+MAVLINK_HELPER void crypto_argon2i_general(u8       *hash,      u32 hash_size,
                             void     *work_area, u32 nb_blocks,
                             u32 nb_iterations,
                             const u8 *password,  u32 password_size,
@@ -1046,7 +1106,7 @@ void crypto_argon2i_general(u8       *hash,      u32 hash_size,
     }
 }
 
-void crypto_argon2i(u8       *hash,      u32 hash_size,
+MAVLINK_HELPER void crypto_argon2i(u8       *hash,      u32 hash_size,
                     void     *work_area, u32 nb_blocks,
                     u32 nb_iterations,
                     const u8 *password,  u32 password_size,
@@ -1342,7 +1402,7 @@ static int scalar_bit(const u8 s[32], int i) {
 /// X-25519 /// Taken from SUPERCOP's ref10 implementation.
 ///////////////
 
-void crypto_x25519(u8       raw_shared_secret[32],
+MAVLINK_HELPER void crypto_x25519(u8       raw_shared_secret[32],
                    const u8 your_secret_key  [32],
                    const u8 their_public_key [32])
 {
@@ -1398,7 +1458,7 @@ void crypto_x25519(u8       raw_shared_secret[32],
     WIPE_BUFFER(t0);  WIPE_BUFFER(t1);
 }
 
-void crypto_x25519_public_key(u8       public_key[32],
+MAVLINK_HELPER void crypto_x25519_public_key(u8       public_key[32],
                               const u8 secret_key[32])
 {
     static const u8 base_point[32] = {9};
@@ -1975,7 +2035,7 @@ static void ge_scalarmult_base(ge *p, const u8 scalar[32])
     WIPE_BUFFER(s_scalar);
 }
 
-void crypto_sign_public_key_custom_hash(u8       public_key[32],
+MAVLINK_HELPER void crypto_sign_public_key_custom_hash(u8       public_key[32],
                                         const u8 secret_key[32],
                                         const crypto_sign_vtable *hash)
 {
@@ -1989,13 +2049,13 @@ void crypto_sign_public_key_custom_hash(u8       public_key[32],
     WIPE_CTX(&A);
 }
 
-void crypto_sign_public_key(u8 public_key[32], const u8 secret_key[32])
+MAVLINK_HELPER void crypto_sign_public_key(u8 public_key[32], const u8 secret_key[32])
 {
     crypto_sign_public_key_custom_hash(public_key, secret_key,
                                        &crypto_blake2b_vtable);
 }
 
-void crypto_sign_init_first_pass_custom_hash(crypto_sign_ctx_abstract *ctx,
+MAVLINK_HELPER void crypto_sign_init_first_pass_custom_hash(crypto_sign_ctx_abstract *ctx,
                                              const u8 secret_key[32],
                                              const u8 public_key[32],
                                              const crypto_sign_vtable *hash)
@@ -2023,7 +2083,7 @@ void crypto_sign_init_first_pass_custom_hash(crypto_sign_ctx_abstract *ctx,
     ctx->hash->update(ctx, prefix , 32);
 }
 
-void crypto_sign_init_first_pass(crypto_sign_ctx_abstract *ctx,
+MAVLINK_HELPER void crypto_sign_init_first_pass(crypto_sign_ctx_abstract *ctx,
                                  const u8 secret_key[32],
                                  const u8 public_key[32])
 {
@@ -2031,13 +2091,13 @@ void crypto_sign_init_first_pass(crypto_sign_ctx_abstract *ctx,
                                             &crypto_blake2b_vtable);
 }
 
-void crypto_sign_update(crypto_sign_ctx_abstract *ctx,
+MAVLINK_HELPER void crypto_sign_update(crypto_sign_ctx_abstract *ctx,
                         const u8 *msg, size_t msg_size)
 {
     ctx->hash->update(ctx, msg, msg_size);
 }
 
-void crypto_sign_init_second_pass(crypto_sign_ctx_abstract *ctx)
+MAVLINK_HELPER void crypto_sign_init_second_pass(crypto_sign_ctx_abstract *ctx)
 {
     u8 *r        = ctx->buf + 32;
     u8 *half_sig = ctx->buf + 64;
@@ -2057,7 +2117,7 @@ void crypto_sign_init_second_pass(crypto_sign_ctx_abstract *ctx)
     ctx->hash->update(ctx, ctx->pk , 32);
 }
 
-void crypto_sign_final(crypto_sign_ctx_abstract *ctx, u8 signature[64])
+MAVLINK_HELPER void crypto_sign_final(crypto_sign_ctx_abstract *ctx, u8 signature[64])
 {
     u8 *a        = ctx->buf;
     u8 *r        = ctx->buf + 32;
@@ -2073,7 +2133,7 @@ void crypto_sign_final(crypto_sign_ctx_abstract *ctx, u8 signature[64])
     crypto_wipe(ctx, ctx->hash->ctx_size);
 }
 
-void crypto_sign(u8        signature[64],
+MAVLINK_HELPER void crypto_sign(u8        signature[64],
                  const u8  secret_key[32],
                  const u8  public_key[32],
                  const u8 *message, size_t message_size)
@@ -2087,7 +2147,7 @@ void crypto_sign(u8        signature[64],
     crypto_sign_final           (actx, signature);
 }
 
-void crypto_check_init_custom_hash(crypto_check_ctx_abstract *ctx,
+MAVLINK_HELPER void crypto_check_init_custom_hash(crypto_check_ctx_abstract *ctx,
                                    const u8 signature[64],
                                    const u8 public_key[32],
                                    const crypto_sign_vtable *hash)
@@ -2100,7 +2160,7 @@ void crypto_check_init_custom_hash(crypto_check_ctx_abstract *ctx,
     ctx->hash->update(ctx, public_key, 32);
 }
 
-void crypto_check_init(crypto_check_ctx_abstract *ctx,
+MAVLINK_HELPER void crypto_check_init(crypto_check_ctx_abstract *ctx,
                        const u8 signature[64],
                        const u8 public_key[32])
 {
@@ -2108,13 +2168,13 @@ void crypto_check_init(crypto_check_ctx_abstract *ctx,
                                   &crypto_blake2b_vtable);
 }
 
-void crypto_check_update(crypto_check_ctx_abstract *ctx,
+MAVLINK_HELPER void crypto_check_update(crypto_check_ctx_abstract *ctx,
                          const u8 *msg, size_t msg_size)
 {
     ctx->hash->update(ctx, msg, msg_size);
 }
 
-int crypto_check_final(crypto_check_ctx_abstract *ctx)
+MAVLINK_HELPER int crypto_check_final(crypto_check_ctx_abstract *ctx)
 {
     ge  A;
     u8 *h_ram   = ctx->pk; // save stack space
@@ -2140,7 +2200,7 @@ int crypto_check_final(crypto_check_ctx_abstract *ctx)
     // No secret, no wipe
 }
 
-int crypto_check(const u8  signature[64],
+MAVLINK_HELPER int crypto_check(const u8  signature[64],
                  const u8  public_key[32],
                  const u8 *message, size_t message_size)
 {
@@ -2154,7 +2214,7 @@ int crypto_check(const u8  signature[64],
 ////////////////////
 /// Key exchange ///
 ////////////////////
-void crypto_key_exchange(u8       shared_key[32],
+MAVLINK_HELPER void crypto_key_exchange(u8       shared_key[32],
                          const u8 your_secret_key [32],
                          const u8 their_public_key[32])
 {
@@ -2182,7 +2242,7 @@ static void lock_auth(u8 mac[16], const u8  auth_key[32],
     crypto_poly1305_final (&poly_ctx, mac); // ...here
 }
 
-void crypto_lock_aead(u8        mac[16],
+MAVLINK_HELPER void crypto_lock_aead(u8        mac[16],
                       u8       *cipher_text,
                       const u8  key[32],
                       const u8  nonce[24],
@@ -2200,7 +2260,7 @@ void crypto_lock_aead(u8        mac[16],
     WIPE_BUFFER(auth_key);
 }
 
-int crypto_unlock_aead(u8       *plain_text,
+MAVLINK_HELPER int crypto_unlock_aead(u8       *plain_text,
                        const u8  key[32],
                        const u8  nonce[24],
                        const u8  mac[16],
@@ -2226,7 +2286,7 @@ int crypto_unlock_aead(u8       *plain_text,
     return 0;
 }
 
-void crypto_lock(u8        mac[16],
+MAVLINK_HELPER void crypto_lock(u8        mac[16],
                  u8       *cipher_text,
                  const u8  key[32],
                  const u8  nonce[24],
@@ -2235,7 +2295,7 @@ void crypto_lock(u8        mac[16],
     crypto_lock_aead(mac, cipher_text, key, nonce, 0, 0, plain_text, text_size);
 }
 
-int crypto_unlock(u8       *plain_text,
+MAVLINK_HELPER int crypto_unlock(u8       *plain_text,
                   const u8  key[32],
                   const u8  nonce[24],
                   const u8  mac[16],
