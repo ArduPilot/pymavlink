@@ -227,6 +227,7 @@ typedef struct __mavlink_status {
     uint16_t packet_rx_drop_count;      ///< Number of packet drops
     uint8_t flags;                      ///< MAVLINK_STATUS_FLAG_*
     uint8_t signature_wait;             ///< number of signature bytes left to receive
+    uint8_t certificate_nonce[32];
     struct __mavlink_signing *signing;  ///< optional signing state
     struct __mavlink_encryption *encryption; ///< optional signing state
     struct __mavlink_signing_streams *signing_streams; ///< global record of stream timestamps
@@ -300,6 +301,18 @@ typedef struct __mavlink_msg_entry {
 	uint8_t target_system_ofs; // payload offset to target_system, or 0
 	uint8_t target_component_ofs; // payload offset to target_component, or 0
 } mavlink_msg_entry_t;
+
+typedef struct mavlink_device_certificate
+{
+    uint8_t device_id;
+    char device_name[20];
+    char maintainer[20];
+    uint8_t privileges;
+    uint8_t public_key[32];
+    uint8_t public_key_auth[32];
+    uint8_t secret_key[32];
+    uint8_t sign[64];
+}mavlink_device_certificate_t;
 
 /*
   incompat_flags bits

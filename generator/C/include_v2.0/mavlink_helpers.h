@@ -1109,9 +1109,9 @@ MAVLINK_HELPER uint8_t put_bitfield_n_by_index(int32_t b, uint8_t bits, uint8_t 
  * @param key 		Encryption key (32 bytes)
  */
 
-MAVLINK_HELPER void mavlink_set_encryption_key(uint8_t *key, uint8_t chan)
+MAVLINK_HELPER void mavlink_set_encryption_key(uint8_t *key)
 {
-	mavlink_status_t *status = mavlink_get_channel_status(chan);
+	mavlink_status_t *status = mavlink_get_channel_status(1); //TODO: Channel choosing system, For now "1" works fine for one telemetry link
 	if(status->encryption->number_of_keys < 8){
 		memcpy (status->encryption->key[status->encryption->number_of_keys], key, sizeof(32));
 		status->encryption->flags |= MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING;
@@ -1119,14 +1119,62 @@ MAVLINK_HELPER void mavlink_set_encryption_key(uint8_t *key, uint8_t chan)
 }
 
 /**
- * Set random nonce
+ * Set random nonce for message encryption
  *
  * @param nonce 		Random public 24 bytes value
  */
-MAVLINK_HELPER void mavlink_set_encryption_nonce(uint8_t *nonce, uint8_t chan)
+MAVLINK_HELPER void mavlink_set_encryption_nonce(uint8_t *nonce)
 {
-	mavlink_status_t *status = mavlink_get_channel_status(chan);
+	mavlink_status_t *status = mavlink_get_channel_status(1); //TODO: Channel choosing system
 	memcpy (status->encryption->nonce, nonce, sizeof(24));
+}
+
+/**
+ * Set random nonce for certificate message broadcasting
+ *
+ * @param nonce 		Random public 32 bytes value
+ */
+MAVLINK_HELPER void mavlink_set_init_nonce(uint8_t *nonce)
+{
+	mavlink_status_t *status = mavlink_get_channel_status(1); //TODO: Channel choosing system
+	memcpy (status->certificate_nonce, nonce, sizeof(32));
+}
+
+/**
+ * Get nonce used for certificate message broadcasting
+ *
+ *
+ */
+MAVLINK_HELPER void mavlink_get_init_nonce(uint8_t *nonce)
+{
+	mavlink_status_t *status = mavlink_get_channel_status(1); //TODO: Channel choosing system
+	memcpy (nonce, status->certificate_nonce, sizeof(24));
+}
+
+MAVLINK_HELPER uint8_t mavlink_read_certificate(char *path_to_certificate, uint8_t *device_id, char *device_name, char *maintainer, uint8_t *privileges, uint8_t *public_key, uint8_t *public_key_auth, uint8_t *secret_key, uint8_t *sign)
+{
+	FILE *fptr;
+
+	mavlink_device_certificate_t certificate;
+
+	fptr = fopen(path_to_certificate,"rb");
+	if(fptr == NULL)
+	{
+		return 1;
+	}else{
+		fread(&certificate, sizeof(mavlink_device_certificate_t), 1, fptr);
+
+		*device_id = certificate.device_id;
+		if(device_name != NULL){memcpy (device_name, certificate.device_name, sizeof(20));}
+		if(maintainer != NULL){memcpy (maintainer, certificate.maintainer, sizeof(20));}
+		*privileges = certificate.privileges;
+		if(public_key != NULL){memcpy (public_key, certificate.public_key, sizeof(32));}
+		if(public_key_auth != NULL){memcpy (public_key_auth, certificate.public_key_auth, sizeof(32));}
+		if(secret_key != NULL){memcpy (secret_key, certificate.secret_key, sizeof(32));}
+		if(sign != NULL){memcpy (sign, certificate.sign, sizeof(64));}
+
+		return 0;
+	}
 }
 
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
