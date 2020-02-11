@@ -81,6 +81,8 @@ def generate_classes(dir, registry, msgs, xml):
                 for field in m.fields:
                     if field.enum:
                         f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum)))
+                    elif field.array_length > 0:
+                        f.write("\tpublic {}!: {}[]; //size: {}\n".format(field.name, ts_types[field.type], field.array_length))
                     else:
                         f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
 
@@ -89,14 +91,14 @@ def generate_classes(dir, registry, msgs, xml):
                 f.write("\tpublic _crc_extra: number = {};\n".format(m.crc_extra))
 
                 i = 0
-                f.write("\tpublic _message_fields: [string, string, boolean][] = [\n")
+                f.write("\tpublic _message_fields: [string, string, boolean, number][] = [\n")
                 for fieldname in m.ordered_fieldnames:
                     field = next(field for field in m.fields if field.name == fieldname)
                     if m.extensions_start is not None and i >= m.extensions_start:
                         extension = 'true'
                     else:
                         extension = 'false'
-                    f.write("\t\t['{}', '{}', {}],\n".format(field.name, field.type, extension))
+                    f.write("\t\t['{}', '{}', {}, {}],\n".format(field.name, field.type, extension, field.array_length))
                     i += 1
                 f.write("\t];\n".format("', '".join(m.ordered_fieldnames)))
 
