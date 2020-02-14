@@ -142,9 +142,9 @@ def mavfft_fttd(logfile):
 
         if thing_to_plot.tag() not in sum_fft:
             sum_fft[thing_to_plot.tag()] = {
-                "X": numpy.zeros(fft_len/2+1),
-                "Y": numpy.zeros(fft_len/2+1),
-                "Z": numpy.zeros(fft_len/2+1),
+                "X": numpy.zeros(fft_len//2+1),
+                "Y": numpy.zeros(fft_len//2+1),
+                "Z": numpy.zeros(fft_len//2+1),
             }
             counts[thing_to_plot.tag()] = 0
 
