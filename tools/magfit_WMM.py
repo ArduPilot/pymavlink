@@ -19,6 +19,8 @@ parser.add_argument("--max-diag", type=float, default=1.2, help="max diagonal")
 parser.add_argument("--min-offdiag", type=float, default=-0.2, help="min off diagonal")
 parser.add_argument("--max-offdiag", type=float, default=0.2, help="max off diagonal")
 parser.add_argument("--max-cmot", type=float, default=10.0, help="max compassmot")
+parser.add_argument("--no-offset-change", action='store_true', help="don't change offsets")
+parser.add_argument("--no-cmot-change", action='store_true', help="don't change cmot")
 parser.add_argument("--elliptical", action='store_true', help="fit elliptical corrections")
 parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
 parser.add_argument("--plot", action='store_true', help="plot result")
@@ -167,6 +169,10 @@ def fit_WWW():
 
     ofs = args.max_offset
     bounds = [(-ofs,ofs),(-ofs,ofs),(-ofs,ofs),(args.min_scale,args.max_scale)]
+    if args.no_offset_change:
+        bounds[0] = (c.offsets.x, c.offsets.x)
+        bounds[1] = (c.offsets.y, c.offsets.y)
+        bounds[2] = (c.offsets.z, c.offsets.z)
 
     if args.elliptical:
         for i in range(3):
@@ -175,8 +181,13 @@ def fit_WWW():
             bounds.append((args.min_offdiag,args.max_offdiag))
 
     if args.cmot:
-        for i in range(3):
-            bounds.append((-args.max_cmot,args.max_cmot))
+        if args.no_cmot_change:
+            bounds.append((c.cmot.x, c.cmot.x))
+            bounds.append((c.cmot.y, c.cmot.y))
+            bounds.append((c.cmot.z, c.cmot.z))
+        else:
+            for i in range(3):
+                bounds.append((-args.max_cmot,args.max_cmot))
 
     p = optimize.fmin_slsqp(wmm_error, p, bounds=bounds)
     p = list(p)
