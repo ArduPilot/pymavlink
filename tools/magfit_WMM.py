@@ -23,7 +23,6 @@ parser.add_argument("--no-offset-change", action='store_true', help="don't chang
 parser.add_argument("--no-cmot-change", action='store_true', help="don't change cmot")
 parser.add_argument("--elliptical", action='store_true', help="fit elliptical corrections")
 parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
-parser.add_argument("--plot", action='store_true', help="plot result")
 parser.add_argument("log", metavar="LOG")
 
 args = parser.parse_args()
@@ -325,9 +324,6 @@ def magfit(logfile):
 
     print("New: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
         c.offsets, c.diag, c.offdiag, c.cmot, c.scaling))
-
-    if not args.plot:
-        return
 
     x = []
 
