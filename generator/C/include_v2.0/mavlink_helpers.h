@@ -100,13 +100,20 @@ MAVLINK_HELPER uint8_t mavlink_set_encryption_key(uint8_t *key)
 {
 	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
 
-	//if(encryption_storage->number_of_keys < 8 && mavlink_check_same_encryption_key(key)){
-		memcpy (encryption_storage->key[encryption_storage->number_of_keys], key, 32);
-		encryption_storage->flags |= MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING;
-		return 0;
-	// }else{
-	// 	return 1;
-	// }
+    //if(encryption_storage->number_of_keys < 1){
+	memcpy (encryption_storage->key[encryption_storage->number_of_keys], key, 32);
+	encryption_storage->flags |= MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING;
+	return 0;
+	//}else{
+	//	return 1;
+	//}
+}
+
+MAVLINK_HELPER void mavlink_set_force_encryption(void)
+{
+	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
+
+	encryption_storage->flags |= MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION;
 }
 
 
@@ -203,11 +210,11 @@ MAVLINK_HELPER void mavlink_sign_certificate(mavlink_device_certificate_t *cert,
     device_id[0] = cert->device_id;
 
     crypto_blake2b_init(&ctx);
-    crypto_blake2b_update(&ctx, (const uint8_t *)device_id, sizeof(cert->device_id));
-    crypto_blake2b_update(&ctx, (const uint8_t *)cert->device_name, sizeof cert->device_name);
-    crypto_blake2b_update(&ctx, (const uint8_t *)cert->maintainer, sizeof cert->maintainer);
-    crypto_blake2b_update(&ctx, (const uint8_t *)privileges, sizeof(cert->privileges));
-    crypto_blake2b_update(&ctx, (const uint8_t *)cert->public_key, sizeof cert->public_key);
+    crypto_blake2b_update(&ctx, (const uint8_t *)device_id, 1);
+    crypto_blake2b_update(&ctx, (const uint8_t *)cert->device_name, 20);
+    crypto_blake2b_update(&ctx, (const uint8_t *)cert->maintainer, 20);
+    crypto_blake2b_update(&ctx, (const uint8_t *)privileges, 1);
+    crypto_blake2b_update(&ctx, (const uint8_t *)cert->public_key, 32);
     crypto_blake2b_final(&ctx, hash);
 
     crypto_sign(cert->sign, sk, pk, hash, 64);
@@ -224,18 +231,14 @@ MAVLINK_HELPER uint8_t mavlink_check_certificate(mavlink_device_certificate_t *c
     device_id[0] = cert->device_id;
 
     crypto_blake2b_init(&ctx);
-    crypto_blake2b_update(&ctx, (const uint8_t *)device_id, sizeof(cert->device_id));
-    crypto_blake2b_update(&ctx, (const uint8_t *)cert->device_name, sizeof cert->device_name);
-    crypto_blake2b_update(&ctx, (const uint8_t *)cert->maintainer, sizeof cert->maintainer);
-    crypto_blake2b_update(&ctx, (const uint8_t *)privileges, sizeof(cert->privileges));
-    crypto_blake2b_update(&ctx, (const uint8_t *)cert->public_key, sizeof cert->public_key);
+    crypto_blake2b_update(&ctx, (const uint8_t *)device_id, 1);
+    crypto_blake2b_update(&ctx, (const uint8_t *)cert->device_name, 20);
+    crypto_blake2b_update(&ctx, (const uint8_t *)cert->maintainer, 20);
+    crypto_blake2b_update(&ctx, (const uint8_t *)privileges, 1);
+    crypto_blake2b_update(&ctx, (const uint8_t *)cert->public_key, 32);
     crypto_blake2b_final(&ctx, hash);
 
-    if (crypto_check(cert->sign, pk, hash, 64)) {
-        return -1;
-    }
-    return 0;
-
+    return crypto_check(cert->sign, pk, hash, 64);
 }
 
 /**
@@ -382,18 +385,33 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
  * @param length Message length
  */
 MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
-						      mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra)
+						      mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra, uint8_t chan)
 {
+	
 	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
 
 	bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
 	bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
-	bool encryption = (!mavlink1) && (msg->msgid != 1000 && msg->msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+	bool encryption = false;
+
+    if(chan != MAVLINK_COMM_0 && chan != MAVLINK_COMM_1){
+		encryption = (!mavlink1) && (msg->msgid != 1000 && msg->msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+
+		if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msg->msgid != 1000 && msg->msgid != 0)){
+			return 0;
+		}
+	}else{
+		encryption = (!mavlink1) && (msg->msgid != 1000 && msg->msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+
+		if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msg->msgid != 1000 && msg->msgid != 0)){
+			return 0;
+		}
+	}
 
 	uint8_t signature_len = signing? MAVLINK_SIGNATURE_BLOCK_LEN : 0;
-	uint8_t encryption_len = encryption? MAVLINK_ENCRYPTION_BLOCK_LEN : 0;
+	uint8_t encryption_len = encryption?MAVLINK_ENCRYPTION_BLOCK_LEN:0;
 
-        uint8_t header_len = MAVLINK_CORE_HEADER_LEN+1;
+    uint8_t header_len = MAVLINK_CORE_HEADER_LEN+1;
 	uint8_t buf[MAVLINK_CORE_HEADER_LEN+1];
 	if (mavlink1) {
 		msg->magic = MAVLINK_STX_MAVLINK1;
@@ -402,19 +420,15 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 		msg->magic = MAVLINK_STX;
 	}
 
-
-	uint8_t mac[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0};
-	uint8_t nonce[24] = {1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8};
-
-	if(encryption){
-		crypto_lock(mac, (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg), (const uint8_t *)encryption_storage->key[0], nonce, (const uint8_t *)_MAV_PAYLOAD(msg), length);
-		encryption_len = 40;
+	if(encryption_len > 0){
+			memcpy((uint8_t *)msg->nonce, encryption_storage->encryption_nonce, 24);
+			crypto_lock(msg->mac, (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg), (const uint8_t *)encryption_storage->key[0], msg->nonce, (const uint8_t *)_MAV_PAYLOAD(msg), length);
 	}
 
 	msg->len = mavlink1?min_length:_mav_trim_payload(_MAV_PAYLOAD(msg), length);
 	msg->sysid = system_id;
 	msg->compid = component_id;
-	msg->incompat_flags = 0;
+	msg->incompat_flags = 0x00;
 	if (signing) {
 		msg->incompat_flags |= MAVLINK_IFLAG_SIGNED;
 	}
@@ -451,7 +465,6 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 	mavlink_ck_b(msg) = (uint8_t)(checksum >> 8);
 
 	msg->checksum = checksum;
-
 	if (signing) {
 		mavlink_sign_packet(status->signing,
 				    msg->signature,
@@ -460,14 +473,14 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 				    (const uint8_t *)_MAV_PAYLOAD(msg)+(uint16_t)msg->len);
 	}
 
-	return msg->len + header_len + 2 + signature_len + encryption_len;
+	return msg->len + header_len + 2  + encryption_len + signature_len;
 }
 
 MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
 						      uint8_t chan, uint8_t min_length, uint8_t length, uint8_t crc_extra)
 {
 	mavlink_status_t *status = mavlink_get_channel_status(chan);
-	return mavlink_finalize_message_buffer(msg, system_id, component_id, status, min_length, length, crc_extra);
+	return mavlink_finalize_message_buffer(msg, system_id, component_id, status, min_length, length, crc_extra, chan);
 }
 
 /**
@@ -492,29 +505,36 @@ MAVLINK_HELPER void _mavlink_send_uart(mavlink_channel_t chan, const char *buf, 
  */
 MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint32_t msgid,
                                                     const char *packet,
-						    uint8_t min_length, uint8_t length, uint8_t crc_extra)
+                                                    uint8_t min_length, uint8_t length, uint8_t crc_extra)
 {
-	uint16_t checksum;
-	uint8_t buf[MAVLINK_NUM_HEADER_BYTES];
-	uint8_t ck[2];
-	mavlink_status_t *status = mavlink_get_channel_status(chan);
-	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
+        uint16_t checksum;
+        uint8_t buf[MAVLINK_NUM_HEADER_BYTES];
+        uint8_t ck[2];
+        mavlink_status_t *status = mavlink_get_channel_status(chan);
+        mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
         uint8_t header_len = MAVLINK_CORE_HEADER_LEN;
-	uint8_t signature_len = 0;
-	uint8_t encryption_len = 0;
-	uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
-	bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
+        uint8_t signature_len = 0;
+        uint8_t encryption_len = 0;
+        uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
+        bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
 
-	bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
-	bool encryption = (!mavlink1) && (msgid != 1000 && msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+        bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
+        bool encryption = false; 
 
-	uint8_t mac[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0};
-	uint8_t nonce[24] = {1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8};
+		//if(chan != MAVLINK_COMM_0 && chan != MAVLINK_COMM_1){
+			encryption = (!mavlink1) && (msgid != 1000 && msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+		
+			if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msgid != 1000 && msgid != 0)){
+					return;
+			}
+		//}
 
-	if(encryption){
-		crypto_lock(mac, (uint8_t *)packet, (const uint8_t *)encryption_storage->key[0], nonce, (const uint8_t *)packet, length);
-		encryption_len = 40;
-	}
+        uint8_t mac[16];
+
+        if(encryption){
+                crypto_lock(mac, (uint8_t *)packet, (const uint8_t *)encryption_storage->key[0], encryption_storage->encryption_nonce, (const uint8_t *)packet, length);
+                encryption_len = 40;
+        }
 
         if (mavlink1) {
             length = min_length;
@@ -531,13 +551,14 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
             buf[4] = mavlink_system.compid;
             buf[5] = msgid & 0xFF;
         } else {
-	    uint8_t incompat_flags = 0;
-	    if (signing) {
-		incompat_flags |= MAVLINK_IFLAG_SIGNED;
-	    }
-	    if (encryption){
-		incompat_flags |= MAVLINK_IFLAG_ENCRYPTED;
-	    }
+            uint8_t incompat_flags = 0;
+            if (signing) {
+                incompat_flags |= MAVLINK_IFLAG_SIGNED;
+            }
+            if (encryption){
+                incompat_flags |= MAVLINK_IFLAG_ENCRYPTED;
+
+            }
             length = _mav_trim_payload(packet, length);
             buf[0] = MAVLINK_STX;
             buf[1] = length;
@@ -550,34 +571,35 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
             buf[8] = (msgid >> 8) & 0xFF;
             buf[9] = (msgid >> 16) & 0xFF;
         }
-	status->current_tx_seq++;
-	checksum = crc_calculate((const uint8_t*)&buf[1], header_len);
-	crc_accumulate_buffer(&checksum, packet, length);
-	crc_accumulate(crc_extra, &checksum);
-	ck[0] = (uint8_t)(checksum & 0xFF);
-	ck[1] = (uint8_t)(checksum >> 8);
+        status->current_tx_seq++;
+        checksum = crc_calculate((const uint8_t*)&buf[1], header_len);
+        crc_accumulate_buffer(&checksum, packet, length);
+        crc_accumulate(crc_extra, &checksum);
+        ck[0] = (uint8_t)(checksum & 0xFF);
+        ck[1] = (uint8_t)(checksum >> 8);
 
-	if (signing) {
-		// possibly add a signature
-		signature_len = mavlink_sign_packet(status->signing, signature, buf, header_len+1,
-						    (const uint8_t *)packet, length, ck);
-	}
+        if (signing) {
+                // possibly add a signature
+                signature_len = mavlink_sign_packet(status->signing, signature, buf, header_len+1,
+                                                    (const uint8_t *)packet, length, ck);
+        }
 
-	MAVLINK_START_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len + (uint16_t)encryption_len);
-	_mavlink_send_uart(chan, (const char *)buf, header_len+1);
+        MAVLINK_START_UART_SEND(chan, header_len + 3 + (uint16_t)length + /*(uint16_t)signature_len +*/ (uint16_t)encryption_len);
+        _mavlink_send_uart(chan, (const char *)buf, header_len+1);
 
-	_mavlink_send_uart(chan, (const char *)packet, length);
+        _mavlink_send_uart(chan, (const char *)packet, length);
 
-	_mavlink_send_uart(chan, (const char *)ck, 2);
-	if (signature_len != 0) {
-		_mavlink_send_uart(chan, (const char *)signature, signature_len);
-	}
-	if (encryption_len != 0) {
-		_mavlink_send_uart(chan, (const char *)mac, 16);
-		_mavlink_send_uart(chan, (const char *)nonce, 24);
-	}
-	MAVLINK_END_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len + (uint16_t)encryption_len);
+        _mavlink_send_uart(chan, (const char *)ck, 2);
+        if (signature_len != 0) {
+                _mavlink_send_uart(chan, (const char *)signature, signature_len);
+        }
+        if (encryption_len != 0) {
+                _mavlink_send_uart(chan, (const char *)mac, 16);
+                _mavlink_send_uart(chan, (const char *)encryption_storage->encryption_nonce, 24);
+        }
+        MAVLINK_END_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len + (uint16_t)encryption_len);
 }
+
 
 /**
  * @brief re-send a message over a uart channel
@@ -594,12 +616,12 @@ MAVLINK_HELPER void _mavlink_resend_uart(mavlink_channel_t chan, const mavlink_m
 
         uint8_t header_len;
         uint8_t signature_len;
-	uint8_t encryption_len;
+        uint8_t encryption_len = 0;
 
         if (msg->magic == MAVLINK_STX_MAVLINK1) {
             header_len = MAVLINK_CORE_HEADER_MAVLINK1_LEN + 1;
             signature_len = 0;
-	    encryption_len = 0;
+	    	encryption_len = 0;
             MAVLINK_START_UART_SEND(chan, header_len + msg->len + 2 + signature_len + encryption_len);
             // we can't send the structure directly as it has extra mavlink2 elements in it
             uint8_t buf[MAVLINK_CORE_HEADER_MAVLINK1_LEN + 1];
@@ -613,7 +635,7 @@ MAVLINK_HELPER void _mavlink_resend_uart(mavlink_channel_t chan, const mavlink_m
         } else {
             header_len = MAVLINK_CORE_HEADER_LEN + 1;
             signature_len = (msg->incompat_flags & MAVLINK_IFLAG_SIGNED)?MAVLINK_SIGNATURE_BLOCK_LEN:0;
-	    encryption_len = ((!mavlink1) && (msgid != 1000 && msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING))?MAVLINK_ENCRYPTION_BLOCK_LEN:0;
+            encryption_len = (msg->incompat_flags & MAVLINK_IFLAG_ENCRYPTED)?MAVLINK_ENCRYPTION_BLOCK_LEN:0;
             MAVLINK_START_UART_SEND(chan, header_len + msg->len + 2 + signature_len + encryption_len);
             uint8_t buf[MAVLINK_CORE_HEADER_LEN + 1];
             buf[0] = msg->magic;
@@ -648,10 +670,7 @@ MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buf, const mavlink_m
 {
 	uint8_t signature_len, header_len, encryption_len;
 	uint8_t *ck;
-        uint8_t length = msg->len;
-
-	uint8_t mac[16] = {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0};
-	uint8_t nonce[24] = {1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8, 1,2,3,4,5,6,7,8};
+    uint8_t length = msg->len;
 
 	if (msg->magic == MAVLINK_STX_MAVLINK1) {
 		signature_len = 0;
@@ -666,15 +685,6 @@ MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buf, const mavlink_m
 		memcpy(&buf[6], _MAV_PAYLOAD(msg), msg->len);
 		ck = buf + header_len + 1 + (uint16_t)msg->len;
 	} else {
-
-		encryption_len = (msg->incompat_flags & MAVLINK_IFLAG_ENCRYPTED && msg->msgid != 1000 && msg->msgid != 0)?MAVLINK_ENCRYPTION_BLOCK_LEN:0;
-		if(encryption_len > 0){
-			mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
-
-			crypto_lock(mac, (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg), (const uint8_t *)encryption_storage->key[0], nonce, (const uint8_t *)_MAV_PAYLOAD(msg), length);
-			encryption_len = 40;
-		}
-
 		length = _mav_trim_payload(_MAV_PAYLOAD(msg), length);
 		header_len = MAVLINK_CORE_HEADER_LEN;
 		buf[0] = msg->magic;
@@ -690,16 +700,16 @@ MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buf, const mavlink_m
 		memcpy(&buf[10], _MAV_PAYLOAD(msg), length);
 		ck = buf + header_len + 1 + (uint16_t)length;
 		signature_len = (msg->incompat_flags & MAVLINK_IFLAG_SIGNED)?MAVLINK_SIGNATURE_BLOCK_LEN:0;
-
+		encryption_len = (msg->incompat_flags & MAVLINK_IFLAG_ENCRYPTED)?MAVLINK_ENCRYPTION_BLOCK_LEN:0;
 	}
 	ck[0] = (uint8_t)(msg->checksum & 0xFF);
 	ck[1] = (uint8_t)(msg->checksum >> 8);
-	if (signature_len > 0) {
-		memcpy(&ck[2], msg->signature, signature_len);
-	}
 	if (encryption_len > 0){
-		memcpy(&ck[3], mac, 16);
-		memcpy(&ck[4], nonce, 24);
+		memcpy(&ck[2], msg->mac, 16);
+		memcpy(&ck[2 + 16], msg->nonce, 24);
+	}
+	if (signature_len > 0) {
+		memcpy(&ck[2 + 16 + 24], msg->signature, signature_len);
 	}
 
 	return header_len + 1 + 2 + (uint16_t)length + (uint16_t)signature_len + (uint16_t)encryption_len;
@@ -1010,6 +1020,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 
 			if(rxmsg->incompat_flags & MAVLINK_IFLAG_ENCRYPTED){
 				status->parse_state = MAVLINK_PARSE_STATE_MAC_WAIT;
+				status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
 				status->mac_wait = MAVLINK_MAC_BLOCK_LEN;
 				status->nonce_wait = MAVLINK_NONCE_BLOCK_LEN;
 			}else{
@@ -1040,10 +1051,12 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 
 			if(rxmsg->incompat_flags & MAVLINK_IFLAG_ENCRYPTED){
 				status->parse_state = MAVLINK_PARSE_STATE_MAC_WAIT;
+				status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
 				status->mac_wait = MAVLINK_MAC_BLOCK_LEN;
 				status->nonce_wait = MAVLINK_NONCE_BLOCK_LEN;
 			}else{
 				status->parse_state = MAVLINK_PARSE_STATE_IDLE;
+				status->msg_received = MAVLINK_FRAMING_OK;
 				if (r_message !=NULL) {
 					memcpy(r_message, rxmsg, sizeof(mavlink_message_t));
 				}
@@ -1065,11 +1078,19 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		status->nonce_wait--;
 
 		if (status->nonce_wait == 0){
-			mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
-			crypto_unlock((uint8_t *)_MAV_PAYLOAD_NON_CONST(rxmsg), encryption_storage->key[0], (const uint8_t *)rxmsg->nonce, (const uint8_t *)rxmsg->mac, (const uint8_t *)_MAV_PAYLOAD(rxmsg), rxmsg->len);
+                        mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
+                        if(crypto_unlock((uint8_t *)_MAV_PAYLOAD_NON_CONST(rxmsg), encryption_storage->key[0], (const uint8_t *)rxmsg->nonce, (const uint8_t *)rxmsg->mac, (const uint8_t *)_MAV_PAYLOAD(rxmsg), rxmsg->len) == 0){
+                            status->parse_state = MAVLINK_PARSE_STATE_IDLE;
+                            status->msg_received = MAVLINK_FRAMING_OK;
+                            if (r_message !=NULL) {
+                                    memcpy(r_message, rxmsg, sizeof(mavlink_message_t));
+                            }
+                        }else{
+                            status->msg_received = MAVLINK_FRAMING_BAD_DECRYPTION;
+                            status->parse_state = MAVLINK_PARSE_STATE_IDLE;
+                        }
 
-			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
-			status->msg_received = MAVLINK_FRAMING_OK;
+
 		}
 		break;
 	}
@@ -1243,7 +1264,8 @@ MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_messa
 {
     uint8_t msg_received = mavlink_frame_char(chan, c, r_message, r_mavlink_status);
     if (msg_received == MAVLINK_FRAMING_BAD_CRC ||
-	msg_received == MAVLINK_FRAMING_BAD_SIGNATURE) {
+        msg_received == MAVLINK_FRAMING_BAD_SIGNATURE ||
+        msg_received == MAVLINK_FRAMING_BAD_DECRYPTION) {
 	    // we got a bad CRC. Treat as a parse failure
 	    mavlink_message_t* rxmsg = mavlink_get_channel_buffer(chan);
 	    mavlink_status_t* status = mavlink_get_channel_status(chan);

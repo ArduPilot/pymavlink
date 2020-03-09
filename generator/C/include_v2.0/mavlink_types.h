@@ -33,9 +33,9 @@ namespace mavlink {
 #define MAVLINK_SIGNATURE_BLOCK_LEN 13
 #define MAVLINK_MAC_BLOCK_LEN 16
 #define MAVLINK_NONCE_BLOCK_LEN 24
-#define MAVLINK_ENCRYPTION_BLOCK_LEN 41 //nonce (24bytes) + mac (16bytes) + targetid (1byte)
+#define MAVLINK_ENCRYPTION_BLOCK_LEN 40 //nonce (24bytes) + mac (16bytes) + TODO: targetid (1byte)
 
-#define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN) ///< Maximum packet length
+#define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN + MAVLINK_ENCRYPTION_BLOCK_LEN) ///< Maximum packet length
 
 /**
  * Old-style 4 byte param union
@@ -211,7 +211,8 @@ typedef enum {
     MAVLINK_FRAMING_INCOMPLETE=0,
     MAVLINK_FRAMING_OK=1,
     MAVLINK_FRAMING_BAD_CRC=2,
-    MAVLINK_FRAMING_BAD_SIGNATURE=3
+    MAVLINK_FRAMING_BAD_SIGNATURE=3,
+    MAVLINK_FRAMING_BAD_DECRYPTION=4
 } mavlink_framing_t;
 
 #define MAVLINK_STATUS_FLAG_IN_MAVLINK1  1 // last incoming packet was MAVLink1
@@ -249,6 +250,7 @@ typedef bool (*mavlink_accept_unsigned_t)(const mavlink_status_t *status, uint32
  */
 #define MAVLINK_SIGNING_FLAG_SIGN_OUTGOING 1    ///< Enable outgoing signing
 #define MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING 1 //< Enable outgoing encryption
+#define MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION 2 //< Enable outgoing encryption
 /*
   state of MAVLink signing for this channel
  */
@@ -325,7 +327,7 @@ typedef struct mavlink_encryption_storage{
  */
 #define MAVLINK_IFLAG_SIGNED  0x01
 #define MAVLINK_IFLAG_ENCRYPTED  0x02
-#define MAVLINK_IFLAG_MASK    0x01 // mask of all understood bits
+#define MAVLINK_IFLAG_MASK    0x03 // mask of all understood bits
 
 #ifdef MAVLINK_USE_CXX_NAMESPACE
 } // namespace mavlink
