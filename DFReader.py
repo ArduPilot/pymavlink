@@ -753,7 +753,8 @@ class DFReader_binary(DFReader):
             hdr = self.data_map[ofs:ofs+3]
             if hdr[0] != HEAD1 or hdr[1] != HEAD2:
                 print("bad header 0x%02x 0x%02x" % (u_ord(hdr[0]), u_ord(hdr[1])), file=sys.stderr)
-                break
+                ofs += 1
+                continue
             mtype = u_ord(hdr[2])
             self.offsets[mtype].append(ofs)
 
