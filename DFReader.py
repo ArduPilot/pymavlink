@@ -460,10 +460,16 @@ class DFReader(object):
         self.verbose = False
         self.params = {}
         self._flightmodes = None
+        self.messages = {}
 
     def _rewind(self):
         '''reset state on rewind'''
-        self.messages = {'MAV': self}
+        # be careful not to replace self.messages with a new hash;
+        # some people have taken a reference to self.messages and we
+        # need their messages to disappear to.  If they want their own
+        # copy they can copy.copy it!
+        self.messages.clear()
+        self.messages['MAV'] = self
         if self._flightmodes is not None and len(self._flightmodes) > 0:
             self.flightmode = self._flightmodes[0][0]
         else:
@@ -767,6 +773,8 @@ class DFReader_binary(DFReader):
                 self._parse_next()
                 fmt = self.formats[mtype]
                 lengths[mtype] = fmt.len
+            elif self.formats[mtype].instance_field is not None:
+                self._parse_next()
 
             self.counts[mtype] += 1
             mlen = lengths[mtype]
