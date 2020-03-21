@@ -96,6 +96,9 @@ def mavfft_fttd(logfile):
     plotdata = None
     prev_plotdata = {}
     msgcount = 0
+    hntch_mode = None
+    hntch_option = None
+    batch_mode = None
     start_time = time.time()
     while True:
         m = mlog.recv_match(condition=args.condition)
@@ -122,6 +125,14 @@ def mavfft_fttd(logfile):
                 sys.stderr.write("?(fftnum=%u)" % m.N)
                 continue
             plotdata.add_fftd(m)
+        
+        if msg_type == "PARM":
+            if m.Name == "INS_HNTCH_MODE":
+                hntch_mode = m.Value
+            elif m.Name == "INS_HNTCH_OPTS":
+                hntch_option = m.Value
+            elif m.Name == "INS_LOG_BAT_OPT":
+                batch_mode = m.Value
 
     print("", file=sys.stderr)
     time_delta = time.time() - start_time
@@ -134,6 +145,9 @@ def mavfft_fttd(logfile):
     counts = {}
     window = {}
     S2 = {}
+    hntch_mode_names = { 0:"No", 1:"Throttle", 2:"RPM", 3:"ESC", 4:"FFT"}
+    hntch_option_names = { 0:"Single", 1:"Double"}
+    batch_mode_names = { 0:"Pre-filter", 1:"Sensor-rate", 2:"Post-filter" }
 
     first_freq = None
     for thing_to_plot in things_to_plot:
@@ -170,6 +184,9 @@ def mavfft_fttd(logfile):
             if len(d) == 0:
                 print("No data?!?!?!")
                 continue
+            if len(window[thing_to_plot.tag()]) != fft_len:
+                print("Skipping corrupted frame of length %d" % fft_len)
+                continue
 
             # apply window to the input
             d *= window[thing_to_plot.tag()]
@@ -191,7 +208,7 @@ def mavfft_fttd(logfile):
     numpy.seterr(divide = 'ignore')
     for sensor in sum_fft:
         print("Sensor: %s" % str(sensor))
-        pylab.figure(str(sensor))
+        fig = pylab.figure(str(sensor))
         for axis in [ "X","Y","Z" ]:
             # normalize output to averaged PSD
             psd = 2 * (sum_fft[sensor][axis] / counts[sensor]) / (sample_rates[sensor] * S2[sensor])
@@ -218,6 +235,17 @@ def mavfft_fttd(logfile):
                 pylab.ylabel('PSD $' + scale_label + 'd^2/s^2/Hz$')
             else:
                 pylab.ylabel('PSD $' + scale_label + 'm^2/s^4/Hz$')
+
+        if hntch_mode is not None and hntch_option is not None and batch_mode is not None:
+            textstr = '\n'.join((
+                r'%s tracking' % (hntch_mode_names[hntch_mode], ),
+                r'%s notch' % (hntch_option_names[hntch_option], ),
+                r'%s sampling' % (batch_mode_names[batch_mode], )))
+
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+
+            pylab.text(0.5, 0.95, textstr, fontsize=12,
+                verticalalignment='top', bbox=props, transform=pylab.gca().transAxes)
 
 for filename in args.logs:
     mavfft_fttd(filename)
