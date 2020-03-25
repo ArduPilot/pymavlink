@@ -27,7 +27,7 @@ except NameError:
     pass
 
 colourmap = {
-    'apm' : {
+    'ardupilot' : {
         'MANUAL'    : (1.0,   0,   0),
         'AUTO'      : (  0, 1.0,   0),
         'LOITER'    : (  0,   0, 1.0),
@@ -52,6 +52,7 @@ colourmap = {
         'UNKNOWN'    : (  1.0,   1.0, 1.0)
         }
     }
+colourmap["apm"] = colourmap["ardupilot"]
 
 edge_colour = (0.1, 0.1, 0.1)
 
@@ -181,7 +182,7 @@ if args.flightmode is not None and args.xaxis:
     sys.exit(1)
 
 if args.flightmode is not None and args.flightmode not in colourmap:
-    print("Unknown flight controller '%s' in specification of --flightmode" % args.flightmode)
+    print("Unknown flight controller '%s' in specification of --flightmode (choose from %s)" % (args.flightmode, ",".join(colourmap.keys())))
     sys.exit(1)
 
 
