@@ -91,7 +91,7 @@ MAVLINK_HELPER uint8_t mavlink_check_same_encryption_key(uint8_t *key){
 }
 
 /**
- * Set encryption key
+ * @brief Set encryption key
  *
  * @param key 		Encryption key (32 bytes)
  */
@@ -100,26 +100,14 @@ MAVLINK_HELPER uint8_t mavlink_set_encryption_key(uint8_t *key)
 {
 	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
 
-    //if(encryption_storage->number_of_keys < 1){
+	//TODO: Key storage system needs to be modified to be compatible with multiple devices.
 	memcpy (encryption_storage->key[encryption_storage->number_of_keys], key, 32);
 	encryption_storage->flags |= MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING;
 	return 0;
-	//}else{
-	//	return 1;
-	//}
 }
-
-MAVLINK_HELPER void mavlink_set_force_encryption(void)
-{
-	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
-
-	encryption_storage->flags |= MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION;
-}
-
-
 
 /**
- * Get encryption key
+ * @brief Get encryption key
  *
  * @param key 		Encryption key (32 bytes)
  */
@@ -133,9 +121,20 @@ MAVLINK_HELPER void mavlink_get_encryption_key(uint8_t *key)
 }
 
 /**
- * Set random nonce for message encryption
+ * @brief If you want to send and receive only encrypted messages, this message needs to be called. 
+ */
+
+MAVLINK_HELPER void mavlink_set_force_encryption(void)
+{
+	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
+
+	encryption_storage->flags |= MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION;
+}
+
+/**
+ * @brief Set random nonce for message encryption
  *
- * @param nonce 		Random public 24 bytes value
+ * @param nonce 		Random 24 bytes value (This value can be public)
  */
 MAVLINK_HELPER void mavlink_set_encryption_nonce(uint8_t *nonce)
 {
@@ -144,9 +143,9 @@ MAVLINK_HELPER void mavlink_set_encryption_nonce(uint8_t *nonce)
 }
 
 /**
- * Set random nonce for certificate message broadcasting
+ * @brief Set random nonce for certificate message broadcasting
  *
- * @param nonce 		Random public 32 bytes value
+ * @param nonce 		Random 32 bytes value (This value can be public)
  */
 MAVLINK_HELPER void mavlink_set_certificate_nonce(uint8_t *nonce)
 {
@@ -154,18 +153,11 @@ MAVLINK_HELPER void mavlink_set_certificate_nonce(uint8_t *nonce)
 	memcpy (encryption_storage->certificate_nonce, nonce, 32);
 }
 
-MAVLINK_HELPER void mavlink_get_certificate_nonce(uint8_t *nonce)
-{
-	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
-	memcpy (nonce, encryption_storage->certificate_nonce, 32);
-}
-
 /**
- * Get nonce used for certificate message broadcasting
- *
- *
+ * @brief Get random nonce for certificate message broadcasting
  */
-MAVLINK_HELPER void mavlink_get_init_nonce(uint8_t *nonce)
+
+MAVLINK_HELPER void mavlink_get_certificate_nonce(uint8_t *nonce)
 {
 	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
 	memcpy (nonce, encryption_storage->certificate_nonce, 32);
@@ -385,28 +377,14 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
  * @param length Message length
  */
 MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
-						      mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra, uint8_t chan)
+						      mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra)
 {
 	
 	mavlink_encryption_storage_t *encryption_storage = mavlink_get_encryption_storage();
 
 	bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
 	bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
-	bool encryption = false;
-
-    if(chan != MAVLINK_COMM_0 && chan != MAVLINK_COMM_1){
-		encryption = (!mavlink1) && (msg->msgid != 1000 && msg->msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
-
-		if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msg->msgid != 1000 && msg->msgid != 0)){
-			return 0;
-		}
-	}else{
-		encryption = (!mavlink1) && (msg->msgid != 1000 && msg->msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
-
-		if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msg->msgid != 1000 && msg->msgid != 0)){
-			return 0;
-		}
-	}
+	bool encryption = (!mavlink1) && (msg->msgid != 1000 && msg->msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
 
 	uint8_t signature_len = signing? MAVLINK_SIGNATURE_BLOCK_LEN : 0;
 	uint8_t encryption_len = encryption?MAVLINK_ENCRYPTION_BLOCK_LEN:0;
@@ -480,7 +458,7 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, ui
 						      uint8_t chan, uint8_t min_length, uint8_t length, uint8_t crc_extra)
 {
 	mavlink_status_t *status = mavlink_get_channel_status(chan);
-	return mavlink_finalize_message_buffer(msg, system_id, component_id, status, min_length, length, crc_extra, chan);
+	return mavlink_finalize_message_buffer(msg, system_id, component_id, status, min_length, length, crc_extra);
 }
 
 /**
@@ -516,20 +494,18 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
         uint8_t signature_len = 0;
         uint8_t encryption_len = 0;
         uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
+		uint8_t mac[16];
+		
         bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
 
         bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
-        bool encryption = false; 
-
-		//if(chan != MAVLINK_COMM_0 && chan != MAVLINK_COMM_1){
-			encryption = (!mavlink1) && (msgid != 1000 && msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
+        bool encryption = (!mavlink1) && (msgid != 1000 && msgid != 0) && (encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING);
 		
-			if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msgid != 1000 && msgid != 0)){
-					return;
-			}
-		//}
+		if((encryption_storage->flags & MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION) && (encryption == false) && (msgid != 1000 && msgid != 0)){
+			return;
+		}
 
-        uint8_t mac[16];
+        
 
         if(encryption){
                 crypto_lock(mac, (uint8_t *)packet, (const uint8_t *)encryption_storage->key[0], encryption_storage->encryption_nonce, (const uint8_t *)packet, length);
