@@ -1356,3 +1356,21 @@ def sim_body_rates(SIM):
     q = cos(phi)*thetaDot + sin(phi)*psiDot*cos(theta)
     r = cos(phi)*psiDot*cos(theta) - sin(phi)*thetaDot
     return Vector3(p, q, r)
+
+def reset_state_data():
+    '''reset state data, used on log rewind'''
+    global average_data
+    global derivative_data
+    global lowpass_data
+    global last_diff
+    global last_delta
+    global first_fix
+    global dcm_state
+    global earth_field
+    average_data.clear()
+    derivative_data.clear()
+    lowpass_data.clear()
+    last_delta.clear()
+    first_fix = None
+    dcm_state = None
+    earth_field = None
