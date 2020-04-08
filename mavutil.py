@@ -2334,40 +2334,47 @@ def dump_message_verbose(f, m):
         try:
             units = m.fieldunits_by_name[fieldname]
             # perform simple unit conversions:
+            divisor = None
             if units == "d%":
-                value = value / 10.0
+                divisor = 10.0
                 units = "%"
             if units == "c%":
-                value = value / 100.0
+                divisor = 100.0
                 units = "%"
 
             if units == "cA":
-                value = value / 100.0
+                divisor = 100.0
                 units = "A"
 
             elif units == "cdegC":
-                value = value / 100.0
+                divisor = 100.0
                 units = "degC"
 
             elif units == "cdeg":
-                value = value / 100.0
+                divisor = 100.0
                 units = "deg"
 
             elif units == "degE7":
-                value = value / 10000000.0
+                divisor = 10000000.0
                 units = "deg"
 
             elif units == "mG":
-                value = value / 1000.0
+                divisor = 1000.0
                 units = "G"
 
             elif units == "mrad/s":
-                value = value / 1000.0
+                divisor = 1000.0
                 units = "rad/s"
 
             elif units == "mV":
-                value = value / 1000.0
+                divisor = 1000.0
                 units = "V"
+
+            if divisor is not None:
+                if type(value) == list:
+                    value = [x/divisor for x in value]
+                else:
+                    value = value / divisor
 
             # and give radians in degrees too:
             if units == "rad":
