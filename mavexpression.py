@@ -23,7 +23,7 @@ if home is not None:
         mavuser = imp.load_source('pymavlink.mavuser', extra)
         from pymavlink.mavuser import *
 
-def evaluate_expression(expression, vars, nocondition=False):
+def evaluate_expression(expression, vars, nocondition=False, debug=False):
     '''evaluation an expression'''
     # first check for conditions which take the form EXPRESSION{CONDITION}
     if expression[-1] == '}':
@@ -32,12 +32,16 @@ def evaluate_expression(expression, vars, nocondition=False):
             return None
         condition=expression[startidx+1:-1]
         expression=expression[:startidx]
+        if debug:
+            return eval(expression, globals(), vars)
         try:
             v = eval(condition, globals(), vars)
         except Exception:
             return None
         if not nocondition and not v:
             return None
+    if debug:
+        return eval(expression, globals(), vars)
     try:
         v = eval(expression, globals(), vars)
     except NameError:
