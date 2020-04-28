@@ -60,8 +60,8 @@ def mavgen(opts, args):
             print("WARNING: XML Syntax Errors detected in %s XML schema file. XML validation will not be performed" % schemaFile, file=sys.stderr)
             print(str(err.error_log), file=sys.stderr)
             opts.validate = False
-        except:
-            print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
+        except Exception as e:
+            print("WARNING: Unable to load XML validator libraries (%s). XML validation will not be performed" % str(e), file=sys.stderr)
             opts.validate = False
 
     def expand_includes():
