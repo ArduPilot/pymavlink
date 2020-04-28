@@ -230,6 +230,9 @@
     </xs:complexType>
 </xs:element>
 
+<!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
+<xs:attribute name="bitmask" type="xs:boolean" default="false"/>
+
 <xs:element name="enum">
     <xs:complexType>
         <xs:sequence>
@@ -238,7 +241,7 @@
             <xs:element ref="entry" maxOccurs="unbounded"/>
         </xs:sequence>
         <xs:attribute ref="name" use="required"/>
-        <xs:attribute ref="bitmask" type="xs:boolean" default="false"/>
+        <xs:attribute ref="bitmask"/>
     </xs:complexType>
 </xs:element>
 
