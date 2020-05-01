@@ -118,6 +118,8 @@
     <xs:enumeration value="mgauss"/>   <!-- milli-Gauss -->
     <!-- energy -->
     <xs:enumeration value="hJ"/>       <!-- hecto-Joule -->
+    <!-- power -->
+    <xs:enumeration value="W"/>        <!-- Watt -->
     <!-- force -->
     <xs:enumeration value="mG"/>       <!-- milli-G -->
     <!-- mass -->
