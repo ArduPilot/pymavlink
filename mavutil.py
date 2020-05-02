@@ -643,9 +643,17 @@ class mavfile(object):
                 return
             mode = mode_map[mode]
         # set mode by integer mode number for ArduPilot
-        self.mav.set_mode_send(self.target_system,
-                               mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                               mode)
+        self.mav.command_long_send(self.target_system,
+                                   self.target_component,
+                                   mavlink.MAV_CMD_DO_SET_MODE,
+                                   0,
+                                   mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                                   mode,
+                                   0,
+                                   0,
+                                   0,
+                                   0,
+                                   0)
 
     def set_mode_px4(self, mode, custom_mode, custom_sub_mode):
         '''enter arbitrary mode'''
