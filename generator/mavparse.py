@@ -131,6 +131,7 @@ class MAVType(object):
         self.fields = []
         self.fieldnames = []
         self.extensions_start = None
+        self.needs_pack = False
 
     def base_fields(self):
         '''return number of non-extended fields'''
@@ -399,6 +400,12 @@ class MAVXML(object):
                 f = m.ordered_fields[i]
                 f.wire_offset = m.wire_length
                 m.wire_length += f.wire_length
+                field_el_length = f.wire_length
+                if f.array_length > 1:
+                    field_el_length = f.wire_length / f.array_length
+                if f.wire_offset % field_el_length != 0:
+                    # misaligned field, structure will need packing in C
+                    m.needs_pack = True
                 if m.extensions_start is None or i < m.extensions_start:
                     m.wire_min_length = m.wire_length
                 m.ordered_fieldnames.append(f.name)
