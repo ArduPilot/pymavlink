@@ -6,10 +6,11 @@ Also contains tools for analizing flight logs.
 
 # Documentation
 
-Please see http://ardupilot.org/dev/docs/mavlink-commands.html for documentation.
+Please see http://ardupilot.org/dev/docs/mavlink-commands.html for mavlink command reference.
 
-For realtime discussion please see the pymavlink gitter channel here
-https://gitter.im/ArduPilot/pymavlink
+For realtime discussion please see the pymavlink [gitter channel](https://gitter.im/ArduPilot/pymavlink)
+
+Examples can be found [in the repository](examples/) or in the [ArduSub book](https://www.ardusub.com/developers/pymavlink.html)
 
 
 # Installation 
@@ -22,8 +23,8 @@ The following instructions assume you are using Python 2 and a Debian-based (lik
 
 Pymavlink has several dependencies :
 
-    - future : for python 2 and python 3 interoperability (http://python-future.org/)
-    - lxml : for checking and parsing xml file (http://lxml.de/installation.html)
+    - [future](http://python-future.org/) : for python 2 and python 3 interoperability 
+    - [lxml](http://lxml.de/installation.html) : for checking and parsing xml file 
     - python-dev : for mavnative
     - a C compiler : for mavnative
 
@@ -83,16 +84,13 @@ sudo DISABLE_MAVNATIVE=True pip2 install -U pymavlink
 
 ### For developers
 
-On the pymavlink directory, you can use :
+From the pymavlink directory, you can use :
 
 ```bash
 sudo MDEF=PATH_TO_message_definitions pip2 install . -v
 ```
 
-The -v parameter will output the installation commands on the terminal.
-The MDEF usage is require as pip install is done from /tmp directory, so it is necessary to use MDEF variable to 
-point on the message_definitions directory.
-Use pip should auto install dependencies and allow to keep them up-to-date with pip. 
+Since pip installation is executed from /tmp, it is necessary to point to the directory containing message definitions with MDEF. MDEF should not be set to any particular message version directory but the parent folder instead. If you have cloned from mavlink/mavlink then this is ```/mavlink/message_definitions``` . Using pip should auto install dependencies and allow you to keep them up-to-date. 
 
 Or:
 
@@ -100,10 +98,6 @@ Or:
 sudo python2 setup.py install
 ```
 
-
-### Advanced usage
-
-Please see Pip documentation : https://pip.pypa.io/en/stable/
 
 # License
 ---------
