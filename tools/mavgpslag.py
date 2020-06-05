@@ -96,7 +96,7 @@ def gps_lag(logfile):
             accel_indexes.append(max(len(gaccel)-1,0))
         elif t == 'ATT':
             ATT = m
-        elif t == 'IMU':
+        elif t == 'IMU' or t == 'ACC1':
             if ATT is not None:
                 ga = earth_accel_df(m, ATT)
                 ga.z += 9.80665
@@ -106,6 +106,10 @@ def gps_lag(logfile):
                     dtsum += dt
                     dtcount += 1
                 IMU = m
+        
+    if dtcount == 0 or GPS is None:
+        print("ATT, GPS or IMU messages are missing, check LOG_BITMASK")
+        exit() 
 
     imu_dt = dtsum / dtcount
 
