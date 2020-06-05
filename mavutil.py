@@ -324,6 +324,11 @@ class mavfile(object):
         '''default post message call'''
         if '_posted' in msg.__dict__:
             return
+        
+        if self.logfile and msg.get_type() != 'BAD_DATA':
+            usec = int(time.time() * 1e6) & ~3
+            self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
+        
         msg._posted = True
         msg._timestamp = time.time()
         type = msg.get_type()
@@ -430,9 +435,6 @@ class mavfile(object):
             # we can extract
             msg = self.mav.parse_char(s)
             if msg:
-                if self.logfile and  msg.get_type() != 'BAD_DATA' :
-                    usec = int(time.time() * 1.0e6) & ~3
-                    self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
                 self.post_message(msg)
                 return msg
             else:
