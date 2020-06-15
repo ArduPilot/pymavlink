@@ -766,11 +766,6 @@ class mavfile(object):
             self.mav.command_long_send(self.target_system, self.target_component,
                                        mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
                                        param1, 0, 0, 0, 0, 0, 0)
-            # send an old style reboot immediately afterwards in case it is an older firmware
-            # that doesn't understand the new convention
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
-                                       1, 0, 0, 0, 0, 0, 0)
 
     def wait_gps_fix(self):
         self.recv_match(type='VFR_HUD', blocking=True)
