@@ -597,11 +597,61 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payload +': '+ e.message);
     }
 
-    // Reorder the fields to match the order map
-    var args = [];
-    _.each(t, function(e, i, l) {
-        args[i] = t[decoder.order_map[i]]
-    });
+    // Need to check if the message contains arrays
+    var args = {};
+    const elementsInMsg = decoder.order_map.length;
+    const actualElementsInMsg = JSON.parse(JSON.stringify(t)).length;
+
+    if (elementsInMsg == actualElementsInMsg) {
+        // Reorder the fields to match the order map
+        _.each(t, function(e, i, l) {
+            args[i] = t[decoder.order_map[i]]
+        });
+    } else {
+        // This message contains arrays
+        var typeIndex = 1;
+        var orderIndex = 0;
+        var memberIndex = 0;
+        var tempArgs = {};
+
+        // Walk through the fields 
+        for(var i = 0, size = decoder.format.length-1; i <= size; ++i) {
+            var order = decoder.order_map[orderIndex];
+            var currentType =  decoder.format[typeIndex];
+
+            if (isNaN(parseInt(currentType))) {
+                // This field is not an array cehck the type and add it to the args
+                tempArgs[orderIndex] = t[memberIndex];
+                memberIndex++;
+            } else {
+                // This field is part of an array, need to find the length of the array
+                var arraySize = ''
+                var newArray = []
+                while (!isNaN(decoder.format[typeIndex])) {
+                    arraySize = arraySize + decoder.format[typeIndex];
+                    typeIndex++;
+                }
+
+                // Now that we know how long the array is, create an array with the values
+                for(var j = 0, size = parseInt(arraySize); j < size; ++j){
+                    newArray.push(t[j+orderIndex]);
+                    memberIndex++;
+                }
+
+                // Add the array to the args object
+                arraySize = arraySize + decoder.format[typeIndex];
+                currentType = arraySize;
+                tempArgs[orderIndex] = newArray;
+            }
+            orderIndex++;
+            typeIndex++;
+        }
+
+        // Finally reorder the fields to match the order map
+        _.each(t, function(e, i, l) {
+            args[i] = tempArgs[decoder.order_map[i]]
+        });
+    }
 
     // construct the message object
     try {
