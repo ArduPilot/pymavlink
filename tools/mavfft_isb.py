@@ -47,7 +47,7 @@ def mavfft_fttd(logfile):
 
         def add_fftd(self, fftd):
             if fftd.N != self.fftnum:
-                print("Skipping ISBD with wrong fftnum (%u vs %u)\n" % (fftd.fftnum, self.fftnum))
+                print("Skipping ISBD with wrong fftnum (%u vs %u)\n" % (fftd.N, self.fftnum))
                 return
             if self.holes:
                 print("Skipping ISBD(%u) for ISBH(%u) with holes in it" % (fftd.seqno, self.fftnum))
@@ -146,7 +146,7 @@ def mavfft_fttd(logfile):
     window = {}
     S2 = {}
     hntch_mode_names = { 0:"No", 1:"Throttle", 2:"RPM", 3:"ESC", 4:"FFT"}
-    hntch_option_names = { 0:"Single", 1:"Double"}
+    hntch_option_names = { 0:"Single", 1:"Double", 2:"Dynamic Harmonic", 3:"Double+Dynamic"}
     batch_mode_names = { 0:"Pre-filter", 1:"Sensor-rate", 2:"Post-filter" }
 
     first_freq = None
