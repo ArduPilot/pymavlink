@@ -51,9 +51,6 @@ def fft(logfile):
             data[type+'.P'].append(m.P)
             data[type+'.I'].append(m.I)
             data[type+'.D'].append(m.D)
-        elif type == "PARM" and m.Name == "SCHED_LOOP_RATE":
-            sample_rate = m.Value
-
 
     print("Extracted %u data points, sample rate %uHz" % (len(data['PIDR.P']), sample_rate))
 
@@ -68,6 +65,8 @@ def fft(logfile):
             field = msg + '.' + axis
             d = data[field]
             counts = len(d) // fs
+            if counts == 0:
+                continue
             sum_fft = numpy.zeros(fs//2+1)
             for i in range(0, counts):
                 dx = d[i*fs:(i+1)*fs]
