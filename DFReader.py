@@ -758,7 +758,11 @@ class DFReader_binary(DFReader):
         while ofs+3 < self.data_len:
             hdr = self.data_map[ofs:ofs+3]
             if hdr[0] != HEAD1 or hdr[1] != HEAD2:
-                print("bad header 0x%02x 0x%02x" % (u_ord(hdr[0]), u_ord(hdr[1])), file=sys.stderr)
+                # avoid end of file garbage, 528 bytes has been use consistently throughout this implementation
+                # but it needs to be at least 249 bytes which is the block based logging page size (256) less a 6 byte header and
+                # one byte of data. Block based logs are sized in pages which means they can have up to 249 bytes of trailing space.
+                if self.data_len - ofs >= 528 or self.data_len < 528:
+                    print("bad header 0x%02x 0x%02x at %d" % (u_ord(hdr[0]), u_ord(hdr[1]), ofs), file=sys.stderr)
                 ofs += 1
                 continue
             mtype = u_ord(hdr[2])
@@ -766,8 +770,9 @@ class DFReader_binary(DFReader):
 
             if lengths[mtype] == -1:
                 if not mtype in self.formats:
-                    print("unknown msg type 0x%02x (%u)" % (mtype, mtype),
-                          file=sys.stderr)
+                    if self.data_len - ofs >= 528 or self.data_len < 528:
+                        print("unknown msg type 0x%02x (%u) at %d" % (mtype, mtype, ofs),
+                              file=sys.stderr)
                     break
                 self.offset = ofs
                 self._parse_next()
