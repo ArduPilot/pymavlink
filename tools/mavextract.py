@@ -54,7 +54,7 @@ def process(filename):
     else:
         extension = "tlog"
 
-    file_header = ''
+    file_header = bytearray()
 
     messages = []
 
@@ -86,7 +86,7 @@ def process(filename):
             file_header += m.get_msgbuf()
         if m.get_type() in ['PARAM_VALUE','MISSION_ITEM','MISSION_ITEM_INT']:
             timestamp = getattr(m, '_timestamp', None)
-            file_header += struct.pack('>Q', timestamp*1.0e6) + m.get_msgbuf()
+            file_header += struct.pack('>Q', int(timestamp*1.0e6)) + m.get_msgbuf()
 
         if not mavutil.evaluate_condition(args.condition, mlog.messages):
             continue
@@ -106,7 +106,7 @@ def process(filename):
         if output and m.get_type() != 'BAD_DATA':
             timestamp = getattr(m, '_timestamp', None)
             if not isbin:
-                output.write(struct.pack('>Q', timestamp*1.0e6))
+                output.write(struct.pack('>Q', int(timestamp*1.0e6)))
             output.write(m.get_msgbuf())
 
 for filename in args.logs:
