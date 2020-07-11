@@ -134,7 +134,7 @@ if istlog and args.format == 'csv': # we know our fields from the get-go
         for type in types:
             try:
                 typeClass = "MAVLink_{0}_message".format(type.lower())
-                fields += [type + '.' + x for x in inspect.getargspec(getattr(mavutil.mavlink, typeClass).__init__).args[1:]]
+                fields += [type + '.' + x for x in inspect.getfullargspec(getattr(mavutil.mavlink, typeClass).__init__).args[1:]]
                 offsets[type] = currentOffset
                 currentOffset += len(fields)
             except IndexError:
