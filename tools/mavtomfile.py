@@ -74,6 +74,8 @@ def process_tlog(filename):
         f.write("%s.data(%u,:) = [%f" % (mtype, type_counters[mtype], m._timestamp))
         for field in m._fieldnames:
             val = getattr(m, field)
+            if isinstance(val,unicode):
+                val = val.encode("ascii")
             if not isinstance(val, str):
                 if type(val) is not list:
                     f.write(",%.20g" % val)
