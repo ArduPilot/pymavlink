@@ -1918,6 +1918,7 @@ mode_mapping_apm = {
     21 : 'QRTL',
     22 : 'QAUTOTUNE',
     23 : 'QACRO',
+    24 : 'THERMAL',
     }
 mode_mapping_acm = {
     0 : 'STABILIZE',
