@@ -124,6 +124,7 @@
     <xs:enumeration value="mG"/>       <!-- milli-G -->
     <!-- mass -->
     <xs:enumeration value="g"/>       <!-- grams -->
+    <xs:enumeration value="kg"/>      <!-- kilograms -->
     <!-- pressure -->
     <xs:enumeration value="Pa"/>       <!-- Pascal -->
     <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
