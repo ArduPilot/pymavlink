@@ -148,7 +148,7 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
 
     t.write(outf, """
     var incompat_flags = 0;
-    this.header = new ${MAVHEAD}.header(this.id, this.payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);    
+    this.header = new ${MAVHEAD}.header(this.msgid, this.payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);
     this.msgbuf = this.header.pack().concat(this.payload);
     var crc = ${MAVHEAD}.x25Crc(this.msgbuf.slice(1));
 
@@ -234,7 +234,7 @@ ${COMMENT}
         outf.write("""
 
     this.format = '%s';
-    this.id = %s.MAVLINK_MSG_ID_%s;
+    this.msgid = %s.MAVLINK_MSG_ID_%s;
     this.order_map = %s;
     this.crc_extra = %u;
     this.name = '%s';
@@ -301,7 +301,7 @@ def generate_mavlink_class(outf, msgs, xml):
 
 // Special mavlink message to capture malformed data packets for debugging
 ${MAVHEAD}.messages.bad_data = function(data, reason) {
-    this.id = ${MAVHEAD}.MAVLINK_MSG_ID_BAD_DATA;
+    this.msgid = ${MAVHEAD}.MAVLINK_MSG_ID_BAD_DATA;
     this.data = data;
     this.reason = reason;
     this.msgbuf = data;
