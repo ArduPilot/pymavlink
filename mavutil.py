@@ -50,9 +50,9 @@ def mavlink20():
     '''return True if using MAVLink 2.0'''
     return 'MAVLINK20' in os.environ
 
-def evaluate_expression(expression, vars):
+def evaluate_expression(expression, vars, nocondition=False):
     '''evaluation an expression'''
-    return mavexpression.evaluate_expression(expression, vars)
+    return mavexpression.evaluate_expression(expression, vars, nocondition)
 
 def evaluate_condition(condition, vars):
     '''evaluation a conditional (boolean) statement'''
