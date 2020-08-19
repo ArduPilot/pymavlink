@@ -23,10 +23,9 @@
 '''rotation matrix class
 '''
 from __future__ import print_function
-from builtins import range
-from builtins import object
 
-from math import sin, cos, sqrt, asin, atan2, pi, radians, acos, degrees
+from math import sin, cos, sqrt, asin, atan2, pi, acos
+
 
 class Vector3(object):
     '''a vector'''
@@ -96,6 +95,16 @@ class Vector3(object):
         return Vector3(self.x / v,
                        self.y / v,
                        self.z / v)
+
+    def __truediv__(self, v):
+        return Vector3(self.x / v,
+                       self.y / v,
+                       self.z / v)
+
+    def __floordiv__(self, v):
+        return Vector3(self.x // v,
+                       self.y // v,
+                       self.z // v)
 
     def __mod__(self, v):
         '''cross product'''
@@ -280,6 +289,9 @@ class Matrix3(object):
         return Matrix3(self.a * v, self.b * v, self.c * v)
 
     def __div__(self, v):
+        return Matrix3(self.a / v, self.b / v, self.c / v)
+
+    def __truediv__(self, v):
         return Matrix3(self.a / v, self.b / v, self.c / v)
 
     def __neg__(self):

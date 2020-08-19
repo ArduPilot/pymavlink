@@ -5,7 +5,7 @@
 Unit tests for the rotmat library
 """
 
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, print_function
 from math import radians, degrees
 import unittest
 import random
@@ -44,6 +44,10 @@ class VectorTest(unittest.TestCase):
         assert v1 - v2 == Vector3(0, -1, -6)
         assert (v1 * 3) == Vector3(3, 6, -9)
         assert v1 * v2 == -2
+        assert v2 / 2.0 == Vector3(0.5, 1.5, 1.5)
+        assert v2 // 2.0 == Vector3(0, 1, 1)
+        assert v2 / 2.1 == Vector3(0.47619047619047616, 1.4285714285714286, 1.4285714285714286)
+        assert v2 // 2.1 == Vector3(0.0, 1.0, 1.0)
 
         assert v1 % v2 == Vector3(15.00, -6.00, 1.00)
         np.testing.assert_almost_equal(v2.length(), 4.358898943540674)
@@ -77,6 +81,8 @@ class MatrixTest(unittest.TestCase):
         assert m1 - m2 == Matrix3(Vector3(0, 0, 0), Vector3(1, 4, 0), Vector3(1, 0, -8))
         assert m1 * 3 == Matrix3(Vector3(3, 0, 0), Vector3(3, 15, 0), Vector3(3, 0, -21))
         assert m1 * m1 == Matrix3(Vector3(1, 0, 0), Vector3(6, 25, 0), Vector3(-6, 0, 49))
+        assert m1 / 2.0 == Matrix3(Vector3(0.5, 0, 0), Vector3(0.5, 2.5, 0), Vector3(0.5, 0, -3.5))
+        assert m1 / 0.5 == Matrix3(Vector3(2, 0, 0), Vector3(2, 10, 0), Vector3(2, 0, -14))
         assert m1.transposed() == Matrix3(Vector3(1, 1, 1), Vector3(0, 5, 0), Vector3(0, 0, -7))
 
     def test_euler(self):
@@ -109,7 +115,7 @@ class MatrixTest(unittest.TestCase):
         m1 = Matrix3(Vector3(1, 0, 0), Vector3(1, 5, 0), Vector3(1, 0, -7))
 
         m1.normalize()
-        print(m1)
+        #print(m1)
         assert m1.close(Matrix3(Vector3(0.2, -0.98, 0), Vector3(0.1, 1, 0), Vector3(0, 0, 1)), tol=1e-2)
         np.testing.assert_almost_equal(m1.trace(), 2.19115332535)
 
