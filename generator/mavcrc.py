@@ -31,5 +31,8 @@ class x25crc(object):
         accum = self.crc
         import array
         bytes = array.array('B')
-        bytes.fromstring(buf)
+        try:
+            bytes.fromstring(buf)
+        except AttributeError:  # Python >= 3.9
+            bytes.frombytes(buf.encode())
         self.accumulate(bytes)
