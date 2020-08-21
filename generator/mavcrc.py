@@ -30,9 +30,11 @@ class x25crc(object):
         '''add in some more bytes'''
         accum = self.crc
         import array
-        bytes = array.array('B')
-        try:
-            bytes.fromstring(buf)
-        except AttributeError:  # Python >= 3.9
-            bytes.frombytes(buf.encode())
-        self.accumulate(bytes)
+        bytes_array = array.array('B')
+        try:  # if buf is bytes
+            bytes_array.frombytes(buf)
+        except TypeError:  # if buf is str
+            bytes_array.frombytes(buf.encode())
+        except AttributeError:  # Python < 3.2
+            bytes_array.fromstring(buf)
+        self.accumulate(bytes_array)
