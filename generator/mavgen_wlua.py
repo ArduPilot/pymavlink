@@ -444,13 +444,15 @@ def generate_epilog(outf):
 wtap_encap = DissectorTable.get("wtap_encap")
 wtap_encap:add(wtap.USER0, mavlink_proto)
 
--- bind protocol dissector to port 14550 and 14580
+-- bind protocol dissector to port 14540, 14550, 14570 and 14580
 
 local udp_dissector_table = DissectorTable.get("udp.port")
 udp_dissector_table:add(14540, mavlink_proto)
 udp_dissector_table:add(14550, mavlink_proto)
 udp_dissector_table:add(14570, mavlink_proto)
 udp_dissector_table:add(14580, mavlink_proto)
+
+-- tcp protocol dissector to port 4560
 
 local tcp_dissector_table = DissectorTable.get("tcp.port")
 tcp_dissector_table:add(4560, mavlink_proto)
