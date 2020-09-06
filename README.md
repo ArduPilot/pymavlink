@@ -19,6 +19,10 @@ Pymavlink supports both Python 2 and Python 3.
 
 The following instructions assume you are using Python 3 and a Debian-based (like Ubuntu) installation.
 
+.. note::
+
+   pymavlink assumes the command "python" is in your path.  Your distribution may provide a package such as "python-is-python3" to ensure that "python" is in your path.
+
 ## Dependencies
 
 Pymavlink has several dependencies :
@@ -35,6 +39,10 @@ Optional :
 ### On Linux
 
 lxml has some additional dependencies that can be installed with your package manager (here with `apt-get`) :
+
+.. note::
+
+   If you continue to use Python 2 you may need to change package names here (e.g. python3-dev => python-dev)
 
 ```bash
 sudo apt-get install gcc python3-dev libxml2-dev libxslt-dev
