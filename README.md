@@ -58,7 +58,7 @@ The -U parameter allows updating future and lxml version if it is already instal
 ### On Windows
 
 Use pip to install future as for linux.
-Lxml can be installed with a windows installer from here : https://pypi.python.org/pypi/lxml/3.6.0
+Lxml can be installed with a windows installer from here : https://pypi.org/project/lxml
 
 
 ## Installation
