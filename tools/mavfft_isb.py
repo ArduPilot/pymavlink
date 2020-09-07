@@ -13,6 +13,7 @@ import time
 import copy
 
 from argparse import ArgumentParser
+import scipy.signal as signal
 
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by condition")
@@ -21,6 +22,7 @@ parser.add_argument("--scale", dest='fft_scale', default='db', action='store', h
 parser.add_argument("--window", dest='fft_window', default='hanning', action='store', help="windowing function to use for processing the data: 'hanning', 'blackman' or 'None'")
 parser.add_argument("--overlap", dest='fft_overlap', default=False, action='store_true', help="whether or not to use window overlap when analysing data")
 parser.add_argument("--output", dest='fft_output', default='psd', action='store', help="whether to output frequency spectrum information as power or linear spectral density: 'psd' or 'lsd'")
+parser.add_argument("--notch-params", default=False, action='store_true', help="whether to output estimated harmonic notch parameters")
 
 args = parser.parse_args()
 
@@ -100,6 +102,9 @@ def mavfft_fttd(logfile):
     hntch_option = None
     batch_mode = None
     start_time = time.time()
+    thr_total = 0.
+    thr_count = 0
+
     while True:
         m = mlog.recv_match(condition=args.condition)
         if m is None:
@@ -134,10 +139,19 @@ def mavfft_fttd(logfile):
             elif m.Name == "INS_LOG_BAT_OPT":
                 batch_mode = m.Value
 
+        # get an average read of the throttle value assuming a stable hover above 1m
+        if args.notch_params and msg_type == "CTUN":
+            if m.Alt > 1:
+                thr_total += m.ThO
+                thr_count = thr_count + 1
+
     print("", file=sys.stderr)
     time_delta = time.time() - start_time
     print("%us messages  %u messages/second  %u kB/second" % (msgcount, msgcount/time_delta, os.stat(filename).st_size/time_delta))
     print("Extracted %u fft data sets" % len(things_to_plot), file=sys.stderr)
+    if args.notch_params:
+        thr_ref = thr_total / thr_count
+        print("Throttle average %f" % thr_ref)
 
     sum_fft = {}
     freqmap = {}
@@ -212,6 +226,18 @@ def mavfft_fttd(logfile):
         for axis in [ "X","Y","Z" ]:
             # normalize output to averaged PSD
             psd = 2 * (sum_fft[sensor][axis] / counts[sensor]) / (sample_rates[sensor] * S2[sensor])
+
+            # calculate peaks from linear accel data
+            # the accel data is less noisy than the gyro data
+            if sensor == 'Accel[0]' and axis == "X" and args.notch_params:
+                linear_psd = numpy.sqrt(psd)
+                peaks, _ = signal.find_peaks(psd, prominence=0.1)
+                peak_freqs = freqmap[sensor][peaks]
+                print("Peaks: %s" % str(peak_freqs))
+                print("INS_HNTCH_REF = %.4f" % thr_ref)
+                print("INS_HNTCH_FREQ = %.1f" % float(peak_freqs[0]))
+                print("INS_HNTCH_BW = %.1f" % (float(peak_freqs[0])/2.))
+
             # linerize of requested
             if args.fft_output == 'lsd':
                 psd = numpy.sqrt(psd)
