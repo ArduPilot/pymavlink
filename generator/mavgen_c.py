@@ -570,7 +570,7 @@ def generate_one(basename, xml):
     # work out the included headers
     xml.include_list = []
     for i in xml.include:
-        base = i[:-4]
+        base = os.path.basename(i)[:-4]
         xml.include_list.append(mav_include(base))
 
     # form message lengths array
