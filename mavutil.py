@@ -10,6 +10,7 @@ from builtins import object
 
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
+import copy
 from pymavlink import mavexpression
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
@@ -76,6 +77,25 @@ class location(object):
 
     def __str__(self):
         return "lat=%.6f,lon=%.6f,alt=%.1f" % (self.lat, self.lng, self.alt)
+
+def add_message(messages, mtype, msg):
+    '''add a msg to array of messages, taking account of instance messages'''
+    if msg._instance_field is None or getattr(msg, msg._instance_field, None) is None:
+        # simple case, no instance field
+        messages[mtype] = msg
+        return
+    instance_value = getattr(msg, msg._instance_field)
+    if not mtype in messages:
+        messages[mtype] = copy.copy(msg)
+        messages[mtype]._instances = {}
+        messages[mtype]._instances[instance_value] = msg
+        messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
+        return
+    messages[mtype]._instances[instance_value] = msg
+    prev_instances = messages[mtype]._instances
+    messages[mtype] = copy.copy(msg)
+    messages[mtype]._instances = prev_instances
+    messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
 
 def set_dialect(dialect):
     '''set the MAVLink dialect to work with.
@@ -349,7 +369,7 @@ class mavfile(object):
             # we've seen a new system
             self.sysid_state[src_system] = mavfile_state()
 
-        self.sysid_state[src_system].messages[type] = msg
+        add_message(self.sysid_state[src_system].messages, type, msg)
 
         if src_tuple == radio_tuple:
             # as a special case radio msgs are added for all sysids
@@ -1448,6 +1468,8 @@ class mavmmaplog(mavlogfile):
         # mapping from msg id to name
         self.id_to_name = {}
 
+        self.instance_offsets = {}
+
         self.type_nums = None
 
         ofs = 0
@@ -1462,11 +1484,13 @@ class mavmmaplog(mavlogfile):
             if marker == MARKER_V1:
                 mtype = u_ord(self.data_map[ofs+13])
                 mlen += 8
+                data_ofs = 14
             elif marker == MARKER_V2:
                 if ofs+8+10 > self.data_len:
                     break
                 mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
                 mlen += 12
+                data_ofs = 18
                 incompat_flags = u_ord(self.data_map[ofs+10])
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
@@ -1486,7 +1510,18 @@ class mavmmaplog(mavlogfile):
                 self.id_to_name[mtype] = msg.name
                 self.f.seek(ofs)
                 m = self.recv_msg()
-                self.messages[msg.name] = m
+                add_message(self.messages, msg.name, m)
+                if m._instance_field is not None:
+                    self.instance_offsets[mtype] = m._instance_offset
+
+            if mtype in self.instance_offsets:
+                # populate the messages array with a new instance. This assumes we can get the instance
+                # as a single byte integer
+                self.f.seek(ofs + data_ofs + self.instance_offsets[mtype])
+                b = self.f.read(1)
+                instance, = struct.unpack('b', b)
+                mname = self.id_to_name[mtype]
+                self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
 
             self.offsets[mtype].append(ofs)
             self.counts[mtype] += 1

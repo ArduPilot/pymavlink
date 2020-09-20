@@ -105,6 +105,8 @@ class MAVLink_message(object):
         self._type       = name
         self._signed     = False
         self._link_id    = None
+        self._instances  = None
+        self._instance_field = None
 
     # swiped from DFReader.py
     def to_string(self, s):
@@ -262,6 +264,14 @@ class MAVLink_message(object):
             self.sign_packet(mav)
         return self._msgbuf
 
+    def __getitem__(self, key):
+        '''support indexing, allowing for multi-instance sensors in one message'''
+        if self._instances is None:
+            raise IndexError()
+        if not key in self._instances:
+            raise IndexError()
+        return self._instances[key]
+
 """, {'FILELIST': ",".join(args),
       'PROTOCOL_MARKER': xml.protocol_marker,
       'DIALECT': os.path.splitext(os.path.basename(basename))[0],
@@ -331,6 +341,12 @@ def generate_classes(outf, msgs):
         fieldunits_str = byname_hash_from_field_attribute(m, "units")
 
         fieldtypes_str = ", ".join(["'%s'" % s for s in m.fieldtypes])
+        if m.instance_field is not None:
+            instance_field = "'%s'" % m.instance_field
+            instance_offset = m.field_offsets[m.instance_field]
+        else:
+            instance_field = "None"
+            instance_offset = -1
         outf.write("""
 class %s(MAVLink_message):
         '''
@@ -351,6 +367,8 @@ class %s(MAVLink_message):
         array_lengths = %s
         crc_extra = %s
         unpacker = struct.Struct('%s')
+        instance_field = %s
+        instance_offset = %d
 
         def __init__(self""" % (classname, wrapper.fill(m.description.strip()),
             m.name.upper(),
@@ -367,7 +385,9 @@ class %s(MAVLink_message):
             m.len_map,
             m.array_len_map,
             m.crc_extra,
-            m.fmtstr))
+            m.fmtstr,
+            instance_field,
+            instance_offset))
         for i in range(len(m.fields)):
                 fname = m.fieldnames[i]
                 if m.extensions_start is not None and i >= m.extensions_start:
@@ -378,6 +398,8 @@ class %s(MAVLink_message):
         outf.write("):\n")
         outf.write("                MAVLink_message.__init__(self, %s.id, %s.name)\n" % (classname, classname))
         outf.write("                self._fieldnames = %s.fieldnames\n" % (classname))
+        outf.write("                self._instance_field = %s.instance_field\n" % (classname))
+        outf.write("                self._instance_offset = %s.instance_offset\n" % (classname))
         for f in m.fields:
                 outf.write("                self.%s = %s\n" % (f.name, f.name))
         outf.write("""
@@ -482,6 +504,7 @@ class MAVLink_bad_data(MAVLink_message):
                 self.data = data
                 self.reason = reason
                 self._msgbuf = data
+                self._instance_field = None
 
         def __str__(self):
             '''Override the __str__ function from MAVLink_messages because non-printable characters are common in to be the reason for this message to exist.'''
@@ -966,10 +989,13 @@ def generate(basename, xml):
         else:
             m.fmtstr = '>'
         m.native_fmtstr = m.fmtstr
+        m.instance_field = None
         for f in m.ordered_fields:
             m.fmtstr += mavfmt(f)
             m.fielddefaults.append(mavdefault(f))
             m.native_fmtstr += native_mavfmt(f)
+            if f.instance:
+                m.instance_field = f.name
         m.order_map = [0] * len(m.fieldnames)
         m.len_map = [0] * len(m.fieldnames)
         m.array_len_map = [0] * len(m.fieldnames)

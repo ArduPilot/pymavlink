@@ -262,7 +262,7 @@ class DFMessage(object):
         '''support indexing, allowing for multi-instance sensors in one message'''
         if self.fmt.instance_field is None:
             raise IndexError()
-        k = '%s_%s' % (self.fmt.name, str(key))
+        k = '%s[%s]' % (self.fmt.name, str(key))
         if not k in self._parent.messages:
             raise IndexError()
         return self._parent.messages[k]
@@ -600,7 +600,7 @@ class DFReader(object):
         self.messages[type] = m
         if m.fmt.instance_field is not None:
             i = m.__getattr__(m.fmt.instance_field)
-            self.messages["%s_%s" % (type, str(i))] = m
+            self.messages["%s[%s]" % (type, str(i))] = m
 
         if self.clock:
             self.clock.message_arrived(m)
