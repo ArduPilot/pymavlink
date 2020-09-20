@@ -33,7 +33,7 @@ class MAVParseError(Exception):
         return self.message
 
 class MAVField(object):
-    def __init__(self, name, type, print_format, xml, description='', enum='', display='', units=''):
+    def __init__(self, name, type, print_format, xml, description='', enum='', display='', units='', instance=False):
         self.name = name
         self.name_upper = name.upper()
         self.description = description
@@ -44,6 +44,7 @@ class MAVField(object):
         self.omit_arg = False
         self.const_value = None
         self.print_format = print_format
+        self.instance = instance
         lengths = {
         'float'    : 4,
         'double'   : 8,
@@ -253,7 +254,8 @@ class MAVXML(object):
                 units = attrs.get('units', '')
                 if units:
                     units = '[' + units + ']'
-                new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units)
+                instance = attrs.get('instance', False)
+                new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units, instance=instance)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields.append(new_field)
             elif in_element == "mavlink.enums.enum":
@@ -374,6 +376,7 @@ class MAVXML(object):
             m.message_flags = 0
             m.target_system_ofs = 0
             m.target_component_ofs = 0
+            m.field_offsets = {}
             
             if self.sort_fields:
                 # when we have extensions we only sort up to the first extended field
@@ -397,6 +400,7 @@ class MAVXML(object):
             for i in range(len(m.ordered_fields)):
                 f = m.ordered_fields[i]
                 f.wire_offset = m.wire_length
+                m.field_offsets[f.name] = f.wire_offset
                 m.wire_length += f.wire_length
                 field_el_length = f.wire_length
                 if f.array_length > 1:
