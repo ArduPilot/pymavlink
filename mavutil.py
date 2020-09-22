@@ -2362,7 +2362,7 @@ def dump_message_verbose(f, m):
         timestamp = "%s.%02u: " % (
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
             int(timestamp*100.0)%100)
-    f.write("%s%s (link=%s) (signed=%s) (seq=%u) (src=%u/%u)\n" % (timestamp, m.get_type(), str(m.get_link_id()), str(m.get_signed()), m.get_seq(), m.get_srcSystem(), m.get_srcComponent()))
+    f.write("%s%s (id=%u) (link=%s) (signed=%s) (seq=%u) (src=%u/%u)\n" % (timestamp, m.get_type(), m.get_msgId(), str(m.get_link_id()), str(m.get_signed()), m.get_seq(), m.get_srcSystem(), m.get_srcComponent()))
     for fieldname in m.get_fieldnames():
 
         # format in those most boring way possible:
