@@ -1183,6 +1183,20 @@ def get_mag_field_ef(latitude_deg, longitude_deg):
     
 earth_field = None
 
+def expected_earth_field_lat_lon(lat, lon):
+    '''return expected magnetic field for a location'''
+    global earth_field
+    if earth_field is not None:
+        return earth_field
+
+    field_var = get_mag_field_ef(lat, lon)
+    mag_ef = Vector3(field_var[2]*1000.0, 0.0, 0.0)
+    R = Matrix3()
+    R.from_euler(0.0, -radians(field_var[1]), radians(field_var[0]))
+    mag_ef = R * mag_ef
+    earth_field = mag_ef
+    return earth_field
+
 def expected_earth_field(GPS):
     '''return expected magnetic field for a location'''
     global earth_field

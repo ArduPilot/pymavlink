@@ -23,6 +23,9 @@ parser.add_argument("--no-offset-change", action='store_true', help="don't chang
 parser.add_argument("--no-cmot-change", action='store_true', help="don't change cmot")
 parser.add_argument("--elliptical", action='store_true', help="fit elliptical corrections")
 parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
+parser.add_argument("--lat", type=float, default=0, help="latitude")
+parser.add_argument("--lon", type=float, default=0, help="longitude")
+
 parser.add_argument("log", metavar="LOG")
 
 args = parser.parse_args()
@@ -86,7 +89,7 @@ def correct(MAG, BAT, c):
     mag = mat * mag
 
     # apply compassmot corrections
-    if BAT is not None and not math.isnan(BAT.Curr):
+    if BAT is not None and hasattr(BAT, 'Curr') and not math.isnan(BAT.Curr):
         mag += c.cmot * BAT.Curr
 
     return mag
@@ -218,7 +221,7 @@ def remove_offsets(MAG, BAT, c):
         return False
 
     field = Vector3(MAG.MagX, MAG.MagY, MAG.MagZ)
-    if BAT is not None and not math.isnan(BAT.Curr):
+    if BAT is not None and hasattr(BAT,'Curr') and not math.isnan(BAT.Curr):
         field -= c.cmot * BAT.Curr
     field = correction_matrix * field
     field *= 1.0 / c.scaling
@@ -259,6 +262,11 @@ def magfit(logfile):
 
     mlog.rewind()
 
+    if args.lat != 0 and args.lon != 0:
+        earth_field = mavextra.expected_earth_field_lat_lon(args.lat, args.lon)
+        (declination,inclination,intensity) = mavextra.get_mag_field_ef(args.lat, args.lon)
+        print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
+    
     # extract MAG data
     while True:
         msg = mlog.recv_match(type=['GPS',mag_msg,'ATT','CTUN','BARO', 'BAT'], condition=args.condition)
