@@ -421,7 +421,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
                     # better clock was found.
                     return
 
-        if gps_week is None:
+        if gps_week is None and hasattr(m,'Wk'):
             # AvA-style logs
             gps_week = getattr(m, 'Wk')
             gps_timems = getattr(m, 'TWk')
@@ -605,7 +605,7 @@ class DFReader(object):
         if self.clock:
             self.clock.message_arrived(m)
 
-        if type == 'MSG':
+        if type == 'MSG' and hasattr(m,'Message'):
             if m.Message.find("Rover") != -1:
                 self.mav_type = mavutil.mavlink.MAV_TYPE_GROUND_ROVER
             elif m.Message.find("Plane") != -1:
@@ -617,7 +617,7 @@ class DFReader(object):
             elif m.Message.find("ArduSub") != -1:
                 self.mav_type = mavutil.mavlink.MAV_TYPE_SUBMARINE
         if type == 'MODE':
-            if isinstance(m.Mode, str):
+            if hasattr(m,'Mode') and isinstance(m.Mode, str):
                 self.flightmode = m.Mode.upper()
             elif 'ModeNum' in m._fieldnames:
                 mapping = mavutil.mode_mapping_bynumber(self.mav_type)
@@ -625,7 +625,7 @@ class DFReader(object):
                     self.flightmode = mapping[m.ModeNum]
                 else:
                     self.flightmode = 'UNKNOWN'
-            else:
+            elif hasattr(m,'Mode'):
                 self.flightmode = mavutil.mode_string_acm(m.Mode)
         if type == 'STAT' and 'MainState' in m._fieldnames:
             self.flightmode = mavutil.mode_string_px4(m.MainState)
@@ -696,7 +696,7 @@ class DFReader_binary(DFReader):
     def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        self.filehandle = open(filename, 'rb')
+        self.filehandle = open(filename, 'r')
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
         self.filehandle.seek(0)
@@ -996,7 +996,7 @@ class DFReader_binary(DFReader):
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
     with open(filename, 'r') as f:
-        ret = (f.read(8000).find('FMT, ') != -1)
+        ret = (f.read(8000).find('FMT,') != -1)
 
     return ret
 
@@ -1009,11 +1009,13 @@ class DFReader_text(DFReader):
         self.filehandle = open(filename, 'r')
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
+        self.filehandle.seek(0, 0)
         if platform.system() == "Windows":
             self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
         else:
             self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
         self.offset = 0
+        self.delimeter = ", "
 
         self.formats = {
             'FMT': DFFormat(0x80,
@@ -1034,6 +1036,10 @@ class DFReader_text(DFReader):
         DFReader._rewind(self)
         # find the first valid line
         self.offset = self.data_map.find(b'FMT, ')
+        if self.offset == -1:
+            self.offset = self.data_map.find(b'FMT,')
+            if self.offset != -1:
+                self.delimeter = ","
         self.type_list = None
 
     def rewind(self):
@@ -1050,7 +1056,7 @@ class DFReader_text(DFReader):
 
         while ofs+16 < self.data_len:
             mtype = self.data_map[ofs:ofs+4]
-            if mtype[3] == ',':
+            if mtype[3] == b',':
                 mtype = mtype[0:3]
             if not mtype in self.offsets:
                 self.counts[mtype] = 0
@@ -1122,7 +1128,7 @@ class DFReader_text(DFReader):
             s = self.data_map[self.offset:endline].rstrip()
             if sys.version_info.major >= 3:
                 s = s.decode('utf-8')
-            elements = s.split(", ")
+            elements = s.split(self.delimeter)
             self.offset = endline+1
             if len(elements) >= 2:
                 # this_line is good
@@ -1155,16 +1161,19 @@ class DFReader_text(DFReader):
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
-            if elements[2] == 'FMT' and elements[4] == 'Type,Length,Name,Format':
-                # some logs have the 'Columns' column missing from text logs
-                elements[4] = "Type,Length,Name,Format,Columns"
             ftype = int(elements[0])
             fname = elements[2]
+            if self.delimeter == ",":
+                elements = elements[0:4] + [",".join(elements[4:])]
+            columns = elements[4]
+            if fname == 'FMT' and columns == 'Type,Length,Name,Format':
+                # some logs have the 'Columns' column missing from text logs
+                columns = "Type,Length,Name,Format,Columns"
             new_fmt = DFFormat(ftype,
                                fname,
                                int(elements[1]),
                                elements[3],
-                               elements[4],
+                               columns,
                                oldfmt=self.formats.get(ftype,None))
             self.formats[fname] = new_fmt
             self.id_to_name[ftype] = fname
@@ -1213,9 +1222,13 @@ if __name__ == "__main__":
         log = DFReader_text(filename)
     else:
         log = DFReader_binary(filename)
+    #bfile = filename + ".bin"
+    #bout = open(bfile, 'wb')
     while True:
         m = log.recv_msg()
         if m is None:
             break
+        #bout.write(m.get_msgbuf())
+        #print(m)
     if use_profiler:
         profiler.print_stats()
