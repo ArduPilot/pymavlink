@@ -674,6 +674,9 @@ class mavfile(object):
                                    0,
                                    0,
                                    0)
+        self.mav.set_mode_send(self.target_system,
+                               mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                               mode)
 
     def set_mode_px4(self, mode, custom_mode, custom_sub_mode):
         '''enter arbitrary mode'''
