@@ -282,6 +282,7 @@ def process_file(filename, timeshift):
     print("Processing %s" % filename)
     mlog = mavutil.mavlink_connection(filename, notimestamps=args.notimestamps, zero_time_base=args.zero_time_base, dialect=args.dialect)
     vars = {}
+    all_messages = {}
 
     while True:
         msg = mlog.recv_match(args.condition)
@@ -292,7 +293,8 @@ def process_file(filename, timeshift):
             # this can happen if the log is corrupt
             # ValueError: year is out of range
             break
-        add_data(tdays, msg, mlog.messages, mlog.flightmode)
+        all_messages[msg.get_type()] = msg
+        add_data(tdays, msg, all_messages, mlog.flightmode)
 
 if len(filenames) == 0:
     print("No files to process")
