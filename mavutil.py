@@ -1919,7 +1919,8 @@ mode_mapping_apm = {
     22 : 'QAUTOTUNE',
     23 : 'QACRO',
     24 : 'THERMAL',
-    }
+}
+
 mode_mapping_acm = {
     0 : 'STABILIZE',
     1 : 'ACRO',
@@ -1946,6 +1947,7 @@ mode_mapping_acm = {
     23 : 'FOLLOW',
     24 : 'ZIGZAG',
 }
+
 mode_mapping_rover = {
     0 : 'MANUAL',
     1 : 'ACRO',
@@ -1960,7 +1962,7 @@ mode_mapping_rover = {
     12 : 'SMART_RTL',
     15 : 'GUIDED',
     16 : 'INITIALISING'
-    }
+}
 
 mode_mapping_tracker = {
     0 : 'MANUAL',
@@ -1969,7 +1971,7 @@ mode_mapping_tracker = {
     4 : 'GUIDED',
     10 : 'AUTO',
     16 : 'INITIALISING'
-    }
+}
 
 mode_mapping_sub = {
     0: 'STABILIZE',
@@ -1981,7 +1983,29 @@ mode_mapping_sub = {
     9: 'SURFACE',
     16: 'POSHOLD',
     19: 'MANUAL',
-    }
+}
+
+AP_MAV_TYPE_MODE_MAP = {
+    # copter
+    mavlink.MAV_TYPE_HELICOPTER:  mode_mapping_acm,
+    mavlink.MAV_TYPE_TRICOPTER:   mode_mapping_acm,
+    mavlink.MAV_TYPE_QUADROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_HEXAROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_OCTOROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_DECAROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_DODECAROTOR: mode_mapping_acm,
+    mavlink.MAV_TYPE_COAXIAL:     mode_mapping_acm,
+    # plane
+    mavlink.MAV_TYPE_FIXED_WING: mode_mapping_apm,
+    # rover
+    mavlink.MAV_TYPE_GROUND_ROVER: mode_mapping_rover,
+    # boat
+    mavlink.MAV_TYPE_SURFACE_BOAT: mode_mapping_rover, # for the time being
+    # tracker
+    mavlink.MAV_TYPE_ANTENNA_TRACKER: mode_mapping_tracker,
+    # sub
+    mavlink.MAV_TYPE_SUBMARINE: mode_mapping_sub,
+}
 
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
@@ -2095,27 +2119,7 @@ def mode_mapping_byname(mav_type):
 
 def mode_mapping_bynumber(mav_type):
     '''return dictionary mapping mode numbers to name, or None if unknown'''
-    map = None
-    if mav_type in [mavlink.MAV_TYPE_QUADROTOR,
-                    mavlink.MAV_TYPE_HELICOPTER,
-                    mavlink.MAV_TYPE_HEXAROTOR,
-                    mavlink.MAV_TYPE_DECAROTOR,
-                    mavlink.MAV_TYPE_OCTOROTOR,
-                    mavlink.MAV_TYPE_DODECAROTOR,
-                    mavlink.MAV_TYPE_COAXIAL,
-                    mavlink.MAV_TYPE_TRICOPTER]:
-        map = mode_mapping_acm
-    if mav_type == mavlink.MAV_TYPE_FIXED_WING:
-        map = mode_mapping_apm
-    if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
-        map = mode_mapping_rover
-    if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
-        map = mode_mapping_rover # for the time being
-    if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
-        map = mode_mapping_tracker
-    if mav_type == mavlink.MAV_TYPE_SUBMARINE:
-        map = mode_mapping_sub
-    return map
+    return AP_MAV_TYPE_MODE_MAP[mav_type] if mav_type in AP_MAV_TYPE_MODE_MAP else None
 
 
 def mode_string_v10(msg):
