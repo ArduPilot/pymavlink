@@ -170,7 +170,8 @@ def fit_WWW():
         p.extend([c.cmot.x, c.cmot.y, c.cmot.z])
 
     ofs = args.max_offset
-    bounds = [(-ofs,ofs),(-ofs,ofs),(-ofs,ofs),(args.min_scale,args.max_scale)]
+    min_scale_delta = 0.00001
+    bounds = [(-ofs,ofs),(-ofs,ofs),(-ofs,ofs),(args.min_scale,max(args.min_scale+min_scale_delta,args.max_scale))]
     if args.no_offset_change:
         bounds[0] = (c.offsets.x, c.offsets.x)
         bounds[1] = (c.offsets.y, c.offsets.y)
@@ -191,7 +192,10 @@ def fit_WWW():
             for i in range(3):
                 bounds.append((-args.max_cmot,args.max_cmot))
 
-    p = optimize.fmin_slsqp(wmm_error, p, bounds=bounds)
+    (p,err,iterations,imode,smode) = optimize.fmin_slsqp(wmm_error, p, bounds=bounds, full_output=True)
+    if imode != 0:
+        print("Fit failed: %s" % smode)
+        sys.exit(1)
     p = list(p)
 
     c.offsets = Vector3(p.pop(0), p.pop(0), p.pop(0))
