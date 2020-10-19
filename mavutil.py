@@ -1985,7 +1985,7 @@ mode_mapping_sub = {
     19: 'MANUAL',
 }
 
-AP_MAV_TYPE_MODE_MAP = {
+AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     # copter
     mavlink.MAV_TYPE_HELICOPTER:  mode_mapping_acm,
     mavlink.MAV_TYPE_TRICOPTER:   mode_mapping_acm,
@@ -2006,6 +2006,25 @@ AP_MAV_TYPE_MODE_MAP = {
     # sub
     mavlink.MAV_TYPE_SUBMARINE: mode_mapping_sub,
 }
+
+
+try:
+    # Allow for using custom mode maps by importing a dict named
+    # AP_MAV_TYPE_MODE_MAP_CUSTOM from "~/.pymavlink/ap_custom_mode_map.py"
+    # and using it to extend the hard-coded AP_MAV_TYPE_MODE_MAP_DEFAULT dict.
+    import sys
+    from os.path import expanduser
+
+    sys.path.append(expanduser('~') + '/.pymavlink')
+    from ap_custom_mode_map import AP_MAV_TYPE_MODE_MAP_CUSTOM
+
+    AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
+    AP_MAV_TYPE_MODE_MAP.update(AP_MAV_TYPE_MODE_MAP_CUSTOM)
+    print("Using custom MAV_TYPE mode map:")
+    print(repr(AP_MAV_TYPE_MODE_MAP_CUSTOM))
+except:
+    AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
+
 
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
