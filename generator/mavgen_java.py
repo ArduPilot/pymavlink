@@ -381,7 +381,6 @@ public class MAVLinkPacket implements Serializable {
     public static final int MAVLINK2_HEADER_LEN = 10;
     public static final int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
     public static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
-    public static final int MAVLINK2_NONPAYLOAD_SIGNED_LEN = MAVLINK2_HEADER_LEN + 2 + Signature.MAX_SIGNATURE_SIZE;
 
     static final boolean V = false;
     static void logv(String str) {
@@ -446,12 +445,6 @@ public class MAVLinkPacket implements Serializable {
      */
     public int compatFlags;
 
-    /**
-     * Signature which allows ensuring that the link is tamper-proof
-     */
-    public Signature signature;
-
-
     public MAVLinkPacket(int payloadLength) {
         this(payloadLength, false);
     }
@@ -506,18 +499,6 @@ public class MAVLinkPacket implements Serializable {
     }
 
     /**
-     * Update signature for this packet.
-     */
-    public void generateSignature() {
-        // TODO: implement signature
-
-        if(signature == null) {
-            signature = new Signature();
-        }
-
-    }
-
-    /**
      * Return length of actual data after triming zeros at the end.
      * @param payload
      * @return minimum length of valid data
@@ -543,9 +524,6 @@ public class MAVLinkPacket implements Serializable {
         if (isMavlink2) {
             payloadSize = mavTrimPayload(payload.payload.array());
             bufLen = MAVLINK2_HEADER_LEN + payloadSize + 2;
-
-            //TODO: implement signature, maybe in encodeSignedPacket()
-            //bufLen = MAVLINK2_HEADER_LEN + payloadSize + 2 + Signature.MAX_SIGNATURE_SIZE;
         } else {
             payloadSize = payload.size();
             bufLen = MAVLINK1_HEADER_LEN + payloadSize + 2;
@@ -669,7 +647,7 @@ public class MAVLinkPacket implements Serializable {
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
-    hlist = [ 'Parser.java', 'Signature.java', 'messages/MAVLinkMessage.java', 'messages/MAVLinkPayload.java', 'messages/MAVLinkStats.java' ]
+    hlist = [ 'Parser.java', 'messages/MAVLinkMessage.java', 'messages/MAVLinkPayload.java', 'messages/MAVLinkStats.java' ]
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'java/lib')
     print("Copying fixed headers")

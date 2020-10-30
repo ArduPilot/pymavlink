@@ -277,9 +277,6 @@ def mavgen(opts, args):
     elif opts.language == 'c++11':
         from . import mavgen_cpp11
         mavgen_cpp11.generate(opts.output, xml)
-    elif opts.language == 'rdm':
-        from . import mavgen_rdm
-        mavgen_rdm.generate(opts.output, xml)
     else:
         print("Unsupported language %s" % opts.language)
 

@@ -202,29 +202,21 @@ public class Parser {
                     stats.newPacket(m);
                     
                     if (!isMavlink2 || (m.incompatFlags != 0x01)) {
-                        // MAVLink 1 and Unsigned MAVLink 2
                         // If no signature, then return the message.
                         state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
                         return m;
                     } else {
-                        // MAVLink 2 - signed
-                        // Otherwise we're waiting for signature data.
-                        m.signature = new Signature();
-                        state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
+                        // TODO: MAVLink 2 - signed
+                        state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                        stats.crcError();
                     }
                 }
                 break;
                 
-            // TODO: implement signature parsing and validation
             case MAVLINK_PARSE_STATE_GOT_CRC2:
-                // MAVLink 2 only
-                m.signature.signature.put((byte) c);
-                if(m.signature.signature.position() == Signature.MAX_SIGNATURE_SIZE) {
-                    state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                    logv(TAG, "Got a signed message");
-                    // Successfully received the message
-                    return m;
-                }
+                // TODO: implement signature parsing and validation
+                state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                stats.crcError();
                 break;
         } // switch
         
