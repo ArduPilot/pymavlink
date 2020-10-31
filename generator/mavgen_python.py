@@ -60,6 +60,10 @@ else:
     # mavnative isn't supported for MAVLink2 yet
     native_supported = False
 
+# allow MAV_IGNORE_CRC=1 to ignore CRC, allowing some
+# corrupted msgs to be seen
+MAVLINK_IGNORE_CRC = os.environ.get("MAV_IGNORE_CRC",0)
+
 # some base types from mavlink_types.h
 MAVLINK_TYPE_CHAR     = 0
 MAVLINK_TYPE_UINT8_T  = 1
@@ -821,7 +825,7 @@ class MAVLink(object):
                 if ${crc_extra}: # using CRC extra
                     crcbuf.append(crc_extra)
                 crc2 = x25crc(crcbuf)
-                if crc != crc2.crc:
+                if crc != crc2.crc and not MAVLINK_IGNORE_CRC:
                     raise MAVError('invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x' % (msgId, crc, crc2.crc))
 
                 sig_ok = False
