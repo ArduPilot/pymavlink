@@ -69,6 +69,8 @@ class Correction:
         print("COMPASS_MOT%s_Y %.3f" % (mag_idx, self.cmot.y))
         print("COMPASS_MOT%s_Z %.3f" % (mag_idx, self.cmot.z))
         print("COMPASS_SCALE%s %.2f" % (mag_idx, self.scaling))
+        if args.cmot:
+            print("COMPASS_MOTCT 2" % (mag_idx, self.scaling))
 
 def correct(MAG, BAT, c):
     '''correct a mag sample, returning a Vector3'''
