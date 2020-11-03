@@ -147,11 +147,6 @@ package com.mavlink.%s;
 import com.mavlink.MAVLinkPacket;
 import com.mavlink.messages.MAVLinkMessage;
 import com.mavlink.messages.MAVLinkPayload;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
         
 /**
  * ${description}
@@ -250,35 +245,6 @@ public class msg_${name_lower} extends MAVLinkMessage {
         unpack(mavLinkPacket.payload);
     }
 
-    /**
-     * Constructor for a new message, initializes the message with the payload
-     * from JSON Object
-     */
-    public msg_${name_lower}(JSONObject jo) {
-        this.msgid = MAVLINK_MSG_ID_${name};
-
-        readJSONheader(jo);
-        
-        ${{base_fields:${fromJsonField}
-        }}
-        ${{extended_fields:${fromJsonField}
-        }}
-    }
-    
-    /**
-     * Convert this class to a JSON Object
-     */
-    @Override
-    public JSONObject toJSON() throws JSONException {
-        final JSONObject jo = getJSONheader();
-        
-        ${{base_fields:${toJsonField}
-        }}
-        ${{extended_fields:${toJsonField}
-        }}
-        return jo;
-    }
-
     ${{ordered_fields: ${getText} }}
     /**
      * Returns a string with the MSG name and data
@@ -324,7 +290,6 @@ import java.io.Serializable;
 import com.mavlink.messages.MAVLinkPayload;
 import com.mavlink.messages.MAVLinkMessage;
 import com.mavlink.${basename}.CRC;
-import org.json.JSONObject;
 
 ${importString}
 
@@ -595,48 +560,6 @@ public class MAVLinkPacket implements Serializable {
     }
 ''')
 
-
-
-
-    f.write('''
-    /**
-     * Unpack the data in this JSON Object and return a MAVLink message
-     *
-     * @return MAVLink message decoded from JSON
-     */
-    public static MAVLinkMessage fromJSON(JSONObject jo) {
-        final JSONObject json_header = (jo.has("header")) ? jo.getJSONObject("header") : jo;
-        final int json_msgid;
-
-        if (json_header.has("msgId")) {
-            json_msgid = json_header.optInt("msgId", -1);
-        } else if (json_header.has("msgid")) {
-            json_msgid = json_header.optInt("msgid", -1);
-        } else {
-            json_msgid = -1;
-        }
-        
-        switch (json_msgid) {
-        ''')
-
-    for msg in xml_msgs:
-        t.write(f, ''' 
-            case msg_${name_lower}.MAVLINK_MSG_ID_${name}:
-                return new msg_${name_lower}(jo);
-            ''',msg)
-    f.write('''
-            default:
-            case -1:
-                return null;
-        }
-    }
-''')
-
-
-
-
-
-
     f.write('''
 }
 
@@ -670,20 +593,19 @@ class mav_include(object):
 
 def mavfmt(field, typeInfo=0):
     '''work out the struct format for a type'''
-    ''' last column is needed for JSON parsing where we can not getShort() or getByte() or getFloat() on older versions of org.JSON including Android sdk29'''
     map = {
-        'float'    : ('float', 'Float', 'Float', 'Double', 'double'),
-        'double'   : ('double', 'Double', 'Double', 'Double', 'double'),
-        'char'     : ('byte', 'Byte', 'Short', 'Int', 'int'),
-        'int8_t'   : ('byte', 'Byte', 'Short', 'Int', 'int'),
-        'uint8_t'  : ('short', 'UnsignedByte', 'Short', 'Int', 'int'),
-        'uint8_t_mavlink_version'  : ('short', 'UnsignedByte', 'Short', 'Int', 'int'),
-        'int16_t'  : ('short', 'Short', 'Short', 'Int', 'int'),
-        'uint16_t' : ('int', 'UnsignedShort', 'Int', 'Int', 'int'),
-        'int32_t'  : ('int', 'Int', 'Int', 'Int', 'int'),
-        'uint32_t' : ('long', 'UnsignedInt', 'Long', 'Long', 'long'),
-        'int64_t'  : ('long', 'Long', 'Long', 'Long', 'long'),
-        'uint64_t' : ('long', 'UnsignedLong', 'Long', 'Long', 'long'),
+        'float'    : ('float', 'Float'),
+        'double'   : ('double', 'Double'),
+        'char'     : ('byte', 'Byte'),
+        'int8_t'   : ('byte', 'Byte'),
+        'uint8_t'  : ('short', 'UnsignedByte'),
+        'uint8_t_mavlink_version'  : ('short', 'UnsignedByte'),
+        'int16_t'  : ('short', 'Short'),
+        'uint16_t' : ('int', 'UnsignedShort'),
+        'int32_t'  : ('int', 'Int', 'Int'),
+        'uint32_t' : ('long', 'UnsignedInt'),
+        'int64_t'  : ('long', 'Long'),
+        'uint64_t' : ('long', 'UnsignedLong'),
     }
     
     return map[field.type][typeInfo]
@@ -761,29 +683,6 @@ def generate_one(basename, xml):
                 f.decode_left = ''
                 f.decode_right = 'm.%s' % (f.name)
                 
-                f.fromJsonField = ''' 
-        if (jo.has("%s")) {
-            JSONArray ja_%s = jo.optJSONArray("%s");
-            if (ja_%s == null) {
-                this.%s[0] = (%s)jo.opt%s("%s", 0);
-            } else {
-                for (int i = 0; i < Math.min(this.%s.length, ja_%s.length()); i++) {
-                    this.%s[i] = (%s)ja_%s.opt%s(i,0);
-                }
-            }
-        }
-                    ''' % (f.name, f.name, f.name, f.name,
-                    f.name, mavfmt(f, 0), mavfmt(f, 3), f.name,
-                    f.name, f.name, f.name, mavfmt(f,0), f.name, mavfmt(f,3))
-                
-                f.toJsonField = ''' 
-        JSONArray ja_%s = new JSONArray();
-        for (int i = 0; i < this.%s.length; i++) {
-            ja_%s.put(this.%s[i]);
-        }
-        jo.putOpt("%s", (Object)ja_%s);
-                ''' % (f.name, f.name, f.name, f.name, f.name, f.name)
-                
                 f.unpackField = ''' 
         for (int i = 0; i < this.%s.length; i++) {
             this.%s[i] = payload.get%s();
@@ -797,22 +696,6 @@ def generate_one(basename, xml):
                 f.return_type = 'uint16_t'
                 f.get_arg = ', %s *%s' % (f.type, f.name)
                 if f.type == 'char':
-                    f.fromJsonField = ''' 
-        if (jo.has("%s")) {
-            JSONArray ja_%s = jo.optJSONArray("%s");
-            if (ja_%s == null) {
-                final String js_string_%s = jo.optString("%s");
-                final byte[] b_%s = js_string_%s.getBytes();
-                System.arraycopy(b_%s, 0, this.%s, 0, Math.min(this.%s.length, b_%s.length));
-            } else {
-                for (int i = 0; i < Math.min(this.%s.length, ja_%s.length()); i++) {
-                    this.%s[i] = (%s)ja_%s.opt%s(i,0);
-                }
-            }
-        }
-                    ''' % (f.name, f.name, f.name, f.name,
-                    f.name, f.name, f.name, f.name, f.name, f.name, f.name, f.name,
-                    f.name, f.name, f.name, mavfmt(f,0), f.name, mavfmt(f,3))
 
                     f.c_test_value = '"%s"' % f.test_value
                     f.getText = '''
@@ -863,48 +746,14 @@ def generate_one(basename, xml):
                 f.unpackField = 'this.%s = payload.get%s();' % (f.name, mavfmt(f, 1))
                 f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1),f.name)
 
-                f.fromJsonField = 'this.%s = (%s)jo.opt%s("%s",0);' % (f.name, mavfmt(f, 0), mavfmt(f, 3), f.name)
-                f.toJsonField ='jo.put("%s", (%s)%s);' % (f.name, mavfmt(f, 4), f.name)
-
                 f.get_arg = ''
                 f.return_type = f.type
                 if f.type == 'char':
                     f.c_test_value = "'%s'" % f.test_value
                 elif f.type == 'uint64_t':
                     f.c_test_value = "%sULL" % f.test_value
-                    f.fromJsonField = ''' 
-        if (jo.has("%s")) {
-            final JSONArray ja_%s = jo.optJSONArray("%s");
-            if (ja_%s == null) {
-                this.%s = (%s)jo.opt%s("%s", 0);
-            } else if (ja_%s.length() > 0) {
-                this.%s = (%s)ja_%s.opt%s(0, 0);
-            }
-        }
-                    ''' % (f.name, 
-                    f.name, f.name,
-                    f.name,
-                    f.name, mavfmt(f,0), mavfmt(f,3), f.name,
-                    f.name,
-                    f.name, mavfmt(f,0), f.name, mavfmt(f,3))
-
                 elif f.type == 'int64_t':
-                    f.c_test_value = "%sLL" % f.test_value                    
-                    f.fromJsonField = ''' 
-        if (jo.has("%s")) {
-            final JSONArray ja_%s = jo.optJSONArray("%s");
-            if (ja_%s == null) {
-                this.%s = (%s)jo.opt%s("%s", 0);
-            } else if (ja_%s.length() > 0) {
-                this.%s = (%s)ja_%s.opt%s(0, 0);
-            }
-        }
-                    ''' % (f.name, 
-                    f.name, f.name,
-                    f.name,
-                    f.name, mavfmt(f,0), mavfmt(f,3), f.name,
-                    f.name,
-                    f.name, mavfmt(f,0), f.name, mavfmt(f,3))
+                    f.c_test_value = "%sLL" % f.test_value
                 else:
                     f.c_test_value = f.test_value
     

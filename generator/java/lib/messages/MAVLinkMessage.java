@@ -8,8 +8,6 @@ package com.mavlink.messages;
 
 import com.mavlink.MAVLinkPacket;
 
-import org.json.JSONObject;
-
 import java.io.Serializable;
 
 /**
@@ -27,48 +25,6 @@ public abstract class MAVLinkMessage implements Serializable {
 
     public abstract MAVLinkPacket pack();
     public abstract void unpack(com.mavlink.messages.MAVLinkPayload payload);
-    public abstract JSONObject toJSON();
     public abstract String toString();
     public abstract String name();
-
-    public final static String[] header_sysid = {"sysid", "sysId", "srcSystem"};
-    public final static String[] header_compid = {"compid", "compId", "srcComponent"};
-    public final static String[] header_msgid = {"msgid", "msgId", "messageId"};
-    public int header_sysid_index = 2;
-    public int header_compid_index = 2;
-    public int header_msgid_index = 1;
-    public boolean heading_include_IsMavlink2 = true;
-    public boolean heading_is_extra_object = true;
-
-    protected void readJSONheader(JSONObject jo) {
-        JSONObject header = (jo.has("header")) ? jo.getJSONObject("header") : jo;
-
-        this.sysid = header.optInt(header_sysid[header_sysid_index], 0);
-        this.compid = header.optInt(header_compid[header_compid_index], 0);
-        this.isMavlink2 = header.optBoolean("isMavlink2", false);
-    }
-
-    protected JSONObject getJSONheader() {
-        return getJSONheader(heading_is_extra_object);
-    }
-    protected JSONObject getJSONheader(boolean headerIsExtraJsonObject) {
-
-        JSONObject header = new JSONObject();
-        header.put(header_sysid[header_sysid_index], this.sysid);
-        header.put(header_compid[header_compid_index], this.compid);
-        header.put(header_msgid[header_msgid_index], this.msgid);
-
-        if (heading_include_IsMavlink2) {
-            header.put("isMavlink2", this.isMavlink2);
-        }
-
-        if (headerIsExtraJsonObject) {
-            JSONObject jo_plus_header = new JSONObject();
-            jo_plus_header.put("header", header);
-
-            return jo_plus_header;
-        }
-
-        return header;
-    }
 }
