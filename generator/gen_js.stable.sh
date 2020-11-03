@@ -3,17 +3,17 @@
 for protocol in 1.0 2.0; do
  for xml in ../../message_definitions/v1.0/*.xml; do
      base=$(basename $xml .xml)
-     mkdir -p javascript/implementations/mavlink_${base}_v${protocol}
+     mkdir -p javascript_stable/implementations/mavlink_${base}_v${protocol}
 
      # Generate MAVLink implementation
-     ../tools/mavgen.py --lang=JavaScript_NextGen --wire-protocol=$protocol --output=javascript/implementations/mavlink_${base}_v${protocol}/mavlink.js $xml || exit 1
+     ../tools/mavgen.py --lang=JavaScript_Stable --wire-protocol=$protocol --output=javascript_stable/implementations/mavlink_${base}_v${protocol}/mavlink.js $xml || exit 1
 
      # Create package.json file
-     cat >javascript/implementations/mavlink_${base}_v${protocol}/package.json <<EOF
+     cat >javascript_stable/implementations/mavlink_${base}_v${protocol}/package.json <<EOF
  {
     "name" : "mavlink_${base}_v${protocol}",
     "version" : "0.0.1",
-    "description" : "NextGen Implementation of the MAVLink protocol",
+    "description" : "Stable JS Implementation of the MAVLink protocol",
     "keywords" : ["mavlink", "arduino", "megapilot", "ros", "robot", "uav", "drone", "awesome"],
     "homepage": "https://github.com/mavlink/mavlink",
     "bugs" : "https://github.com/mavlink/mavlink/issues",
@@ -42,4 +42,3 @@ EOF
 
  done
 done
-
