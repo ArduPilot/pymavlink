@@ -25,6 +25,7 @@ parser.add_argument("--elliptical", action='store_true', help="fit elliptical co
 parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
 parser.add_argument("--lat", type=float, default=0, help="latitude")
 parser.add_argument("--lon", type=float, default=0, help="longitude")
+parser.add_argument("--att-source", default=None, help="attitude source message")
 
 parser.add_argument("log", metavar="LOG")
 
@@ -70,7 +71,7 @@ class Correction:
         print("COMPASS_MOT%s_Z %.3f" % (mag_idx, self.cmot.z))
         print("COMPASS_SCALE%s %.2f" % (mag_idx, self.scaling))
         if args.cmot:
-            print("COMPASS_MOTCT 2" % (mag_idx, self.scaling))
+            print("COMPASS_MOTCT 2")
 
 def correct(MAG, BAT, c):
     '''correct a mag sample, returning a Vector3'''
@@ -272,17 +273,27 @@ def magfit(logfile):
         earth_field = mavextra.expected_earth_field_lat_lon(args.lat, args.lon)
         (declination,inclination,intensity) = mavextra.get_mag_field_ef(args.lat, args.lon)
         print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
-    
+
+    if args.att_source is not None:
+        ATT_NAME = args.att_source
+    if parameters['AHRS_EKF_TYPE'] == 2:
+        ATT_NAME = 'NKF1'
+    elif parameters['AHRS_EKF_TYPE'] == 3:
+        ATT_NAME = 'XKF1'
+    else:
+        ATT_NAME = 'ATT'
+    print("Attitude source %s" % ATT_NAME);
+
     # extract MAG data
     while True:
-        msg = mlog.recv_match(type=['GPS',mag_msg,'ATT','CTUN','BARO', 'BAT'], condition=args.condition)
+        msg = mlog.recv_match(type=['GPS',mag_msg,ATT_NAME,'CTUN','BARO', 'BAT'], condition=args.condition)
         if msg is None:
             break
         if msg.get_type() == 'GPS' and msg.Status >= 3 and earth_field is None:
             earth_field = mavextra.expected_earth_field(msg)
             (declination,inclination,intensity) = mavextra.get_mag_field_ef(msg.Lat, msg.Lng)
             print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
-        if msg.get_type() == 'ATT':
+        if msg.get_type() == ATT_NAME:
             ATT = msg
         if msg.get_type() == 'BAT':
             BAT = msg
