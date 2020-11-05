@@ -29,7 +29,7 @@ public class MAVLinkPayload {
     public final ByteBuffer payload;
     public int index;
 
-    public MAVLinkPayload(int payloadSize) {
+    public MAVLinkPayload() {
        // This has to be larger than the received payloadSize since MAVLINK V2 will truncate the payloads to the last non-zero value
        payload = ByteBuffer.allocate(MAX_PAYLOAD_SIZE);
     }
@@ -145,7 +145,7 @@ public class MAVLinkPayload {
     }
 
     public void putUnsignedByte(short data) {
-        if(data < UNSIGNED_BYTE_MIN_VALUE || data > UNSIGNED_BYTE_MAX_VALUE) {
+        if (data < UNSIGNED_BYTE_MIN_VALUE || data > UNSIGNED_BYTE_MAX_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned byte: " + data);
         }
 
@@ -158,7 +158,7 @@ public class MAVLinkPayload {
     }
 
     public void putUnsignedShort(int data) {
-        if(data < UNSIGNED_SHORT_MIN_VALUE || data > UNSIGNED_SHORT_MAX_VALUE) {
+        if (data < UNSIGNED_SHORT_MIN_VALUE || data > UNSIGNED_SHORT_MAX_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned short: " + data);
         }
 
@@ -173,7 +173,7 @@ public class MAVLinkPayload {
     }
 
     public void putUnsignedInt(long data) {
-        if(data < UNSIGNED_INT_MIN_VALUE || data > UNSIGNED_INT_MAX_VALUE) {
+        if (data < UNSIGNED_INT_MIN_VALUE || data > UNSIGNED_INT_MAX_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned int: " + data);
         }
 
@@ -192,7 +192,7 @@ public class MAVLinkPayload {
     }
 
     public void putUnsignedLong(long data) {
-        if(data < UNSIGNED_LONG_MIN_VALUE) {
+        if (data < UNSIGNED_LONG_MIN_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned long: " + data);
         }
 
