@@ -99,8 +99,9 @@ public class CRC {
      * @param msgid The message id number
      */
     public void finish_checksum(int msgid) {
-        if(MAVLINK_MESSAGE_CRCS.containsKey(msgid))
+        if (MAVLINK_MESSAGE_CRCS.containsKey(msgid)) {
             update_checksum(MAVLINK_MESSAGE_CRCS.get(msgid));
+        }
     }
 
     /**
@@ -416,7 +417,7 @@ public class MAVLinkPacket implements Serializable {
 
     public MAVLinkPacket(final int payloadLength, final boolean isMavlink2) {
         len = payloadLength;
-        payload = new MAVLinkPayload(payloadLength);
+        payload = new MAVLinkPayload();
         this.isMavlink2 = isMavlink2;
     }
 
@@ -431,13 +432,13 @@ public class MAVLinkPacket implements Serializable {
      * Update CRC for this packet.
      */
     public void generateCRC(final int payloadSize) {
-        if(crc == null) {
+        if (crc == null) {
             crc = new CRC();
         } else {
             crc.start_checksum();
         }
 
-        if(isMavlink2) {
+        if (isMavlink2) {
             crc.update_checksum(payloadSize);
             crc.update_checksum(incompatFlags);
             crc.update_checksum(compatFlags);
@@ -497,7 +498,7 @@ public class MAVLinkPacket implements Serializable {
         byte[] buffer = new byte[bufLen];
         
         int i = 0;
-        if(isMavlink2) {
+        if (isMavlink2) {
             buffer[i++] = (byte) MAVLINK_STX_MAVLINK2;
             buffer[i++] = (byte) payloadSize;
             buffer[i++] = (byte) incompatFlags;
@@ -562,9 +563,7 @@ public class MAVLinkPacket implements Serializable {
 
     f.write('''
 }
-
-
-        ''')
+''')
     f.close()
 
 def copy_fixed_headers(directory, xml):

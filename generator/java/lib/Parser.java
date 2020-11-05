@@ -179,10 +179,6 @@ public class Parser {
                 // Check first checksum byte
                 if (c != m.crc.getLSB()) {
                     state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-//                    if ((isMavlink2 && c == MAVLinkPacket.MAVLINK_STX_MAVLINK2) || (!isMavlink2 && c == MAVLinkPacket.MAVLINK_STX_MAVLINK1)) {
-//                        state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
-//                        m.crc.start_checksum();
-//                    }
                     stats.crcError();
                 } else {
                     state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1;
@@ -193,10 +189,6 @@ public class Parser {
                 // Check second checksum byte
                 if (c != m.crc.getMSB()) {
                     state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-//                    if ((isMavlink2 && c == MAVLinkPacket.MAVLINK_STX_MAVLINK2) || (!isMavlink2 && c == MAVLinkPacket.MAVLINK_STX_MAVLINK1)) {
-//                        state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
-//                        m.crc.start_checksum();
-//                    }
                     stats.crcError();
                 } else { // crc is good
                     stats.newPacket(m);
@@ -219,7 +211,6 @@ public class Parser {
                 stats.crcError();
                 break;
         } // switch
-        
         return null;
     }
 }
