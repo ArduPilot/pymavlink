@@ -24,7 +24,8 @@ categories = {
     'SYSTEM' : ['MAV', 'BAT*', 'EV', 'CMD', 'MODE'],
     'REPLAY' : [ 'RFRH', 'RFRF', 'REV2', 'RSO2', 'RWA2', 'REV3', 'RSO3', 'RWA3', 'RMGI',
                  'REY3', 'RFRN', 'RISH', 'RISI', 'RISJ', 'RBRH', 'RBRI', 'RRNH', 'RRNI',
-                 'RGPH', 'RGPI', 'RGPJ', 'RASH', 'RASI', 'RBCH', 'RBCI', 'RVOH', 'RMGH' ],
+                 'RGPH', 'RGPI', 'RGPJ', 'RASH', 'RASI', 'RBCH', 'RBCI', 'RVOH', 'RMGH',
+                 'R??H', 'R??I', 'R??J'],
 }
 
 def show_stats(logfile):
@@ -58,10 +59,11 @@ def show_stats(logfile):
     category_total = 0
     for c in categories.keys():
         total = 0
-        for p in categories[c]:
-            for name in names:
+        for name in names:
+            for p in categories[c]:
                 if fnmatch.fnmatch(name, p):
                     total += sizes[name]
+                    break
         category_total += total
         if total > 0:
             print("@%s %.2f%%" % (c, 100.0 * total / total_size))
