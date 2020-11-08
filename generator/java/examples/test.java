@@ -1,6 +1,6 @@
-import com.mavlink.MAVLinkPacket;
-import com.mavlink.common.*;
-import com.mavlink.Parser;
+import com.MAVLink.MAVLinkPacket;
+import com.MAVLink.common.*;
+import com.MAVLink.Parser;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;

@@ -4,7 +4,7 @@
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.mavlink.messages;
+package com.MAVLink.Messages;
 
 import java.nio.ByteBuffer;
 

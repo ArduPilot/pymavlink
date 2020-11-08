@@ -28,7 +28,7 @@ def generate_enums(basename, xml):
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.mavlink.enums;
+package com.MAVLink.enums;
 
 /** 
  * ${description}
@@ -56,7 +56,7 @@ def generate_CRC(directory, xml):
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.mavlink.${basename};
+package com.MAVLink.${basename};
 
 import java.util.HashMap;
 import java.util.Map;
@@ -147,10 +147,10 @@ def generate_message_h(directory, m):
  */
 
 // MESSAGE ${name} PACKING
-package com.mavlink.%s;
-import com.mavlink.MAVLinkPacket;
-import com.mavlink.messages.MAVLinkMessage;
-import com.mavlink.messages.MAVLinkPayload;
+package com.MAVLink.%s;
+import com.MAVLink.MAVLinkPacket;
+import com.MAVLink.Messages.MAVLinkMessage;
+import com.MAVLink.Messages.MAVLinkPayload;
         
 /**
  * ${description}
@@ -276,7 +276,7 @@ def generate_MAVLinkMessage(directory, xml_list):
     imports = []
 
     for xml in xml_list:
-        importString = "import com.mavlink.{}.*;".format(xml.basename)
+        importString = "import com.MAVLink.{}.*;".format(xml.basename)
         imports.append(importString)
 
     xml_list[0].importString = os.linesep.join(imports)
@@ -288,12 +288,12 @@ def generate_MAVLinkMessage(directory, xml_list):
  * java mavlink generator tool. It should not be modified by hand.
  */
         
-package com.mavlink;
+package com.MAVLink;
 
 import java.io.Serializable;
-import com.mavlink.messages.MAVLinkPayload;
-import com.mavlink.messages.MAVLinkMessage;
-import com.mavlink.${basename}.CRC;
+import com.MAVLink.Messages.MAVLinkPayload;
+import com.MAVLink.Messages.MAVLinkMessage;
+import com.MAVLink.${basename}.CRC;
 
 ${importString}
 
@@ -573,7 +573,7 @@ public class MAVLinkPacket implements Serializable {
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
-    hlist = [ 'Parser.java', 'messages/MAVLinkMessage.java', 'messages/MAVLinkPayload.java', 'messages/MAVLinkStats.java' ]
+    hlist = [ 'Parser.java', 'Messages/MAVLinkMessage.java', 'Messages/MAVLinkPayload.java', 'Messages/MAVLinkStats.java' ]
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'java/lib')
     print("Copying fixed headers")
@@ -582,7 +582,7 @@ def copy_fixed_headers(directory, xml):
         dest = os.path.realpath(os.path.join(directory, h))
         if src == dest:
             continue
-        destdir = os.path.realpath(os.path.join(directory, 'messages'))
+        destdir = os.path.realpath(os.path.join(directory, 'Messages'))
         try:
             os.makedirs(destdir)
         except:
@@ -605,7 +605,7 @@ def mavfmt(field, typeInfo=0):
         'uint8_t_mavlink_version'  : ('short', 'UnsignedByte'),
         'int16_t'  : ('short', 'Short'),
         'uint16_t' : ('int', 'UnsignedShort'),
-        'int32_t'  : ('int', 'Int', 'Int'),
+        'int32_t'  : ('int', 'Int'),
         'uint32_t' : ('long', 'UnsignedInt'),
         'int64_t'  : ('long', 'Long'),
         'uint64_t' : ('long', 'UnsignedLong'),
