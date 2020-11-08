@@ -4,11 +4,11 @@
  * java mavlink generator tool. It should not be modified by hand.
  */
 
-package com.mavlink.messages;
-
-import com.mavlink.MAVLinkPacket;
+package com.MAVLink.Messages;
 
 import java.io.Serializable;
+
+import com.MAVLink.MAVLinkPacket;
 
 /**
  * Common interface for all MAVLink messages
@@ -24,7 +24,7 @@ public abstract class MAVLinkMessage implements Serializable {
     public boolean isMavlink2;
 
     public abstract MAVLinkPacket pack();
-    public abstract void unpack(com.mavlink.messages.MAVLinkPayload payload);
+    public abstract void unpack(com.MAVLink.Messages.MAVLinkPayload payload);
     public abstract String toString();
     public abstract String name();
 }
