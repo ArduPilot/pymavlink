@@ -175,9 +175,9 @@ public class Parser {
                 break;
 
             case MAVLINK_PARSE_STATE_GOT_PAYLOAD:
-                m.generateCRC(m.payload.size());
-                // Check first checksum byte
-                if (c != m.crc.getLSB()) {
+                boolean crcGen = m.generateCRC(m.payload.size());
+                // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
+                if (c != m.crc.getLSB() || !crcGen) {
                     state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
                     stats.crcError();
                 } else {
