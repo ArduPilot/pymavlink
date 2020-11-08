@@ -97,11 +97,14 @@ public class CRC {
      * Magic Byte.
      *
      * @param msgid The message id number
+     * @return boolean True if the checksum was successfully finished. Otherwise false
      */
-    public void finish_checksum(int msgid) {
+    public boolean finish_checksum(int msgid) {
         if (MAVLINK_MESSAGE_CRCS.containsKey(msgid)) {
             update_checksum(MAVLINK_MESSAGE_CRCS.get(msgid));
+            return true;
         }
+        return false;
     }
 
     /**
@@ -430,8 +433,9 @@ public class MAVLinkPacket implements Serializable {
 
     /**
      * Update CRC for this packet.
+     * @return boolean True if the CRC was successfully updated. Otherwise false
      */
-    public void generateCRC(final int payloadSize) {
+    public boolean generateCRC(final int payloadSize) {
         if (crc == null) {
             crc = new CRC();
         } else {
@@ -461,7 +465,7 @@ public class MAVLinkPacket implements Serializable {
         for (int i = 0; i < payloadSize; i++) {
             crc.update_checksum(payload.getByte());
         }
-        crc.finish_checksum(msgid);
+        return crc.finish_checksum(msgid);
     }
 
     /**
