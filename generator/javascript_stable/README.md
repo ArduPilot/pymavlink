@@ -1,5 +1,13 @@
 ## Javascript MAVLink implementation ##
 
+As of Nov 2020, this 'stable' implementation is considered depreciated in favour of the 'nextgen' implementation found in ../javascript/ folder. 
+
+This '_stable' implementation does not have an automated test suite, and has known issues with packet attribute conflicts ( such as, packet.id and packet.format and other/s ), and is now known to pack a lot of its packets incorrectly as a result.   We keep it here as its been around a pretty long time, but absolutely recommend the other/newer implementation for new projects. 
+
+For more info on why this is depreciated please see:  https://github.com/ArduPilot/pymavlink/pull/431
+
+Original README below.
+
 This code generates ```npm``` modules that can be used with Node.js.  As with the other implementations in Python and C, the MAVLink protocol is specified in XML manifests which can be modified to add custom messages.
 
 *See the gotcha's and todo's section below* for some important caveats.  This implementation should be considered pre-beta: it creates a working MAVLink parser, but there's plenty of rough edges in terms of API.
