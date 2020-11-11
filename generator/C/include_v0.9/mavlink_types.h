@@ -61,7 +61,7 @@ enum MAV_ACTION
     MAV_ACTION_LOITER_MAX_TURNS = 39,
     MAV_ACTION_LOITER_MAX_TIME = 40,
     MAV_ACTION_START_HILSIM = 41,
-    MAV_ACTION_STOP_HILSIM = 42,    
+    MAV_ACTION_STOP_HILSIM = 42,
     MAV_ACTION_NB        ///< Number of MAV actions
 };
 
@@ -272,12 +272,14 @@ typedef struct __mavlink_message_info {
 #define mavlink_ck_a(msg) *((msg)->len + (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg))
 #define mavlink_ck_b(msg) *(((msg)->len+(uint16_t)1) + (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg))
 
+#ifndef HAVE_MAVLINK_CHANNEL_T
 typedef enum {
     MAVLINK_COMM_0,
     MAVLINK_COMM_1,
     MAVLINK_COMM_2,
     MAVLINK_COMM_3
 } mavlink_channel_t;
+#endif
 
 /*
  * applications can set MAVLINK_COMM_NUM_BUFFERS to the maximum number
