@@ -161,43 +161,25 @@ typedef struct __mavlink_message_info {
 #define mavlink_ck_a(msg) *((msg)->len + (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg))
 #define mavlink_ck_b(msg) *(((msg)->len+(uint16_t)1) + (uint8_t *)_MAV_PAYLOAD_NON_CONST(msg))
 
-/*
- * Applications can set MAVLINK_COMM_NUM_BUFFERS to the maximum number of
- * buffers they require. If more channels are used than allocated the result
- * will be a stack overrun.
- *
- * If MAVLINK_COMM_NUM_BUFFERS is defined outside, the typedef enum mavlink_channel_t
- * also needs to be provided with the appropriate numbers of channels.
- */
-#ifndef MAVLINK_COMM_NUM_BUFFERS
-#if (defined linux) | (defined __linux) | (defined  __MACH__) | (defined _WIN32)
-# define MAVLINK_COMM_NUM_BUFFERS 16
-typedef enum {
-    MAVLINK_COMM_0,
-    MAVLINK_COMM_1,
-    MAVLINK_COMM_2,
-    MAVLINK_COMM_3,
-    MAVLINK_COMM_4,
-    MAVLINK_COMM_5,
-    MAVLINK_COMM_6,
-    MAVLINK_COMM_7,
-    MAVLINK_COMM_8,
-    MAVLINK_COMM_9,
-    MAVLINK_COMM_10,
-    MAVLINK_COMM_11,
-    MAVLINK_COMM_12,
-    MAVLINK_COMM_13,
-    MAVLINK_COMM_14,
-    MAVLINK_COMM_15
-} mavlink_channel_t;
-#else
-# define MAVLINK_COMM_NUM_BUFFERS 4
+#ifndef HAVE_MAVLINK_CHANNEL_T
 typedef enum {
     MAVLINK_COMM_0,
     MAVLINK_COMM_1,
     MAVLINK_COMM_2,
     MAVLINK_COMM_3
 } mavlink_channel_t;
+#endif
+
+/*
+ * applications can set MAVLINK_COMM_NUM_BUFFERS to the maximum number
+ * of buffers they will use. If more are used, then the result will be
+ * a stack overrun
+ */
+#ifndef MAVLINK_COMM_NUM_BUFFERS
+#if (defined linux) | (defined __linux) | (defined  __MACH__) | (defined _WIN32)
+# define MAVLINK_COMM_NUM_BUFFERS 16
+#else
+# define MAVLINK_COMM_NUM_BUFFERS 4
 #endif
 #endif
 
