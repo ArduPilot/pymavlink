@@ -21,7 +21,7 @@ for protocol in 1.0 2.0; do
         "type" : "LGPL-3.0",
         "url" : "http://opensource.org/licenses/LGPL-3.0"
       },
-    "contributors" : ["Bruce Crevensten <bruce.crevensten@gmail.com>"],
+    "contributors" : ["Bruce Crevensten <bruce.crevensten@gmail.com>","David Buzz <davidbuzz@gmail.com>"],
     "main" : "mavlink.js",
     "repository" : {
       "type" : "git",
