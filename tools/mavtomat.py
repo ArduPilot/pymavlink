@@ -2,6 +2,8 @@
 
 '''
 Converts a log into a .mat file
+Inspired by the data flash log converter in MissionPlanner
+Most of the code was copied from mavlogdump.py
 '''
 from __future__ import print_function
 
@@ -213,4 +215,4 @@ for packet_type in MAT:
     MAT2[packet_type+'_label'] = vars
 
 # Save file
-scipy.io.savemat(output, MAT2)
+scipy.io.savemat(output, MAT2, do_compression=args.compress)
