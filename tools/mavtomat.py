@@ -15,6 +15,7 @@ import struct
 import sys
 import time
 import scipy.io
+import numpy as np
 
 try:
     from pymavlink.mavextra import *
@@ -56,8 +57,6 @@ if not args.mav10:
 import inspect
 
 from pymavlink import mavutil
-
-output = args.output
 
 if args.profile:
     import yappi    # We do the import here so that we won't barf if run normally and yappi not available
@@ -138,10 +137,6 @@ while True:
         # quit
         break
     available_types.add(m.get_type())
-    #packet_type = m.get_type()
-    #if (packet_type not in MAT) and (packet_type!='FMT'):
-        #MAT[packet_type] = pd.DataFrame()
-        #MAT[packet_type] = {}
 
     if args.reduce and reduce_msg(m.get_type(), args.reduce):
         continue
@@ -209,10 +204,14 @@ MAT2 = {}
 for packet_type in MAT:
     vars = list(MAT[packet_type].keys())
     data = []   # 2D list
+    i = 0
+    MAT2[packet_type+'_label'] = np.zeros((len(vars), 1), dtype=object)
     for var in vars:
         data.append(MAT[packet_type][var])
-    MAT2[packet_type] = data
-    MAT2[packet_type+'_label'] = vars
+        MAT2[packet_type+'_label'][i] = var
+        i += 1
+    # Transpose the list of lists
+    MAT2[packet_type] = list(map(list, zip(*data)))
 
 # Save file
-scipy.io.savemat(output, MAT2, do_compression=args.compress)
+scipy.io.savemat(args.output, MAT2, do_compression=args.compress)
