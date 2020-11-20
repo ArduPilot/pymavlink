@@ -571,6 +571,13 @@ class mavfile(object):
         else:
             self.mav.waypoint_request_send(self.target_system, self.target_component, seq)
 
+    def waypoint_ack_send(self, type):
+        '''wrapper for waypoint_ack_send - Flylogix'''
+        if self.mavlink10():
+            self.mav.mission_ack_send(self.target_system, self.target_component, type)
+        else:
+            self.mav.waypoint_ack_send(self.target_system, self.target_component, type)
+
     def waypoint_set_current_send(self, seq):
         '''wrapper for waypoint_set_current_send'''
         if self.mavlink10():
