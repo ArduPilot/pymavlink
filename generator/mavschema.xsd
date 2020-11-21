@@ -149,6 +149,9 @@
     <xs:enumeration value="dpix"/>     <!-- decipixels -->
     <!-- flow -->
     <xs:enumeration value="g/min"/>    <!-- grams/minute -->
+    <xs:enumeration value="cm^3/min"/>    <!-- cubic centimetres/minute -->
+    <!-- volume -->
+    <xs:enumeration value="cm^3"/>    <!-- cubic centimetres -->
   </xs:restriction>
 </xs:simpleType>
 
