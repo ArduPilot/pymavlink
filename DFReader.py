@@ -12,6 +12,7 @@ from builtins import range
 from builtins import object
 
 import array
+import copyreg
 import math
 import sys
 import os
@@ -49,6 +50,14 @@ FORMAT_TO_STRUCT = {
     "q": ("q", None, long),  # Backward compat
     "Q": ("Q", None, long),  # Backward compat
     }
+
+# make struct.Struct pickleable - needed to pickle DFReader 
+# See: https://bugs.python.org/issue29628
+
+def pickle_struct(s):
+    return struct.Struct, (s.format, )
+
+copyreg.pickle(struct.Struct, pickle_struct)
 
 def u_ord(c):
 	return ord(c) if sys.version_info.major < 3 else c
@@ -699,6 +708,12 @@ class DFReader_binary(DFReader):
         self.filehandle = open(filename, 'r')
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
+
+        # support pickle
+        self.filename = filename
+        self.filehandle_offset = 0
+        self.data_map_offset = 0
+
         self.filehandle.seek(0)
         if platform.system() == "Windows":
             self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
@@ -992,6 +1007,41 @@ class DFReader_binary(DFReader):
 
         return m
 
+    def __getstate__(self):
+        # capture the filehandle and data_map seek pointers
+        self.filehandle_offset = self.filehandle.tell()
+        self.data_map_offset = self.data_map.tell()
+        
+        # copy the dict since we change it
+        odict = self.__dict__.copy()
+
+        # remove the filehandle and data_map entries
+        del odict['filehandle']
+        del odict['data_map']
+
+        return odict
+
+    def __setstate__(self, dict):
+        # reopen file
+        filehandle = open(dict['filename'])
+        
+        # recreate the mmap files
+        data_map = None
+        if platform.system() == "Windows":
+            data_map = mmap.mmap(filehandle.fileno(), dict['data_len'], None, mmap.ACCESS_READ)
+        else:
+            data_map = mmap.mmap(filehandle.fileno(), dict['data_len'], mmap.MAP_PRIVATE, mmap.PROT_READ)
+
+        # set the seek pointers
+        filehandle.seek(dict['filehandle_offset'])
+        data_map.seek(dict['data_map_offset'])
+
+        # update attributes
+        self.__dict__.update(dict)
+
+        # restore the filehandle and mmap
+        self.filehandle = filehandle  
+        self.data_map = data_map  
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
@@ -1009,6 +1059,12 @@ class DFReader_text(DFReader):
         self.filehandle = open(filename, 'r')
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
+
+        # support pickle
+        self.filename = filename
+        self.filehandle_offset = 0
+        self.data_map_offset = 0
+
         self.filehandle.seek(0, 0)
         if platform.system() == "Windows":
             self.data_map = mmap.mmap(self.filehandle.fileno(), self.data_len, None, mmap.ACCESS_READ)
@@ -1206,6 +1262,42 @@ class DFReader_text(DFReader):
         self.offset = highest_offset
         m = self.recv_msg()
         return m._timestamp
+
+    def __getstate__(self):
+        # capture the filehandle and data_map seek pointers
+        self.filehandle_offset = self.filehandle.tell()
+        self.data_map_offset = self.data_map.tell()
+        
+        # copy the dict since we change it
+        odict = self.__dict__.copy()
+
+        # remove the filehandle and data_map entries
+        del odict['filehandle']
+        del odict['data_map']
+
+        return odict
+
+    def __setstate__(self, dict):
+        # reopen file
+        filehandle = open(dict['filename'])
+        
+        # recreate the mmap files
+        data_map = None
+        if platform.system() == "Windows":
+            data_map = mmap.mmap(filehandle.fileno(), dict['data_len'], None, mmap.ACCESS_READ)
+        else:
+            data_map = mmap.mmap(filehandle.fileno(), dict['data_len'], mmap.MAP_PRIVATE, mmap.PROT_READ)
+
+        # set the seek pointers
+        filehandle.seek(dict['filehandle_offset'])
+        data_map.seek(dict['data_map_offset'])
+
+        # update attributes
+        self.__dict__.update(dict)
+
+        # restore the filehandle and mmap
+        self.filehandle = filehandle  
+        self.data_map = data_map  
 
 if __name__ == "__main__":
     use_profiler = False
