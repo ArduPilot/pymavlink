@@ -353,15 +353,6 @@ def mag_rotation(RAW_IMU, inclination, declination):
     r.from_two_vectors(m_earth, m_body)
     return r
 
-def mag_yaw(RAW_IMU, inclination, declination):
-    '''estimate yaw from mag'''
-    m = mag_rotation(RAW_IMU, inclination, declination)
-    (r, p, y) = m.to_euler()
-    y = degrees(y)
-    if y < 0:
-        y += 360
-    return y
-
 def mag_pitch(RAW_IMU, inclination, declination):
     '''estimate pithc from mag'''
     m = mag_rotation(RAW_IMU, inclination, declination)
@@ -1182,6 +1173,7 @@ def get_mag_field_ef(latitude_deg, longitude_deg):
     return [declination_deg, inclination_deg, intensity_gauss]
     
 earth_field = None
+earth_declination = None
 
 def expected_earth_field_lat_lon(lat, lon):
     '''return expected magnetic field for a location'''
@@ -1200,6 +1192,7 @@ def expected_earth_field_lat_lon(lat, lon):
 def expected_earth_field(GPS):
     '''return expected magnetic field for a location'''
     global earth_field
+    global earth_declination
     if earth_field is not None:
         return earth_field
 
@@ -1215,30 +1208,13 @@ def expected_earth_field(GPS):
     if gps_status < 3:
         return Vector3(0,0,0)
     field_var = get_mag_field_ef(lat, lon)
+    earth_declination = field_var[0]
     mag_ef = Vector3(field_var[2]*1000.0, 0.0, 0.0)
     R = Matrix3()
     R.from_euler(0.0, -radians(field_var[1]), radians(field_var[0]))
     mag_ef = R * mag_ef
     earth_field = mag_ef
     return earth_field
-
-def mag_yaw(GPS,ATT,MAG):
-    '''calculate heading from raw magnetometer'''
-    expected_earth_field(GPS)
-    mag_x = MAG.MagX
-    mag_y = MAG.MagY
-    mag_z = MAG.MagZ
-
-    # go via a DCM matrix to match the APM calculation
-    dcm_matrix = rotation_df(ATT)
-    cos_pitch_sq = 1.0-(dcm_matrix.c.x*dcm_matrix.c.x)
-    headY = mag_y * dcm_matrix.c.z - mag_z * dcm_matrix.c.y
-    headX = mag_x * cos_pitch_sq - dcm_matrix.c.x * (mag_y * dcm_matrix.c.y + mag_z * dcm_matrix.c.z)
-
-    heading = degrees(atan2(-headY,headX)) + earth_declination
-    if heading < 0:
-        heading += 360
-    return heading
 
 def expected_mag(GPS,ATT,roll_adjust=0,pitch_adjust=0,yaw_adjust=0):
     '''return expected magnetic field for a location and attitude'''
@@ -1264,20 +1240,32 @@ def expected_mag(GPS,ATT,roll_adjust=0,pitch_adjust=0,yaw_adjust=0):
 
     return field
 
+def mag_yaw(GPS,ATT,MAG):
+    '''calculate heading from raw magnetometer'''
+    ef = expected_earth_field(GPS)
+    mag_x = MAG.MagX
+    mag_y = MAG.MagY
+    mag_z = MAG.MagZ
+
+    # go via a DCM matrix to match the APM calculation
+    dcm_matrix = rotation_df(ATT)
+    cos_pitch_sq = 1.0-(dcm_matrix.c.x*dcm_matrix.c.x)
+    headY = mag_y * dcm_matrix.c.z - mag_z * dcm_matrix.c.y
+    headX = mag_x * cos_pitch_sq - dcm_matrix.c.x * (mag_y * dcm_matrix.c.y + mag_z * dcm_matrix.c.z)
+
+    global earth_declination
+    heading = degrees(atan2(-headY,headX)) + earth_declination
+    if heading < 0:
+        heading += 360
+    return heading
+
 def expected_mag_yaw(GPS,ATT,MAG,roll_adjust=0,pitch_adjust=0,yaw_adjust=0):
     '''return expected magnetic field for a location and attitude'''
-    global earth_field
 
-    expected_earth_field(GPS)
-    if earth_field is None:
-        return Vector3(0,0,0)
+    earth_field = expected_earth_field(GPS)
 
-    if hasattr(ATT,'roll'):
-        roll = degrees(ATT.roll)+roll_adjust
-        pitch = degrees(ATT.pitch)+pitch_adjust
-    else:
-        roll = ATT.Roll+roll_adjust
-        pitch = ATT.Pitch+pitch_adjust
+    roll = ATT.Roll+roll_adjust
+    pitch = ATT.Pitch+pitch_adjust
     yaw = mag_yaw(GPS,ATT,MAG)
 
     rot = Matrix3()
