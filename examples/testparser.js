@@ -11,7 +11,9 @@
 // if given any args, they should be the mavlink 'base' name and version number, eg: "node testparser.js ardupilotmega 2.0" if none given the default is 'ardupilot' and '2.0'
 //
 // This tool isn't smart enough to do anything other than print stats on the number of 'good' and 'unhandled' stuff that were
-//   found in whatever was piped into its stdin.  Its certainly NOT able to know if these numbers are right or wrong.
+//   found in whatever was piped into its stdin.  
+// Its certainly NOT able to know if these numbers are right or wrong.
+// A much smarter and more complex version of this script is called 'make_tests.js' which makes tests that byte-level smart.
 
 var base = process.argv[2];
 var version = process.argv[3];
