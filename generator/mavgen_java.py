@@ -61,9 +61,9 @@ def generate_CRC(directory, xml):
 package com.MAVLink.${basename};
 
 /**
-* X.25 CRC calculation for MAVlink messages. The checksum must be initialized,
-* updated with witch field of the message, and then finished with the message
-* id.
+* CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
+* initialized, updated with witch field of the message, and then finished with
+* the message id.
 *
 */
 public class CRC {
@@ -72,7 +72,7 @@ public class CRC {
     private int crcValue;
 
     /**
-    * Accumulate the X.25 CRC by adding one char at a time.
+    * Accumulate the CRC16 by adding one char at a time.
     *
     * The checksum function adds the hash of one char at a time to the 16 bit
     * checksum (uint16_t).
@@ -99,7 +99,7 @@ public class CRC {
     }
 
     /**
-    * Initialize the buffer for the X.25 CRC
+    * Initialize the buffer for the CRC16/MCRF4XX
     *
     */
     public void start_checksum() {
@@ -259,9 +259,9 @@ ${importString}
 * 4            Component ID        0 - 255     ID of the SENDING component. Allows to differentiate different components of the same system, e.g. the IMU and the autopilot.
 * 5            Message ID          0 - 255     ID of the message - the id defines what the payload means and how it should be correctly decoded.
 * 6 to (n+6)   Payload             0 - 255     Data of the message, depends on the message id.
-* (n+7)to(n+8) Checksum (low byte, high byte)  ITU X.25/SAE AS-4 hash, excluding packet start sign, so bytes 1..(n+6) Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from message fields. Protects the packet from decoding a different version of the same packet but with different variables).
+* (n+7)to(n+8) Checksum (low byte, high byte)  CRC16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6) Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from message fields. Protects the packet from decoding a different version of the same packet but with different variables).
 
-* The checksum is the same as used in ITU X.25 and SAE AS-4 standards (CRC-16-CCITT), documented in SAE AS5669A. Please see the MAVLink source code for a documented C-implementation of it. LINK TO CHECKSUM
+* The checksum is the CRC16/MCRF4XX. Please see the MAVLink source code for a documented C-implementation of it. LINK TO CHECKSUM
 * The minimum packet length is 8 bytes for acknowledgement packets without payload
 * The maximum packet length is 263 bytes for full payload
 *
@@ -305,7 +305,7 @@ public class MAVLinkPacket implements Serializable {
     public MAVLinkPayload payload;
 
     /**
-    * ITU X.25/SAE AS-4 hash, excluding packet start sign, so bytes 1..(n+6)
+    * CRC-16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6)
     * Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from
     * message fields. Protects the packet from decoding a different version of
     * the same packet but with different variables).

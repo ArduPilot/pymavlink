@@ -854,12 +854,12 @@ public struct Checksum {
         start()
     }
     
-    /// Initialize the buffer for the X.25 CRC.
+    /// Initialize the buffer for the MCRF4XX CRC.
     mutating func start() {
         value = Constants.x25InitCRCValue
     }
     
-    /// Accumulate the X.25 CRC by adding one char at a time. The checksum
+    /// Accumulate the MCRF4XX CRC by adding one char at a time. The checksum
     /// function adds the hash of one char at a time to the 16 bit checksum
     /// `value` (`UInt16`).
     ///
@@ -870,7 +870,7 @@ public struct Checksum {
         value = (UInt16(value) >> 8) ^ (UInt16(tmp) << 8) ^ (UInt16(tmp) << 3) ^ (UInt16(tmp) >> 4)
     }
     
-    /// Accumulate the X.25 CRC by adding `buffer` bytes.
+    /// Accumulate the MCRF4XX CRC by adding `buffer` bytes.
     ///
     /// - parameter buffer: Sequence of bytes to hash
     mutating func accumulate<T: Sequence>(_ buffer: T) where T.Iterator.Element == UInt8 {

@@ -446,7 +446,7 @@ class MAVXML(object):
 
 
 def message_checksum(msg):
-    '''calculate a 8-bit checksum of the key fields of a message, so we
+    '''calculate CRC-16/MCRF4XX checksum of the key fields of a message, so we
        can detect incompatible XML changes'''
     from .mavcrc import x25crc
     crc = x25crc()
