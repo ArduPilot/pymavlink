@@ -260,13 +260,13 @@ describe('Complete MAVLink 2.0 packet', function() {
  it('decode BATTERY_STATUS with array, and also non-zerod extension bytes', function() {
 
 
-        // Create a 'long' buffer that matches what the Python version of MAVLink creates
-         var reference = new Buffer.from([253,49,1,0,142,42,11,147,0,0,248,205,109,57,200,206,109,57,243,68,91,69,92,69,93,69,94,69,95,69,96,
-            69,97,69,98,69,99,69,100,69,107,73,101,168,235,46,72,213,109,57,125,167,75,168,75,169,75,170,75,41,201]);
+        // Create a un-signed 'long' buffer that matches what the Python version of MAVLink creates,
+        //   with incompat_flags = 0  and a valid crc
+         var reference = new Buffer.from([0xfd, 0x29, 0x00, 0x00, 0x58, 0x0b, 0x0a, 0x93, 0x00, 0x00, 0xf8, 0xcd, 0x6d, 0x39, 0xc8, 0xce, 0x6d, 0x39, 0xf3, 0x44, 0x5b, 0x45, 0x5c, 0x45, 0x5d, 0x45, 0x5e, 0x45, 0x5f, 0x45, 0x60, 0x45, 0x61, 0x45, 0x62, 0x45, 0x63, 0x45, 0x64, 0x45, 0x6b, 0x49, 0x65, 0xa8, 0xeb, 0x2e, 0x48, 0xd5, 0x6d, 0x39, 0x7d, 0x90, 0x0a]);
 
         var m = new MAVLink20Processor();
 
-        var msg = m.parseBuffer(reference);
+        var msg = m.parseBuffer(reference); // skipping parseChar
 
         //console.log(JSON.stringify(msg));
 
@@ -274,11 +274,11 @@ describe('Complete MAVLink 2.0 packet', function() {
         msg[0].should.not.have.property('_reason');
 
         // check header
-        msg[0]._header.seq.should.eql(142);
-        msg[0]._header.srcSystem.should.eql(42);
-        msg[0]._header.srcComponent.should.eql(11);
+        msg[0]._header.seq.should.eql(88);
+        msg[0]._header.srcSystem.should.eql(11);
+        msg[0]._header.srcComponent.should.eql(10);
         msg[0]._header.msgId.should.eql(147);
-        msg[0]._header.incompat_flags.should.eql(1);
+        msg[0]._header.incompat_flags.should.eql(0);
         msg[0]._header.compat_flags.should.eql(0);
 
         // check payload
@@ -394,6 +394,7 @@ describe('MAVLink 2.0 message', function() {
     describe('decode 2.0 function', function() {
 
         beforeEach(function() {
+            var {mavlink20, MAVLink20Processor} = require('../implementations/mavlink_ardupilotmega_v2.0/mavlink.js');
             this.m = new MAVLink20Processor();
         });
 
@@ -420,9 +421,9 @@ describe('MAVLink 2.0 message', function() {
         });
 
         it('throws an error if the message ID is not known', function() {
-            var packed = [253, 1, 0, 0, 0, 3, 0, 200, 0, 0, 1, 0, 0]; // 200 = invalid ID
+            var packed = [253, 1, 0, 0, 0, 3, 0, 199, 0, 0, 1, 0, 0]; // 199 = invalid ID
             var m = this.m;
-            (function() { m.decode(packed); }).should.throw('Unknown MAVLink message ID (200)');
+            (function() { m.decode(packed); }).should.throw('Unknown MAVLink message ID (199)');
         });
 
         it('throws an error if the message length is invalid', function() {

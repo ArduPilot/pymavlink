@@ -1,11 +1,11 @@
+#!/usr/bin/env node
 // very minimal javascript impl to exercise both pack and unpack of mavlink2 
 // 1 - read a mavlink2 file parse it and print valid packet/s from inside to stdout as hexadecimal
 // 2 - create a mavlink2 packet as if for 'send'-ing and then just print to stdout as hexadecimal
 // (no external dependancies apart from the mavlink library itself and the stock filesystem library)
+// throw in some mavlink signing for one packet as well, very minimally
 // by buzz june 2020
 var {mavlink20, MAVLink20Processor} = require('../generator/javascript/implementations/mavlink_ardupilotmega_v2.0/mavlink.js');
-
-// 1: ------------------------------
 
 // read test file from filesystem, needs the user to be in the same folder as this script to find the .tlog file
 var fs = require('fs');
@@ -74,7 +74,7 @@ mav.on('message', function(message) {
 mav.pushBuffer(array_of_chars);
 var messages = mav.parseBuffer();
 
-console.log("from file:["+buf2decimal(array_of_chars.slice(8,56))+"]"); 
+console.log("from file: (unsigned)["+buf2decimal(array_of_chars.slice(8,56))+"]"); 
 
 // 2:------------------------------
 
@@ -83,9 +83,31 @@ console.log("from file:["+buf2decimal(array_of_chars.slice(8,56))+"]");
 //mav = new MAVLink20Processor(null, 42, 150);
 
 // sysid=1, component=1
-mav = new MAVLink20Processor(null, 1, 1);
-// seq
+a = {}
+source_system = 42 
+source_component = 11 
+mav = new MAVLink20Processor(a, source_system, source_component);
+
+mav.signing.secret_key =  Buffer.from([ 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 ])
+mav.signing.timestamp = [0,0,0,0,0,1];
+mav.signing.link_id = 0
+mav.signing.sign_outgoing = 1
+
+mav.seq = 234
+
+// after signing is active, create one packet , that should be signed and display it
+mmm = new mavlink20.messages.heartbeat(type=17, autopilot=84, base_mode=151, custom_mode=963497464, system_status=218, mavlink_version=3);
+ppp= mmm.pack(mav);
+
+var b = new Buffer.from(ppp);
+//print(b);
+//console.log(buf2hex(b)); 
+console.log("hb created: (signed) ["+buf2decimal(b)+"]"); 
+
+
+// now we'll do an unsigned packet as well..
 mav.seq = 172;
+mav.signing.sign_outgoing = 0
 
 // create a packet of this type and populate it
 var bs = new mavlink20.messages.battery_status(
@@ -99,14 +121,13 @@ var bs = new mavlink20.messages.battery_status(
      energy_consumed = 0,
      battery_remaining = 100,
      time_remaining = 0,
-     charge_state = 0,
-     mavlink_version=2
+     charge_state = 0
 );
 
 
 var b = new Buffer.from(bs.pack(mav));
 //print(b);
 //console.log(buf2hex(b)); 
-console.log("created:  ["+buf2decimal(b)+"]"); 
+console.log("bs created: (unsigned) ["+buf2decimal(b)+"]"); 
 
 

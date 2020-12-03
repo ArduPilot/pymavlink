@@ -110,7 +110,10 @@ static void print_field(mavlink_message_t *msg, const mavlink_field_info_t *f)
 	printf(" ");
 }
 
-static void print_message(mavlink_message_t *msg)
+
+mavlink_status_t *statusp;
+
+static void print_message(mavlink_message_t *msg,mavlink_channel_t chan)
 {
 	const mavlink_message_info_t *m = mavlink_get_message_info(msg);
 	if (m == NULL) {
@@ -123,6 +126,11 @@ static void print_message(mavlink_message_t *msg)
 	printf("sysid:%d ", msg->sysid);
 	printf("compid:%d ", msg->compid);
 	printf("seq:%d ", msg->seq);
+#ifdef MAVLINK_SIGNING_FLAG_SIGN_OUTGOING
+    // only print if links has a statusp, and its not null, and we are channel 1, where signing is active
+    if ( statusp && (statusp->signing != NULL) && (chan == MAVLINK_COMM_1) )  
+        printf("sign_ts:%ld ", statusp->signing->timestamp-1); // subtract 1 from ts as api increments it before here
+#endif
 	printf("%s { ", m->name);
 	for (i=0; i<m->num_fields; i++) {
 		print_field(msg, &f[i]);
@@ -151,7 +159,7 @@ static void comm_send_ch(mavlink_channel_t chan, uint8_t c)
 #ifdef SHOW_AS_HEX
     printf("\n");
 #endif
-		print_message(&last_msg);
+		print_message(&last_msg,chan);
 		chan_counts[chan]++;
 		/* channel 0 gets 3 messages per message, because of
 		   the channel defaults for _pack() and _encode() */
@@ -194,7 +202,6 @@ int main(void)
 	printf("No errors detected\n");
 
 #ifdef MAVLINK_SIGNING_FLAG_SIGN_OUTGOING
-	mavlink_status_t *status;
 
 	printf("Testing signing\n");
 	mavlink_signing_t signing;
@@ -206,9 +213,18 @@ int main(void)
 	signing.timestamp = 1;
 	memset(signing.secret_key, 42, sizeof(signing.secret_key));
 
-        status = mavlink_get_channel_status(MAVLINK_COMM_1);
-	status->signing = &signing;
-        status->signing_streams = &signing_streams;
+  // 32 length uint8 signing.secret_key
+	printf("signing_key = [ ");
+	for (unsigned s=0; s<sizeof(signing.secret_key); s++) {
+		if (s < 31) printf("%u, ", signing.secret_key[s]);
+		if (s == 31) printf("%u ", signing.secret_key[s]);
+	}
+	printf("]\n");
+
+    // we enable signing on channel 1 only, so the below loop alternately puts out non-signed and signed.
+	statusp = mavlink_get_channel_status(MAVLINK_COMM_1);
+	statusp->signing = &signing;
+	statusp->signing_streams = &signing_streams;
 
 	mavlink_test_all(11, 10, &last_msg);
 	for (chan=MAVLINK_COMM_0; chan<=MAVLINK_COMM_1; chan++) {
@@ -223,12 +239,12 @@ int main(void)
 #endif
 
 #ifdef MAVLINK_STATUS_FLAG_OUT_MAVLINK1
-        status = mavlink_get_channel_status(MAVLINK_COMM_0);
-        status->flags |= MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
-        status->signing = NULL;
-        status = mavlink_get_channel_status(MAVLINK_COMM_1);
-        status->flags |= MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
-        status->signing = NULL;
+        statusp = mavlink_get_channel_status(MAVLINK_COMM_0);
+        statusp->flags |= MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
+        statusp->signing = NULL;
+        statusp = mavlink_get_channel_status(MAVLINK_COMM_1);
+        statusp->flags |= MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
+        statusp->signing = NULL;
         printf("Testing sending as MAVLink1\n");
         
 	mavlink_test_all(11, 10, &last_msg);

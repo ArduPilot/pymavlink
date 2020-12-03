@@ -153,6 +153,7 @@ describe('MAVLink 1.0 header', function() {
 describe('MAVLink 1.0 message', function() {
 
     beforeEach(function() {
+        var {mavlink10, MAVLink10Processor} = require('../implementations/mavlink_common_v1.0/mavlink.js')
         // This is a heartbeat packet from a GCS to the APM.
         this.heartbeat = new mavlink10.messages.heartbeat(
             mavlink10.MAV_TYPE_GCS, // 6
