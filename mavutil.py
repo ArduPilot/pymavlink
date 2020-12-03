@@ -2186,7 +2186,7 @@ def mode_string_acm(mode_number):
     return "Mode(%u)" % mode_number
 
 class x25crc(object):
-    '''x25 CRC - based on checksum.h from mavlink library'''
+    '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
     def __init__(self, buf=''):
         self.crc = 0xffff
         self.accumulate(buf)

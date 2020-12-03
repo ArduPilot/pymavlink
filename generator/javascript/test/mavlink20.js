@@ -292,7 +292,7 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
 });
 
 
-describe("MAVLink 2.0 X25CRC Decoder", function() {
+describe("MAVLink 2.0 CRC-16/MCRF4XX Decoder", function() {
 
     beforeEach(function() {
         var {mavlink20, MAVLink20Processor} = require('../implementations/mavlink_ardupilotmega_v2.0/mavlink.js');
@@ -303,7 +303,7 @@ describe("MAVLink 2.0 X25CRC Decoder", function() {
 
     // This test matches the output directly taken by inspecting what the Python implementation
     // generated for the above packet.
-    it('implements x25crc function', function() {
+    it('implements CRC-16/MCRF4XX function', function() {
             mavlink20.x25Crc(this.heartbeatMessage).should.equal(27276);
     });
 

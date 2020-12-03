@@ -278,7 +278,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
 });
 
 
-describe("MAVLink X25CRC Decoder", function() {
+describe("MAVLink CRC-16/MCRF4XX Decoder", function() {
 
     beforeEach(function() {
         // Message header + payload, lacks initial MAVLink flag (FE) and CRC.
@@ -288,7 +288,7 @@ describe("MAVLink X25CRC Decoder", function() {
 
     // This test matches the output directly taken by inspecting what the Python implementation
     // generated for the above packet.
-    it('implements x25crc function', function() {
+    it('implements CRC-16/MCRF4XX function', function() {
             mavlink10.x25Crc(this.heartbeatMessage).should.equal(27276);
     });
 

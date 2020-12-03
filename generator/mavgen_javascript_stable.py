@@ -45,7 +45,7 @@ Buffer.prototype.toByteArray = function () {
 
 ${MAVHEAD} = function(){};
 
-// Implement the X25CRC function (present in the Python version through the mavutil.py package)
+// Implement the CRC-16/MCRF4XX function (present in the Python version through the mavutil.py package)
 ${MAVHEAD}.x25Crc = function(buffer, crcIN) {
 
     var bytes = buffer;

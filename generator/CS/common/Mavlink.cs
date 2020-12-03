@@ -423,7 +423,7 @@ namespace MavLink
 
 
         // For a "message" of length bytes contained in the byte array
-        // pointed to by buffer, calculate the CRC
+        // pointed to by buffer, calculate the CRC16_MCRF4XX
         public static UInt16 Calculate(byte[] buffer, UInt16 start, UInt16 length)
         {
             UInt16 crcTmp = X25_INIT_CRC;
