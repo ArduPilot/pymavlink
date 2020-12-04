@@ -182,6 +182,7 @@ int main(void)
 {
 	mavlink_channel_t chan;
 
+        printf("Running mavlink_test_all\n");
 	mavlink_test_all(11, 10, &last_msg);
 	for (chan=MAVLINK_COMM_0; chan<=MAVLINK_COMM_1; chan++) {
 		printf("Received %u messages on channel %u OK\n", 
@@ -193,6 +194,18 @@ int main(void)
 	}
 	printf("No errors detected\n");
 
+        printf("Running mavlink_test_minimal\n");
+        mavlink_test_minimal(11, 10, &last_msg);
+	for (chan=MAVLINK_COMM_0; chan<=MAVLINK_COMM_1; chan++) {
+		printf("Received %u messages on channel %u OK\n", 
+		       chan_counts[chan], (unsigned)chan);
+	}
+	if (error_count != 0) {
+		printf("Error count %u\n", error_count);
+		exit(1);
+	}
+	printf("No errors detected\n");
+        
 #ifdef MAVLINK_SIGNING_FLAG_SIGN_OUTGOING
 	mavlink_status_t *status;
 
