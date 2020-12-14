@@ -11,6 +11,7 @@ from builtins import object
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 import copy
+import re
 from pymavlink import mavexpression
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
@@ -1658,7 +1659,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
                        retries=3, use_native=default_native,
-                       force_connected=False, progress_callback=None):
+                       force_connected=False, progress_callback=None, **opts):
     '''open a serial, UDP, TCP or file mavlink connection'''
     global mavfile_global
 
@@ -1693,6 +1694,26 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         # support dataflash logs
         from pymavlink import DFReader
         m = DFReader.DFReader_binary(device, zero_time_base=zero_time_base, progress_callback=progress_callback)
+        mavfile_global = m
+        return m
+
+    if device.lower().startswith('csv:'):
+        # support CSV logs
+        from pymavlink import CSVReader
+        # special-case for users wanting a : separator:
+        colon_separator_re = ""
+        if re.match(".*separator=::?.*", device):
+            opts["separator"] = ":"
+            device = re.sub(":separator=:", "", device)
+        components = device.split(":")
+        filename = components[1]
+        for nv in components[2:]:
+            (name, value) = nv.split('=')
+            opts[name] = value
+        m = CSVReader.CSVReader(filename,
+                                zero_time_base=zero_time_base,
+                                progress_callback=progress_callback,
+                                **opts)
         mavfile_global = m
         return m
 
