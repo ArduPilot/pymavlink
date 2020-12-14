@@ -80,6 +80,12 @@ def mag_heading(RAW_IMU, ATTITUDE, declination=None, SENSOR_OFFSETS=None, ofs=No
         heading += 360
     return heading
 
+def gps_time_to_epoch(week, msec):
+    '''convert GPS week and TOW to a time in seconds since 1970'''
+    epoch = 86400*(10*365 + int((1980-1969)/4) + 1 + 6 - 2)
+    return epoch + 86400*7*week + msec*0.001 - 18
+
+
 def mag_heading_motors(RAW_IMU, ATTITUDE, declination, SENSOR_OFFSETS, ofs, SERVO_OUTPUT_RAW, motor_ofs):
     '''calculate heading from raw magnetometer'''
     ofs = get_motor_offsets(SERVO_OUTPUT_RAW, ofs, motor_ofs)
