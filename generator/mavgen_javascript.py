@@ -187,7 +187,7 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
         t.write(outf, """
     //in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
     // variable length arrays and smaller packets
-    while (plen > 1 && this._payload[plen-1] == 0) {
+    while ((plen > 1) && ( (this._payload[plen-1] == 0) || (this._payload[plen-1] == null) ) ) {
             plen = plen - 1;
     }
     this._payload = this._payload.slice(0, plen);
