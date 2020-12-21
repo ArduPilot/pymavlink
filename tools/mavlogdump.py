@@ -32,10 +32,12 @@ parser.add_argument("--condition", default=None, help="select packets by conditi
 parser.add_argument("-q", "--quiet", action='store_true', help="don't display packets")
 parser.add_argument("-o", "--output", default=None, help="output matching packets to give file")
 parser.add_argument("-p", "--parms", action='store_true', help="preserve parameters in output with -o")
-parser.add_argument("--format", default=None, help="Change the output format between 'standard', 'json', and 'csv'. For the CSV output, you must supply types that you want.")
+parser.add_argument("--format", default=None, help="Change the output format between 'standard', 'json', 'csv' and 'mat'. For the CSV output, you must supply types that you want. For MAT output, specify output file with --mat_file")
 parser.add_argument("--csv_sep", dest="csv_sep", default=",", help="Select the delimiter between columns for the output CSV file. Use 'tab' to specify tabs. Only applies when --format=csv")
 parser.add_argument("--types", default=None, help="types of messages (comma separated with wildcard)")
 parser.add_argument("--nottypes", default=None, help="types of messages not to include (comma separated with wildcard)")
+parser.add_argument("--mat_file", dest="mat_file", help="Output file path for MATLAB file output. Only applies when --format=mat")
+parser.add_argument("-c", "--compress", action='store_true', help="Compress .mat file data")
 parser.add_argument("--dialect", default="ardupilotmega", help="MAVLink dialect")
 parser.add_argument("--zero-time-base", action='store_true', help="use Z time base for DF logs")
 parser.add_argument("--no-bad-data", action='store_true', help="Don't output corrupted messages")
@@ -64,6 +66,11 @@ from pymavlink import mavutil
 if args.profile:
     import yappi    # We do the import here so that we won't barf if run normally and yappi not available
     yappi.start()
+
+if args.format == 'mat':
+    # Load these modules here, as they're only needed for MAT file creation
+    import scipy.io
+    import numpy as np
 
 filename = args.log
 mlog = mavutil.mavlink_connection(filename, planner_format=args.planner,
@@ -174,6 +181,7 @@ if isbin and args.format == 'csv':
     match_types.append("FMT")
 
 # Keep track of data from the current timestep. If the following timestep has the same data, it's stored in here as well. Output should therefore have entirely unique timesteps.
+MAT = {}    # Dictionary to hold output data for 'mat' format option
 while True:
     m = mlog.recv_match(blocking=args.follow, type=match_types)
     if m is None:
@@ -292,6 +300,29 @@ while True:
                 csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
             else:
                 csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == type and y.split('.')[-1] in data else "" for y in fields]
+    # MAT format outputs data to a .mat file specified through the
+    # --mat_file option
+    elif args.format == 'mat':
+        # If this packet contains data (i.e. is not a FMT
+        # packet), append the data in this packet to the
+        # corresponding list
+        if m.get_type()!='FMT':
+
+            # If this packet type has not yet been
+            # seen, add a new entry to the big dict
+            if m.get_type() not in MAT:
+                MAT[m.get_type()] = {}
+
+            md = m.to_dict()
+            del md['mavpackettype']
+            cols = md.keys()
+            for col in cols:
+                # If this column hasn't had data entered,
+                # make a new key and list
+                if col in MAT[m.get_type()]:
+                    MAT[m.get_type()][col].append(md[col])
+                else:
+                    MAT[m.get_type()][col] = [md[col]]
     elif args.show_types:
         # do nothing
         pass
@@ -311,6 +342,25 @@ while True:
 
     # Update our last timestamp value.
     last_timestamp = timestamp
+
+# Export the .mat file
+if args.format == 'mat':
+    # Rearrange the dictionary so it exports correctly
+    MAT2 = {}
+    for packet_type in MAT:
+        vars = list(MAT[packet_type].keys())
+        data = []   # 2D list
+        i = 0
+        MAT2[packet_type+'_label'] = np.zeros((len(vars), 1), dtype=object)
+        for var in vars:
+            data.append(MAT[packet_type][var])
+            MAT2[packet_type+'_label'][i] = var
+            i += 1
+        # Transpose the list of lists
+        MAT2[packet_type] = list(map(list, zip(*data)))
+
+    # Save file
+    scipy.io.savemat(args.mat_file, MAT2, do_compression=args.compress)
 
 if args.show_types:
     for msgType in available_types:
