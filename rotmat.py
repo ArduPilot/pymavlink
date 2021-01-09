@@ -136,6 +136,21 @@ class Vector3(object):
         self.y = v.y
         self.z = v.z
 
+    def rotate_by_id(self, rot_id):
+        '''rotate a vector using a rotation enum ID'''
+        global rotations
+        if rot_id >= len(rotations):
+            return None
+        return rotations[rot_id].r * self
+
+    def rotate_by_inverse_id(self, rot_id):
+        '''rotate a vector using a inverse rotation enum ID'''
+        global rotations
+        if rot_id >= len(rotations):
+            return None
+        return rotations[rot_id].rt * self
+
+
 class Matrix3(object):
     '''a 3x3 matrix, intended as a rotation matrix'''
     def __init__(self, a=None, b=None, c=None):
@@ -400,4 +415,60 @@ class Line(object):
         if forward_only and d < 0:
             return None
         return (self.vector * d) + self.point
+
+class Rotation(object):
+    def __init__(self, name, roll, pitch, yaw):
+        self.name = name
+        self.roll = roll
+        self.pitch = pitch
+        self.yaw = yaw
+        self.r = Matrix3()
+        self.r.from_euler(self.roll, self.pitch, self.yaw)
+        self.rt = self.r.transposed()
+
+# the rotations used in APM
+rotations = [
+    Rotation("ROTATION_NONE",                      0,   0,   0),
+    Rotation("ROTATION_YAW_45",                    0,   0,  45),
+    Rotation("ROTATION_YAW_90",                    0,   0,  90),
+    Rotation("ROTATION_YAW_135",                   0,   0, 135),
+    Rotation("ROTATION_YAW_180",                   0,   0, 180),
+    Rotation("ROTATION_YAW_225",                   0,   0, 225),
+    Rotation("ROTATION_YAW_270",                   0,   0, 270),
+    Rotation("ROTATION_YAW_315",                   0,   0, 315),
+    Rotation("ROTATION_ROLL_180",                180,   0,   0),
+    Rotation("ROTATION_ROLL_180_YAW_45",         180,   0,  45),
+    Rotation("ROTATION_ROLL_180_YAW_90",         180,   0,  90),
+    Rotation("ROTATION_ROLL_180_YAW_135",        180,   0, 135),
+    Rotation("ROTATION_PITCH_180",                 0, 180,   0),
+    Rotation("ROTATION_ROLL_180_YAW_225",        180,   0, 225),
+    Rotation("ROTATION_ROLL_180_YAW_270",        180,   0, 270),
+    Rotation("ROTATION_ROLL_180_YAW_315",        180,   0, 315),
+    Rotation("ROTATION_ROLL_90",                  90,   0,   0),
+    Rotation("ROTATION_ROLL_90_YAW_45",           90,   0,  45),
+    Rotation("ROTATION_ROLL_90_YAW_90",           90,   0,  90),
+    Rotation("ROTATION_ROLL_90_YAW_135",          90,   0, 135),
+    Rotation("ROTATION_ROLL_270",                270,   0,   0),
+    Rotation("ROTATION_ROLL_270_YAW_45",         270,   0,  45),
+    Rotation("ROTATION_ROLL_270_YAW_90",         270,   0,  90),
+    Rotation("ROTATION_ROLL_270_YAW_135",        270,   0, 135),
+    Rotation("ROTATION_PITCH_90",                  0,  90,   0),
+    Rotation("ROTATION_PITCH_270",                 0, 270,   0),
+    Rotation("ROTATION_PITCH_180_YAW_90",          0, 180,  90),
+    Rotation("ROTATION_PITCH_180_YAW_270",         0, 180, 270),
+    Rotation("ROTATION_ROLL_90_PITCH_90",         90,  90,   0),
+    Rotation("ROTATION_ROLL_180_PITCH_90",       180,  90,   0),
+    Rotation("ROTATION_ROLL_270_PITCH_90",       270,  90,   0),
+    Rotation("ROTATION_ROLL_90_PITCH_180",        90, 180,   0),
+    Rotation("ROTATION_ROLL_270_PITCH_180",      270, 180,   0),
+    Rotation("ROTATION_ROLL_90_PITCH_270",        90, 270,   0),
+    Rotation("ROTATION_ROLL_180_PITCH_270",      180, 270,   0),
+    Rotation("ROTATION_ROLL_270_PITCH_270",      270, 270,   0),
+    Rotation("ROTATION_ROLL_90_PITCH_180_YAW_90", 90, 180,  90),
+    Rotation("ROTATION_ROLL_90_YAW_270",          90,   0, 270),
+    Rotation("ROTATION_ROLL_90_PITCH_68_YAW_293", 90,  68, 270),
+    Rotation("ROTATION_PITCH_315",                 0, 315,   0),
+    Rotation("ROTATION_ROLL_90_PITCH_315",        90, 315,   0),
+    Rotation("ROTATION_PITCH_7",                   0,   7,   0),
+    ]
 
