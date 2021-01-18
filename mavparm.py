@@ -148,7 +148,7 @@ class MAVParmDict(dict):
             if fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 self.show_param_value(str(p), "%f" % self.get(p))
 
-    def diff(self, filename, wildcard='*', use_excludes=True, use_tabs=False):
+    def diff(self, filename, wildcard='*', use_excludes=True, use_tabs=False, show_only1=True, show_only2=True):
         '''show differences with another parameter file'''
         other = MAVParmDict()
         if not other.load(filename, use_excludes=use_excludes):
@@ -159,9 +159,11 @@ class MAVParmDict(dict):
                 continue
             if not k in other:
                 value = float(self[k])
-                print("%-16.16s              %12.4f" % (k, value))
+                if show_only2:
+                    print("%-16.16s              %12.4f" % (k, value))
             elif not k in self:
-                print("%-16.16s %12.4f" % (k, float(other[k])))
+                if show_only1:
+                    print("%-16.16s %12.4f" % (k, float(other[k])))
             elif abs(self[k] - other[k]) > self.mindelta:
                 value = float(self[k])
                 if use_tabs:
