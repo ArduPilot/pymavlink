@@ -57,8 +57,8 @@ if [[ ! -f "pretests.done.swp" ]]; then
     #    we quieten them as we really aren't testing THEM here.
     printf "${RED}Generating C bindings to test JS-NextGen against...${NC}\n\n"
     sleep 1
-    mavgen.py --lang C $MDEF/v1.0/ardupilotmega.xml -o generator/C/include_v1.0 --wire-protocol=1.0 > $OUT2
-    mavgen.py --lang C $MDEF/v1.0/ardupilotmega.xml -o generator/C/include_v2.0 --wire-protocol=2.0 > $OUT2
+    ./tools/mavgen.py --lang C $MDEF/v1.0/ardupilotmega.xml -o generator/C/include_v1.0 --wire-protocol=1.0 > $OUT2
+    ./tools/mavgen.py --lang C $MDEF/v1.0/ardupilotmega.xml -o generator/C/include_v2.0 --wire-protocol=2.0 > $OUT2
 
 
     #   we quieten them as we really aren't testing THEM here.
