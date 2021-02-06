@@ -1523,7 +1523,8 @@ class mavmmaplog(mavlogfile):
                 b = self.f.read(1)
                 instance, = struct.unpack('b', b)
                 mname = self.id_to_name[mtype]
-                self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
+                if mname in self.messages:
+                    self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
 
             self.offsets[mtype].append(ofs)
             self.counts[mtype] += 1
