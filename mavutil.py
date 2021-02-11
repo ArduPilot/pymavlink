@@ -2030,8 +2030,6 @@ try:
 
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
     AP_MAV_TYPE_MODE_MAP.update(_custom_mode_map)
-    print("Using pymavlink custom MAV_TYPE mode map:")
-    print(repr(_custom_mode_map))
 except:
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
 
