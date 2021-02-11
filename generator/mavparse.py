@@ -314,7 +314,9 @@ class MAVXML(object):
             elif in_element == "mavlink.version":
                 self.version = int(data)
             elif in_element == "mavlink.include":
-                self.include.append(data)
+                # Don't add includes which are elsewhere in the folder structure
+                if  ".." not in data:
+                    self.include.append(data)
 
         f = open(filename, mode='rb')
         p = xml.parsers.expat.ParserCreate()
