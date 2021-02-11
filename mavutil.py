@@ -2016,8 +2016,12 @@ try:
 
     _custom_mode_map_path = os.path.join("~", ".pymavlink", "custom_mode_map.json")
     _custom_mode_map_path = expanduser(_custom_mode_map_path)
-    with open(_custom_mode_map_path) as f:
-        _json_mode_map = json.load(f)
+    try:
+        with open(_custom_mode_map_path) as f:
+            _json_mode_map = json.load(f)
+    except:
+        print("Error: pymavlink custom mode file ('" + _custom_mode_map_path + "') is not valid JSON.")
+        raise
 
     try:
         _custom_mode_map = {}
