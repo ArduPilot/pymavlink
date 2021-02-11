@@ -2014,7 +2014,8 @@ try:
     # AP_MAV_TYPE_MODE_MAP_DEFAULT dict.
     from os.path import expanduser
 
-    _custom_mode_map_path = expanduser('~/.pymavlink/custom_mode_map.json')
+    _custom_mode_map_path = os.path.join("~", ".pymavlink", "custom_mode_map.json")
+    _custom_mode_map_path = expanduser(_custom_mode_map_path)
     with open(_custom_mode_map_path) as f:
         _json_mode_map = json.load(f)
 
