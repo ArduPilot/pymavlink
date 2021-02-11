@@ -101,7 +101,7 @@
     <xs:enumeration value="deg/2"/>    <!-- degrees/2 required from dagar for HIGH_LATENCY2 message-->
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
-    <xs:enumeration value="cdeg/s"/>     <!-- centidegrees per second -->
+    <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
     <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
     <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
     <xs:enumeration value="rpm"/>      <!-- rotations per minute -->
@@ -124,8 +124,8 @@
     <!-- force -->
     <xs:enumeration value="mG"/>       <!-- milli-G -->
     <!-- mass -->
-    <xs:enumeration value="g"/>       <!-- grams -->
-    <xs:enumeration value="kg"/>      <!-- kilograms -->
+    <xs:enumeration value="g"/>        <!-- grams -->
+    <xs:enumeration value="kg"/>       <!-- kilograms -->
     <!-- pressure -->
     <xs:enumeration value="Pa"/>       <!-- Pascal -->
     <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
@@ -149,9 +149,9 @@
     <xs:enumeration value="dpix"/>     <!-- decipixels -->
     <!-- flow -->
     <xs:enumeration value="g/min"/>    <!-- grams/minute -->
-    <xs:enumeration value="cm^3/min"/>    <!-- cubic centimetres/minute -->
+    <xs:enumeration value="cm^3/min"/> <!-- cubic centimetres/minute -->
     <!-- volume -->
-    <xs:enumeration value="cm^3"/>    <!-- cubic centimetres -->
+    <xs:enumeration value="cm^3"/>     <!-- cubic centimetres -->
   </xs:restriction>
 </xs:simpleType>
 
