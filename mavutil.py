@@ -2009,19 +2009,28 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
 
 
 try:
-    # Allow for using custom mode maps by importing a dict named
-    # AP_MAV_TYPE_MODE_MAP_CUSTOM from "~/.pymavlink/ap_custom_mode_map.py"
-    # and using it to extend the hard-coded AP_MAV_TYPE_MODE_MAP_DEFAULT dict.
-    import sys
+    # Allow for using custom mode maps by importing a JSON dict from
+    # "~/.pymavlink/custom_mode_map.json" and using it to extend the hard-coded
+    # AP_MAV_TYPE_MODE_MAP_DEFAULT dict.
     from os.path import expanduser
 
-    sys.path.append(expanduser('~') + '/.pymavlink')
-    from ap_custom_mode_map import AP_MAV_TYPE_MODE_MAP_CUSTOM
+    _custom_mode_map_path = expanduser('~/.pymavlink/custom_mode_map.json')
+    with open(_custom_mode_map_path) as f:
+        _json_mode_map = json.load(f)
+
+    try:
+        _custom_mode_map = {}
+        for mav_type, mode_map in _json_mode_map.items():
+            # make sure the custom map has the right datatypes
+            _custom_mode_map[int(mav_type)] = { int(mode_num): str(mode_name) for mode_num, mode_name in mode_map.items() }
+    except:
+        print("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
+        raise
 
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
-    AP_MAV_TYPE_MODE_MAP.update(AP_MAV_TYPE_MODE_MAP_CUSTOM)
-    print("Using custom MAV_TYPE mode map:")
-    print(repr(AP_MAV_TYPE_MODE_MAP_CUSTOM))
+    AP_MAV_TYPE_MODE_MAP.update(_custom_mode_map)
+    print("Using pymavlink custom MAV_TYPE mode map:")
+    print(repr(_custom_mode_map))
 except:
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
 
