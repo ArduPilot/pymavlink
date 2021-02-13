@@ -52,6 +52,7 @@ parser.add_argument("--mav10", action='store_true', help="parse as MAVLink1")
 parser.add_argument("--reduce", type=int, default=0, help="reduce streaming messages")
 parser.add_argument("log", metavar="LOG")
 parser.add_argument("--profile", action='store_true', help="run the Yappi python profiler")
+parser.add_argument("--meta", action='store_true', help="output meta-data msgs even if not matching condition")
 
 args = parser.parse_args()
 
@@ -212,7 +213,8 @@ while True:
             output.write(struct.pack('>Q', int(timestamp*1.0e6)) + m.get_msgbuf())
             continue
 
-    if not mavutil.evaluate_condition(args.condition, mlog.messages):
+    if not mavutil.evaluate_condition(args.condition, mlog.messages) and (
+            not (m.get_type() in ['FMT', 'FMTU', 'MULT','PARM'] and args.meta)):
         continue
     if args.source_system is not None and args.source_system != m.get_srcSystem():
         continue
