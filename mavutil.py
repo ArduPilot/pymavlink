@@ -2019,8 +2019,12 @@ try:
     try:
         with open(_custom_mode_map_path) as f:
             _json_mode_map = json.load(f)
-    except:
+    except json.decoder.JSONDecodeError as ex:
+        # inform the user of a malformed custom_mode_map.json
         print("Error: pymavlink custom mode file ('" + _custom_mode_map_path + "') is not valid JSON.")
+        raise
+    except Exception:
+        # file is not present, fall back to using default map
         raise
 
     try:
@@ -2028,13 +2032,15 @@ try:
         for mav_type, mode_map in _json_mode_map.items():
             # make sure the custom map has the right datatypes
             _custom_mode_map[int(mav_type)] = { int(mode_num): str(mode_name) for mode_num, mode_name in mode_map.items() }
-    except:
+    except Exception:
+        # inform the user of invalid custom mode map
         print("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
         raise
 
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
     AP_MAV_TYPE_MODE_MAP.update(_custom_mode_map)
-except:
+except Exception:
+    # revert to using default mode map
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
 
 
