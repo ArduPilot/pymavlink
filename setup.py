@@ -55,10 +55,20 @@ def generate_content():
         for xml in v20_dialects:
             shutil.copy(xml, os.path.join(dialects_path, 'v20'))
 
+        # work-around for broken dialects
+        ignored_dialects = {
+            'all': "can't build because all.xml uses relative directories outside "
+                   "of the message_definitions folder"
+        }
+
         for xml in v10_dialects:
             dialect = os.path.basename(xml)[:-4]
             wildcard = os.getenv("MAVLINK_DIALECT",'*')
             if not fnmatch.fnmatch(dialect, wildcard):
+                continue
+            if dialect in ignored_dialects:
+                print("IGNORING %s for protocol 1.0" % xml)
+                print("    because: " + ignored_dialects[dialect])
                 continue
             print("Building %s for protocol 1.0" % xml)
             if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
@@ -69,6 +79,10 @@ def generate_content():
             dialect = os.path.basename(xml)[:-4]
             wildcard = os.getenv("MAVLINK_DIALECT",'*')
             if not fnmatch.fnmatch(dialect, wildcard):
+                continue
+            if dialect in ignored_dialects:
+                print("IGNORING %s for protocol 2.0" % xml)
+                print("    because: " + ignored_dialects[dialect])
                 continue
             print("Building %s for protocol 2.0" % xml)
             if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
