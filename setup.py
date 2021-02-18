@@ -50,11 +50,6 @@ def generate_content():
             print("No XML message definitions found")
             sys.exit(1)
 
-        for xml in v10_dialects:
-            shutil.copy(xml, os.path.join(dialects_path, 'v10'))
-        for xml in v20_dialects:
-            shutil.copy(xml, os.path.join(dialects_path, 'v20'))
-
         # work-around for broken dialects
         ignored_dialects = {
             'all': "can't build because all.xml uses relative directories outside "
@@ -71,6 +66,7 @@ def generate_content():
                 print("    because: " + ignored_dialects[dialect])
                 continue
             print("Building %s for protocol 1.0" % xml)
+            shutil.copy(xml, os.path.join(dialects_path, 'v10'))
             if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
                 print("Building failed %s for protocol 1.0" % xml)
                 sys.exit(1)
@@ -85,6 +81,7 @@ def generate_content():
                 print("    because: " + ignored_dialects[dialect])
                 continue
             print("Building %s for protocol 2.0" % xml)
+            shutil.copy(xml, os.path.join(dialects_path, 'v20'))
             if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
                 print("Building failed %s for protocol 2.0" % xml)
                 sys.exit(1)
