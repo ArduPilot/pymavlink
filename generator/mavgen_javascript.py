@@ -330,8 +330,10 @@ def generate_classes(outf, msgs, xml):
         # inherit methods from the base message class
         outf.write("\n%s.messages.%s.prototype = new %s.message;\n" % ( get_mavhead(xml), m.name.lower() ,get_mavhead(xml) ) )
 
-        orderedfields =    "var orderedfields = [ this." + ", this.".join(m.ordered_fieldnames) + "];";
-
+        import re
+        match = re.findall('(\d+)?([AxcbBhHsfdiIlLqQ])', m.fmtstr)
+        orderedfields = "var orderedfields = [" + ', '.join(['{}'.format('...' if reg[0].isnumeric() else '') +
+         f'this.{field}' for (field, reg) in zip(m.ordered_fieldnames, match)]) + "];"
 
         # Implement the pack() function for this message
         t.write(outf, """
