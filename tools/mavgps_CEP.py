@@ -56,7 +56,13 @@ def process_log(logfile):
             gps_id = 1
         else:
             gps_id = 2
-        add_data(m.get_srcSystem(), gps_id, lat, lon, alt, fix_type)
+
+        if hasattr(m, 'get_srcSystem'):
+            sysid = m.get_srcSystem()
+        else:
+            sysid = int(mlog.params.get('SYSID_THISMAV',0))
+
+        add_data(sysid, gps_id, lat, lon, alt, fix_type)
 
 for filename in args.logs:
     process_log(filename)
