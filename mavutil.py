@@ -491,6 +491,65 @@ class mavfile(object):
                 continue
             return m
 
+    def fx_recv_msg(self):
+        '''message receive routine'''
+        self.pre_message()
+        while True:
+            n = self.mav.bytes_needed()
+            s = self.recv(n)
+            numnew = len(s)
+
+            if numnew != 0:
+                if self.logfile_raw:
+                    self.logfile_raw.write(str(s))
+                if self.first_byte:
+                    self.auto_mavlink_version(s)
+
+            # We always call parse_char even if the new string is empty, because the existing message buf might already have some valid packet
+            # we can extract
+            msg = self.mav.parse_char(s)
+            if msg:
+                if self.logfile and  msg.get_type() != 'BAD_DATA' :
+                    usec = int(time.time() * 1.0e6) & ~3
+                    self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
+                self.post_message(msg)
+                return (msg, s)
+            else:
+                # if we failed to parse any messages _and_ no new bytes arrived, return immediately so the client has the option to
+                # timeout
+                if numnew == 0:
+                    return (None, None)
+
+    def fx_recv_match(self, condition=None, type=None, blocking=False, timeout=None):
+        '''recv the next MAVLink message that matches the given condition
+        type can be a string or a list of strings'''
+        if type is not None and not isinstance(type, list) and not isinstance(type, set):
+            type = [type]
+        start_time = time.time()
+        while True:
+            if timeout is not None:
+                now = time.time()
+                if now < start_time:
+                    start_time = now # If an external process rolls back system time, we should not spin forever.
+                if start_time + timeout < time.time():
+                    return (None, None)
+            m,s = self.fx_recv_msg()
+            if m is None:
+                if blocking:
+                    for hook in self.idle_hooks:
+                        hook(self)
+                    if timeout is None:
+                        self.select(0.05)
+                    else:
+                        self.select(timeout/2)
+                    continue
+                return (None, None)
+            if type is not None and not m.get_type() in type:
+                continue
+            if not evaluate_condition(condition, self.messages):
+                continue
+            return (m, s)
+
     def check_condition(self, condition):
         '''check if a condition is true'''
         return evaluate_condition(condition, self.messages)
