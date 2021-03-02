@@ -11,7 +11,7 @@
 <!-- definition of attributes -->
 <xs:attribute name="name"> <!-- used in enum,entry,message,field elements -->
 </xs:attribute>
-<xs:attribute name="id" type="xs:unsignedShort"/> <!-- used in message elements -->
+<xs:attribute name="id" type="mavlinkMsgId"/> <!-- used in message elements -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- used in field elements -->
 <xs:attribute name="enum" type="xs:string"/> <!-- used in field,param elements -->
 <xs:attribute name="display" type="xs:string"/> <!-- used in field elements -->
@@ -63,6 +63,13 @@
   </xs:simpleType>
 </xs:attribute>
 <xs:attribute name="replaced_by" type="xs:string"/> <!-- used in deprecated elements -->
+
+<!-- mavlink message IDs are unsigned 24-bit values. -->
+<xs:simpleType name="mavlinkMsgId" id="mavlinkMsgId">
+  <xs:restriction base="xs:unsignedInt">
+    <xs:maxInclusive value="16777215" id="mavlinkMsgId.maxInclusive"/>
+  </xs:restriction>
+</xs:simpleType>
 
 <xs:simpleType name="SI_Unit">
   <xs:restriction base="xs:string">
