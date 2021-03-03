@@ -48,8 +48,8 @@ namespace MavLinkProtocol
         public static T ConvertToType<T>(byte[] value, int startIndex) where T : struct
         {
             ResizeIfNeccesary<T>(ref value, startIndex);
-            if (typeof(T) == typeof(byte)) return (T)Convert.ChangeType(value[startIndex], typeof(T));
-            else if (typeof(T) == typeof(sbyte)) return (T)Convert.ChangeType(value[startIndex], typeof(T));
+            if (typeof(T) == typeof(byte)) return unchecked((T)(object)(byte)value[startIndex]);
+            else if (typeof(T) == typeof(sbyte)) return unchecked((T)(object)(sbyte)value[startIndex]);
 
             if (MAVLINK_NEED_BYTE_SWAP)
             {
