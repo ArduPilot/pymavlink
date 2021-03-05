@@ -63,7 +63,7 @@ sudo python -m pip install --upgrade future lxml
 ### On Windows
 
 Use pip to install future as for Linux.
-Lxml can be installed with a Windows installer from here : https://pypi.org/project/lxml
+lxml can be installed with a Windows installer from here : https://pypi.org/project/lxml
 
 
 ## Installation
