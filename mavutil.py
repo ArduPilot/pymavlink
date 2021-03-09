@@ -498,7 +498,8 @@ class mavfile(object):
         while True:
             n = self.mav.bytes_needed()
             s = self.recv(n)
-            packet_bytes += s
+            if isinstance(s, bytes):
+               packet_bytes += s
             numnew = len(s)
 
             if numnew != 0:
@@ -538,7 +539,8 @@ class mavfile(object):
                 if start_time + timeout < time.time():
                     return (None, None)
             m,s = self.fx_recv_msg()
-            packet_bytes += s
+            if isinstance(s, bytes):
+                packet_bytes += s
             if m is None:
                 if blocking:
                     for hook in self.idle_hooks:
