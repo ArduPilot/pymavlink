@@ -347,22 +347,7 @@ while True:
 
 # Export the .mat file
 if args.format == 'mat':
-    # Rearrange the dictionary so it exports correctly
-    MAT2 = {}
-    for packet_type in MAT:
-        vars = list(MAT[packet_type].keys())
-        data = []   # 2D list
-        i = 0
-        MAT2[packet_type+'_label'] = np.zeros((len(vars), 1), dtype=object)
-        for var in vars:
-            data.append(MAT[packet_type][var])
-            MAT2[packet_type+'_label'][i] = var
-            i += 1
-        # Transpose the list of lists
-        MAT2[packet_type] = list(map(list, zip(*data)))
-
-    # Save file
-    scipy.io.savemat(args.mat_file, MAT2, do_compression=args.compress)
+    scipy.io.savemat(args.mat_file, MAT, do_compression=args.compress)
 
 if args.show_types:
     for msgType in available_types:
