@@ -237,6 +237,24 @@ def lowpass(var, key, factor):
         lowpass_data[key] = factor*lowpass_data[key] + (1.0 - factor)*var
     return lowpass_data[key]
 
+def lpalpha(sample_rate_hz, cutoff_hz):
+    '''find alpha for low pass filter'''
+    rc = 1.0 / (2*pi*cutoff_hz)
+    dt = 1.0 / sample_rate_hz
+    return 1.0 - dt/(dt+rc)
+
+lowpass_hz_data = {}
+
+def lowpassHz(var, key, sample_rate_hz, cutoff_hz):
+    '''a simple lowpass filter with specified frequency'''
+    global lowpass_hz_data
+    alpha = lpalpha(sample_rate_hz, cutoff_hz)
+    if not key in lowpass_hz_data:
+        lowpass_hz_data[key] = var
+    else:
+        lowpass_hz_data[key] = alpha*lowpass_data[key] + (1.0-alpha)*var
+    return lowpass_hz_data[key]
+
 last_diff = {}
 
 def diff(var, key):
