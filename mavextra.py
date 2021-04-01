@@ -252,7 +252,7 @@ def lowpassHz(var, key, sample_rate_hz, cutoff_hz):
     if not key in lowpass_hz_data:
         lowpass_hz_data[key] = var
     else:
-        lowpass_hz_data[key] = alpha*lowpass_data[key] + (1.0-alpha)*var
+        lowpass_hz_data[key] = alpha*lowpass_hz_data[key] + (1.0-alpha)*var
     return lowpass_hz_data[key]
 
 last_diff = {}
