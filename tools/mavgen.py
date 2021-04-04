@@ -11,14 +11,28 @@ Released under GNU GPL version 3 or later
 # allow running mavgen from within the tree without installing
 if __name__ == "__main__" and __package__ is None:
     from os import sys, path
-    sys.path.insert(0, path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+    package_root = path.dirname(path.dirname(path.abspath(__file__)))
+    package_init = path.join(package_root, '__init__.py')
+    try:
+        # Python 3.5+
+        # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+        from importlib import util as imp_util
+        spec = imp_util.spec_from_file_location('pymavlink', package_init)
+        module = imp_util.module_from_spec(spec)
+        sys.modules[module.__name__] = module
+        spec.loader.exec_module(module)
+    except ImportError:
+        # Python 2.7
+        import imp
+        module = imp.load_package('pymavlink', package_root)
+        module.__package__ = 'pymavlink'
 
 from pymavlink.generator import mavgen
 from pymavlink.generator import mavparse
 
 from argparse import ArgumentParser
 
-parser = ArgumentParser(description="This tool generate implementations from MAVLink message definitions")
+parser = ArgumentParser(description="This tool generates implementations from MAVLink message definitions")
 parser.add_argument("-o", "--output", default="mavlink", help="output directory.")
 parser.add_argument("--lang", dest="language", choices=mavgen.supportedLanguages, default=mavgen.DEFAULT_LANGUAGE, help="language of generated code [default: %(default)s]")
 parser.add_argument("--wire-protocol", choices=[mavparse.PROTOCOL_0_9, mavparse.PROTOCOL_1_0, mavparse.PROTOCOL_2_0], default=mavgen.DEFAULT_WIRE_PROTOCOL, help="MAVLink protocol version. [default: %(default)s]")
