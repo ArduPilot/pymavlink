@@ -23,6 +23,7 @@ parser.add_argument("--window", dest='fft_window', default='hanning', action='st
 parser.add_argument("--overlap", dest='fft_overlap', default=False, action='store_true', help="whether or not to use window overlap when analysing data")
 parser.add_argument("--output", dest='fft_output', default='psd', action='store', help="whether to output frequency spectrum information as power or linear spectral density: 'psd' or 'lsd'")
 parser.add_argument("--notch-params", default=False, action='store_true', help="whether to output estimated harmonic notch parameters")
+parser.add_argument("--notch-peak", dest='fft_peak', default=0, action='store', help="peak to select when setting notch parameters")
 
 args = parser.parse_args()
 
@@ -162,6 +163,7 @@ def mavfft_fttd(logfile):
     hntch_mode_names = { 0:"No", 1:"Throttle", 2:"RPM", 3:"ESC", 4:"FFT"}
     hntch_option_names = { 0:"Single", 1:"Double", 2:"Dynamic Harmonic", 3:"Double+Dynamic"}
     batch_mode_names = { 0:"Pre-filter", 1:"Sensor-rate", 2:"Post-filter" }
+    fft_peak = int(args.fft_peak)
 
     first_freq = None
     for thing_to_plot in things_to_plot:
@@ -235,8 +237,8 @@ def mavfft_fttd(logfile):
                 peak_freqs = freqmap[sensor][peaks]
                 print("Peaks: %s" % str(peak_freqs))
                 print("INS_HNTCH_REF = %.4f" % thr_ref)
-                print("INS_HNTCH_FREQ = %.1f" % float(peak_freqs[0]))
-                print("INS_HNTCH_BW = %.1f" % (float(peak_freqs[0])/2.))
+                print("INS_HNTCH_FREQ = %.1f" % float(peak_freqs[fft_peak]))
+                print("INS_HNTCH_BW = %.1f" % (float(peak_freqs[fft_peak])/2.))
 
             # linerize of requested
             if args.fft_output == 'lsd':
