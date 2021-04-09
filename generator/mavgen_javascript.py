@@ -134,9 +134,10 @@ ${MAVHEAD}.message.prototype.set = function(args,verbose) {
     _.each(this.fieldnames, function(e, i) {
         var num = parseInt(i,10);
         if (this.hasOwnProperty(e) && isNaN(num)  ){ // asking for an attribure thats non-numeric is ok unless its already an attribute we have
-            console.log("WARNING, overwriting an existing property is DANGEROUS:"+e+" ==>"+i+"==>"+args[i]+" -> "+JSON.stringify(this)); 
+            if ( verbose >= 1) { console.log("WARNING, overwriting an existing property is DANGEROUS:"+e+" ==>"+i+"==>"+args[i]+" -> "+JSON.stringify(this)); }
         }
     }, this);
+                    //console.log(this.fieldnames);
 // then modify
     _.each(this.fieldnames, function(e, i) {
         this[e] = args[i];
@@ -286,9 +287,9 @@ def generate_classes(outf, msgs, xml):
 
         # function signature + declaration
         outf.write("    %s.messages.%s = function(" % ( get_mavhead(xml), m.name.lower() ) )
-        if len(m.fields) != 0:
-                outf.write(", ".join(m.fieldnames))
-        outf.write(") {")
+        outf.write(" ...moreargs ) {\n")
+        # passing the dynamic args into the correct attributes, we can call the constructor with or without the 'moreargs'
+        outf.write("     [ this.%s ] = moreargs;\n" % " , this.".join(m.fieldnames))
 
         # body: set message type properties    
         outf.write("""
@@ -320,12 +321,8 @@ def generate_classes(outf, msgs, xml):
         # body: set own properties
         if len(m.fieldnames) != 0:
                 outf.write("    this.fieldnames = ['%s'];\n" % "', '".join(m.fieldnames))
-        outf.write("""
 
-    this.set(arguments,true);
-
-}
-""")
+        outf.write("\n}\n")
 
         # inherit methods from the base message class
         outf.write("\n%s.messages.%s.prototype = new %s.message;\n" % ( get_mavhead(xml), m.name.lower() ,get_mavhead(xml) ) )
@@ -963,10 +960,13 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         });
     }
 
+    
+
     // construct the message object
     try {
-        var m = new decoder.type(args);
-        m.set.call(m, args,false);
+        // args at this point might look like:  { '0': 6, '1': 8, '2': 0, '3': 0, '4': 3, '5': 3 }
+        var m = new decoder.type();   // make a new 'empty' instance of the right class,
+        m.set(args,false); // associate ordered-field-numbers to names, after construction not during.
     }
     catch (e) {
         throw new Error('Unable to instantiate MAVLink message of type '+decoder.type+' : ' + e.message);
