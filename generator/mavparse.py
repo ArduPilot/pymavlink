@@ -174,13 +174,14 @@ class MAVEnumEntry(object):
         self.origin_line = origin_line
 
 class MAVEnum(object):
-    def __init__(self, name, linenumber, description=''):
+    def __init__(self, name, linenumber, description='', bitmask=False):
         self.name = name
         self.description = description
         self.entry = []
         self.start_value = None
         self.highest_value = 0
         self.linenumber = linenumber
+        self.bitmask = bitmask
 
 class MAVXML(object):
     '''parse a mavlink XML file'''
@@ -260,7 +261,8 @@ class MAVXML(object):
                     self.message[-1].fields.append(new_field)
             elif in_element == "mavlink.enums.enum":
                 check_attrs(attrs, ['name'], 'enum')
-                self.enum.append(MAVEnum(attrs['name'], p.CurrentLineNumber))
+                bitmask = 'bitmask' in attrs and attrs['bitmask'] == 'true'
+                self.enum.append(MAVEnum(attrs['name'], p.CurrentLineNumber, bitmask=bitmask))
             elif in_element == "mavlink.enums.enum.entry":
                 check_attrs(attrs, ['name'], 'enum entry')
                 # determine value and if it was automatically assigned (for possible merging later)
