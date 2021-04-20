@@ -290,6 +290,33 @@ def delta(var, key, tusec=None):
     last_delta[key] = (var, tnow, ret)
     return ret
 
+last_sum = {}
+
+def sum(var, key):
+    '''sum variable'''
+    global last_sum
+    ret = 0
+    if not key in last_sum:
+        last_sum[key] = 0
+    last_sum[key] += var
+    return last_sum[key]
+
+last_integral = {}
+
+def integral(var, key, timeus):
+    '''integrate variable'''
+    global last_integral
+    ret = 0
+    if not key in last_integral:
+        last_integral[key] = (0,timeus)
+    (lastsum,lastt) = last_integral[key]
+    dt = (timeus - lastt) * 1.0e-6
+    dv = var * dt
+    newv = lastsum + dv
+    last_integral[key] = (newv,timeus)
+    return newv
+
+
 def delta_angle(var, key, tusec=None):
     '''calculate slope of an angle'''
     global last_delta
@@ -1393,10 +1420,14 @@ def reset_state_data():
     global first_fix
     global dcm_state
     global earth_field
+    global last_sum
+    global last_integral
     average_data.clear()
     derivative_data.clear()
     lowpass_data.clear()
     last_delta.clear()
+    last_sum.clear()
+    last_integral.clear()
     first_fix = None
     dcm_state = None
     earth_field = None
