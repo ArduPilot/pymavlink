@@ -295,6 +295,10 @@ def magfit(logfile):
             print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
         if msg.get_type() == ATT_NAME:
             ATT = msg
+            # remove IMU sensor to body frame trim offsets to get back to the IMU sensor frame used by the EKFs
+            ATT.Roll  = ATT.Roll  + math.degrees(parameters['AHRS_TRIM_X'])
+            ATT.Pitch = ATT.Pitch + math.degrees(parameters['AHRS_TRIM_Y'])
+            ATT.Yaw   = ATT.Yaw   + math.degrees(parameters['AHRS_TRIM_Z'])
         if msg.get_type() == 'BAT':
             BAT = msg
         if msg.get_type() == mag_msg and ATT is not None:
