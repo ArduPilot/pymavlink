@@ -214,7 +214,7 @@ while True:
             continue
 
     if not mavutil.evaluate_condition(args.condition, mlog.messages) and (
-            not (m.get_type() in ['FMT', 'FMTU', 'MULT','PARM'] and args.meta)):
+            not (m.get_type() in ['FMT', 'FMTU', 'MULT','PARM','MODE'] and args.meta)):
         continue
     if args.source_system is not None and args.source_system != m.get_srcSystem():
         continue
