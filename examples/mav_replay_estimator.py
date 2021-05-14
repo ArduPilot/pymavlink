@@ -19,6 +19,8 @@ from pymavlink import mavutil
 from pymavlink.rotmat import Vector3, Matrix3
 from math import degrees
 
+GRAVITY_MSS = 9.80665
+
 class Estimator(object):
     '''state estimator'''
     def __init__(self):
@@ -50,8 +52,9 @@ class Estimator(object):
         # inertial update with accelerometer. This will diverge very quickly
         # without corrections
         earth_dvel = self.r * delta_velocity
+        earth_dvel.z += GRAVITY_MSS*dv_dt
 
-        self.vel += earth_dvel * dv_dt
+        self.vel += earth_dvel
         self.pos += self.vel * dv_dt
 
         # normalise the rotation matrix to stop numerical errors creeping in
