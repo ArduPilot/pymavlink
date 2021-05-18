@@ -133,12 +133,19 @@ class MAVType(object):
         self.fieldnames = []
         self.extensions_start = None
         self.needs_pack = False
+        self.deprecated = None
 
     def base_fields(self):
         '''return number of non-extended fields'''
         if self.extensions_start is None:
             return len(self.fields)
         return len(self.fields[:self.extensions_start])
+
+class MAVDeprecated(object):
+    def __init__(self, description='', since='', replaced_by=''):
+        self.description = description
+        self.since = since
+        self.replaced_by = replaced_by
 
 class MAVEnumParam(object):
     def __init__(self, index, description='', label='', units='', enum='', increment='', minValue='', maxValue='', reserved=False, default=''):
@@ -172,6 +179,7 @@ class MAVEnumEntry(object):
         self.autovalue = autovalue  # True if value was *not* specified in XML
         self.origin_file = origin_file
         self.origin_line = origin_line
+        self.deprecated = None
 
 class MAVEnum(object):
     def __init__(self, name, linenumber, description=''):
@@ -181,6 +189,7 @@ class MAVEnum(object):
         self.start_value = None
         self.highest_value = 0
         self.linenumber = linenumber
+        self.deprecated = None
 
 class MAVXML(object):
     '''parse a mavlink XML file'''
@@ -258,9 +267,13 @@ class MAVXML(object):
                 new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units, instance=instance)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields.append(new_field)
+            elif in_element == "mavlink.messages.message.deprecated":
+                self.message[-1].deprecated = MAVDeprecated(description=attrs.get('description', ''), since=attrs.get('since', ''), replaced_by=attrs.get('replaced_by', ''))
             elif in_element == "mavlink.enums.enum":
                 check_attrs(attrs, ['name'], 'enum')
                 self.enum.append(MAVEnum(attrs['name'], p.CurrentLineNumber))
+            elif in_element == "mavlink.enums.enum.deprecated":
+                self.enum[-1].deprecated = MAVDeprecated(description=attrs.get('description', ''), since=attrs.get('since', ''), replaced_by=attrs.get('replaced_by', ''))
             elif in_element == "mavlink.enums.enum.entry":
                 check_attrs(attrs, ['name'], 'enum entry')
                 # determine value and if it was automatically assigned (for possible merging later)
@@ -287,7 +300,8 @@ class MAVXML(object):
                                                         minValue=attrs.get('minValue', ''), 
                                                         maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'), 
                                                         reserved=attrs.get('reserved', False) ))
-
+            elif in_element == "mavlink.enums.enum.entry.deprecated":
+                self.enum[-1].entry[-1].deprecated = MAVDeprecated(description=attrs.get('description', ''), since=attrs.get('since', ''), replaced_by=attrs.get('replaced_by', ''))
         def is_target_system_field(m, f):
             if f.name == 'target_system':
                 return True
@@ -311,6 +325,8 @@ class MAVXML(object):
                 self.enum[-1].entry[-1].description += data
             elif in_element == "mavlink.enums.enum.entry.param":
                 self.enum[-1].entry[-1].param[-1].description += data
+            elif in_element == "mavlink.enums.enum.entry.deprecated.description":
+                self.enum[-1].entry[-1].deprecated.description += data
             elif in_element == "mavlink.version":
                 self.version = int(data)
             elif in_element == "mavlink.include":
