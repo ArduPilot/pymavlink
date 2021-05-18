@@ -10,7 +10,7 @@
     "long": "file:local_modules/long",
     "mocha": "^8.2.0",
     "should": "^13.2.3",
-    "underscore": "1.9.1",
+    "underscore": "1.12.1",
     "winston": "3.2.1"
   },
   "devDependencies": {
