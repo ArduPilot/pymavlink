@@ -31,6 +31,7 @@ from builtins import object
 import os
 import re
 import sys
+import operator
 from . import mavparse
 
 # XSD schema file
@@ -82,6 +83,80 @@ def mavgen(opts, args):
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
             opts.validate = False
 
+
+    def merge_enums(enums1, enums2):
+        '''Merge duplicate enums in enum1 and enum2 and return updated enum1.'''
+        for an_enum1 in enums1:
+            for an_enum2 in enums2:
+                if an_enum1.name==an_enum2.name:
+                    print("Merging enum: %s" % an_enum1.name)
+                    an_enum1.entry.extend(an_enum2.entry)
+                    # sort by value
+                    an_enum1.entry = sorted(an_enum1.entry,
+                                   key=operator.attrgetter('value'),
+                                   reverse=False)      
+                    # Add description but only it has not been defined at top level.
+                    if not an_enum1.description:
+                        an_enum1.description = an_enum2.description
+                                                         
+
+    def fixup_enums(xml):
+        '''All enums have an end value and are sorted.'''
+        for x in xml:
+            if x.enum is not None:
+                for enum in x.enum:
+                    for entry in enum.entry:
+                        # Strip out existing ENUM_END
+                        if entry.name.endswith('_ENUM_END'):
+                            print('REMOVING: %s' % entry.name)
+                            enum.entry.remove(entry)
+                    
+                    # sort enum by value
+                    enum.entry = sorted(enum.entry,
+                                   key=operator.attrgetter('value'),
+                                   reverse=False) 
+                                   
+                    # add a ENUM_END to the entry
+                    #print("Adding ENUM_END item to: %s" % enum.name )
+                    lastitem={'name':"%s_ENUM_END" % enum.name, 'value':enum.entry[-1].value+1, 'end_marker':True,
+                           'autovalue':False,'description':'', 'origin_file':'', 'origin_line':0, 'param':[]}                    
+                    enum.entry.append(lastitem)  
+                          
+        """
+            if enumvalue.name in enum2: 
+                #This value needs to be merged.
+                if enum.name in emap:
+                    emapitem = emap[enum.name]
+        
+        
+
+                
+                    # check for possible conflicting auto-assigned values after merge
+                    if (emapitem.start_value <= enum.highest_value and emapitem.highest_value >= enum.start_value):
+                        for entry in emapitem.entry:
+                            # correct the value if necessary, but only if it was auto-assigned to begin with
+                            if entry.value <= enum.highest_value and entry.autovalue is True:
+                                entry.value = enum.highest_value + 1
+                                enum.highest_value = entry.value
+                    # merge the entries
+                    emapitem.entry.extend(enum.entry)
+                    if not emapitem.description:
+                        emapitem.description = enum.description
+                    print("Merged enum %s" % enum.name)
+                else:
+                    newenums.append(enum)
+                    emap[enum.name] = enum
+            x.enum = newenums
+        for e in emap:
+            # sort by value
+            emap[e].entry = sorted(emap[e].entry,
+                                   key=operator.attrgetter('value'),
+                                   reverse=False)
+            # add a ENUM_END
+            emap[e].entry.append(MAVEnumEntry("%s_ENUM_END" % emap[e].name,
+                                                emap[e].entry[-1].value+1, end_marker=True))
+        """                                         
+                                            
     def expand_includes():
         """Expand includes. Root files already parsed objects in the xml list."""
 
@@ -182,6 +257,12 @@ def mavgen(opts, args):
                         x.message_target_component_ofs.update(ix.message_target_component_ofs)
                         x.message_names.update(ix.message_names)
                         x.largest_payload = max(x.largest_payload, ix.largest_payload)
+                        #Merge enums if appropriate. 
+                        #Essentially this means that if the same enum is declared in an included file,  
+                        #the parent (only) should be updated to include the child's additional enum values.
+                        if x.enum is not None and ix.enum is not None:
+                            #print("merge %s into %s" % (ix.filename, x.filename) )
+                            merge_enums(x.enum, ix.enum) #Update duplicate x.enums with included values 
                         break
 
             if len(done) == len(xml):
@@ -245,6 +326,7 @@ def mavgen(opts, args):
     if not expand_includes():
         return False
     update_includes()
+    fixup_enums(xml)
 
     print("Found %u MAVLink message types in %u XML files" % (
         mavparse.total_msgs(xml), len(xml)))

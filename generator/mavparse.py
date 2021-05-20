@@ -481,43 +481,12 @@ def message_checksum(msg):
             crc.accumulate([f.array_length])
     return (crc.crc&0xFF) ^ (crc.crc>>8)
 
-def merge_enums(xml):
-    '''merge enums between XML files'''
-    emap = {}
-    for x in xml:
-        newenums = []
-        for enum in x.enum:
-            if enum.name in emap:
-                emapitem = emap[enum.name]
-                # check for possible conflicting auto-assigned values after merge
-                if (emapitem.start_value <= enum.highest_value and emapitem.highest_value >= enum.start_value):
-                    for entry in emapitem.entry:
-                        # correct the value if necessary, but only if it was auto-assigned to begin with
-                        if entry.value <= enum.highest_value and entry.autovalue is True:
-                            entry.value = enum.highest_value + 1
-                            enum.highest_value = entry.value
-                # merge the entries
-                emapitem.entry.extend(enum.entry)
-                if not emapitem.description:
-                    emapitem.description = enum.description
-                print("Merged enum %s" % enum.name)
-            else:
-                newenums.append(enum)
-                emap[enum.name] = enum
-        x.enum = newenums
-    for e in emap:
-        # sort by value
-        emap[e].entry = sorted(emap[e].entry,
-                               key=operator.attrgetter('value'),
-                               reverse=False)
-        # add a ENUM_END
-        emap[e].entry.append(MAVEnumEntry("%s_ENUM_END" % emap[e].name,
-                                            emap[e].entry[-1].value+1, end_marker=True))
+
 
 def check_duplicates(xml):
     '''check for duplicate message IDs'''
 
-    merge_enums(xml)
+    #merge_enums(xml)
 
     msgmap = {}
     msg_name_map = {}
