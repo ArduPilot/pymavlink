@@ -486,8 +486,6 @@ def message_checksum(msg):
 def check_duplicates(xml):
     '''check for duplicate message IDs'''
 
-    #merge_enums(xml)
-
     msgmap = {}
     msg_name_map = {}
     enummap = {}

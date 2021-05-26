@@ -85,7 +85,7 @@ def mavgen(opts, args):
 
 
     def merge_enums(enums1, enums2):
-        '''Merge duplicate enums in enum1 and enum2 and return updated enum1.'''
+        '''Merge duplicate enum sets in enum1 and enum2 based on name and return updated enum1.'''
         for an_enum1 in enums1:
             for an_enum2 in enums2:
                 if an_enum1.name==an_enum2.name:
@@ -101,7 +101,7 @@ def mavgen(opts, args):
                                                          
 
     def fixup_enums(xml):
-        '''All enums have an end value and are sorted.'''
+        '''Sort enums. Ensure last entry is end marker.'''
         for x in xml:
             if x.enum is not None:
                 for enum in x.enum:
@@ -116,44 +116,10 @@ def mavgen(opts, args):
                                    key=operator.attrgetter('value'),
                                    reverse=False) 
                                    
-                    # add a ENUM_END to the entry
+                    # add end marker _ENUM_END to the entry
                     #print("Adding ENUM_END item to: %s" % enum.name )
                     enum.entry.append(mavparse.MAVEnumEntry("%s_ENUM_END" % enum.name, enum.entry[-1].value+1, end_marker=True)) 
-                          
-        """
-            if enumvalue.name in enum2: 
-                #This value needs to be merged.
-                if enum.name in emap:
-                    emapitem = emap[enum.name]
-        
-        
 
-                
-                    # check for possible conflicting auto-assigned values after merge
-                    if (emapitem.start_value <= enum.highest_value and emapitem.highest_value >= enum.start_value):
-                        for entry in emapitem.entry:
-                            # correct the value if necessary, but only if it was auto-assigned to begin with
-                            if entry.value <= enum.highest_value and entry.autovalue is True:
-                                entry.value = enum.highest_value + 1
-                                enum.highest_value = entry.value
-                    # merge the entries
-                    emapitem.entry.extend(enum.entry)
-                    if not emapitem.description:
-                        emapitem.description = enum.description
-                    print("Merged enum %s" % enum.name)
-                else:
-                    newenums.append(enum)
-                    emap[enum.name] = enum
-            x.enum = newenums
-        for e in emap:
-            # sort by value
-            emap[e].entry = sorted(emap[e].entry,
-                                   key=operator.attrgetter('value'),
-                                   reverse=False)
-            # add a ENUM_END
-            emap[e].entry.append(MAVEnumEntry("%s_ENUM_END" % emap[e].name,
-                                                emap[e].entry[-1].value+1, end_marker=True))
-        """                                         
                                             
     def expand_includes():
         """Expand includes. Root files already parsed objects in the xml list."""
@@ -255,11 +221,9 @@ def mavgen(opts, args):
                         x.message_target_component_ofs.update(ix.message_target_component_ofs)
                         x.message_names.update(ix.message_names)
                         x.largest_payload = max(x.largest_payload, ix.largest_payload)
-
-                        #Merge enums if appropriate 
-                        if x.enum is not None and ix.enum is not None: # Only merge if both files have enums
+                        if x.enum is not None and ix.enum is not None:
                             #print("merge %s into %s" % (ix.filename, x.filename) )
-                            merge_enums(x.enum, ix.enum) #Update duplicate x.enums with included values 
+                            merge_enums(x.enum, ix.enum) # Update duplicate x.enums with included values 
                         break
 
             if len(done) == len(xml):
