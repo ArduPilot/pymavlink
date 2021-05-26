@@ -118,9 +118,7 @@ def mavgen(opts, args):
                                    
                     # add a ENUM_END to the entry
                     #print("Adding ENUM_END item to: %s" % enum.name )
-                    lastitem={'name':"%s_ENUM_END" % enum.name, 'value':enum.entry[-1].value+1, 'end_marker':True,
-                           'autovalue':False,'description':'', 'origin_file':'', 'origin_line':0, 'param':[]}                    
-                    enum.entry.append(lastitem)  
+                    enum.entry.append(mavparse.MAVEnumEntry("%s_ENUM_END" % enum.name, enum.entry[-1].value+1, end_marker=True)) 
                           
         """
             if enumvalue.name in enum2: 
@@ -257,10 +255,9 @@ def mavgen(opts, args):
                         x.message_target_component_ofs.update(ix.message_target_component_ofs)
                         x.message_names.update(ix.message_names)
                         x.largest_payload = max(x.largest_payload, ix.largest_payload)
-                        #Merge enums if appropriate. 
-                        #Essentially this means that if the same enum is declared in an included file,  
-                        #the parent (only) should be updated to include the child's additional enum values.
-                        if x.enum is not None and ix.enum is not None:
+
+                        #Merge enums if appropriate 
+                        if x.enum is not None and ix.enum is not None: # Only merge if both files have enums
                             #print("merge %s into %s" % (ix.filename, x.filename) )
                             merge_enums(x.enum, ix.enum) #Update duplicate x.enums with included values 
                         break
