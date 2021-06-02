@@ -1429,7 +1429,11 @@ class mavmmaplog(mavlogfile):
     def rewind(self):
         '''rewind to start of log'''
         self._rewind()
-        
+
+    def close(self):
+        super(mavmmaplog, self).close()
+        self.data_map.close()
+
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
 
