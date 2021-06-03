@@ -1946,6 +1946,8 @@ mode_mapping_acm = {
     22 : 'FLOWHOLD',
     23 : 'FOLLOW',
     24 : 'ZIGZAG',
+    25 : 'SYSTEMID',
+    26 : 'AUTOROTATE',
 }
 
 mode_mapping_rover = {
