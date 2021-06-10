@@ -208,13 +208,17 @@ class DFMessage(object):
         return self.fmt.name
 
     def __str__(self):
+        is_py3 = sys.version_info >= (3,0)
         ret = "%s {" % self.fmt.name
         col_count = 0
         for c in self.fmt.columns:
             val = self.__getattr__(c)
             if isinstance(val, float) and math.isnan(val):
                 # quiet nans have more non-zero values:
-                noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
+                if is_py3:
+                    noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+                else:
+                    noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
                 if struct.pack(">d", val) != noisy_nan:
                     val = "qnan"
             ret += "%s : %s, " % (c, val)
