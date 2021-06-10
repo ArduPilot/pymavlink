@@ -516,7 +516,7 @@ function JSPack() {
         var to = JSON.stringify(z);
         var too = JSON.stringify(from_array_v);
           if (DEBUG) console.log('js pre-ffff  z:'+z+' to:'+to+' too:'+too+'');
-        // handle flattened arrays - non-array things dont have a .length
+        // handle flattened arrays - non-array things don't have a .length
         try {
         if (z.length == undefined ) {
                     //from_array_v = [ from_array_v ] ; 
@@ -526,7 +526,7 @@ function JSPack() {
         var to = JSON.stringify(z);
         var too = JSON.stringify(from_array_v);
 
-        // if we only have one thing to back and its got an 8 byte target len ( its a 64bit long),  and length of source array is 2 ( low and high bits ) 
+        // if we only have one thing to back and its got an 8 byte target len ( it's a 64bit long),  and length of source array is 2 ( low and high bits ) 
         // we treat it as a singular thing... we use this for Q type, which gets passed in as [lowBits, hightBits]
         if (( num_elements_n == 1 ) && (size_s == 8) && (from_array_v.length == 2) ) {  
             z = from_array_v; 
@@ -677,7 +677,7 @@ function JSPack() {
         // everything else
         default:
 
-          // if n > 1 , ie its multiple occurances of a 'thing'
+          // if n > 1 , ie it's multiple occurrences of a 'thing'
           if (n > 1 ) {
 
             // if we were handed an array at this idx, we need the array to be the same length as n

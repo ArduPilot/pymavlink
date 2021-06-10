@@ -365,7 +365,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 	}
 
 	bufferIndex++;
-	// If a message has been sucessfully decoded, check index
+	// If a message has been successfully decoded, check index
 	if (status->msg_received == MAVLINK_FRAMING_OK)
 	{
 		//while(status->current_seq != rxmsg->seq)

@@ -97,7 +97,7 @@ describe('Complete MAVLink 2.0 packet', function() {
             , base_mode=45
             , custom_mode=68
             , system_status=13
-            , mavlink_version=3 // its NOT a v1 vs v2 thing here. 3 really is its normal value.
+            , mavlink_version=3 // it's NOT a v1 vs v2 thing here. 3 really is its normal value.
         );
         
         this.mav.seq = 7;
@@ -211,7 +211,7 @@ describe('Complete MAVLink 2.0 packet', function() {
         // check zero'd extension fields
         msg[0].time_remaining.should.eql(0);
         msg[0].charge_state.should.eql(0);
-        //msg[0].voltages_ext.should.eql([0,0,0,0]); this extension isnt part of the ardupilot xml
+        //msg[0].voltages_ext.should.eql([0,0,0,0]); this extension isn't part of the ardupilot xml
 
     });
 
@@ -249,10 +249,10 @@ describe('Complete MAVLink 2.0 packet', function() {
         msg[0].energy_consumed.should.eql(0);
         msg[0].battery_remaining.should.eql(100);
 
-        //extension fields ... these could/should be non-zero for a proper check, but zero for now as its not really working with non-zero
+        //extension fields ... these could/should be non-zero for a proper check, but zero for now as it's not really working with non-zero
         msg[0].time_remaining.should.eql(0);
         msg[0].charge_state.should.eql(0);
-        //msg[0].voltages_ext.should.eql([0,0,0,0]); this extension isnt part of the ardupilot xml
+        //msg[0].voltages_ext.should.eql([0,0,0,0]); this extension isn't part of the ardupilot xml
 
     });
 
@@ -292,10 +292,10 @@ describe('Complete MAVLink 2.0 packet', function() {
         msg[0].energy_consumed.should.eql(963497672);
         msg[0].battery_remaining.should.eql(46);
 
-        //extension fields ... these could/should be non-zero for a proper check, but zero for now as its not really working with non-zero
+        //extension fields ... these could/should be non-zero for a proper check, but zero for now as it's not really working with non-zero
         msg[0].time_remaining.should.eql(963499336);
         msg[0].charge_state.should.eql(125);
-        //msg[0].voltages_ext.should.eql([19367,19368,19369,19370]); this extension isnt part of the ardupilot xml
+        //msg[0].voltages_ext.should.eql([19367,19368,19369,19370]); this extension isn't part of the ardupilot xml
 
     });
 
@@ -410,7 +410,7 @@ describe('MAVLink 2.0 message', function() {
             message.base_mode.should.equal(0); // supposed to be 0
             message.custom_mode.should.equal(0);
             message.system_status.should.equal(mavlink20.MAV_STATE_STANDBY); // supposed to be 3
-            message.mavlink_version.should.equal(3); //only heartbeats have this, its NOT a mavlink1 vs mavlink2 thing
+            message.mavlink_version.should.equal(3); //only heartbeats have this, it's NOT a mavlink1 vs mavlink2 thing
 
         });
 

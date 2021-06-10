@@ -382,7 +382,7 @@ the headers.
 	}
 
 	bufferIndex++;
-	// If a message has been sucessfully decoded, check index
+	// If a message has been successfully decoded, check index
 	if (status->msg_received == 1)
 	{
 		//while(status->current_seq != rxmsg->seq)

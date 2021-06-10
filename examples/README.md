@@ -3,7 +3,7 @@
 | File            | Description   |
 | --------------- |:--------------|
 | mavtest.py      |  Demonstrates creating a mavlink message, putting it on a buffer and then decoding from said buffer. |
-| bwtest.py       |  Check bandwith of link. Display results on terminal. |
+| bwtest.py       |  Check bandwidth of link. Display results on terminal. |
 | mav_accel.py    |  Show accelerometer calibration for a set of logs.  |
 | apmsetrate.py   |  Set the Stream Rate on an APM. |
 | magtest.py      |  Rotate APMs on bench to test magnetometers.  |

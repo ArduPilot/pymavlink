@@ -625,7 +625,7 @@ public class MAVLink {
             status.parseError = 0
         }
         
-        // If a packet has been sucessfully received
+        // If a packet has been successfully received
         guard status.packetReceived == .ok else {
             return nil
         }
@@ -1116,7 +1116,7 @@ extension Data {
         try set(asciiCharacters, at: offset, capacity: length)
     }
     
-    /// Sets correctly formated `enumeration` raw value at `offset` or throws
+    /// Sets correctly formatted `enumeration` raw value at `offset` or throws
     /// `PackError`.
     ///
     /// - parameter enumeration: Value to set.
@@ -1127,7 +1127,7 @@ extension Data {
         try set(enumeration.rawValue, at: offset)
     }
 
-    /// Sets correctly formated `bitmask` raw value at `offset` or throws
+    /// Sets correctly formatted `bitmask` raw value at `offset` or throws
     /// `PackError`.
     ///
     /// - parameter enumeration: Value to set.

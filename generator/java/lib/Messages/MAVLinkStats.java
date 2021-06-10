@@ -14,7 +14,7 @@ import com.MAVLink.common.msg_radio_status;
  */
 public class MAVLinkStats /* implements Serializable */{
 
-    public int receivedPacketCount; // total recieved packet count for all sources
+    public int receivedPacketCount; // total received packet count for all sources
 
     public int crcErrorCount;
 
@@ -46,7 +46,7 @@ public class MAVLinkStats /* implements Serializable */{
         }
 
         if (systemStats[packet.sysid] == null) {
-            // only allocate stats for systems that exsist on the network
+            // only allocate stats for systems that exist on the network
             systemStats[packet.sysid] = new SystemStat();
         }
         lostPacketCount += systemStats[packet.sysid].newPacket(packet);
@@ -84,7 +84,7 @@ public class MAVLinkStats /* implements Serializable */{
         public int newPacket(MAVLinkPacket packet) {
             int newLostPackets = 0;
             if (componentStats[packet.compid] == null) {
-                // only allocate stats for systems that exsist on the network
+                // only allocate stats for systems that exist on the network
                 componentStats[packet.compid] = new ComponentStat();
             }
             newLostPackets = componentStats[packet.compid].newPacket(packet);

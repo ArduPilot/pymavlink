@@ -6,7 +6,7 @@
 //    ardupilot mavlink1:
 //    ./testmav1.0_ardupilotmega | grep '^fe'
 //
-// (no external dependancies apart from the mavlink library itself and the stock filesystem library)
+// (no external dependencies apart from the mavlink library itself and the stock filesystem library)
 // by buzz june 2020
 // if given any args, they should be the mavlink 'base' name and version number, eg: "node testparser.js ardupilotmega 2.0" if none given the default is 'ardupilot' and '2.0'
 //

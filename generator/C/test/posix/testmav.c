@@ -127,7 +127,7 @@ static void print_message(mavlink_message_t *msg,mavlink_channel_t chan)
 	printf("compid:%d ", msg->compid);
 	printf("seq:%d ", msg->seq);
 #ifdef MAVLINK_SIGNING_FLAG_SIGN_OUTGOING
-    // only print if links has a statusp, and its not null, and we are channel 1, where signing is active
+    // only print if links has a statusp, and it's not null, and we are channel 1, where signing is active
     if ( statusp && (statusp->signing != NULL) && (chan == MAVLINK_COMM_1) )  
         printf("sign_ts:%ld ", statusp->signing->timestamp-1); // subtract 1 from ts as api increments it before here
 #endif

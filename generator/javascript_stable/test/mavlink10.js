@@ -186,7 +186,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
 
     describe("prefix decoder", function() {
  
-        it("consumes, unretrievably, the first byte of the buffer, if its a bad prefix", function() {
+        it("consumes, unretrievably, the first byte of the buffer, if it's a bad prefix", function() {
 
             var b = new Buffer.from([1, 254]);
             this.m.pushBuffer(b);
