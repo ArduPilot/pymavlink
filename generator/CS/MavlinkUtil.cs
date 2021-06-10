@@ -14,8 +14,8 @@ public static class MavlinkUtil
     public static bool UseUnsafe { get; set; } = true;
 
     /// <summary>
-    /// Create a new mavlink packet object from a byte array as recieved over mavlink
-    /// Endianess will be detetected using packet inspection
+    /// Create a new mavlink packet object from a byte array as received over mavlink
+    /// Endianness will be detected using packet inspection
     /// </summary>
     /// <typeparam name="TMavlinkPacket">The type of mavlink packet to create</typeparam>
     /// <param name="bytearray">The bytes of the mavlink packet</param>
@@ -240,7 +240,7 @@ public static class MavlinkUtil
     /// </summary>
     public static byte[] StructureToByteArrayBigEndian(params object[] list)
     {
-        // The copy is made becuase SetValue won't work on a struct.
+        // The copy is made because SetValue won't work on a struct.
         // Boxing was used because SetValue works on classes/objects.
         // Unfortunately, it results in 2 copy operations.
         object thisBoxed = list[0]; // Why make a copy?

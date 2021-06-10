@@ -2,7 +2,7 @@
 // very minimal javascript impl to exercise both pack and unpack of mavlink2 
 // 1 - read a mavlink2 file parse it and print valid packet/s from inside to stdout as hexadecimal
 // 2 - create a mavlink2 packet as if for 'send'-ing and then just print to stdout as hexadecimal
-// (no external dependancies apart from the mavlink library itself and the stock filesystem library)
+// (no external dependencies apart from the mavlink library itself and the stock filesystem library)
 // throw in some mavlink signing for one packet as well, very minimally
 // by buzz june 2020
 var {mavlink20, MAVLink20Processor} = require('../generator/javascript/implementations/mavlink_ardupilotmega_v2.0/mavlink.js');

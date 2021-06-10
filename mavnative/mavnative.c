@@ -297,7 +297,7 @@ MAVLINK_HELPER uint8_t py_mavlink_parse_char(uint8_t c, py_message_t* pymsg, mav
     }
 
     bufferIndex++;
-    // If a message has been sucessfully decoded, check index
+    // If a message has been successfully decoded, check index
     if (status->msg_received == 1)
     {
         //while(status->current_seq != rxmsg->seq)

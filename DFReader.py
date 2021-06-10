@@ -135,7 +135,7 @@ def to_string(s):
         return s2
     except Exception:
         pass
-    # so its a nasty one. Let's grab as many characters as we can
+    # so it's a nasty one. Let's grab as many characters as we can
     r = ''
     while s != '':
         try:
@@ -943,7 +943,7 @@ class DFReader_binary(DFReader):
                 # we can have garbage at the end of an APM2 log
                 return None
             # we should also cope with other corruption; logs
-            # transfered via DataFlash_MAVLink may have blocks of 0s
+            # transferred via DataFlash_MAVLink may have blocks of 0s
             # in them, for example
             print("Failed to parse %s/%s with len %u (remaining %u)" %
                   (fmt.name, fmt.msg_struct, len(body), self.remaining),

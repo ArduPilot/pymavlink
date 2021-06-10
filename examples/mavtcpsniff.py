@@ -48,7 +48,7 @@ mdst = mavutil.mavlink_connection('tcp:localhost:{}'.format(args.dstport), plann
 
 # similar to the above, but with human-readable display of packets on stdout.
 # in this use case we abuse the self.logfile_raw() function to allow
-# us to use the recv_match function ( whch is then calling recv_msg ) , to still get the raw data stream
+# us to use the recv_match function ( which is then calling recv_msg ) , to still get the raw data stream
 # which we pass off to the other mavlink connection without any interference.
 # because internally it will call logfile_raw.write() for us.
 

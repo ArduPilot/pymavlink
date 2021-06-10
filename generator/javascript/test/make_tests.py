@@ -142,7 +142,7 @@ templatestart = '''
 // Copyright David 'Buzz' Bussenschutt July 2020
 // Released under GNU GPL version 3 or later
 //
-// you can regenerate this file and its dependancies and run its tests, by executing the following:  "cd pymavlink/generator/javascript ; npm test"
+// you can regenerate this file and its dependencies and run its tests, by executing the following:  "cd pymavlink/generator/javascript ; npm test"
 // or see make_tests.py which created this.
 //
 should = require('should');
@@ -209,7 +209,7 @@ def do_make_output(mt,v,lines):
         signbit = False
 
     if line.startswith('sysid:'): # packet details human-readable eg 'sysid:42 compid:11 seq:126 RPM { rpm1: 17.000000  rpm2: 45.000000  }'
-        # skip parsing data if its not this parser
+        # skip parsing data if it's not this parser
         if last_line != v:
             continue
         fields = line.split(' ') 

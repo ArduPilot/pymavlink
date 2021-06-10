@@ -304,7 +304,7 @@ def generate_enums_type_info(enums, msgs):
     enums.sort(key = lambda enum : enum.swift_name)
 
 def generate_messages_type_info(msgs, enums):
-    """Add proper formated variable names, initializers and type names to use in templates"""
+    """Add proper formatted variable names, initializers and type names to use in templates"""
 
     for msg in msgs:
         msg.swift_name = camel_case_from_underscores(msg.name)
@@ -358,7 +358,7 @@ def generate_messages_type_info(msgs, enums):
     msgs.sort(key = lambda msg : msg.id)
 
 def generate(basename, xml_list):
-    """Generate complete MAVLink Swift implemenation"""
+    """Generate complete MAVLink Swift implementation"""
 
     msgs = []
     enums = []

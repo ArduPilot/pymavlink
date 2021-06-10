@@ -133,7 +133,7 @@ ${MAVHEAD}.message.prototype.set = function(args,verbose) {
 // inspect
     _.each(this.fieldnames, function(e, i) {
         var num = parseInt(i,10);
-        if (this.hasOwnProperty(e) && isNaN(num)  ){ // asking for an attribure thats non-numeric is ok unless its already an attribute we have
+        if (this.hasOwnProperty(e) && isNaN(num)  ){ // asking for an attribute that's non-numeric is ok unless its already an attribute we have
             if ( verbose >= 1) { console.log("WARNING, overwriting an existing property is DANGEROUS:"+e+" ==>"+i+"==>"+args[i]+" -> "+JSON.stringify(this)); }
         }
     }, this);
@@ -465,7 +465,7 @@ ${MAVPROCESSOR}.prototype.bytes_needed = function() {
 // add data to the local buffer
 ${MAVPROCESSOR}.prototype.pushBuffer = function(data) {
     if(data) {
-        this.buf = Buffer.concat([this.buf, data]);   // python calls ths self.buf.extend(c) 
+        this.buf = Buffer.concat([this.buf, data]);   // python calls this self.buf.extend(c) 
         this.total_bytes_received += data.length;
     }
 }
@@ -693,7 +693,7 @@ ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcCompo
         //sig1 = str(h.digest())[:6] 
         //sig2 = str(msgbuf)[-6:] 
 
-        // cant just compare sigs, need a full buffer compare like this... 
+        // can't just compare sigs, need a full buffer compare like this... 
         //if (sig1 != sigpart){  
         if (Buffer.compare(sig1,sigpart)){  
             //console.log('sig mismatch',sig1,sigpart)  
@@ -791,12 +791,12 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
  
     if ((mlen == actual_len) && (signature_len > 0)){ 
         var len_if_signed = mlen+signature_len; 
-        //console.log("Packet appears signed && labled as signed, OK. msgId=" + msgId);     
+        //console.log("Packet appears signed && labeled as signed, OK. msgId=" + msgId);     
  
     } else  if ((mlen == actual_len_nosign) && (signature_len > 0)){ 
  
         var len_if_signed = mlen+signature_len; 
-        throw new Error("Packet appears unsigned when labled as signed. Got actual_len "+actual_len_nosign+" expected " + len_if_signed + ", msgId=" + msgId);     
+        throw new Error("Packet appears unsigned when labeled as signed. Got actual_len "+actual_len_nosign+" expected " + len_if_signed + ", msgId=" + msgId);     
  
     } else if( mlen != actual_len) {  
           throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) + " expected " + mlen + ", msgId=" + msgId); 
@@ -841,7 +841,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     var messageChecksum2 = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum); 
  
     if ( receivedChecksum != messageChecksum2 ) { 
-        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checkum as 0x'+messageChecksum2 ); 
+        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum2 ); 
     }
  
     // now check the signature... 
@@ -927,7 +927,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
             var currentType =  decoder.format[typeIndex];
 
             if (isNaN(parseInt(currentType))) {
-                // This field is not an array cehck the type and add it to the args
+                // This field is not an array check the type and add it to the args
                 tempArgs[orderIndex] = t[memberIndex];
                 memberIndex++;
             } else {
@@ -1069,7 +1069,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
             tdata = m.test_data[idx] # test data
             #tdatatype = m.test_data_types[idx] # type of test data 
             fieldtype = m.ordered_fieldtypes[idx] # type of base field
-            # wrap things non-number-like as strings, isnumeric() cant handle negatives, but conveniently none of the test suite uses negatives
+            # wrap things non-number-like as strings, isnumeric() can't handle negatives, but conveniently none of the test suite uses negatives
 
             #print('testdata:'+tdata);
             #print('tdatatype:'+tdatatype);
@@ -1090,7 +1090,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
             # array of uint8_t ( like char )
             elif _isarray and  ( (fieldtype == 'uint8_t') or (fieldtype == 'int8_t')  ):
                 tdata = 'new Buffer.from('+m.test_data[idx]+').toString("binary")';  # binary encoding here is important for bits >= 128
-            # float/uint16_t/int16_t/int8_t/double array is aparently simple enough without Buffer wrapper
+            # float/uint16_t/int16_t/int8_t/double array is apparently simple enough without Buffer wrapper
             elif _isarray and ( (fieldtype == 'float') or (fieldtype == 'uint16_t') or (fieldtype == 'int16_t') or (fieldtype == 'double') or ( fieldtype == 'int32_t' ) or ( fieldtype == 'uint32_t' ) ):
                 tdata = m.test_data[idx];
             # array of other things

@@ -570,7 +570,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     messageChecksum = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum);
     
     if ( receivedChecksum != messageChecksum ) {
-        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checkum as 0x'+messageChecksum );
+        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum );
     }
 
     var paylen = jspack.CalcLength(decoder.format);
@@ -620,7 +620,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
             var currentType =  decoder.format[typeIndex];
 
             if (isNaN(parseInt(currentType))) {
-                // This field is not an array cehck the type and add it to the args
+                // This field is not an array check the type and add it to the args
                 tempArgs[orderIndex] = t[memberIndex];
                 memberIndex++;
             } else {

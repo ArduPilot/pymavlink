@@ -105,7 +105,7 @@ describe('Test signed/unsigned int64:', function() {
         buf[0][2].should.be.true;
     });
 
-    // Test lower-case q as well. This only test the matching of the caracter and the unsigned bit,
+    // Test lower-case q as well. This only test the matching of the character and the unsigned bit,
     // the parsing is the same as for upper-case Q (since we don't actually convert to a number).
     it('pack >q (signed)', function() {
         var buf = jspack.Pack('>q', [[0xffe1ffff, 0xffa0]]);

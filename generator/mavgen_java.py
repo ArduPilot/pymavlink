@@ -469,7 +469,7 @@ public class MAVLinkPacket implements Serializable {
     }
 
     /**
-     * Return length of actual data after triming zeros at the end.
+     * Return length of actual data after trimming zeros at the end.
      * @param payload
      * @return minimum length of valid data
      */
@@ -717,7 +717,7 @@ def generate_one(basename, xml):
     }
 
     /**
-    * Gets the message, formated as a string
+    * Gets the message, formatted as a string
     */
     public String get%s() {
         StringBuffer buf = new StringBuffer();

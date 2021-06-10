@@ -1,10 +1,10 @@
 ## Javascript MAVLink implementation ##
 
-As of Nov 2020, this 'stable' implementation is considered depreciated in favour of the 'nextgen' implementation found in ../javascript/ folder. 
+As of Nov 2020, this 'stable' implementation is considered deprecated in favour of the 'nextgen' implementation found in ../javascript/ folder. 
 
-This '_stable' implementation does not have an automated test suite, and has known issues with packet attribute conflicts ( such as, packet.id and packet.format and other/s ), and is now known to pack a lot of its packets incorrectly as a result.   We keep it here as its been around a pretty long time, but absolutely recommend the other/newer implementation for new projects. 
+This '_stable' implementation does not have an automated test suite, and has known issues with packet attribute conflicts ( such as, packet.id and packet.format and other/s ), and is now known to pack a lot of its packets incorrectly as a result.   We keep it here as it's been around a pretty long time, but absolutely recommend the other/newer implementation for new projects. 
 
-For more info on why this is depreciated please see:  https://github.com/ArduPilot/pymavlink/pull/431
+For more info on why this is deprecated please see:  https://github.com/ArduPilot/pymavlink/pull/431
 
 Original README below.
 

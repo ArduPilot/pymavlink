@@ -91,7 +91,7 @@ def to_string(s):
         return s2
     except Exception:
         pass
-    # so its a nasty one. Let's grab as many characters as we can
+    # so it's a nasty one. Let's grab as many characters as we can
     r = ''
     try:
         for c in s:
