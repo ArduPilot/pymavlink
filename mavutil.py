@@ -1496,7 +1496,11 @@ class mavmmaplog(mavlogfile):
             if mtype in self.instance_offsets:
                 # populate the messages array with a new instance. This assumes we can get the instance
                 # as a single byte integer
-                self.f.seek(ofs + data_ofs + self.instance_offsets[mtype])
+                instance_field_ofs = ofs + data_ofs + self.instance_offsets[mtype]
+                if instance_field_ofs >= self.data_len:
+                    # truncated log
+                    break
+                self.f.seek(instance_field_ofs)
                 b = self.f.read(1)
                 instance, = struct.unpack('b', b)
                 mname = self.id_to_name[mtype]
