@@ -191,7 +191,7 @@ public static class MavlinkUtil
     }
 
     /// <summary>
-    /// Convert a struct to an array of bytes, struct fields being reperesented in 
+    /// Convert a struct to an array of bytes, struct fields being represented in 
     /// little endian (LSB first)
     /// </summary>
     /// <remarks>Note - assumes little endian host order</remarks>
@@ -235,7 +235,7 @@ public static class MavlinkUtil
     }
 
     /// <summary>
-    /// Convert a struct to an array of bytes, struct fields being reperesented in 
+    /// Convert a struct to an array of bytes, struct fields being represented in 
     /// big endian (MSB first)
     /// </summary>
     public static byte[] StructureToByteArrayBigEndian(params object[] list)

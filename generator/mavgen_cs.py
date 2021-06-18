@@ -29,7 +29,7 @@ map = {
     }
     
 def generate_message_header(f, xml_list):
-    dedup = {}
+    dedupe = {}
     for xml in xml_list:
         print("generate_message_header " + xml.basename)
         if xml.little_endian:
@@ -68,8 +68,8 @@ def generate_message_header(f, xml_list):
             # we sort with primary key msgid, secondary key dialect
             for msgid in sorted(xml.message_names.keys()):
                 name = xml.message_names[msgid]
-                if name not in dedup:
-                    dedup[name] = 1
+                if name not in dedupe:
+                    dedupe[name] = 1
                     xml_list[0].message_infos_array += '        new message_info(%u, "%s", %u, %u, %u, typeof( mavlink_%s_t )),\n' % (msgid,
                                                                         name,
                                                                         xml.message_crcs[msgid],
@@ -82,8 +82,8 @@ def generate_message_header(f, xml_list):
                 crc = xml.message_crcs.get(msgid, None)
                 name = xml.message_names.get(msgid, None)
                 length = xml.message_lengths.get(msgid, None)
-                if name is not None and name not in dedup:
-                    dedup[name] = 1
+                if name is not None and name not in dedupe:
+                    dedupe[name] = 1
                     xml_list[0].message_infos_array += '        new message_info(%u, "%s", %u, %u, %u, typeof( mavlink_%s_t )), // none 24 bit\n' % (msgid, 
                                                                         name,
                                                                         crc,

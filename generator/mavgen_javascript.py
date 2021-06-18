@@ -850,7 +850,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         this.signing.sig_count += 1  
     } 
 
-    // it's a Buffer, zero-length means unsed 
+    // it's a Buffer, zero-length means unused 
     if (this.signing.secret_key.length != 0 ){ 
         var accept_signature = false; 
         if (signature_len == ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN){  
