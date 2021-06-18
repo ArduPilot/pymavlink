@@ -159,7 +159,7 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
         // TODO: there is a option in python: robust_parsing. Maybe we should port this as well.
         // If robust_parsing is off, the following should be tested:
         // - (maybe) not returning subsequent errors for prefix errors
-        // - errors are thrown instead of catched inside
+        // - errors are thrown instead of caught inside
 
         // TODO: add tests for "try hard" parsing when implemented
 
