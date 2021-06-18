@@ -3,7 +3,6 @@
 '''
 interactively select accel and gyro data for FFT analysis
 '''
-from __future__ import print_function
 
 import numpy
 import pylab
@@ -44,16 +43,16 @@ def check_drops(data, msg, start, end):
     deltas = numpy.diff(seqcnt[start:end])
 #     print('ndeltas: ', len(deltas))
     duration = ts[end] - ts[start]
-    print(msg + ' duration: {0:.3f} seconds'.format(duration))
+    print(msg + f' duration: {duration:.3f} seconds')
     avg_rate = float(end - start - 1) / duration
-    print('average logging rate: {0:.0f} Hz'.format(avg_rate))
+    print(f'average logging rate: {avg_rate:.0f} Hz')
     ts_mean = numpy.mean(deltas) 
     dmin = numpy.min(deltas)
     dmax = numpy.max(deltas)
-    print('sample count delta min: {0}, max: {1}'.format(dmin, dmax))
+    print(f'sample count delta min: {dmin}, max: {dmax}')
     if (dmin != dmax):
         print('sample count delta mean: ', '{0:.2f}, std: {0:.2f}'.format(ts_mean, numpy.std(deltas)))
-    print('sensor sample rate: {0:.0f} Hz'.format(ts_mean * avg_rate))
+    print(f'sensor sample rate: {ts_mean * avg_rate:.0f} Hz')
 
     drop_lens = []
     drop_times = []
@@ -62,9 +61,9 @@ def check_drops(data, msg, start, end):
         if (deltas[i] > 1.5 * ts_mean):
             drop_lens.append(deltas[i])
             drop_times.append(ts[start+i])
-            print('dropout at sample {0}: length {1}'.format(start+i, deltas[i]))
+            print(f'dropout at sample {start+i}: length {deltas[i]}')
     
-    print('{0:d} sample intervals > {1:.3f}'.format(len(drop_lens), 1.5 * ts_mean))
+    print(f'{len(drop_lens):d} sample intervals > {1.5 * ts_mean:.3f}')
     return avg_rate
     
 def fft(logfile):
@@ -152,18 +151,18 @@ def fft(logfile):
         # check for dropouts: (delta > 1)
         avg_rate = check_drops(data, 'ACC1', s_start, s_end)
         
-        title = 'FFT input: {0:s} ACC1[{1:d}:{2:d}], {3:d} samples'.format(logfile, s_start, s_end, n_samp)
-        currentAxes.set_xlabel('sample index : nsamples: {0:d}, avg rate: {1:.0f} Hz'.format(n_samp, avg_rate))
+        title = f'FFT input: {logfile:s} ACC1[{s_start:d}:{s_end:d}], {n_samp:d} samples'
+        currentAxes.set_xlabel(f'sample index : nsamples: {n_samp:d}, avg rate: {avg_rate:.0f} Hz')
         preview.canvas.set_window_title(title)
         preview.savefig('acc1z.png')
             
         for msg in ['ACC1', 'GYR1', 'ACC2', 'GYR2']:
             if msg.startswith('ACC'):
                 prefix = 'Acc'
-                title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
+                title = f'{msg} FFT [{s_start:d}:{s_end:d}]'
             else:
                 prefix = 'Gyr'
-                title = '{2} FFT [{0:d}:{1:d}]'.format(s_start, s_end, msg)
+                title = f'{msg} FFT [{s_start:d}:{s_end:d}]'
             
             # check for dropouts    
             data[msg+'.rate'] = check_drops(data, msg, s_start, s_end)
@@ -188,7 +187,7 @@ def fft(logfile):
                 # remove mean
                 avg[axis] = numpy.mean(d)
                 d -= avg[axis]
-                print('{1} DC component: {0:.3f}'.format(avg[axis], field))
+                print(f'{field} DC component: {avg[axis]:.3f}')
                 # transform
                 d_fft = numpy.fft.rfft(d)
                 abs_fft[axis] = numpy.abs(d_fft)
@@ -207,8 +206,8 @@ def fft(logfile):
             fftwin.canvas.set_window_title(title)
             fftwin.gca().set_ylim(-90, 0)
             pylab.legend(loc='upper right')
-            pylab.xlabel('Hz : res: ' + '{0:.3f}'.format(f_res))
-            pylab.ylabel('dB X {0:.3f} Y {1:.3f} Z {2:.3f}\n'.format(avg['X'], avg['Y'], avg['Z']))
+            pylab.xlabel('Hz : res: ' + f'{f_res:.3f}')
+            pylab.ylabel('dB X {:.3f} Y {:.3f} Z {:.3f}\n'.format(avg['X'], avg['Y'], avg['Z']))
             pylab.subplots_adjust(left=0.1, right=0.95, top=0.95, bottom=0.16)
             fftwin.savefig(msg + '_fft.png')
         

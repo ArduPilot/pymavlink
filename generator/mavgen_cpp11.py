@@ -8,7 +8,6 @@ Copyright Andrew Tridgell 2011
 Copyright Vladimir Ermakov 2016
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
 import sys, textwrap, os, time
 from . import mavparse, mavtemplate
@@ -279,7 +278,7 @@ def copy_fixed_headers(directory, xml):
         }
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'CPP11/include_v%s' % xml.wire_protocol_version)
-    print("Copying fixed C++ headers for protocol %s to %s" % (xml.wire_protocol_version, directory))
+    print(f"Copying fixed C++ headers for protocol {xml.wire_protocol_version} to {directory}")
     for h in hlist[xml.wire_protocol_version]:
         src = os.path.realpath(os.path.join(srcpath, h))
         dest = os.path.realpath(os.path.join(directory, h))
@@ -288,7 +287,7 @@ def copy_fixed_headers(directory, xml):
         shutil.copy(src, dest)
 
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 
@@ -374,25 +373,25 @@ def generate_one(basename, xml):
             #    f.test_value[5] = 0
 
             if f.array_length != 0:
-                f.cxx_type = 'std::array<%s, %s>' % (f.type, f.array_length)
+                f.cxx_type = f'std::array<{f.type}, {f.array_length}>'
 
                 # XXX sometime test_value is > 127 for int8_t, monkeypatch
                 if f.type == 'int8_t':
                     f.test_value = [fix_int8_t(v) for v in f.test_value]
 
                 if f.type == 'char':
-                    f.to_yaml_code = """ss << "  %s: \\"" << to_string(%s) << "\\"" << std::endl;""" % (f.name, f.name)
+                    f.to_yaml_code = f"""ss << "  {f.name}: \\"" << to_string({f.name}) << "\\"" << std::endl;"""
 
                     f.cxx_test_value = 'to_char_array("%s")' % (f.test_value)
                     f.c_test_value = '"%s"' % f.test_value
                 else:
-                    f.to_yaml_code = """ss << "  %s: [" << to_string(%s) << "]" << std::endl;""" % (f.name, f.name)
+                    f.to_yaml_code = f"""ss << "  {f.name}: [" << to_string({f.name}) << "]" << std::endl;"""
 
                     f.cxx_test_value = '{{ %s }}' % ', '.join([str(v) for v in f.test_value])
                     f.c_test_value = '{ %s }' % ', '.join([str(v) for v in f.test_value])
             else:
                 f.cxx_type = f.type
-                f.to_yaml_code = """ss << "  %s: " << %s%s << std::endl;""" % (f.name, to_yaml_cast, f.name)
+                f.to_yaml_code = f"""ss << "  {f.name}: " << {to_yaml_cast}{f.name} << std::endl;"""
 
                 # XXX sometime test_value is > 127 for int8_t, monkeypatch
                 if f.type == 'int8_t':
@@ -412,7 +411,7 @@ def generate_one(basename, xml):
 
             # cope with uint8_t_mavlink_version
             if f.omit_arg:
-                f.ser_name = "%s(%s)" % (f.type, f.const_value)
+                f.ser_name = f"{f.type}({f.const_value})"
 
     # add trimmed filed name to enums
     for e in xml.enum:
@@ -431,7 +430,7 @@ def generate_one(basename, xml):
                 e.entry_flt.append(f)
                 # XXX check all values in acceptable range
                 if underlying_type and f.value > underlying_type.max:
-                    raise ValueError("Enum %s::%s = %s > MAX(%s)" % (e.name, f.name_trim, f.value, underlying_type.max))
+                    raise ValueError(f"Enum {e.name}::{f.name_trim} = {f.value} > MAX({underlying_type.max})")
                 elif not underlying_type and f.value > TYPE_MAX['int32_t']:
                     # default underlying type is int, usual 32-bit
                     underlying_type = EType('int64_t', TYPE_MAX['int64_t'])

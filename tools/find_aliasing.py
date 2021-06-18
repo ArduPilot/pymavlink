@@ -34,7 +34,7 @@ def process_log(fname):
         last_err[a] = 0.0
 
     alpha = 0.9
-    msg_types = set(['IMU', 'IMU3'])
+    msg_types = {'IMU', 'IMU3'}
 
     while True:
         m = mlog.recv_match(type=msg_types)
@@ -77,9 +77,9 @@ def process_log(fname):
             break
 
     if max_err_axis is not None:
-        print("%s aliasing on %s %.1f" % (fname, max_err_axis, max_err))
+        print(f"{fname} aliasing on {max_err_axis} {max_err:.1f}")
         try:
-            open(fname + ".aliasing", "w").write("aliasing on %s %.1f : %s\n" % (max_err_axis, max_err, fname))
+            open(fname + ".aliasing", "w").write(f"aliasing on {max_err_axis} {max_err:.1f} : {fname}\n")
         except Exception:
             pass
 

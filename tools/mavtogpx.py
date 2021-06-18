@@ -4,7 +4,6 @@
 example program to extract GPS data from a mavlink log, and create a GPX
 file, for loading into google earth
 '''
-from __future__ import print_function
 
 import time
 
@@ -26,14 +25,14 @@ def mav_to_gpx(infilename, outfilename):
 
     def process_packet(timestamp, lat, lon, alt, hdg, v):
         t = time.localtime(timestamp)
-        outf.write('''<trkpt lat="%s" lon="%s">
-  <ele>%s</ele>
-  <time>%s</time>
-  <course>%s</course>
-  <speed>%s</speed>
+        outf.write('''<trkpt lat="{}" lon="{}">
+  <ele>{}</ele>
+  <time>{}</time>
+  <course>{}</course>
+  <speed>{}</speed>
   <fix>3d</fix>
 </trkpt>
-''' % (lat, lon, alt,
+'''.format(lat, lon, alt,
        time.strftime("%Y-%m-%dT%H:%M:%SZ", t),
        hdg, v))
 

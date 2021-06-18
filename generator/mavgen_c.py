@@ -5,11 +5,8 @@ parse a MAVLink protocol XML file and generate a C implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 from future.utils import iteritems
 
-from builtins import range
-from builtins import object
 
 import os
 from . import mavparse, mavtemplate
@@ -527,7 +524,7 @@ def copy_fixed_headers(directory, xml):
         }
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'C/include_v%s' % xml.wire_protocol_version)
-    print("Copying fixed headers for protocol %s to %s" % (xml.wire_protocol_version, directory))
+    print(f"Copying fixed headers for protocol {xml.wire_protocol_version} to {directory}")
     for h in hlist[xml.wire_protocol_version]:
         src = os.path.realpath(os.path.join(srcpath, h))
         dest = os.path.realpath(os.path.join(directory, h))
@@ -535,7 +532,7 @@ def copy_fixed_headers(directory, xml):
             continue
         shutil.copy(src, dest)
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 
@@ -645,9 +642,9 @@ def generate_one(basename, xml):
                 f.array_return_arg = '%s, %u, ' % (f.name, f.array_length)
                 f.array_const = 'const '
                 f.decode_left = ''
-                f.decode_right = ', %s->%s' % (m.name_lower, f.name)
+                f.decode_right = f', {m.name_lower}->{f.name}'
                 f.return_type = 'uint16_t'
-                f.get_arg = ', %s *%s' % (f.type, f.name)
+                f.get_arg = f', {f.type} *{f.name}'
                 if f.type == 'char':
                     f.c_test_value = '"%s"' % f.test_value
                 else:
@@ -662,7 +659,7 @@ def generate_one(basename, xml):
                 f.array_arg = ''
                 f.array_return_arg = ''
                 f.array_const = ''
-                f.decode_left = "%s->%s = " % (m.name_lower, f.name)
+                f.decode_left = f"{m.name_lower}->{f.name} = "
                 f.decode_right = ''
                 f.get_arg = ''
                 f.return_type = f.type

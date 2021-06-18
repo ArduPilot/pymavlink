@@ -5,7 +5,6 @@ calculate GPS CEP from DF or mavlink log for all present GPS modules
 
 This assumes the GPS modules were not moving during the test
 '''
-from builtins import range
 
 import os
 

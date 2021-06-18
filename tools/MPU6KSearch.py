@@ -3,9 +3,6 @@
 '''
 search a set of log files for signs of inconsistent IMU data
 '''
-from __future__ import print_function
-from builtins import input
-from builtins import range
 
 import sys, time, os
 import zipfile
@@ -17,10 +14,10 @@ from math import degrees
 import json
 from pymavlink.dialects.v10 import ardupilotmega
 
-search_dirs = ['c:\Program Files\APM Planner',
-               'c:\Program Files\Mission Planner',
-               'c:\Program Files (x86)\APM Planner',
-               'c:\Program Files (x86)\Mission Planner']
+search_dirs = [r'c:\Program Files\APM Planner',
+               r'c:\Program Files\Mission Planner',
+               r'c:\Program Files (x86)\APM Planner',
+               r'c:\Program Files (x86)\Mission Planner']
 results = 'SearchResults.zip'
 email = 'Craig Elder <craig@3drobotics.com>'
 
@@ -124,7 +121,7 @@ def IMUCheckFail(filename):
                     print(m)
                     return True
                 if abs(ecount_gyro[i]) > count_threshold:
-                    print("gyrodiff[i] %.1f" % (i, adiff))
+                    print(f"gyrodiff[i] {i:.1f}")
                     print(m)
                     return True
         
@@ -189,7 +186,7 @@ for f in found:
     arcname=os.path.basename(f)
     if not arcname.startswith('201'):
         mtime = os.path.getmtime(f)
-        arcname = "%s-%s" % (time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(mtime)), arcname)
+        arcname = "{}-{}".format(time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime(mtime)), arcname)
     zip.write(f, arcname=arcname)
 zip.close()
 

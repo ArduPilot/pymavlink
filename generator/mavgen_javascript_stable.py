@@ -5,9 +5,7 @@ parse a MAVLink protocol XML file and generate a Node.js javascript module imple
 Based on original work Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
-from builtins import range
 
 import os
 import textwrap
@@ -194,12 +192,12 @@ def generate_classes(outf, msgs, xml):
     def field_descriptions(fields):
         ret = ""
         for f in fields:
-            ret += "                %-18s        : %s (%s)\n" % (f.name, f.description.strip(), f.type)
+            ret += f"                {f.name:<18}        : {f.description.strip()} ({f.type})\n"
         return ret
 
     for m in msgs:
 
-        comment = "%s\n\n%s" % (wrapper.fill(m.description.strip()), field_descriptions(m.fields))
+        comment = f"{wrapper.fill(m.description.strip())}\n\n{field_descriptions(m.fields)}"
 
         selffieldnames = 'self, '
         for f in m.fields:

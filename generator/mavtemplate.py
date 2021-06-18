@@ -6,11 +6,10 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 
-from builtins import object
 
 from .mavparse import MAVParseError
 
-class MAVTemplate(object):
+class MAVTemplate:
     '''simple templating system'''
     def __init__(self,
                  start_var_token="${", 
@@ -112,7 +111,7 @@ class MAVTemplate(object):
             if isinstance(subvars, dict):
                 if not varname in subvars:
                     if checkmissing:
-                        raise MAVParseError("unknown variable in '%s%s%s'" % (
+                        raise MAVParseError("unknown variable in '{}{}{}'".format(
                             self.start_var_token, varname, self.end_var_token))
                     return text[0:idx+endidx] + self.substitute(text[idx+endidx:], subvars,
                                                                 trim_leading_lf=False, checkmissing=False)
@@ -121,11 +120,11 @@ class MAVTemplate(object):
                 value = getattr(subvars, varname, None)
                 if value is None:
                     if checkmissing:
-                        raise MAVParseError("unknown variable in '%s%s%s'" % (
+                        raise MAVParseError("unknown variable in '{}{}{}'".format(
                             self.start_var_token, varname, self.end_var_token))
                     return text[0:idx+endidx] + self.substitute(text[idx+endidx:], subvars,
                                                                 trim_leading_lf=False, checkmissing=False)
-            text = text.replace("%s%s%s" % (self.start_var_token, varname, self.end_var_token), str(value))
+            text = text.replace(f"{self.start_var_token}{varname}{self.end_var_token}", str(value))
         return text
 
     def write(self, file, text, subvars={}, trim_leading_lf=True):

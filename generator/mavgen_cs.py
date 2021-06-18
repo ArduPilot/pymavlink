@@ -265,7 +265,7 @@ ${{ordered_fields:        /// <summary>${description} ${enum} ${units} ${display
 ''', m)
 
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 
@@ -295,11 +295,11 @@ def generate_one(fh, basename, xml):
                 f.array_return_arg = '%u, ' % (f.array_length)
                 f.array_tag = ''
                 f.array_const = 'const '
-                f.decode_left = "%s.%s = " % (m.name_lower, f.name)
+                f.decode_left = f"{m.name_lower}.{f.name} = "
                 f.decode_right = ''
                 f.return_type = 'void'
                 f.return_value = 'void'
-                f.type = "%s%s" % (map[f.type], '[]')
+                f.type = "{}{}".format(map[f.type], '[]')
             else:
                 if f.enum != "":
                     f.type = "/*" +f.enum + "*/" + f.type;
@@ -314,7 +314,7 @@ def generate_one(fh, basename, xml):
                 f.array_arg = ''
                 f.array_return_arg = ''
                 f.array_const = ''
-                f.decode_left = "%s.%s = " % (m.name_lower, f.name)
+                f.decode_left = f"{m.name_lower}.{f.name} = "
                 f.decode_right = ''
                 f.get_arg = ''
                 f.c_test_value = f.test_value
@@ -349,7 +349,7 @@ def copy_fixed_headers(directory, xml):
         }
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'CS')
-    print("Copying fixed headers for protocol %s to %s" % (xml.wire_protocol_version, directory))
+    print(f"Copying fixed headers for protocol {xml.wire_protocol_version} to {directory}")
     for h in hlist[xml.wire_protocol_version]:
         src = os.path.realpath(os.path.join(srcpath, h))
         dest = os.path.realpath(os.path.join(directory, h))
@@ -360,7 +360,7 @@ def copy_fixed_headers(directory, xml):
 
 def generate(basename, xml_list):
     '''generate complete MAVLink CSharp implemenation'''
-    print("generate for protocol %s to %s" % (xml_list[0].wire_protocol_version, basename))
+    print(f"generate for protocol {xml_list[0].wire_protocol_version} to {basename}")
     
     directory = basename
 

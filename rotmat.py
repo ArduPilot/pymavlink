@@ -22,12 +22,11 @@
 
 '''rotation matrix class
 '''
-from __future__ import print_function
 
 from math import sin, cos, sqrt, asin, atan2, pi, acos
 
 
-class Vector3(object):
+class Vector3:
     '''a vector'''
     def __init__(self, x=None, y=None, z=None):
         if x is not None and y is not None and z is not None:
@@ -46,7 +45,7 @@ class Vector3(object):
             self.z = float(0)
 
     def __repr__(self):
-        return 'Vector3(%.2f, %.2f, %.2f)' % (self.x,
+        return 'Vector3({:.2f}, {:.2f}, {:.2f})'.format(self.x,
                                               self.y,
                                               self.z)
 
@@ -151,7 +150,7 @@ class Vector3(object):
         return rotations[rot_id].rt * self
 
 
-class Matrix3(object):
+class Matrix3:
     '''a 3x3 matrix, intended as a rotation matrix'''
     def __init__(self, a=None, b=None, c=None):
         if a is not None and b is not None and c is not None:
@@ -162,7 +161,7 @@ class Matrix3(object):
             self.identity()
 
     def __repr__(self):
-        return 'Matrix3((%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f), (%.2f, %.2f, %.2f))' % (
+        return 'Matrix3(({:.2f}, {:.2f}, {:.2f}), ({:.2f}, {:.2f}, {:.2f}), ({:.2f}, {:.2f}, {:.2f}))'.format(
             self.a.x, self.a.y, self.a.z,
             self.b.x, self.b.y, self.b.z,
             self.c.x, self.c.y, self.c.z)
@@ -385,7 +384,7 @@ class Matrix3(object):
     def close(self, m, tol=1e-7):
         return self.a.close(m.a, tol) and self.b.close(m.b, tol) and self.c.close(m.c, tol)
 
-class Plane(object):
+class Plane:
     '''a plane in 3 space, defined by a point and a vector normal'''
     def __init__(self, point=None, normal=None):
         if point is None:
@@ -395,7 +394,7 @@ class Plane(object):
         self.point = point
         self.normal = normal
 
-class Line(object):
+class Line:
     '''a line in 3 space, defined by a point and a vector'''
     def __init__(self, point=None, vector=None):
         if point is None:
@@ -416,7 +415,7 @@ class Line(object):
             return None
         return (self.vector * d) + self.point
 
-class Rotation(object):
+class Rotation:
     def __init__(self, name, roll, pitch, yaw):
         self.name = name
         self.roll = roll

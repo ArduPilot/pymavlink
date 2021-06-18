@@ -60,16 +60,16 @@ class Correction:
         print("COMPASS_OFS%s_X %d" % (mag_idx, int(self.offsets.x)))
         print("COMPASS_OFS%s_Y %d" % (mag_idx, int(self.offsets.y)))
         print("COMPASS_OFS%s_Z %d" % (mag_idx, int(self.offsets.z)))
-        print("COMPASS_DIA%s_X %.3f" % (mag_idx, self.diag.x))
-        print("COMPASS_DIA%s_Y %.3f" % (mag_idx, self.diag.y))
-        print("COMPASS_DIA%s_Z %.3f" % (mag_idx, self.diag.z))
-        print("COMPASS_ODI%s_X %.3f" % (mag_idx, self.offdiag.x))
-        print("COMPASS_ODI%s_Y %.3f" % (mag_idx, self.offdiag.y))
-        print("COMPASS_ODI%s_Z %.3f" % (mag_idx, self.offdiag.z))
-        print("COMPASS_MOT%s_X %.3f" % (mag_idx, self.cmot.x))
-        print("COMPASS_MOT%s_Y %.3f" % (mag_idx, self.cmot.y))
-        print("COMPASS_MOT%s_Z %.3f" % (mag_idx, self.cmot.z))
-        print("COMPASS_SCALE%s %.2f" % (mag_idx, self.scaling))
+        print(f"COMPASS_DIA{mag_idx}_X {self.diag.x:.3f}")
+        print(f"COMPASS_DIA{mag_idx}_Y {self.diag.y:.3f}")
+        print(f"COMPASS_DIA{mag_idx}_Z {self.diag.z:.3f}")
+        print(f"COMPASS_ODI{mag_idx}_X {self.offdiag.x:.3f}")
+        print(f"COMPASS_ODI{mag_idx}_Y {self.offdiag.y:.3f}")
+        print(f"COMPASS_ODI{mag_idx}_Z {self.offdiag.z:.3f}")
+        print(f"COMPASS_MOT{mag_idx}_X {self.cmot.x:.3f}")
+        print(f"COMPASS_MOT{mag_idx}_Y {self.cmot.y:.3f}")
+        print(f"COMPASS_MOT{mag_idx}_Z {self.cmot.z:.3f}")
+        print(f"COMPASS_SCALE{mag_idx} {self.scaling:.2f}")
         if args.cmot:
             print("COMPASS_MOTCT 2")
 
@@ -272,7 +272,7 @@ def magfit(logfile):
     if args.lat != 0 and args.lon != 0:
         earth_field = mavextra.expected_earth_field_lat_lon(args.lat, args.lon)
         (declination,inclination,intensity) = mavextra.get_mag_field_ef(args.lat, args.lon)
-        print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
+        print(f"Earth field: {earth_field}  strength {earth_field.length():.0f} declination {declination:.1f} degrees")
 
     if args.att_source is not None:
         ATT_NAME = args.att_source
@@ -292,7 +292,7 @@ def magfit(logfile):
         if msg.get_type() == 'GPS' and msg.Status >= 3 and earth_field is None:
             earth_field = mavextra.expected_earth_field(msg)
             (declination,inclination,intensity) = mavextra.get_mag_field_ef(msg.Lat, msg.Lng)
-            print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
+            print(f"Earth field: {earth_field}  strength {earth_field.length():.0f} declination {declination:.1f} degrees")
         if msg.get_type() == ATT_NAME:
             ATT = msg
             # remove IMU sensor to body frame trim offsets to get back to the IMU sensor frame used by the EKFs
@@ -337,7 +337,7 @@ def magfit(logfile):
     data = data2
 
     print("Extracted %u points" % len(data))
-    print("Current: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
+    print("Current: {} diag: {} offdiag: {} cmot: {} scale: {:.2f}".format(
         old_corrections.offsets, old_corrections.diag, old_corrections.offdiag, old_corrections.cmot, old_corrections.scaling))
     if len(data) == 0:
         return
@@ -358,7 +358,7 @@ def magfit(logfile):
         c.diag *= 1.0/scale_change
         c.offdiag *= 1.0/scale_change
 
-    print("New: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
+    print("New: {} diag: {} offdiag: {} cmot: {} scale: {:.2f}".format(
         c.offsets, c.diag, c.offdiag, c.cmot, c.scaling))
 
     x = []

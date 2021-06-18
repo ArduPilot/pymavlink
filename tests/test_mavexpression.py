@@ -5,7 +5,6 @@
 Unit tests for the mavexpression library
 """
 
-from __future__ import print_function
 import unittest
 import random
 
@@ -22,7 +21,7 @@ class ExpressionTest(unittest.TestCase):
         self.varsDict = {}
         self.varsDict['lat'] = 5.67
         self.varsDict['speed'] = 8
-        super(ExpressionTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
     def test_novars(self):

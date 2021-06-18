@@ -8,7 +8,6 @@ via a local TCP connection.
 
 @author: Matthew Lloyd (github@matthewlloyd.net)
 """
-from __future__ import print_function
 
 from pymavlink import mavutil
 from argparse import ArgumentParser
@@ -69,7 +68,7 @@ def main():
                 if args.debug >= 1:
                     print('>', len(data))
                 mav_serialport.write(data)
-        except socket.error:
+        except OSError:
             pass
 
         data = mav_serialport.read(args.buffsize)

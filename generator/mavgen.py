@@ -22,10 +22,8 @@ General process:
 
 '''
 
-from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
-from builtins import object
 import os
 import re
 import sys
@@ -61,7 +59,7 @@ def mavgen(opts, args):
     if opts.validate:
         try:
             from lxml import etree
-            with open(schemaFile, 'r') as f:
+            with open(schemaFile) as f:
                 xmlschema_root = etree.parse(f)
                 if not opts.strict_units:
                     # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
@@ -197,7 +195,7 @@ def mavgen(opts, args):
            here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
         xmlvalid = True
         try:
-            with open(xmlfile, 'r') as f:
+            with open(xmlfile) as f:
                 xmldocument = etree.parse(f)
                 xmlschema.assertValid(xmldocument)
                 forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
@@ -209,7 +207,7 @@ def mavgen(opts, args):
                 for element in xmldocument.iter('enum', 'entry', 'message', 'field'):
                     if forbidden_names_re.search(element.get('name')):
                         print("Validation error:", file=sys.stderr)
-                        print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
+                        print(f"Element : {element.tag} at line : {element.sourceline} contains forbidden word", file=sys.stderr)
                         xmlvalid = False
 
             return xmlvalid
@@ -288,7 +286,7 @@ def mavgen(opts, args):
 
 
 # build all the dialects in the dialects subpackage
-class Opts(object):
+class Opts:
     def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
         self.wire_protocol = wire_protocol
         self.error_limit = error_limit

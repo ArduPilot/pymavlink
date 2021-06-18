@@ -3,7 +3,6 @@
 '''
 extract mavlink parameter values
 '''
-from __future__ import print_function
 
 
 import time
@@ -38,7 +37,7 @@ def mavparms(logfile):
             value = m.Value
         if len(pname) > 0:
             if args.changesOnly is True and pname in parms and parms[pname] != value:
-                print("%s %-15s %.6f -> %.6f" % (time.asctime(time.localtime(m._timestamp)), pname, parms[pname], value))
+                print(f"{time.asctime(time.localtime(m._timestamp))} {pname:<15} {parms[pname]:.6f} -> {value:.6f}")
 
             parms[pname] = value
 
@@ -50,4 +49,4 @@ if (args.changesOnly is False):
     keys = list(parms.keys())
     keys.sort()
     for p in keys:
-        print("%-15s %.6f" % (p, parms[p]))
+        print(f"{p:<15} {parms[p]:.6f}")

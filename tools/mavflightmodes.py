@@ -3,7 +3,6 @@
 '''
 show changes in flight modes
 '''
-from __future__ import print_function
 
 import datetime
 import os
@@ -77,7 +76,7 @@ def flight_modes(logfile):
             total_flight_time = total_flight_time + value
 
         for key, value in time_in_mode.items():
-            print('%-12s %s %.2f%%' % (key, str(datetime.timedelta(seconds=int(value))), (value / total_flight_time) * 100.0))
+            print(f'{key:<12} {str(datetime.timedelta(seconds=int(value)))} {(value / total_flight_time) * 100.0:.2f}%')
     else:
         #can't print time in mode if only one mode during flight
         print(previous_mode, " 100% of flight time")

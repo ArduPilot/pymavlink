@@ -5,7 +5,6 @@ parse a MAVLink protocol XML file and generate an Objective-C implementation
 Copyright John Boiles 2013
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
 import os
 from . import mavparse, mavtemplate
@@ -403,7 +402,7 @@ def generate_message_definitions(basename, xml):
                 f.array_return_arg = '%s, %u, ' % (f.name, f.array_length)
                 f.return_type = 'uint16_t'
                 f.get_arg = ', %s' % (f.name)
-                f.get_arg_objc = ':(%s *)%s' % (f.type, f.name)
+                f.get_arg_objc = f':({f.type} *){f.name}'
                 if f.type == 'char':
                     # Special handling for strings (assumes all char arrays are strings)
                     f.return_type = 'NSString *'
@@ -416,7 +415,7 @@ def generate_message_definitions(basename, xml):
 
             if not f.return_method_implementation:
                 f.return_method_implementation = \
-"""return mavlink_msg_%(message_name_lower)s_get_%(name)s(&(self->_message)%(get_arg)s);""" % {'message_name_lower': m.name_lower, 'name': f.name, 'get_arg': f.get_arg}
+f"""return mavlink_msg_{m.name_lower}_get_{f.name}(&(self->_message){f.get_arg});"""
 
     for m in xml.message:
         m.arg_fields = []

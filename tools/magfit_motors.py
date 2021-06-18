@@ -3,8 +3,6 @@
 '''
 fit best estimate of magnetometer offsets, trying to take into account motor interference
 '''
-from __future__ import print_function
-from builtins import range
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -135,10 +133,10 @@ def magfit(logfile):
         # fit again
         (offsets, motor_ofs, field_strength) = fit_data(data)
 
-    print("Final    : %s  %s field_strength=%6.1f to %6.1f" % (
+    print("Final    : {}  {} field_strength={:6.1f} to {:6.1f}".format(
         offsets, motor_ofs,
         radius(data[0], offsets, motor_ofs), radius(data[-1], offsets, motor_ofs)))
-    print("mavgraph.py '%s' 'mag_field(RAW_IMU)' 'mag_field_motors(RAW_IMU,SENSOR_OFFSETS,(%f,%f,%f),SERVO_OUTPUT_RAW,(%f,%f,%f))'" % (
+    print("mavgraph.py '{}' 'mag_field(RAW_IMU)' 'mag_field_motors(RAW_IMU,SENSOR_OFFSETS,({:f},{:f},{:f}),SERVO_OUTPUT_RAW,({:f},{:f},{:f}))'".format(
         filename,
         offsets.x,offsets.y,offsets.z,
         motor_ofs.x, motor_ofs.y, motor_ofs.z))

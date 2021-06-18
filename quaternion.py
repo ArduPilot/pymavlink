@@ -5,9 +5,7 @@
 Quaternion implementation for use in pymavlink
 """
 
-from __future__ import absolute_import, division, print_function
 
-from builtins import object
 import numpy as np
 from .rotmat import Vector3, Matrix3
 
@@ -17,7 +15,7 @@ __license__ = "GNU Lesser General Public License v3"
 __email__ = "thomasgubler@gmail.com"
 
 
-class QuaternionBase(object):
+class QuaternionBase:
 
     """
     Quaternion class, this is the version which supports numpy arrays
@@ -492,9 +490,9 @@ class Quaternion(QuaternionBase):
         elif isinstance(attitude, Vector3):
             # provided euler angles
             euler = [attitude.x, attitude.y, attitude.z]
-            super(Quaternion, self).__init__(euler)
+            super().__init__(euler)
         else:
-            super(Quaternion, self).__init__(attitude)
+            super().__init__(attitude)
 
     @property
     def dcm(self):
@@ -534,7 +532,7 @@ class Quaternion(QuaternionBase):
 
         :returns: inversed quaternion
         """
-        return Quaternion(super(Quaternion, self).inversed)
+        return Quaternion(super().inversed)
 
     def transform(self, v3):
         """
@@ -543,10 +541,10 @@ class Quaternion(QuaternionBase):
         :returns: transformed vector
         """
         if isinstance(v3, Vector3):
-            t = super(Quaternion, self).transform([v3.x, v3.y, v3.z])
+            t = super().transform([v3.x, v3.y, v3.z])
             return Vector3(t[0], t[1], t[2])
         elif len(v3) == 3:
-            return super(Quaternion, self).transform(v3)
+            return super().transform(v3)
         else:
             raise TypeError("param v3 is not a vector type")
 
@@ -580,7 +578,7 @@ class Quaternion(QuaternionBase):
         :returns: Matrix3
         """
         assert(len(q) == 4)
-        arr = super(Quaternion, self)._q_to_dcm(q)
+        arr = super()._q_to_dcm(q)
         return self._dcm_array_to_matrix3(arr)
 
     def _dcm_to_q(self, dcm):
@@ -591,7 +589,7 @@ class Quaternion(QuaternionBase):
         """
         assert(isinstance(dcm, Matrix3))
         arr = self._matrix3_to_dcm_array(dcm)
-        return super(Quaternion, self)._dcm_to_q(arr)
+        return super()._dcm_to_q(arr)
 
     def _euler_to_dcm(self, euler):
         """
@@ -618,14 +616,14 @@ class Quaternion(QuaternionBase):
         :param other: Quaternion
         :returns: multiplaction of this Quaternion with other
         """
-        return Quaternion(super(Quaternion, self).__mul__(other))
+        return Quaternion(super().__mul__(other))
 
     def __truediv__(self, other):
         """
         :param other: Quaternion
         :returns: division of this Quaternion with other
         """
-        return Quaternion(super(Quaternion, self).__truediv__(other))
+        return Quaternion(super().__truediv__(other))
 
 if __name__ == "__main__":
     import doctest

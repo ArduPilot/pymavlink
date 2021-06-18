@@ -3,10 +3,7 @@
 '''
 fit best estimate of magnetometer rotation to gyro data
 '''
-from __future__ import print_function
 
-from builtins import range
-from builtins import object
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -22,7 +19,7 @@ from pymavlink.rotmat import Vector3, Matrix3
 from math import radians
 
 
-class Rotation(object):
+class Rotation:
     def __init__(self, name, roll, pitch, yaw):
         self.name = name
         self.roll = roll
@@ -163,7 +160,7 @@ def magfit(logfile):
         if not r.is_90_degrees():
             continue
         if args.verbose:
-            print("%s err=%.2f" % (r, total_error[i]/count))
+            print(f"{r} err={total_error[i]/count:.2f}")
         if total_error[i] < best_err:
             best_i = i
             best_err = total_error[i]
@@ -173,7 +170,7 @@ def magfit(logfile):
         rotations[COMPASS_ORIENT],
         COMPASS_EXTERNAL))
     print("Best rotation is %s err=%.2f from %u points" % (r, best_err/count, count))
-    print("Please set AHRS_ORIENTATION=%s COMPASS_ORIENT=%s COMPASS_EXTERNAL=1" % (
+    print("Please set AHRS_ORIENTATION={} COMPASS_ORIENT={} COMPASS_EXTERNAL=1".format(
         rotations[AHRS_ORIENTATION],
         r))
 

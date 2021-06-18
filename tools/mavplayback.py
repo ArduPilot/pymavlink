@@ -6,11 +6,9 @@ realtime mavlink stream
 
 Useful for visualising flights
 '''
-from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
 
-from builtins import object
 
 import os
 import sys
@@ -48,7 +46,7 @@ def LoadImage(filename):
     return tkinter.PhotoImage(file=path)
 
 
-class App(object):
+class App:
     def __init__(self, filename):
         self.root = tkinter.Tk()
 

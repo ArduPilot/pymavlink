@@ -4,9 +4,6 @@ module for loading/saving waypoints
 Copyright the ArduPilot Project
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
 
 import time, copy
 import logging
@@ -26,7 +23,7 @@ class MAVWPError(Exception):
         self.message = msg
 
 
-class MAVWPLoader(object):
+class MAVWPLoader:
     '''MAVLink waypoint loader'''
     def __init__(self, target_system=0, target_component=0):
         self.wpoints = []
@@ -273,7 +270,7 @@ class MAVWPLoader(object):
     def load(self, filename):
         '''load waypoints from a file.
         returns number of waypoints loaded'''
-        f = open(filename, mode='r')
+        f = open(filename)
         version_line = f.readline().strip()
         if version_line == "QGC WPL 100":
             readfn = self._read_waypoints_v100
@@ -433,7 +430,7 @@ class MAVRallyError(Exception):
         Exception.__init__(self, msg)
         self.message = msg
 
-class MAVRallyLoader(object):
+class MAVRallyLoader:
     '''MAVLink Rally points and Rally Land points loader'''
     def __init__(self, target_system=0, target_component=0):
         self.rally_points = []
@@ -506,7 +503,7 @@ class MAVRallyLoader(object):
     def load(self, filename):
         '''load rally and rally_land points from a file.
          returns number of points loaded'''
-        f = open(filename, mode='r')
+        f = open(filename)
         self.clear()
         for line in f:
             if line.startswith('#'):
@@ -538,7 +535,7 @@ class MAVFenceError(Exception):
             Exception.__init__(self, msg)
             self.message = msg
 
-class MAVFenceLoader(object):
+class MAVFenceLoader:
     '''MAVLink geo-fence loader'''
     def __init__(self, target_system=0, target_component=0):
         self.points = []
@@ -583,7 +580,7 @@ class MAVFenceLoader(object):
     def load(self, filename):
         '''load points from a file.
         returns number of points loaded'''
-        f = open(filename, mode='r')
+        f = open(filename)
         self.clear()
         for line in f:
             if line.startswith('#'):
@@ -602,7 +599,7 @@ class MAVFenceLoader(object):
         '''save fence points to a file'''
         f = open(filename, mode='w')
         for p in self.points:
-            f.write("%f\t%f\n" % (p.lat, p.lng))
+            f.write(f"{p.lat:f}\t{p.lng:f}\n")
         f.close()
 
     def move(self, i, lat, lng, change_time=True):

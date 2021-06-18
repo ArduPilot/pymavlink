@@ -2,9 +2,7 @@
 '''
 parse a MAVLink protocol XML file and generate a Wireshark LUA dissector
 '''
-from __future__ import print_function
 
-from builtins import range
 
 import os
 
@@ -129,13 +127,13 @@ end
     # dump the actual symbol table
     outf.write("messages = {}\n")
     for m in msgs:
-        outf.write("messages[%s] = { -- %s\n" % (m.id, m.name))
+        outf.write(f"messages[{m.id}] = {{ -- {m.name}\n")
         for i in range(0, len(m.ordered_fields)):
             field = m.ordered_fields[i]
             if (field.array_length > 0):
-                outf.write("             { \"%s\", \"<%s\", %s },\n" % (field.name, unpack_types.get(field.type), field.array_length))
+                outf.write(f"             {{ \"{field.name}\", \"<{unpack_types.get(field.type)}\", {field.array_length} }},\n")
             else:
-                outf.write("             { \"%s\", \"<%s\" },\n" % (field.name, unpack_types.get(field.type)))
+                outf.write(f"             {{ \"{field.name}\", \"<{unpack_types.get(field.type)}\" }},\n")
         outf.write("             }\n")
 
     outf.close()

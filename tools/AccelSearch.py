@@ -3,9 +3,6 @@
 '''
 search a set of log files for bad accel values
 '''
-from __future__ import print_function
-from builtins import input
-from builtins import range
 
 import sys, os
 import zipfile
@@ -16,10 +13,10 @@ from pymavlink import mavutil
 import json
 from pymavlink.dialects.v10 import ardupilotmega
 
-search_dirs = ['c:\Program Files\APM Planner',
-               'c:\Program Files\Mission Planner',
-               'c:\Program Files (x86)\APM Planner',
-               'c:\Program Files (x86)\Mission Planner']
+search_dirs = [r'c:\Program Files\APM Planner',
+               r'c:\Program Files\Mission Planner',
+               r'c:\Program Files (x86)\APM Planner',
+               r'c:\Program Files (x86)\Mission Planner']
 results = 'SearchResults.zip'
 email = 'Craig Elder <craig@3drobotics.com>'
 

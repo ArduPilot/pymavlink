@@ -14,11 +14,8 @@
 # dependency: Python construct library (python-construct on Debian/Ubuntu), "easy_install construct" elsewhere
 
 
-from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
-from builtins import object
-from builtins import open
 import sys
 import os
 
@@ -39,7 +36,7 @@ MAVLINK_MESSAGE_CRCS  = (50, 124, 137, 0, 237, 217, 104, 119, 0, 0, 0, 89, 0, 0,
 import struct
 
 # Helper class for writing pcap files
-class pcap(object):
+class pcap:
     """
        Used under the terms of GNU GPL v3.
        Original author: Neale Pickett
@@ -54,7 +51,7 @@ class pcap(object):
         try:
             # Try reading
             hdr = self.stream.read(24)
-        except IOError:
+        except OSError:
             hdr = None
 
         if hdr:
@@ -66,12 +63,12 @@ class pcap(object):
                     self._endian = endian
                     break
             if not self._endian:
-                raise IOError('Not a pcap file')
+                raise OSError('Not a pcap file')
             (self.magic, version_major, version_minor,
              self.thiszone, self.sigfigs,
              self.snaplen, self.linktype) = struct.unpack(self._endian + 'IHHIIII', hdr)
             if (version_major, version_minor) != (2, 4):
-                raise IOError('Cannot handle file version %d.%d' % (version_major,
+                raise OSError('Cannot handle file version %d.%d' % (version_major,
                                                                     version_minor))
         else:
             # We're in write mode

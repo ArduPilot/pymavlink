@@ -5,7 +5,6 @@
 Unit tests for the mavparm library
 """
 
-from __future__ import print_function
 import unittest
 import os
 
@@ -24,7 +23,7 @@ class MAVParmDictTest(unittest.TestCase):
         self.parms['PARAM1'] = 34.45
         self.parms['PARAM2'] = 0
         self.parms['PARAM3'] = -13.4
-        super(MAVParmDictTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
     def test_dict(self):

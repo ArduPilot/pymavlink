@@ -3,7 +3,6 @@
 '''
 split log by system ID
 '''
-from __future__ import print_function
 
 import os
 import struct

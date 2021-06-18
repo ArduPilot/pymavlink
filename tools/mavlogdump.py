@@ -6,7 +6,6 @@ assumed to be in the format that qgroundcontrol uses, which consists
 of a series of MAVLink packets, each with a 64 bit timestamp
 header. The timestamp is in microseconds since 1970 (unix epoch)
 '''
-from __future__ import print_function
 
 import array
 import fnmatch
@@ -141,7 +140,7 @@ if istlog and args.format == 'csv': # we know our fields from the get-go
         currentOffset = 1 # Store how many fields in we are for each message.
         for type in types:
             try:
-                typeClass = "MAVLink_{0}_message".format(type.lower())
+                typeClass = f"MAVLink_{type.lower()}_message"
                 fields += [type + '.' + x for x in inspect.getargspec(getattr(mavutil.mavlink, typeClass).__init__).args[1:]]
                 offsets[type] = currentOffset
                 currentOffset += len(fields)
@@ -188,7 +187,7 @@ while True:
     if m is None:
         # write the final csv line before exiting
         if args.format == 'csv' and csv_out:
-          csv_out[0] = "{:.8f}".format(last_timestamp)
+          csv_out[0] = f"{last_timestamp:.8f}"
           print(args.csv_sep.join(csv_out))
         break
     available_types.add(m.get_type())
@@ -244,7 +243,7 @@ while True:
         try:
             output.write(m.get_msgbuf())
         except Exception as ex:
-            print("Failed to write msg %s: %s" % (m.get_type(), str(ex)))
+            print(f"Failed to write msg {m.get_type()}: {str(ex)}")
 
     # If quiet is specified, don't display output to the terminal.
     if args.quiet:
@@ -296,7 +295,7 @@ while True:
 
         # Otherwise if this is a new timestamp, print out the old output data, and store the current message for later output.
         else:
-            csv_out[0] = "{:.8f}".format(last_timestamp)
+            csv_out[0] = f"{last_timestamp:.8f}"
             print(args.csv_sep.join(csv_out))
             if isbin:
                 csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]

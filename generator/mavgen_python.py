@@ -5,9 +5,7 @@ parse a MAVLink protocol XML file and generate a python implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
-from builtins import range
 
 import os
 import textwrap
@@ -330,7 +328,7 @@ def byname_hash_from_field_attribute(m, attribute):
             # hack; remove the square brackets further up
             if value[0] == "[":
                 value = value[1:-1]
-        strings.append('"%s": "%s"' % (field.name, value))
+        strings.append(f'"{field.name}": "{value}"')
     return ", ".join(strings)
 
 def generate_classes(outf, msgs):
@@ -396,25 +394,25 @@ class %s(MAVLink_message):
                 fname = m.fieldnames[i]
                 if m.extensions_start is not None and i >= m.extensions_start:
                         fdefault = m.fielddefaults[i]
-                        outf.write(", %s=%s" % (fname, fdefault))
+                        outf.write(f", {fname}={fdefault}")
                 else:
                         outf.write(", %s" % fname)
         outf.write("):\n")
-        outf.write("                MAVLink_message.__init__(self, %s.id, %s.name)\n" % (classname, classname))
+        outf.write(f"                MAVLink_message.__init__(self, {classname}.id, {classname}.name)\n")
         outf.write("                self._fieldnames = %s.fieldnames\n" % (classname))
         outf.write("                self._instance_field = %s.instance_field\n" % (classname))
         outf.write("                self._instance_offset = %s.instance_offset\n" % (classname))
         for f in m.fields:
-                outf.write("                self.%s = %s\n" % (f.name, f.name))
+                outf.write(f"                self.{f.name} = {f.name}\n")
         outf.write("""
         def pack(self, mav, force_mavlink1=False):
                 return MAVLink_message.pack(self, mav, %u, struct.pack('%s'""" % (m.crc_extra, m.fmtstr))
         for field in m.ordered_fields:
                 if (field.type != "char" and field.array_length > 1):
                         for i in range(field.array_length):
-                                outf.write(", self.{0:s}[{1:d}]".format(field.name, i))
+                                outf.write(f", self.{field.name:s}[{i:d}]")
                 else:
-                        outf.write(", self.{0:s}".format(field.name))
+                        outf.write(f", self.{field.name:s}")
         outf.write("), force_mavlink1=force_mavlink1)\n")
 
 
@@ -477,7 +475,7 @@ def generate_mavlink_class(outf, msgs, xml):
 
     outf.write("\n\nmavlink_map = {\n")
     for m in msgs:
-        outf.write("        MAVLINK_MSG_ID_%s : MAVLink_%s_message,\n" % (
+        outf.write("        MAVLINK_MSG_ID_{} : MAVLink_{}_message,\n".format(
             m.name.upper(), m.name.lower()))
     outf.write("}\n\n")
 
@@ -901,22 +899,22 @@ def generate_methods(outf, msgs):
             if f.enum:
                 field_info += ", values:%s" % f.enum
             field_info += ")"
-            ret += "                %-18s        : %s %s\n" % (f.name, f.description.strip(), field_info)
+            ret += f"                {f.name:<18}        : {f.description.strip()} {field_info}\n"
         return ret
 
     wrapper = textwrap.TextWrapper(initial_indent="", subsequent_indent="                ")
 
     for m in msgs:
-        comment = "%s\n\n%s" % (wrapper.fill(m.description.strip()), field_descriptions(m.fields))
+        comment = f"{wrapper.fill(m.description.strip())}\n\n{field_descriptions(m.fields)}"
 
         selffieldnames = 'self, '
         for i in range(len(m.fields)):
             f = m.fields[i]
             if f.omit_arg:
-                selffieldnames += '%s=%s, ' % (f.name, f.const_value)
+                selffieldnames += f'{f.name}={f.const_value}, '
             elif m.extensions_start is not None and i >= m.extensions_start:
                 fdefault = m.fielddefaults[i]
-                selffieldnames += "%s=%s, " % (f.name, fdefault)
+                selffieldnames += f"{f.name}={fdefault}, "
             else:
                 selffieldnames += '%s, ' % f.name
         selffieldnames = selffieldnames[:-2]

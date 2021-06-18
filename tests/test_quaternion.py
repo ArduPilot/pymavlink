@@ -5,7 +5,6 @@
 Unit tests for the quaternion library
 """
 
-from __future__ import absolute_import, division, print_function
 import unittest
 import numpy as np
 from pymavlink.quaternion import QuaternionBase, Quaternion
@@ -25,7 +24,7 @@ class QuaternionBaseTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(QuaternionBaseTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.quaternions = self._all_quaternions()
 
     def test_constructor(self):
@@ -208,7 +207,7 @@ class QuaternionTest(QuaternionBaseTest):
 
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(QuaternionTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.quaternions = self._all_quaternions()
 
     def _all_quaternions(self):

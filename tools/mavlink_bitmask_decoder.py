@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
 
 from pymavlink import mavutil
 
@@ -17,7 +16,7 @@ def print_decode(messagetype, field, value):
             svalue = "!"
         if name is None:
             name = "[UNKNOWN]"
-        print("%s %s" % (svalue, name))
+        print(f"{svalue} {name}")
 
 
 parser = argparse.ArgumentParser(description=__doc__)

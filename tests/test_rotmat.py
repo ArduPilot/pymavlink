@@ -5,7 +5,6 @@
 Unit tests for the rotmat library
 """
 
-from __future__ import absolute_import, print_function
 from math import radians, degrees
 import unittest
 import random
@@ -21,7 +20,7 @@ class VectorTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(VectorTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
     def test_constructor(self):
@@ -63,7 +62,7 @@ class MatrixTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(MatrixTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def test_constructor(self):
         """Test the constructor functionality"""
@@ -154,7 +153,7 @@ class LinePlaneTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(LinePlaneTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def test_plane(self):
         '''testing line/plane intersection'''

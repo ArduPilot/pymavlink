@@ -15,7 +15,7 @@ import fcntl
 
 from pymavlink import mavutil
 
-class SerialControlToShell(object):
+class SerialControlToShell:
     '''reads SERIAL_CONTROL packets and passes them to a shell, returning textual  results'''
 
     def __init__(self, connection_string, system_id=1, component_id=10):
@@ -68,12 +68,12 @@ class SerialControlToShell(object):
             if select.select([self.shell.stderr, self.shell.stdout],[],[],0)[0] != []:
                 try:
                     self.mixed_output_from_shell += self.shell.stderr.read()
-                except IOError as e:
+                except OSError as e:
                     if e.errno != 11:
                         raise
                 try:
                     self.mixed_output_from_shell += self.shell.stdout.read()
-                except IOError as e:
+                except OSError as e:
                     if e.errno != 11:
                         raise
 

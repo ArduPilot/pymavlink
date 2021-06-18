@@ -3,7 +3,6 @@
 '''
 show times when signal is lost
 '''
-from __future__ import print_function
 
 import time
 
@@ -50,7 +49,7 @@ def sigloss(logfile):
             t = m._timestamp
         if last_t != 0:
             if t - last_t > args.deltat:
-                print("Sig lost for %.1fs at %s" % (t-last_t, time.asctime(time.localtime(t))))
+                print(f"Sig lost for {t-last_t:.1f}s at {time.asctime(time.localtime(t))}")
         last_t = t
 
 total = 0.0

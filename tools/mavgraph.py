@@ -3,9 +3,6 @@
 graph a MAVLink log file
 Andrew Tridgell August 2011
 '''
-from __future__ import print_function
-from builtins import input
-from builtins import range
 
 import datetime
 import matplotlib
@@ -210,7 +207,7 @@ if args.flightmode is not None and args.xaxis:
     sys.exit(1)
 
 if args.flightmode is not None and args.flightmode not in colourmap:
-    print("Unknown flight controller '%s' in specification of --flightmode (choose from %s)" % (args.flightmode, ",".join(colourmap.keys())))
+    print("Unknown flight controller '{}' in specification of --flightmode (choose from {})".format(args.flightmode, ",".join(colourmap.keys())))
     sys.exit(1)
 
 

@@ -5,7 +5,6 @@
 Unit tests for the fgFDM library
 """
 
-from __future__ import print_function
 import unittest
 
 from pymavlink.fgFDM import fgFDMError, fgFDMVariable, fgFDMVariableList, fgFDM
@@ -17,10 +16,10 @@ class fgFDMErrorTest(unittest.TestCase):
     """
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(fgFDMErrorTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         
     def test_constructor(self):
-        ex = fgFDMError("Test Exception {0}".format(1))
+        ex = fgFDMError(f"Test Exception {1}")
         
         assert ex.message == "fgFDMError: Test Exception 1"
 
@@ -30,7 +29,7 @@ class fgFDMVariableTest(unittest.TestCase):
     """
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(fgFDMVariableTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         
     def test_constructor(self):
         """Test the constructor"""
@@ -47,7 +46,7 @@ class fgFDMVariableListTest(unittest.TestCase):
     """
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(fgFDMVariableListTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         
     def test_constructor(self):
         """Test the constructor and adding variables"""
@@ -69,7 +68,7 @@ class fgFDMTest(unittest.TestCase):
     """
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(fgFDMTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         
     def test_constructor(self):
         """Test the constructor"""

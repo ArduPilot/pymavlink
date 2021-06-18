@@ -10,9 +10,7 @@ Instructions for use:
 2. convert binary stream int .pcap file format (see ../examples/mav2pcap.py)
 3. open the pcap file in Wireshark
 '''
-from __future__ import print_function
 
-from builtins import range
 
 import os
 import re

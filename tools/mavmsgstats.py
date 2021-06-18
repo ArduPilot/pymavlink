@@ -53,7 +53,7 @@ def show_stats(logfile):
     print("Total size: %u" % total_size)
     for (name,size) in pairs:
         if size > 0:
-            print("%-4s %.2f%%" % (name, 100.0 * size / total_size))
+            print(f"{name:<4} {100.0 * size / total_size:.2f}%")
 
     print("")
     category_total = 0
@@ -66,7 +66,7 @@ def show_stats(logfile):
                     break
         category_total += total
         if total > 0:
-            print("@%s %.2f%%" % (c, 100.0 * total / total_size))
+            print(f"@{c} {100.0 * total / total_size:.2f}%")
     print("@OTHER %.2f%%" % (100.0 * (total_size-category_total) / total_size))
 
 for filename in args.logs:

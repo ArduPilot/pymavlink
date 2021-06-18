@@ -1,11 +1,8 @@
-
 #!/usr/bin/env python
 # parse and construct FlightGear NET FDM packets
 # Andrew Tridgell, November 2011
 # released under GNU GPL version 2 or later
 
-from builtins import range
-from builtins import object
 import struct, math
 
 class fgFDMError(Exception):
@@ -14,14 +11,14 @@ class fgFDMError(Exception):
         Exception.__init__(self, msg)
         self.message = 'fgFDMError: ' + msg
 
-class fgFDMVariable(object):
+class fgFDMVariable:
     '''represent a single fgFDM variable'''
     def __init__(self, index, arraylength, units):
         self.index   = index
         self.arraylength = arraylength
         self.units = units
 
-class fgFDMVariableList(object):
+class fgFDMVariableList:
     '''represent a list of fgFDM variable'''
     def __init__(self):
         self.vars = {}
@@ -31,7 +28,7 @@ class fgFDMVariableList(object):
         self.vars[varname] = fgFDMVariable(self._nextidx, arraylength, units=units)
         self._nextidx += arraylength
 
-class fgFDM(object):
+class fgFDM:
     '''a flightgear native FDM parser/generator'''
     def __init__(self):
         '''init a fgFDM object'''
@@ -157,7 +154,7 @@ class fgFDM(object):
             return value * self.unitmap[(fromunits,tounits)]
         if (tounits,fromunits) in self.unitmap:
             return value / self.unitmap[(tounits,fromunits)]
-        raise fgFDMError("unknown unit mapping (%s,%s)" % (fromunits, tounits))
+        raise fgFDMError(f"unknown unit mapping ({fromunits},{tounits})")
 
 
     def units(self, varname):

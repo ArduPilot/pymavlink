@@ -13,7 +13,6 @@ hint:
 Copyright Sept 2012 David "Buzz" Bussenschutt
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
 import time
 
@@ -27,11 +26,11 @@ parser.add_argument("dstport", type=int)
 
 args = parser.parse_args()
 
-msrc = mavutil.mavlink_connection('tcp:localhost:{}'.format(args.srcport), planner_format=False,
+msrc = mavutil.mavlink_connection(f'tcp:localhost:{args.srcport}', planner_format=False,
                                   notimestamps=True,
                                   robust_parsing=True)
 
-mdst = mavutil.mavlink_connection('tcp:localhost:{}'.format(args.dstport), planner_format=False,
+mdst = mavutil.mavlink_connection(f'tcp:localhost:{args.dstport}', planner_format=False,
                                   notimestamps=True,
                                   robust_parsing=True)
 

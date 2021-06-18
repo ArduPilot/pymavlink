@@ -4,10 +4,9 @@ MAVLink CRC-16/MCRF4XX code
 Copyright Andrew Tridgell
 Released under GNU LGPL version 3 or later
 '''
-from builtins import object
 
 
-class x25crc(object):
+class x25crc:
     '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
     def __init__(self, buf=None):
         self.crc = 0xffff

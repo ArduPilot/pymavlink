@@ -7,9 +7,6 @@ Released under GNU GPL version 3 or later
 
 Partly based on SDLog2Parser by Anton Babushkin
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
 
 import array
 import math
@@ -53,7 +50,7 @@ FORMAT_TO_STRUCT = {
 def u_ord(c):
 	return ord(c) if sys.version_info.major < 3 else c
 
-class DFFormat(object):
+class DFFormat:
     def __init__(self, type, name, flen, format, columns, oldfmt=None):
         self.type = type
         self.name = null_term(name)
@@ -131,7 +128,7 @@ def to_string(s):
         pass
     try:
         s2 = s.encode('utf-8', 'ignore')
-        x = u"%s" % s2
+        x = "%s" % s2
         return s2
     except Exception:
         pass
@@ -142,7 +139,7 @@ def to_string(s):
             r2 = r + s[0]
             s = s[1:]
             r2 = r2.encode('ascii', 'ignore')
-            x = u"%s" % r2
+            x = "%s" % r2
             r = r2
         except Exception:
             break
@@ -158,7 +155,7 @@ def null_term(str):
     return str
 
 
-class DFMessage(object):
+class DFMessage:
     def __init__(self, fmt, elements, apply_multiplier, parent):
         self.fmt = fmt
         self._elements = elements
@@ -197,7 +194,7 @@ class DFMessage(object):
     def __setattr__(self, field, value):
         '''override field setter'''
         if not field[0].isupper() or not field in self.fmt.colhash:
-            super(DFMessage,self).__setattr__(field, value)
+            super().__setattr__(field, value)
         else:
             i = self.fmt.colhash[field]
             if self.fmt.msg_mults[i] is not None and self._apply_multiplier:
@@ -221,7 +218,7 @@ class DFMessage(object):
                     noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
                 if struct.pack(">d", val) != noisy_nan:
                     val = "qnan"
-            ret += "%s : %s, " % (c, val)
+            ret += f"{c} : {val}, "
             col_count += 1
         if col_count != 0:
             ret = ret[:-2]
@@ -266,13 +263,13 @@ class DFMessage(object):
         '''support indexing, allowing for multi-instance sensors in one message'''
         if self.fmt.instance_field is None:
             raise IndexError()
-        k = '%s[%s]' % (self.fmt.name, str(key))
+        k = f'{self.fmt.name}[{str(key)}]'
         if not k in self._parent.messages:
             raise IndexError()
         return self._parent.messages[k]
 
 
-class DFReaderClock(object):
+class DFReaderClock:
     '''base class for all the different ways we count time in logs'''
 
     def __init__(self):
@@ -454,7 +451,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
         m._timestamp = self.timebase + count/rate
 
 
-class DFReader(object):
+class DFReader:
     '''parse a generic dataflash file'''
     def __init__(self):
         # read the whole file into memory for simplicity
@@ -604,7 +601,7 @@ class DFReader(object):
         self.messages[type] = m
         if m.fmt.instance_field is not None:
             i = m.__getattr__(m.fmt.instance_field)
-            self.messages["%s[%s]" % (type, str(i))] = m
+            self.messages[f"{type}[{str(i)}]"] = m
 
         if self.clock:
             self.clock.message_arrived(m)
@@ -642,7 +639,7 @@ class DFReader(object):
         type can be a string or a list of strings'''
         if type is not None:
             if isinstance(type, str):
-                type = set([type])
+                type = {type}
             elif isinstance(type, list):
                 type = set(type)
         while True:
@@ -675,7 +672,7 @@ class DFReader(object):
         if self._flightmodes is None:
             self._rewind()
             self._flightmodes = []
-            types = set(['MODE'])
+            types = {'MODE'}
             while True:
                 m = self.recv_match(type=types)
                 if m is None:
@@ -700,7 +697,7 @@ class DFReader_binary(DFReader):
     def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        self.filehandle = open(filename, 'r')
+        self.filehandle = open(filename)
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
         self.filehandle.seek(0)
@@ -860,7 +857,7 @@ class DFReader_binary(DFReader):
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
-            type.update(set(['MODE','MSG','PARM','STAT']))
+            type.update({'MODE','MSG','PARM','STAT'})
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -999,7 +996,7 @@ class DFReader_binary(DFReader):
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
-    with open(filename, 'r') as f:
+    with open(filename) as f:
         ret = (f.read(8000).find('FMT,') != -1)
 
     return ret
@@ -1010,7 +1007,7 @@ class DFReader_text(DFReader):
     def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        self.filehandle = open(filename, 'r')
+        self.filehandle = open(filename)
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
         self.filehandle.seek(0, 0)
@@ -1098,7 +1095,7 @@ class DFReader_text(DFReader):
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
             self.type_list = type.copy()
-            self.type_list.update(set(['MODE','MSG','PARM','STAT']))
+            self.type_list.update({'MODE','MSG','PARM','STAT'})
             self.type_list = list(self.type_list)
             self.indexes = []
             self.type_nums = []

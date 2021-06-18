@@ -5,7 +5,6 @@
 regression tests for mavlogdump.py
 """
 
-from __future__ import absolute_import, print_function
 import unittest
 import os
 import pkg_resources
@@ -19,7 +18,7 @@ class MAVLogDumpTest(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         """Constructor, set up some data that is reused in many tests"""
-        super(MAVLogDumpTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def test_dump_same(self):
         """Test dump of file is what we expect"""
@@ -27,7 +26,7 @@ class MAVLogDumpTest(unittest.TestCase):
         test_filepath = pkg_resources.resource_filename(__name__,
                                                         test_filename)
         dump_filename = "tmp.dump"
-        os.system("mavlogdump.py %s >%s" % (test_filepath, dump_filename))
+        os.system(f"mavlogdump.py {test_filepath} >{dump_filename}")
         with open(dump_filename) as f:
             got = f.read()
 

@@ -5,7 +5,6 @@ Parse a MAVLink protocol XML file and generate Swift implementation
 Copyright Max Odnovolyk 2015
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
 
 import os
 from . import mavparse, mavtemplate
@@ -67,7 +66,7 @@ def generate_enums(directory, filelist, xml_list, enums):
     for enum in enums:
         if enum.is_a_bitmask:
             continue
-        filename = "%s%sEnum.swift" % (enum.swift_name, enum.basename)
+        filename = f"{enum.swift_name}{enum.basename}Enum.swift"
         filepath = os.path.join(directory, filename)
         outf = open(filepath, "w")
         generate_header(outf, filelist, xml_list, filename)
@@ -96,7 +95,7 @@ def generate_optionsets(directory, filelist, xml_list, enums):
             continue
         for entry in enum.entry:
             entry.parent_swift_name = enum.swift_name
-        filename = "%s%sOptionSet.swift" % (enum.swift_name, enum.basename)
+        filename = f"{enum.swift_name}{enum.basename}OptionSet.swift"
         filepath = os.path.join(directory, filename)
         outf = open(filepath, "w")
         generate_header(outf, filelist, xml_list, filename)
@@ -135,7 +134,7 @@ def generate_messages(directory, filelist, xml_list, msgs):
     print("Generating Messages")
 
     for msg in msgs:
-        filename = "%s%sMsg.swift" % (msg.swift_name, msg.basename)
+        filename = f"{msg.swift_name}{msg.basename}Msg.swift"
         filepath = os.path.join(directory, filename)
         outf = open(filepath, "w")
         generate_header(outf, filelist, xml_list, filename)
@@ -294,7 +293,7 @@ def generate_enums_type_info(enums, msgs):
                 entry.formatted_description = "\n\t/// " + entry.description + "\n"
 
             all_entities.append(entry.swift_name)
-            entities_info.append('("%s", "%s")' % (entry.name, entry.description.replace('"','\\"')))
+            entities_info.append('("{}", "{}")'.format(entry.name, entry.description.replace('"','\\"')))
 
         enum.all_entities = ", ".join(all_entities)
         enum.entities_info = ", ".join(entities_info)

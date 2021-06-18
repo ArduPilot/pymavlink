@@ -5,8 +5,6 @@ mavlink python utility functions
 Copyright Andrew Tridgell 2011-2019
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import object
 
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
@@ -68,7 +66,7 @@ def evaluate_condition(condition, vars):
 def u_ord(c):
 	return ord(c) if sys.version_info.major < 3 else c
 
-class location(object):
+class location:
     '''represent a GPS coordinate'''
     def __init__(self, lat, lng, alt=0, heading=0):
         self.lat = lat
@@ -77,7 +75,7 @@ class location(object):
         self.heading = heading
 
     def __str__(self):
-        return "lat=%.6f,lon=%.6f,alt=%.1f" % (self.lat, self.lng, self.alt)
+        return f"lat={self.lat:.6f},lon={self.lng:.6f},alt={self.alt:.1f}"
 
 def add_message(messages, mtype, msg):
     '''add a msg to array of messages, taking account of instance messages'''
@@ -90,13 +88,13 @@ def add_message(messages, mtype, msg):
         messages[mtype] = copy.copy(msg)
         messages[mtype]._instances = {}
         messages[mtype]._instances[instance_value] = msg
-        messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
+        messages[f"{mtype}[{str(instance_value)}]"] = copy.copy(msg)
         return
     messages[mtype]._instances[instance_value] = msg
     prev_instances = messages[mtype]._instances
     messages[mtype] = copy.copy(msg)
     messages[mtype]._instances = prev_instances
-    messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
+    messages[f"{mtype}[{str(instance_value)}]"] = copy.copy(msg)
 
 def set_dialect(dialect):
     '''set the MAVLink dialect to work with.
@@ -130,7 +128,7 @@ def set_dialect(dialect):
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
-class mavfile_state(object):
+class mavfile_state:
     '''state for a particular system id'''
     def __init__(self):
         self.messages = { 'MAV' : self }
@@ -146,12 +144,12 @@ class mavfile_state(object):
         else:
             self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
 
-class param_state(object):
+class param_state:
     '''state for a particular system id/component id pair'''
     def __init__(self):
         self.params = {}
 
-class mavfile(object):
+class mavfile:
     '''a generic mavlink port'''
     def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True, use_native=default_native):
         global mavfile_global
@@ -319,7 +317,7 @@ class mavfile(object):
             return True
         try:
             (rin, win, xin) = select.select([self.fd], [], [], timeout)
-        except select.error:
+        except OSError:
             return False
         return len(rin) == 1
 
@@ -1032,7 +1030,7 @@ class mavudp(mavfile):
     def recv(self,n=None):
         try:
             data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
                 return ""
             raise
@@ -1056,7 +1054,7 @@ class mavudp(mavfile):
                     self.resolved_destination_addr = self.destination_addr[0]
                     self.destination_addr = (socket.gethostbyname(self.destination_addr[0]), self.destination_addr[1])
                 self.port.sendto(buf, self.destination_addr)
-        except socket.error:
+        except OSError:
             pass
 
     def recv_msg(self):
@@ -1120,7 +1118,7 @@ class mavmcast(mavfile):
                     (myaddr,self.myport) = self.port_out.getsockname()
                 except Exception:
                     pass
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
                 return ""
             raise
@@ -1132,7 +1130,7 @@ class mavmcast(mavfile):
     def write(self, buf):
         try:
             self.port_out.send(buf)
-        except socket.error as e:
+        except OSError as e:
             pass
 
     def recv_msg(self):
@@ -1214,7 +1212,7 @@ class mavtcp(mavfile):
             n = self.mav.bytes_needed()
         try:
             data = self.port.recv(n)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return ""
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
@@ -1229,13 +1227,13 @@ class mavtcp(mavfile):
         if self.port is None:
             try:
                 self.reconnect()
-            except socket.error as e:
+            except OSError as e:
                 pass
         if self.port is None:
             return
         try:
             self.port.send(buf)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
                 self.handle_disconnect()
             pass
@@ -1285,7 +1283,7 @@ class mavtcpin(mavfile):
             n = self.mav.bytes_needed()
         try:
             data = self.port.recv(n)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return ""
             self.port.close()
@@ -1299,7 +1297,7 @@ class mavtcpin(mavfile):
             return
         try:
             self.port.send(buf)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EPIPE ]:
                 self.port.close()
                 self.port = None
@@ -1392,7 +1390,7 @@ class mavlogfile(mavfile):
     def post_message(self, msg):
         '''add timestamp to message'''
         # read the timestamp
-        super(mavlogfile, self).post_message(msg)
+        super().post_message(msg)
         if self.planner_format:
             self.f.read(1) # trailing newline
         self.timestamp = msg._timestamp
@@ -1505,7 +1503,7 @@ class mavmmaplog(mavlogfile):
                 instance, = struct.unpack('b', b)
                 mname = self.id_to_name[mtype]
                 if mname in self.messages:
-                    self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
+                    self.messages[f"{mname}[{str(instance)}]"] = self.messages[mname]
 
             self.offsets[mtype].append(ofs)
             self.counts[mtype] += 1
@@ -1526,7 +1524,7 @@ class mavmmaplog(mavlogfile):
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
-            type.update(set(['HEARTBEAT','PARAM_VALUE']))
+            type.update({'HEARTBEAT','PARAM_VALUE'})
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1554,7 +1552,7 @@ class mavmmaplog(mavlogfile):
         type can be a string or a list of strings'''
         if type is not None:
             if isinstance(type, str):
-                type = set([type])
+                type = {type}
             elif isinstance(type, list):
                 type = set(type)
         while True:
@@ -1584,7 +1582,7 @@ class mavmmaplog(mavlogfile):
         if self._flightmodes is None:
             self._rewind()
             self._flightmodes = []
-            types = set(['HEARTBEAT'])
+            types = {'HEARTBEAT'}
             while True:
                 m = self.recv_match(type=types)
                 if m is None:
@@ -1730,7 +1728,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                      use_native=use_native,
                      force_connected=force_connected)
 
-class periodic_event(object):
+class periodic_event:
     '''a class for fixed frequency events'''
     def __init__(self, frequency):
         self.frequency = float(frequency)
@@ -1778,7 +1776,7 @@ def all_printable(buf):
             return False
     return True
 
-class SerialPort(object):
+class SerialPort:
     '''auto-detected serial port'''
     def __init__(self, device, description=None, hwid=None):
         self.device = device
@@ -2157,7 +2155,7 @@ def mode_mapping_byname(mav_type):
     mode_map = mode_mapping_bynumber(mav_type)
     if mode_map is None:
         return None
-    inv_map = dict((a, b) for (b, a) in mode_map.items())
+    inv_map = {a: b for (b, a) in mode_map.items()}
     return inv_map
 
 def mode_mapping_bynumber(mav_type):
@@ -2189,7 +2187,7 @@ def mode_string_acm(mode_number):
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
 
-class x25crc(object):
+class x25crc:
     '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
     def __init__(self, buf=''):
         self.crc = 0xffff
@@ -2210,7 +2208,7 @@ class x25crc(object):
             accum = accum & 0xFFFF
         self.crc = accum
 
-class MavlinkSerialPort(object):
+class MavlinkSerialPort:
         '''an object that looks like a serial port, but
         transmits using mavlink SERIAL_CONTROL packets'''
         def __init__(self, portname, baudrate, devnum=0, devbaud=0, timeout=3, debug=0):
@@ -2341,7 +2339,7 @@ def decode_bitmask(messagetype, field, value):
     except KeyError as e:
         raise AttributeError("Did not find specified enumeration (%s)" % enum_name)
 
-    class EnumBitInfo(object):
+    class EnumBitInfo:
         def __init__(self, offset, value, name):
             self.offset = offset
             self.value = value
@@ -2429,13 +2427,13 @@ def dump_message_verbose(f, m):
 
             # and give radians in degrees too:
             if units == "rad":
-                value = "%s%s (%sdeg)" % (value, units, math.degrees(value))
+                value = f"{value}{units} ({math.degrees(value)}deg)"
             elif units == "rad/s":
-                value = "%s%s (%sdeg/s)" % (value, units, math.degrees(value))
+                value = f"{value}{units} ({math.degrees(value)}deg/s)"
             elif units == "rad/s/s":
-                value = "%s%s (%sdeg/s/s)" % (value, units, math.degrees(value))
+                value = f"{value}{units} ({math.degrees(value)}deg/s/s)"
             else:
-                value = "%s%s" % (value, units)
+                value = f"{value}{units}"
         except AttributeError as e:
             # e.g. BAD_DATA
             pass
@@ -2448,7 +2446,7 @@ def dump_message_verbose(f, m):
             display = m.fielddisplays_by_name[fieldname]
             if enum_name is not None and display == "bitmask":
                 bits = decode_bitmask(m.get_type(), fieldname, value)
-                f.write("    %s: %s\n" % (fieldname, value))
+                f.write(f"    {fieldname}: {value}\n")
                 for bit in bits:
                     value = bit.value
                     name = bit.name
@@ -2457,7 +2455,7 @@ def dump_message_verbose(f, m):
                         svalue = "!"
                     if name is None:
                         name = "[UNKNOWN]"
-                    f.write("      %s %s\n" % (svalue, name))
+                    f.write(f"      {svalue} {name}\n")
                 continue
 #            except NameError as e:
 #                pass
@@ -2472,16 +2470,16 @@ def dump_message_verbose(f, m):
             enum_name = m.fieldenums_by_name[fieldname]
             try:
                 enum_value = mavlink.enums[enum_name][value].name
-                value = "%s (%s)" % (value, enum_value)
+                value = f"{value} ({enum_value})"
             except KeyError as e:
-                value = "%s (%s)" % (value, "[UNKNOWN]")
+                value = "{} ({})".format(value, "[UNKNOWN]")
         except AttributeError as e:
             # e.g. BAD_DATA
             pass
         except KeyError as e:
             pass
 
-        f.write("    %s: %s\n" % (fieldname, value))
+        f.write(f"    {fieldname}: {value}\n")
 
 
 if __name__ == '__main__':

@@ -5,10 +5,7 @@ Parse a MAVLink protocol XML file and generate a Java implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
-from builtins import range
-from builtins import object
 
 import os
 from . import mavparse, mavtemplate
@@ -276,7 +273,7 @@ def generate_MAVLinkMessage(directory, xml_list):
     imports = []
 
     for xml in xml_list:
-        importString = "import com.MAVLink.{}.*;".format(xml.basename)
+        importString = f"import com.MAVLink.{xml.basename}.*;"
         imports.append(importString)
 
     xml_list[0].importString = os.linesep.join(imports)
@@ -589,7 +586,7 @@ def copy_fixed_headers(directory, xml):
             print("Not re-creating Messages directory")
         shutil.copy(src, dest)
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 
@@ -687,17 +684,17 @@ def generate_one(basename, xml):
                 f.decode_right = 'm.%s' % (f.name)
                 
                 f.unpackField = ''' 
-        for (int i = 0; i < this.%s.length; i++) {
-            this.%s[i] = payload.get%s();
-        }
-                ''' % (f.name, f.name, mavfmt(f, 1) )
+        for (int i = 0; i < this.{}.length; i++) {{
+            this.{}[i] = payload.get{}();
+        }}
+                '''.format(f.name, f.name, mavfmt(f, 1) )
                 f.packField = '''
-        for (int i = 0; i < %s.length; i++) {
-            packet.payload.put%s(%s[i]);
-        }
-                    ''' % (f.name, mavfmt(f, 1),f.name)
+        for (int i = 0; i < {}.length; i++) {{
+            packet.payload.put{}({}[i]);
+        }}
+                    '''.format(f.name, mavfmt(f, 1),f.name)
                 f.return_type = 'uint16_t'
-                f.get_arg = ', %s *%s' % (f.type, f.name)
+                f.get_arg = f', {f.type} *{f.name}'
                 if f.type == 'char':
 
                     f.c_test_value = '"%s"' % f.test_value
@@ -746,8 +743,8 @@ def generate_one(basename, xml):
                 f.array_const = ''
                 f.decode_left =  '%s' % (f.name)
                 f.decode_right = ''
-                f.unpackField = 'this.%s = payload.get%s();' % (f.name, mavfmt(f, 1))
-                f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1),f.name)
+                f.unpackField = f'this.{f.name} = payload.get{mavfmt(f, 1)}();'
+                f.packField = f'packet.payload.put{mavfmt(f, 1)}({f.name});'
 
                 f.get_arg = ''
                 f.return_type = f.type

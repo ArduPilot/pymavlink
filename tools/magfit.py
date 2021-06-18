@@ -3,8 +3,6 @@
 '''
 fit best estimate of magnetometer offsets
 '''
-from __future__ import print_function
-from builtins import range
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -142,7 +140,7 @@ def magfit(logfile):
         # fit again
         (offsets, field_strength) = fit_data(data)
 
-    print("Final    : %s  field_strength=%6.1f to %6.1f" % (
+    print("Final    : {}  field_strength={:6.1f} to {:6.1f}".format(
         offsets,
         radius(data[0], offsets), radius(data[-1], offsets)))
 

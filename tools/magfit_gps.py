@@ -3,8 +3,6 @@
 '''
 fit best estimate of magnetometer offsets
 '''
-from __future__ import print_function
-from builtins import object
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -19,13 +17,13 @@ args = parser.parse_args()
 from pymavlink import mavutil
 
 
-class vec3(object):
+class vec3:
     def __init__(self, x, y, z):
         self.x = x
         self.y = y
         self.z = z
     def __str__(self):
-        return "%.1f %.1f %.1f" % (self.x, self.y, self.z)
+        return f"{self.x:.1f} {self.y:.1f} {self.z:.1f}"
 
 def heading_error1(parm, data):
     from math import sin, cos, atan2, degrees

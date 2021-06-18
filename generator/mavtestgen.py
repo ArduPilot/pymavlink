@@ -5,8 +5,6 @@ generate a MAVLink test suite
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
 
 import sys
 from argparse import ArgumentParser
@@ -73,7 +71,7 @@ def generate_outputs(mav):
         outf.write("\tmav.%s_send(" % m.name.lower())
         for i in range(0, len(m.fields)):
             f = m.fields[i]
-            outf.write("%s=%s" % (f.name, gen_value(f, i, 'py')))
+            outf.write("{}={}".format(f.name, gen_value(f, i, 'py')))
             if i != len(m.fields)-1:
                 outf.write(",")
         outf.write(")\n")

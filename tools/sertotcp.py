@@ -4,7 +4,6 @@
 map a serial port to an outgoing TCP connection
 Released under GNU GPLv3 or later
 """
-from __future__ import print_function
 
 from argparse import ArgumentParser
 import errno
@@ -50,7 +49,7 @@ while True:
         if b:
             try:
                 tcpsock.send(b)
-            except socket.error:
+            except OSError:
                 tcpsock.close()
                 tcpsock = None
                 continue
@@ -58,7 +57,7 @@ while True:
 
     try:
         b = tcpsock.recv(1000)
-    except socket.error as e:
+    except OSError as e:
         if e.args[0] in [errno.EWOULDBLOCK, errno.EAGAIN]:
             time.sleep(0.02)
             continue

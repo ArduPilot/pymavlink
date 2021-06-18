@@ -5,9 +5,7 @@ parse a MAVLink protocol XML file and generate a Node.js javascript module imple
 Based on original work Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
 
-from builtins import range
 
 import os
 import textwrap
@@ -257,14 +255,14 @@ def generate_classes(outf, msgs, xml):
     def field_descriptions(fields):
         ret = ""
         for f in fields:
-            ret += "                %-18s        : %s (%s)\n" % (f.name, f.description.strip(), f.type)
+            ret += f"                {f.name:<18}        : {f.description.strip()} ({f.type})\n"
         return ret
 
     # now do all the messages
     for m in msgs:
 
         # assemble some strings we'll use later in outputting ..
-        comment = "%s\n\n%s" % (wrapper.fill(m.description.strip()), field_descriptions(m.fields))
+        comment = f"{wrapper.fill(m.description.strip())}\n\n{field_descriptions(m.fields)}"
         selffieldnames = 'self, '
         for f in m.fields:
             selffieldnames += '%s, ' % f.name
@@ -286,7 +284,7 @@ def generate_classes(outf, msgs, xml):
 """ % (comment))
 
         # function signature + declaration
-        outf.write("    %s.messages.%s = function(" % ( get_mavhead(xml), m.name.lower() ) )
+        outf.write(f"    {get_mavhead(xml)}.messages.{m.name.lower()} = function(" )
         outf.write(" ...moreargs ) {\n")
         # passing the dynamic args into the correct attributes, we can call the constructor with or without the 'moreargs'
         outf.write("     [ this.%s ] = moreargs;\n" % " , this.".join(m.fieldnames))
@@ -325,7 +323,7 @@ def generate_classes(outf, msgs, xml):
         outf.write("\n}\n")
 
         # inherit methods from the base message class
-        outf.write("\n%s.messages.%s.prototype = new %s.message;\n" % ( get_mavhead(xml), m.name.lower() ,get_mavhead(xml) ) )
+        outf.write(f"\n{get_mavhead(xml)}.messages.{m.name.lower()}.prototype = new {get_mavhead(xml)}.message;\n" )
 
         orderedfields =    "var orderedfields = [ this." + ", this.".join(m.ordered_fieldnames) + "];";
 
@@ -1062,7 +1060,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
         #var bs = new mavlink20.messages.battery_status(
         outf.write("   if ( verbose == 2 ) console.log('test creating and packing:%s'); \n" % (  m.name.lower() ) )
         outf.write("   if ( verbose == 1) { process.stdout.write('test creating and packing:"+m.name.lower()+"          \\r'); }\n")
-        outf.write("   var test_%s = new %s.messages.%s(); \n" % (  m.name.lower(),get_mavhead(xml), m.name.lower()))
+        outf.write(f"   var test_{m.name.lower()} = new {get_mavhead(xml)}.messages.{m.name.lower()}(); \n")
  
         idx = 0; # test data is in same order as ordered_fieldnames
         for f in m.ordered_fieldnames:
@@ -1120,7 +1118,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
                  #string
                  tdata = '"'+m.test_data[idx]+'"';
 
-            outf.write( "      test_%s.%s = %s;" % ( m.name.lower(),f, tdata) );
+            outf.write( f"      test_{m.name.lower()}.{f} = {tdata};" );
             outf.write(" // fieldtype: %s "%(fieldtype));
             outf.write(" isarray: %s \n"%(_isarray));
             idx=idx+1;

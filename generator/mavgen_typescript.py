@@ -5,7 +5,6 @@ parse a MAVLink protocol XML file and generate a Node.js typescript module imple
 Based on original work Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
 
 import os
 from . import mavtemplate
@@ -30,8 +29,8 @@ def generate_enums(dir, enums):
     for e in enums:
         filename = e.name.replace('_', '-')
         filename = filename.lower()
-        with open('{}/{}.ts'.format(dir, filename), "w") as f:
-            f.write("export enum {} {{\n".format(camelcase(e.name)))
+        with open(f'{dir}/{filename}.ts', "w") as f:
+            f.write(f"export enum {camelcase(e.name)} {{\n")
             for entry in e.entry:
                 f.write(
                     "\t{} = {}, // {}\n".format(entry.name, entry.value, entry.description.rstrip("\r").rstrip("\n")))
@@ -58,13 +57,13 @@ def generate_classes(dir, registry, msgs, xml):
             for i in range(0, len(m.fieldnames)):
                 m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
 
-            with open('{}/{}.ts'.format(dir, filename), "w") as f:
+            with open(f'{dir}/{filename}.ts', "w") as f:
                 if xml.wire_protocol_version == '1.0':
                     raise Exception('WireProtocolException', 'Please use WireProtocol = 2.0 only.')
 
                 f.write("import {MAVLinkMessage} from 'node-mavlink';\n")
                 f.write("import {readInt64LE, readUInt64LE} from 'node-mavlink';\n")
-                registry_f.write("import {{{}}} from './messages/{}';\n".format(camelcase(m.name), filename))
+                registry_f.write(f"import {{{camelcase(m.name)}}} from './messages/{filename}';\n")
                 imported_enums = []
                 for enum in [field.enum for field in m.fields if field.enum != '']:
                     if enum not in imported_enums:
@@ -72,21 +71,21 @@ def generate_classes(dir, registry, msgs, xml):
                                                                              enum.replace('_', '-').lower()))
                         imported_enums.append(enum)
 
-                f.write("/*\n{}\n*/\n".format(m.description.strip()))
+                f.write(f"/*\n{m.description.strip()}\n*/\n")
                 for field in m.fields:
-                    f.write("// {} {} {}\n".format(field.name, field.description.strip(), field.type))
+                    f.write(f"// {field.name} {field.description.strip()} {field.type}\n")
 
-                f.write("export class {} extends MAVLinkMessage {{\n".format(camelcase(m.name)))
+                f.write(f"export class {camelcase(m.name)} extends MAVLinkMessage {{\n")
 
                 for field in m.fields:
                     if field.enum:
-                        f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum)))
+                        f.write(f"\tpublic {field.name}!: {camelcase(field.enum)};\n")
                     else:
-                        f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
+                        f.write(f"\tpublic {field.name}!: {ts_types[field.type]};\n")
 
-                f.write("\tpublic _message_id: number = {};\n".format(m.id))
-                f.write("\tpublic _message_name: string = '{}';\n".format(m.name))
-                f.write("\tpublic _crc_extra: number = {};\n".format(m.crc_extra))
+                f.write(f"\tpublic _message_id: number = {m.id};\n")
+                f.write(f"\tpublic _message_name: string = '{m.name}';\n")
+                f.write(f"\tpublic _crc_extra: number = {m.crc_extra};\n")
 
                 i = 0
                 f.write("\tpublic _message_fields: [string, string, boolean][] = [\n")
@@ -96,7 +95,7 @@ def generate_classes(dir, registry, msgs, xml):
                         extension = 'true'
                     else:
                         extension = 'false'
-                    f.write("\t\t['{}', '{}', {}],\n".format(field.name, field.type, extension))
+                    f.write(f"\t\t['{field.name}', '{field.type}', {extension}],\n")
                     i += 1
                 f.write("\t];\n".format("', '".join(m.ordered_fieldnames)))
 
@@ -106,12 +105,12 @@ def generate_classes(dir, registry, msgs, xml):
             "export const messageRegistry: Array<[number, new (system_id: number, component_id: number) "
             "=> MAVLinkMessage]> = [\n")
         for m in msgs:
-            registry_f.write("\t[{}, {}],\n".format(m.id, camelcase(m.name)))
+            registry_f.write(f"\t[{m.id}, {camelcase(m.name)}],\n")
         registry_f.write("];")
 
 
 def generate_tsconfig(basename):
-    with open('{}/tsconfig.json'.format(basename), "w") as f:
+    with open(f'{basename}/tsconfig.json', "w") as f:
         f.write(
             "{\n  \"compilerOptions\": {\n    \"target\": \"es5\",\n    \"module\": \"commonjs\","
             "\n    \"declaration\": true,\n    \"declarationMap\": true,\n    \"sourceMap\": true,"

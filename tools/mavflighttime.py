@@ -3,7 +3,6 @@
 '''
 work out total flight time for a mavlink log
 '''
-from __future__ import print_function
 
 import time
 import glob
@@ -53,11 +52,11 @@ def flight_time(logfile):
             continue
         t = time.localtime(m._timestamp)
         if groundspeed > args.groundspeed and not in_air:
-            print("In air at %s (percent %.0f%% groundspeed %.1f)" % (time.asctime(t), mlog.percent, groundspeed))
+            print(f"In air at {time.asctime(t)} (percent {mlog.percent:.0f}% groundspeed {groundspeed:.1f})")
             in_air = True
             start_time = time.mktime(t)
         elif groundspeed < args.groundspeed and in_air:
-            print("On ground at %s (percent %.1f%% groundspeed %.1f  time=%.1f seconds)" % (
+            print("On ground at {} (percent {:.1f}% groundspeed {:.1f}  time={:.1f} seconds)".format(
                 time.asctime(t), mlog.percent, groundspeed, time.mktime(t) - start_time))
             in_air = False
             total_time += time.mktime(t) - start_time

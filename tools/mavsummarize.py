@@ -3,8 +3,6 @@
 '''
 Summarize MAVLink logs. Useful for identifying which log is of interest in a large set.
 '''
-from __future__ import print_function
-from builtins import object
 
 import glob
 import time
@@ -22,7 +20,7 @@ from pymavlink import mavutil
 from pymavlink.mavextra import distance_two
 
 
-class Totals(object):
+class Totals:
     def __init__(self):
         self.time = 0
         self.distance = 0
@@ -31,8 +29,8 @@ class Totals(object):
     def print_summary(self):
         print("===============================")
         print("Num Flights : %u" % self.flights)
-        print("Total distance : {:0.2f}m".format(self.distance))
-        print("Total time (mm:ss): {:3.0f}:{:02.0f}".format(self.time / 60, self.time % 60))
+        print(f"Total distance : {self.distance:0.2f}m")
+        print(f"Total time (mm:ss): {self.time / 60:3.0f}:{self.time % 60:02.0f}")
 
 
 totals = Totals()
@@ -51,7 +49,7 @@ def PrintSummary(logfile):
     first_gps_msg = None # The last GPS message received
     true_time = None # Track the first timestamp found that corresponds to a UNIX timestamp
 
-    types = set(['HEARTBEAT', 'GPS_RAW_INT'])
+    types = {'HEARTBEAT', 'GPS_RAW_INT'}
 
     while True:
         m = mlog.recv_match(condition=args.condition, type=types)
@@ -129,7 +127,7 @@ def PrintSummary(logfile):
     # (MAVLink didn't exist until 2009)
     if true_time:
         start_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(true_time))
-        print("Log started at about {}".format(start_time_str))
+        print(f"Log started at about {start_time_str}")
     else:
         print("Warning: No absolute timestamp found in datastream. No starting time can be provided for this log.")
 
@@ -138,17 +136,17 @@ def PrintSummary(logfile):
         first_gps_position = (first_gps_msg.lat / 1e7, first_gps_msg.lon / 1e7)
         last_gps_position = (last_gps_msg.lat / 1e7, last_gps_msg.lon / 1e7)
         print("Travelled from ({0[0]}, {0[1]}) to ({1[0]}, {1[1]})".format(first_gps_position, last_gps_position))
-        print("Total distance : {:0.2f}m".format(total_dist))
+        print(f"Total distance : {total_dist:0.2f}m")
     else:
         print("Warning: No GPS data found, can't give position summary.")
 
     # Print out the rest of the results.
     total_time = timestamp - start_time
-    print("Total time (mm:ss): {:3.0f}:{:02.0f}".format(total_time / 60, total_time % 60))
+    print(f"Total time (mm:ss): {total_time / 60:3.0f}:{total_time % 60:02.0f}")
     # The autonomous time should be good, as a steady HEARTBEAT is required for MAVLink operation
-    print("Autonomous sections: {}".format(autonomous_sections))
+    print(f"Autonomous sections: {autonomous_sections}")
     if autonomous_sections > 0:
-        print("Autonomous time (mm:ss): {:3.0f}:{:02.0f}".format(auto_time / 60, auto_time % 60))
+        print(f"Autonomous time (mm:ss): {auto_time / 60:3.0f}:{auto_time % 60:02.0f}")
 
     totals.time += total_time
     totals.distance += total_dist

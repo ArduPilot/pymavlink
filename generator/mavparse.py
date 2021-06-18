@@ -5,9 +5,6 @@ mavlink python parse functions
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
 
 import errno
 import operator
@@ -32,7 +29,7 @@ class MAVParseError(Exception):
     def __str__(self):
         return self.message
 
-class MAVField(object):
+class MAVField:
     def __init__(self, name, type, print_format, xml, description='', enum='', display='', units='', instance=False):
         self.name = name
         self.name_upper = name.upper()
@@ -122,7 +119,7 @@ class MAVField(object):
             self.test_value = v[:-1]
 
 
-class MAVType(object):
+class MAVType:
     def __init__(self, name, id, linenumber, description=''):
         self.name = name
         self.name_lower = name.lower()
@@ -140,7 +137,7 @@ class MAVType(object):
             return len(self.fields)
         return len(self.fields[:self.extensions_start])
 
-class MAVEnumParam(object):
+class MAVEnumParam:
     def __init__(self, index, description='', label='', units='', enum='', increment='', minValue='', maxValue='', reserved=False, default=''):
         self.index = index
         self.description = description
@@ -162,7 +159,7 @@ class MAVEnumParam(object):
         else:
             self.description = description
 
-class MAVEnumEntry(object):
+class MAVEnumEntry:
     def __init__(self, name, value, description='', end_marker=False, autovalue=False, origin_file='', origin_line=0):
         self.name = name
         self.value = value
@@ -173,7 +170,7 @@ class MAVEnumEntry(object):
         self.origin_file = origin_file
         self.origin_line = origin_line
 
-class MAVEnum(object):
+class MAVEnum:
     def __init__(self, name, linenumber, description='', bitmask=False):
         self.name = name
         self.description = description
@@ -183,7 +180,7 @@ class MAVEnum(object):
         self.linenumber = linenumber
         self.bitmask = bitmask
 
-class MAVXML(object):
+class MAVXML:
     '''parse a mavlink XML file'''
     def __init__(self, filename, wire_protocol_version=PROTOCOL_0_9):
         self.filename = filename
@@ -227,7 +224,7 @@ class MAVXML(object):
             self.allow_extensions = True
         else:
             print("Unknown wire protocol version")
-            print("Available versions are: %s %s" % (PROTOCOL_0_9, PROTOCOL_1_0, PROTOCOL_2_0))
+            print(f"Available versions are: {PROTOCOL_0_9} {PROTOCOL_1_0}")
             raise MAVParseError('Unknown MAVLink wire protocol version %s' % wire_protocol_version)
 
         in_element_list = []
@@ -537,8 +534,8 @@ def check_duplicates(xml):
             for entry in enum.entry:
                 if entry.autovalue is True and "common.xml" not in entry.origin_file:
                     print("Note: An enum value was auto-generated: %s = %u" % (entry.name, entry.value))
-                s1 = "%s.%s" % (enum.name, entry.name)
-                s2 = "%s.%s" % (enum.name, entry.value)
+                s1 = f"{enum.name}.{entry.name}"
+                s2 = f"{enum.name}.{entry.value}"
                 if s1 in enummap or s2 in enummap:
                     print("ERROR: Duplicate enum %s:\n\t%s = %s @ %s:%u\n\t%s" % (
                         "names" if s1 in enummap else "values",

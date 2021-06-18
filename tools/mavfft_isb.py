@@ -3,7 +3,6 @@
 '''
 extract ISBH and ISBD messages from AP_Logging files and produce FFT plots
 '''
-from __future__ import print_function
 
 import numpy
 import os
@@ -33,7 +32,7 @@ def mavfft_fttd(logfile):
     '''display fft for raw ACC data in logfile'''
 
     '''object to store data about a single FFT plot'''
-    class PlotData(object):
+    class PlotData:
         def __init__(self, ffth):
             self.seqno = -1
             self.fftnum = ffth.N
@@ -67,7 +66,7 @@ def mavfft_fttd(logfile):
         def overlap_windows(self, plotdata):
             newplotdata = copy.deepcopy(self)
             if plotdata.tag() != self.tag():
-                print("Invalid FFT data tag (%s vs %s) for window overlap" % (plotdata.tag(), self.tag()))
+                print(f"Invalid FFT data tag ({plotdata.tag()} vs {self.tag()}) for window overlap")
                 return self
             if plotdata.fftnum <= self.fftnum:
                 print("Invalid FFT sequence (%u vs %u) for window overlap" % (plotdata.fftnum, self.fftnum))
@@ -255,9 +254,9 @@ def mavfft_fttd(logfile):
             scale_label="dB "
         if args.fft_output == 'lsd':
             if str(sensor).startswith("Gyro"):
-                pylab.ylabel('LSD $' + scale_label + 'd/s/\sqrt{Hz}$')
+                pylab.ylabel('LSD $' + scale_label + r'd/s/\sqrt{Hz}$')
             else:
-                pylab.ylabel('LSD $' + scale_label + 'm/s^2/\sqrt{Hz}$')
+                pylab.ylabel('LSD $' + scale_label + r'm/s^2/\sqrt{Hz}$')
         else:
             if str(sensor).startswith("Gyro"):
                 pylab.ylabel('PSD $' + scale_label + 'd^2/s^2/Hz$')
@@ -266,9 +265,9 @@ def mavfft_fttd(logfile):
 
         if hntch_mode is not None and hntch_option is not None and batch_mode is not None:
             textstr = '\n'.join((
-                r'%s tracking' % (hntch_mode_names[hntch_mode], ),
-                r'%s notch' % (hntch_option_names[hntch_option], ),
-                r'%s sampling' % (batch_mode_names[batch_mode], )))
+                fr'{hntch_mode_names[hntch_mode]} tracking',
+                fr'{hntch_option_names[hntch_option]} notch',
+                fr'{batch_mode_names[batch_mode]} sampling'))
 
             props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
 

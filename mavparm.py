@@ -1,7 +1,6 @@
 '''
 module for loading/saving sets of mavlink parameters
 '''
-from __future__ import print_function
 
 
 import fnmatch, math, time, struct
@@ -66,7 +65,7 @@ class MAVParmDict(dict):
                     self.__setitem__(name, float(value))
                     break
         if not got_ack:
-            print("timeout setting %s to %f" % (name, vfloat))
+            print(f"timeout setting {name} to {vfloat:f}")
             return False
         return True
 
@@ -81,9 +80,9 @@ class MAVParmDict(dict):
             if p and fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 value = self.__getitem__(p)
                 if isinstance(value, float):
-                    f.write("%-16.16s %f\n" % (p, value))
+                    f.write(f"{p:<16.16} {value:f}\n")
                 else:
-                    f.write("%-16.16s %s\n" % (p, str(value)))
+                    f.write(f"{p:<16.16} {str(value)}\n")
                 count += 1
         f.close()
         if verbose:
@@ -93,9 +92,9 @@ class MAVParmDict(dict):
     def load(self, filename, wildcard='*', mav=None, check=True, use_excludes=True):
         '''load parameters from a file'''
         try:
-            f = open(filename, mode='r')
+            f = open(filename)
         except Exception as e:
-            print("Failed to open file '%s': %s" % (filename, str(e)))
+            print(f"Failed to open file '{filename}': {str(e)}")
             return False
         count = 0
         changed = 0
@@ -123,9 +122,9 @@ class MAVParmDict(dict):
                         count += 1
                         continue
                     if self.mavset(mav, a[0], a[1]):
-                        print("changed %s from %f to %f" % (a[0], old_value, float(a[1])))
+                        print(f"changed {a[0]} from {old_value:f} to {float(a[1]):f}")
                 else:
-                    print("set %s to %f" % (a[0], float(a[1])))
+                    print(f"set {a[0]} to {float(a[1]):f}")
                     self.mavset(mav, a[0], a[1])
                 changed += 1
             else:
@@ -139,7 +138,7 @@ class MAVParmDict(dict):
         return True
 
     def show_param_value(self, name, value):
-        print("%-16.16s %s" % (name, value))
+        print(f"{name:<16.16} {value}")
 
     def show(self, wildcard='*'):
         '''show parameters'''
@@ -160,13 +159,13 @@ class MAVParmDict(dict):
             if not k in other:
                 value = float(self[k])
                 if show_only2:
-                    print("%-16.16s              %12.4f" % (k, value))
+                    print(f"{k:<16.16}              {value:12.4f}")
             elif not k in self:
                 if show_only1:
-                    print("%-16.16s %12.4f" % (k, float(other[k])))
+                    print(f"{k:<16.16} {float(other[k]):12.4f}")
             elif abs(self[k] - other[k]) > self.mindelta:
                 value = float(self[k])
                 if use_tabs:
-                    print("%s\t%.4f\t%.4f" % (k, other[k], value))
+                    print(f"{k}\t{other[k]:.4f}\t{value:.4f}")
                 else:
-                    print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
+                    print(f"{k:<16.16} {other[k]:12.4f} {value:12.4f}")
