@@ -66,6 +66,7 @@ MAVLINK_HELPER void mavlink_reset_channel_status(uint8_t chan)
 	status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 }
 
+#ifndef MAVLINK_NO_SIGN_PACKET
 /**
  * @brief create a signature block for a packet
  */
@@ -98,6 +99,7 @@ MAVLINK_HELPER uint8_t mavlink_sign_packet(mavlink_signing_t *signing,
 	
 	return MAVLINK_SIGNATURE_BLOCK_LEN;
 }
+#endif
 
 /**
  * @brief Trim payload of any trailing zero-populated bytes (MAVLink 2 only).
@@ -114,6 +116,7 @@ MAVLINK_HELPER uint8_t _mav_trim_payload(const char *payload, uint8_t length)
 	return length;
 }
 
+#ifndef MAVLINK_NO_SIGNATURE_CHECK
 /**
  * @brief check a signature block for a packet
  */
@@ -196,6 +199,7 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 	}
 	return true;
 }
+#endif
 
 
 /**
@@ -214,7 +218,11 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 						      mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra)
 {
 	bool mavlink1 = (status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) != 0;
+#ifndef MAVLINK_NO_SIGN_PACKET
 	bool signing = 	(!mavlink1) && status->signing && (status->signing->flags & MAVLINK_SIGNING_FLAG_SIGN_OUTGOING);
+#else
+	bool signing = false;
+#endif
 	uint8_t signature_len = signing? MAVLINK_SIGNATURE_BLOCK_LEN : 0;
         uint8_t header_len = MAVLINK_CORE_HEADER_LEN+1;
 	uint8_t buf[MAVLINK_CORE_HEADER_LEN+1];
@@ -262,6 +270,7 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 
 	msg->checksum = checksum;
 
+#ifndef MAVLINK_NO_SIGN_PACKET
 	if (signing) {
 		mavlink_sign_packet(status->signing,
 				    msg->signature,
@@ -269,7 +278,8 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 				    (const uint8_t *)_MAV_PAYLOAD(msg), msg->len,
 				    (const uint8_t *)_MAV_PAYLOAD(msg)+(uint16_t)msg->len);
 	}
-	
+#endif
+
 	return msg->len + header_len + 2 + signature_len;
 }
 
@@ -782,7 +792,11 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		status->signature_wait--;
 		if (status->signature_wait == 0) {
 			// we have the whole signature, check it is OK
+#ifndef MAVLINK_NO_SIGNATURE_CHECK
 			bool sig_ok = mavlink_signature_check(status->signing, status->signing_streams, rxmsg);
+#else
+			bool sig_ok = true;
+#endif
 			if (!sig_ok &&
 			   	(status->signing->accept_unsigned_callback &&
 			   	 status->signing->accept_unsigned_callback(status, rxmsg->msgid))) {
