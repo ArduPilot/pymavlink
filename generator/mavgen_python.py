@@ -84,24 +84,25 @@ def to_string(s):
     try:
         return s.decode("utf-8")
     except Exception as e:
+        e1 = e
         pass
     try:
-        s2 = s.encode('utf-8', 'ignore')
-        x = u"%s" % s2
+        s2 = s.decode('utf-8', 'ignore')
         return s2
-    except Exception:
+    except Exception as e:
+        e2 = e
         pass
-    # so it's a nasty one. Let's grab as many characters as we can
-    r = ''
+    # so its a nasty one. Let's grab as many characters as we can
     try:
-        for c in s:
-            r2 = r + c
-            r2 = r2.encode('ascii', 'ignore')
-            x = u"%s" % r2
-            r = r2
-    except Exception:
+        s2 = s.decode('ascii', 'ignore')
+    except Exception as e:
+        # in case all conversions have failed print all caught exceptions
+        s2 = ''
+        print(e1)
+        print(e2)
+        print(e)
         pass
-    return r + '_XXX'
+    return s2 + '_XXX'
 
 
 class MAVLink_header(object):
