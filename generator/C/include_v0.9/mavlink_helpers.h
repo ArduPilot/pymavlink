@@ -245,7 +245,6 @@ the headers.
 
 	mavlink_message_t* rxmsg = mavlink_get_channel_buffer(chan); ///< The currently decoded message
 	mavlink_status_t* status = mavlink_get_channel_status(chan); ///< The current decode status
-	int bufferIndex = 0;
 
 	status->msg_received = 0;
 
@@ -381,7 +380,6 @@ the headers.
 		break;
 	}
 
-	bufferIndex++;
 	// If a message has been successfully decoded, check index
 	if (status->msg_received == 1)
 	{
