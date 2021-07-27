@@ -1007,7 +1007,7 @@ class mavserial(mavfile):
 
 class mavudp(mavfile):
     '''a UDP mavlink socket'''
-    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native, timeout=0):
         a = device.split(':')
         if len(a) != 2:
             print("UDP ports must be specified as host:port")
@@ -1026,6 +1026,9 @@ class mavudp(mavfile):
         set_close_on_exec(self.port.fileno())
         self.port.setblocking(0)
         self.last_address = None
+        self.timeout = timeout
+        self.clients = set()
+        self.clients_last_alive = {}
         self.resolved_destination_addr = None
         mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
 
@@ -1039,15 +1042,26 @@ class mavudp(mavfile):
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
                 return ""
             raise
-        if self.udp_server or self.broadcast:
+        if self.udp_server:
+            self.clients.add(new_addr)
+            self.clients_last_alive[new_addr] = time.time()
+        elif self.broadcast:
             self.last_address = new_addr
         return data
 
     def write(self, buf):
         try:
             if self.udp_server:
-                if self.last_address:
-                    self.port.sendto(buf, self.last_address)
+                current_time = time.time()
+                to_remove = set()
+                for address in self.clients:
+                    if len(self.clients) == 1 or self.timeout <= 0 or self.clients_last_alive[address] + self.timeout > current_time:
+                        self.port.sendto(buf, address)
+                    elif len(self.clients) > 1 and len(to_remove) < len(self.clients) - 1:
+                        # we keep always at least 1 client, so we don't break old behavior
+                        to_remove.add(address)
+                        self.clients_last_alive.pop(address)
+                self.clients -= to_remove
             else:
                 if self.last_address and self.broadcast:
                     self.destination_addr = self.last_address
@@ -1648,7 +1662,8 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
                        retries=3, use_native=default_native,
-                       force_connected=False, progress_callback=None, **opts):
+                       force_connected=False, progress_callback=None,
+                       udp_timeout=0, **opts):
     '''open a serial, UDP, TCP or file mavlink connection'''
     global mavfile_global
 
@@ -1668,7 +1683,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
     if device.startswith('tcpin:'):
         return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
     if device.startswith('udpin:'):
-        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native)
+        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native, timeout=udp_timeout)
     if device.startswith('udpout:'):
         return mavudp(device[7:], input=False, source_system=source_system, source_component=source_component, use_native=use_native)
     if device.startswith('udpbcast:'):
