@@ -1956,6 +1956,7 @@ mode_mapping_acm = {
     24 : 'ZIGZAG',
     25 : 'SYSTEMID',
     26 : 'AUTOROTATE',
+    27 : 'AUTO_RTL',
 }
 
 mode_mapping_rover = {
