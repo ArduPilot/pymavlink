@@ -3,9 +3,27 @@
 from builtins import object
 
 from time import sleep
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from pymavlink import mavutil
 mavlink = mavutil.mavlink
+
+
+class WriteLockedFile(object):
+    """ A file with thread-locked writing. """
+    def __init__(self, file):
+        self._base_file = file
+        self._write_lock = Lock()
+        
+    def write(self, *args, **kwargs):
+        with self._write_lock:
+            self._base_file.write(*args, **kwargs)
+    
+    def __getattr__(self, name):
+        return getattr(self._base_file, name)
+    
+    def __dir__(self):
+        return dir(self._base_file) + ["_base_file", "_write_lock"]
+
 
 class mavactive(object):
     """ A class for managing an active mavlink connection. """
@@ -19,8 +37,11 @@ class mavactive(object):
         self.custom_mode = custom_mode
         self.mavlink_version = mavlink_version
         self.heartbeat_period = heartbeat_period
-        self._kill = Event()
         
+        # replace internal file with a thread-safe one
+        self.connection.mav.file = WriteLockedFile(self.connection.mav.file)
+        # set up the kill event and initialise the heartbeat thread
+        self._kill = Event()
         self._birth()
 
     def _birth(self):
