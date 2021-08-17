@@ -93,13 +93,16 @@ def mavgen(opts, args):
             includeadded = False
             for x in xml[:]:
                 for i in x.include:
-                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
+                    if i.startswith("../../external"):
+                        fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
+                    else:
+                        fname = os.path.abspath(os.path.join(opts.message_definitions_path, 'v1.0', i))
                     # Only parse new include files
                     if fname in all_files:
                         continue
                     # Validate XML file with XSD file if possible.
                     if opts.validate:
-                        print("Validating %s" % fname)
+                        print("Validating expand %s" % fname)
                         if not mavgen_validate(fname):
                             print("ERROR Validation of %s failed" % fname)
                             exit(1)
@@ -131,9 +134,9 @@ def mavgen(opts, args):
             #print("\n",x)
             if len(x.include) == 0:
                 done.append(x)
-                #print("\nFile with no includes found (ENDPOINT): %s" % x.filename )
+                print("\nFile with no includes found (ENDPOINT): %s" % x.filename )
         if len(done) == 0:
-            print("\nERROR in includes tree, no base found!")
+            print("\nERROR in includes tree, no base found")
             exit(1)
 
         #print("\n",done)
@@ -143,19 +146,20 @@ def mavgen(opts, args):
         def update_oneiteration():
             initial_done_length = len(done)
             for x in xml:
-                #print("\nCHECK %s" % x.filename)
+                print("\nCHECK %s" % x.filename)
                 if x in done:
-                    #print("  already done, skip")
+                    print("  already done, skip")
                     continue
                 #check if all its includes were already done
                 all_includes_done = True
                 for i in x.include:
-                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
+                    fname = os.path.abspath(os.path.join(opts.message_definitions_path, os.path.dirname(x.filename), i))
                     if fname not in [d.filename for d in done]:
+                        print("  not found: %s" % fname)
                         all_includes_done = False
                         break
                 if not all_includes_done:
-                    #print("  not all includes ready, skip")
+                    print("  not all includes ready, skip")
                     continue
                 #Found file where all includes are done
                 done.append(x)
@@ -163,12 +167,12 @@ def mavgen(opts, args):
                 #now update it with the facts from all it's includes
                 for i in x.include:
                     fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
-                    #print("  include file %s" % i )
+                    print("  include file %s" % i )
                     #Find the corresponding x
                     for ix in xml:
                         if ix.filename != fname:
                             continue
-                        #print("    add %s" % ix.filename )
+                        print("    add %s" % ix.filename )
                         x.message_crcs.update(ix.message_crcs)
                         x.message_lengths.update(ix.message_lengths)
                         x.message_min_lengths.update(ix.message_min_lengths)
@@ -289,35 +293,58 @@ def mavgen(opts, args):
 
 # build all the dialects in the dialects subpackage
 class Opts(object):
-    def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
+    def __init__(self, output, mdef_path, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
+        self.output = output
+        self.message_definitions_path = mdef_path
         self.wire_protocol = wire_protocol
         self.error_limit = error_limit
         self.language = language
-        self.output = output
         self.validate = validate
         self.strict_units = strict_units
 
+class Protocol(object):
+    def __init__(self, major_version, minor_version):
+        self.major_version = major_version
+        self.minor_version = minor_version
 
-def mavgen_python_dialect(dialect, wire_protocol):
+    def get_py_folder(self):
+        return "v{}{}".format(self.major_version, self.minor_version)
+
+    def get_xml_folder(self):
+        return "v1.0"
+        # return "v{}.{}".format(self.major_version, self.minor_version)
+
+all_protocols = {
+    mavparse.PROTOCOL_0_9: Protocol(0, 9),
+    mavparse.PROTOCOL_1_0: Protocol(1, 0),
+    mavparse.PROTOCOL_2_0: Protocol(2, 0)
+}
+
+def touch(fname):
+    if not os.path.exists(fname):
+        open(fname, 'a').close()
+
+def mavgen_python_dialect(dialect, wire_protocol, mdef=None, is_external=False, verbose=False):
     '''generate the python code on the fly for a MAVLink dialect'''
+    if mdef is None:
+        mdef = os.path.join(os.path.dirname(os.path.realpath(__file__)), '', '..', 'message_definitions')
+    external_message_definitions = os.path.join(mdef, '..', 'external', 'dialects')
+    external_dialects = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'external')
+    touch(os.path.exists(os.path.join(external_dialects, '__init__.py')))
+
     dialects = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'dialects')
-    mdef = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'message_definitions')
-    if wire_protocol == mavparse.PROTOCOL_0_9:
-        py = os.path.join(dialects, 'v09', dialect + '.py')
-        xml = os.path.join(dialects, 'v09', dialect + '.xml')
-        if not os.path.exists(xml):
-            xml = os.path.join(mdef, 'v0.9', dialect + '.xml')
-    elif wire_protocol == mavparse.PROTOCOL_1_0:
-        py = os.path.join(dialects, 'v10', dialect + '.py')
-        xml = os.path.join(dialects, 'v10', dialect + '.xml')
-        if not os.path.exists(xml):
-            xml = os.path.join(mdef, 'v1.0', dialect + '.xml')
+
+    protocol = all_protocols[wire_protocol]
+    if is_external:
+        xml = os.path.join(external_message_definitions, dialect + '.xml')
+        py = os.path.join(external_dialects, protocol.get_py_folder(), dialect + '.py')
+        touch(os.path.exists(os.path.join(external_dialects, protocol.get_py_folder(), '__init__.py')))
     else:
-        py = os.path.join(dialects, 'v20', dialect + '.py')
-        xml = os.path.join(dialects, 'v20', dialect + '.xml')
-        if not os.path.exists(xml):
-            xml = os.path.join(mdef, 'v1.0', dialect + '.xml')
-    opts = Opts(py, wire_protocol)
+        xml = os.path.join(mdef, protocol.get_xml_folder(), dialect + '.xml')
+        py = os.path.join(dialects, protocol.get_py_folder(), dialect + '.py')
+        touch(os.path.exists(os.path.join(dialects, protocol.get_py_folder(), '__init__.py')))
+
+    opts = Opts(py, mdef, wire_protocol)
 
     # Python 2 to 3 compatibility
     try:
@@ -327,8 +354,10 @@ def mavgen_python_dialect(dialect, wire_protocol):
 
     # throw away stdout while generating
     stdout_saved = sys.stdout
-    sys.stdout = io.StringIO()
+    if not verbose:
+        sys.stdout = io.StringIO()
     try:
+        print(xml, os.path.relpath(xml))
         xml = os.path.relpath(xml)
         if not mavgen(opts, [xml]):
             sys.stdout = stdout_saved
