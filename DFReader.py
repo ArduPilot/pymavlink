@@ -620,6 +620,8 @@ class DFReader(object):
                 self.mav_type = mavutil.mavlink.MAV_TYPE_ANTENNA_TRACKER
             elif m.Message.find("ArduSub") != -1:
                 self.mav_type = mavutil.mavlink.MAV_TYPE_SUBMARINE
+            elif m.Message.find("Blimp") != -1:
+                self.mav_type = mavutil.mavlink.MAV_TYPE_AIRSHIP
         if type == 'MODE':
             if hasattr(m,'Mode') and isinstance(m.Mode, str):
                 self.flightmode = m.Mode.upper()

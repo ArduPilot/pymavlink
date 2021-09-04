@@ -1996,6 +1996,13 @@ mode_mapping_sub = {
     19: 'MANUAL',
 }
 
+mode_mapping_blimp = {
+    0 : 'LAND',
+    1 : 'MANUAL',
+    2 : 'VELOCITY',
+    3 : 'LOITER',
+}
+
 AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     # copter
     mavlink.MAV_TYPE_HELICOPTER:  mode_mapping_acm,
@@ -2016,6 +2023,8 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     mavlink.MAV_TYPE_ANTENNA_TRACKER: mode_mapping_tracker,
     # sub
     mavlink.MAV_TYPE_SUBMARINE: mode_mapping_sub,
+    # blimp
+    mavlink.MAV_TYPE_AIRSHIP: mode_mapping_blimp,
 }
 
 
