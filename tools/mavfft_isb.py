@@ -30,7 +30,7 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 
-def mavfft_fttd(logfile):
+def mavfft_fttd(logfile, multi_log):
     '''display fft for raw ACC data in logfile'''
 
     '''object to store data about a single FFT plot'''
@@ -254,7 +254,15 @@ def mavfft_fttd(logfile):
             # convert to db if requested
             if args.fft_scale == 'db':
                 psd = 10 * numpy.log10 (psd)
-            pylab.plot(freqmap[sensor], psd, label=axis)
+            # add file name to axis if doing multi-file plot
+            if multi_log:
+                # remove extension and path
+                (log_name, _, _) = logfile.rpartition('.')
+                (_, _, log_name) = log_name.rpartition('/')
+                legend_label = '%s (%s)' % (axis, log_name)
+            else:
+                legend_label = axis
+            pylab.plot(freqmap[sensor], psd, label=legend_label)
         pylab.legend(loc='upper right')
         pylab.xlabel('Hz')
         scale_label=''
@@ -283,7 +291,12 @@ def mavfft_fttd(logfile):
             pylab.text(0.5, 0.95, textstr, fontsize=12,
                 verticalalignment='top', bbox=props, transform=pylab.gca().transAxes)
 
+# auto set option for adding log names to legend label
+multi_log = False
+if len(args.logs) > 1:
+    multi_log = True
+
 for filename in args.logs:
-    mavfft_fttd(filename)
+    mavfft_fttd(filename, multi_log)
 
 pylab.show()
