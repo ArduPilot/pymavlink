@@ -24,6 +24,7 @@ parser.add_argument("--overlap", dest='fft_overlap', default=False, action='stor
 parser.add_argument("--output", dest='fft_output', default='psd', action='store', help="whether to output frequency spectrum information as power or linear spectral density: 'psd' or 'lsd'")
 parser.add_argument("--notch-params", default=False, action='store_true', help="whether to output estimated harmonic notch parameters")
 parser.add_argument("--notch-peak", dest='fft_peak', default=0, action='store', help="peak to select when setting notch parameters")
+parser.add_argument("--axis", dest='axis', default='XYZ', action='store', help="Select which axis to plot default: XYZ")
 
 args = parser.parse_args()
 
@@ -192,6 +193,9 @@ def mavfft_fttd(logfile):
             S2[thing_to_plot.tag()] = numpy.inner(window[thing_to_plot.tag()], window[thing_to_plot.tag()])
 
         for axis in [ "X","Y","Z" ]:
+            # only plot the selected axis
+            if axis not in args.axis:
+                continue
             # normalize data and convert to dps in order to produce more meaningful magnitudes
             if thing_to_plot.sensor_type == 1:
                 d = numpy.array(numpy.degrees(thing_to_plot.data[axis])) / float(thing_to_plot.multiplier)
@@ -226,6 +230,10 @@ def mavfft_fttd(logfile):
         print("Sensor: %s" % str(sensor))
         fig = pylab.figure(str(sensor))
         for axis in [ "X","Y","Z" ]:
+            # only plot the selected axis
+            if axis not in args.axis:
+                continue
+
             # normalize output to averaged PSD
             psd = 2 * (sum_fft[sensor][axis] / counts[sensor]) / (sample_rates[sensor] * S2[sensor])
 
