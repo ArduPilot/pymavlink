@@ -807,7 +807,7 @@ class mavfile(object):
                 0) # param7
 
     def arducopter_disarm(self):
-        '''calibrate pressure'''
+        '''disarm motors (arducopter only)'''
         if self.mavlink10():
             self.mav.command_long_send(
                 self.target_system,  # target_system
