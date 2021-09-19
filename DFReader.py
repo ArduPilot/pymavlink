@@ -242,11 +242,13 @@ class DFMessage(object):
             if is_py2:
                 if isinstance(v,unicode): # NOQA
                     v = str(v)
+                elif isinstance(v, array.array):
+                    v = v.tostring()
             else:
                 if isinstance(v,str):
                     v = bytes(v,'ascii')
-            if isinstance(v, array.array):
-                v = v.tostring()
+                elif isinstance(v, array.array):
+                    v = v.tobytes()
             if mul is not None:
                 v /= mul
                 v = int(round(v))
