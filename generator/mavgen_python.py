@@ -709,7 +709,10 @@ class MAVLink(object):
         def check_signature(self, msgbuf, srcSystem, srcComponent):
             '''check signature on incoming message'''
             if isinstance(msgbuf, array.array):
-                msgbuf = msgbuf.tostring()
+                try:
+                    msgbuf = msgbuf.tostring()
+                except:
+                    msgbuf = msgbuf.tobytes()
             timestamp_buf = msgbuf[-12:-6]
             link_id = msgbuf[-13]
             (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf)
