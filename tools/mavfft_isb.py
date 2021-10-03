@@ -162,7 +162,7 @@ def mavfft_fttd(logfile, multi_log):
     window = {}
     S2 = {}
     hntch_mode_names = { 0:"No", 1:"Throttle", 2:"RPM", 3:"ESC", 4:"FFT"}
-    hntch_option_names = { 0:"Single", 1:"Double", 2:"Dynamic Harmonic", 3:"Double+Dynamic"}
+    hntch_option_names = { 0:"Single", 1:"Double", 2:"Dynamic", 4:"Loop-Rate"}
     batch_mode_names = { 0:"Pre-filter", 1:"Sensor-rate", 2:"Post-filter" }
     fft_peak = int(args.fft_peak)
 
@@ -281,9 +281,15 @@ def mavfft_fttd(logfile, multi_log):
                 pylab.ylabel('PSD $' + scale_label + 'm^2/s^4/Hz$')
 
         if hntch_mode is not None and hntch_option is not None and batch_mode is not None:
+            option_label = ""
+            for hopt in hntch_option_names:
+                if hopt & int(hntch_option) != 0:
+                    if len(option_label) > 0:
+                        option_label += "+"
+                    option_label += hntch_option_names[hopt]
             textstr = '\n'.join((
                 r'%s tracking' % (hntch_mode_names[hntch_mode], ),
-                r'%s notch' % (hntch_option_names[hntch_option], ),
+                r'%s notch' % (option_label, ),
                 r'%s sampling' % (batch_mode_names[batch_mode], )))
 
             props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
