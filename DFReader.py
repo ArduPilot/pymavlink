@@ -181,7 +181,11 @@ class DFMessage(object):
         except Exception:
             raise AttributeError(field)
         if isinstance(self._elements[i], bytes):
-            v = self._elements[i].decode("utf-8")
+            try:
+                v = self._elements[i].decode("utf-8")
+            except UnicodeDecodeError:
+                # try western europe
+                v = self._elements[i].decode("ISO-8859-1")
         else:
             v = self._elements[i]
         if self.fmt.format[i] == 'a':
