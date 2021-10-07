@@ -33,7 +33,7 @@ class MAVParseError(Exception):
         return self.message
 
 class MAVField(object):
-    def __init__(self, name, type, print_format, xml, description='', enum='', display='', units='', instance=False):
+    def __init__(self, name, type, print_format, xml, description='', enum='', display='', units='', instance=False, is_extension=False):
         self.name = name
         self.name_upper = name.upper()
         self.description = description
@@ -45,6 +45,7 @@ class MAVField(object):
         self.const_value = None
         self.print_format = print_format
         self.instance = instance
+        self.is_extension = is_extension
         lengths = {
         'float'    : 4,
         'double'   : 8,
@@ -248,16 +249,18 @@ class MAVXML(object):
             elif in_element == "mavlink.messages.message.extensions":
                 self.message[-1].extensions_start = len(self.message[-1].fields)
             elif in_element == "mavlink.messages.message.field":
-                check_attrs(attrs, ['name', 'type'], 'field')
-                print_format = attrs.get('print_format', None)
-                enum = attrs.get('enum', '')
-                display = attrs.get('display', '')
-                units = attrs.get('units', '')
-                if units:
-                    units = '[' + units + ']'
-                instance = attrs.get('instance', False)
-                new_field = MAVField(attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units, instance=instance)
                 if self.message[-1].extensions_start is None or self.allow_extensions:
+                    check_attrs(attrs, ['name', 'type'], 'field')
+                    print_format = attrs.get('print_format', None)
+                    enum = attrs.get('enum', '')
+                    display = attrs.get('display', '')
+                    units = attrs.get('units', '')
+                    if units:
+                        units = '[' + units + ']'
+                    instance = attrs.get('instance', False)
+                    is_extension = self.message[-1].extensions_start is not None
+                    new_field = MAVField(
+                        attrs['name'], attrs['type'], print_format, self, enum=enum, display=display, units=units, instance=instance, is_extension=is_extension)
                     self.message[-1].fields.append(new_field)
             elif in_element == "mavlink.enums.enum":
                 check_attrs(attrs, ['name'], 'enum')
