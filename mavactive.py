@@ -27,8 +27,9 @@ class WriteLockedFile(object):
 
 class mavactive(object):
     """ A class for managing an active mavlink connection. """
-    def __init__(self, connection, type_=mavlink.MAV_TYPE_GENERIC, autopilot=mavlink.MAV_AUTOPILOT_INVALID, base_mode=0, custom_mode=0,
-                 mavlink_version=0, heartbeat_period=0.95):
+    def __init__(self, connection, type_=mavlink.MAV_TYPE_GENERIC,
+                 autopilot=mavlink.MAV_AUTOPILOT_INVALID, base_mode=0,
+                 custom_mode=0, mavlink_version=0, heartbeat_period=0.95):
         """ Initialises the program state and starts the heartbeat thread. """
         self.connection = connection
         self.type = type_
@@ -48,6 +49,7 @@ class mavactive(object):
         """ Creates and starts the heartbeat thread. """
         self._kill.clear()
         self.heartbeat_thread = Thread(target=self.heartbeat_repeat)
+        self.heartbeat_thread.daemon = True
         self.heartbeat_thread.start()
 
     @property
