@@ -159,6 +159,7 @@ class mavfile(object):
             mavfile_global = self
         self.fd = fd
         self.sysid = 0
+        self.sysid_init = False
         self.param_sysid = (0,0)
         self.address = address
         self.timestamp = 0
@@ -393,21 +394,22 @@ class mavfile(object):
         
         self.timestamp = msg._timestamp
         if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
-            if self.sysid == 0:
+            if not self.sysid_init:
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
+                self.sysid_init = True
             if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-                self.flightmode = mode_string_v10(msg)
-                self.mav_type = msg.type
-                self.base_mode = msg.base_mode
-                self.sysid_state[self.sysid].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+                self.sysid_state[src_system].flightmode = mode_string_v10(msg)
+                self.sysid_state[src_system].mav_type = msg.type
+                self.sysid_state[src_system].base_mode = msg.base_mode
+                self.sysid_state[src_system].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
 
         elif type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
             self.param_state[src_tuple].params[msg.param_id] = msg.param_value
         elif type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
-            self.flightmode = mode_string_v09(msg)
+            self.sysid_state[src_system].flightmode = mode_string_v09(msg)
         elif type == 'GPS_RAW':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 2:
                 self.sysid_state[src_system].messages['HOME'] = msg
@@ -1023,6 +1025,7 @@ class mavudp(mavfile):
         set_close_on_exec(self.port.fileno())
         self.port.setblocking(0)
         self.last_address = None
+        self.last_addresses = []
         self.resolved_destination_addr = None
         mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
 
@@ -1038,13 +1041,15 @@ class mavudp(mavfile):
             raise
         if self.udp_server or self.broadcast:
             self.last_address = new_addr
+            if new_addr not in self.last_addresses:
+                self.last_addresses.append(new_addr)
         return data
 
     def write(self, buf):
         try:
             if self.udp_server:
-                if self.last_address:
-                    self.port.sendto(buf, self.last_address)
+                for addr in self.last_addresses:
+                    self.port.sendto(buf, addr)
             else:
                 if self.last_address and self.broadcast:
                     self.destination_addr = self.last_address
