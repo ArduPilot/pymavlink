@@ -386,6 +386,10 @@ class MAVWPLoader(object):
                     return ret
             if (w.x != 0 or w.y != 0) and self.is_location_command(w.command):
                 ret.append(idx)
+            if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
+                              mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND ]:
+                # stop at landing points
+                return ret
             exc_zones = [mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION,
                          mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION]
             w2 = self.wp(idx+1)
