@@ -1,5 +1,5 @@
 '''
-MAVLink X25 CRC code
+MAVLink CRC-16/MCRF4XX code
 
 Copyright Andrew Tridgell
 Released under GNU LGPL version 3 or later
@@ -8,7 +8,7 @@ from builtins import object
 
 
 class x25crc(object):
-    '''x25 CRC - based on checksum.h from mavlink library'''
+    '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
     def __init__(self, buf=None):
         self.crc = 0xffff
         if buf is not None:
@@ -30,9 +30,11 @@ class x25crc(object):
         '''add in some more bytes'''
         accum = self.crc
         import array
-        bytes = array.array('B')
-        try:
-            bytes.fromstring(buf)
-        except AttributeError:  # Python >= 3.9
-            bytes.frombytes(buf.encode())
-        self.accumulate(bytes)
+        bytes_array = array.array('B')
+        try:  # if buf is bytes
+            bytes_array.frombytes(buf)
+        except TypeError:  # if buf is str
+            bytes_array.frombytes(buf.encode())
+        except AttributeError:  # Python < 3.2
+            bytes_array.fromstring(buf)
+        self.accumulate(bytes_array)

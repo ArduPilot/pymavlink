@@ -3,6 +3,8 @@
 '''
 fit best estimate of magnetometer offsets, diagonals, off-diagonals, cmot and scaling using WMM target
 '''
+# to allow print to file with both python 2 and 3
+from __future__ import print_function
 
 import sys, time, os, math, copy
 
@@ -26,6 +28,8 @@ parser.add_argument("--cmot", action='store_true', help="fit compassmot correcti
 parser.add_argument("--lat", type=float, default=0, help="latitude")
 parser.add_argument("--lon", type=float, default=0, help="longitude")
 parser.add_argument("--att-source", default=None, help="attitude source message")
+parser.add_argument("--save-plot", action='store_true', default=False, help="save plot to .png file")
+parser.add_argument("--save-params", action='store_true', default=False, help="save params to .param file")
 
 parser.add_argument("log", metavar="LOG")
 
@@ -56,22 +60,22 @@ class Correction:
         self.cmot = Vector3(0.0, 0.0, 0.0)
         self.scaling = 1.0
 
-    def show_parms(self):
-        print("COMPASS_OFS%s_X %d" % (mag_idx, int(self.offsets.x)))
-        print("COMPASS_OFS%s_Y %d" % (mag_idx, int(self.offsets.y)))
-        print("COMPASS_OFS%s_Z %d" % (mag_idx, int(self.offsets.z)))
-        print("COMPASS_DIA%s_X %.3f" % (mag_idx, self.diag.x))
-        print("COMPASS_DIA%s_Y %.3f" % (mag_idx, self.diag.y))
-        print("COMPASS_DIA%s_Z %.3f" % (mag_idx, self.diag.z))
-        print("COMPASS_ODI%s_X %.3f" % (mag_idx, self.offdiag.x))
-        print("COMPASS_ODI%s_Y %.3f" % (mag_idx, self.offdiag.y))
-        print("COMPASS_ODI%s_Z %.3f" % (mag_idx, self.offdiag.z))
-        print("COMPASS_MOT%s_X %.3f" % (mag_idx, self.cmot.x))
-        print("COMPASS_MOT%s_Y %.3f" % (mag_idx, self.cmot.y))
-        print("COMPASS_MOT%s_Z %.3f" % (mag_idx, self.cmot.z))
-        print("COMPASS_SCALE%s %.2f" % (mag_idx, self.scaling))
+    def show_parms(self, param_file=None):
+        print("COMPASS_OFS%s_X %d" % (mag_idx, int(self.offsets.x)), file=param_file)
+        print("COMPASS_OFS%s_Y %d" % (mag_idx, int(self.offsets.y)), file=param_file)
+        print("COMPASS_OFS%s_Z %d" % (mag_idx, int(self.offsets.z)), file=param_file)
+        print("COMPASS_DIA%s_X %.3f" % (mag_idx, self.diag.x), file=param_file)
+        print("COMPASS_DIA%s_Y %.3f" % (mag_idx, self.diag.y), file=param_file)
+        print("COMPASS_DIA%s_Z %.3f" % (mag_idx, self.diag.z), file=param_file)
+        print("COMPASS_ODI%s_X %.3f" % (mag_idx, self.offdiag.x), file=param_file)
+        print("COMPASS_ODI%s_Y %.3f" % (mag_idx, self.offdiag.y), file=param_file)
+        print("COMPASS_ODI%s_Z %.3f" % (mag_idx, self.offdiag.z), file=param_file)
+        print("COMPASS_MOT%s_X %.3f" % (mag_idx, self.cmot.x), file=param_file)
+        print("COMPASS_MOT%s_Y %.3f" % (mag_idx, self.cmot.y), file=param_file)
+        print("COMPASS_MOT%s_Z %.3f" % (mag_idx, self.cmot.z), file=param_file)
+        print("COMPASS_SCALE%s %.2f" % (mag_idx, self.scaling), file=param_file)
         if args.cmot:
-            print("COMPASS_MOTCT 2")
+            print("COMPASS_MOTCT 2", file=param_file)
 
 def correct(MAG, BAT, c):
     '''correct a mag sample, returning a Vector3'''
@@ -295,6 +299,10 @@ def magfit(logfile):
             print("Earth field: %s  strength %.0f declination %.1f degrees" % (earth_field, earth_field.length(), declination))
         if msg.get_type() == ATT_NAME:
             ATT = msg
+            # remove IMU sensor to body frame trim offsets to get back to the IMU sensor frame used by the EKFs
+            ATT.Roll  = ATT.Roll  + math.degrees(parameters['AHRS_TRIM_X'])
+            ATT.Pitch = ATT.Pitch + math.degrees(parameters['AHRS_TRIM_Y'])
+            ATT.Yaw   = ATT.Yaw   + math.degrees(parameters['AHRS_TRIM_Z'])
         if msg.get_type() == 'BAT':
             BAT = msg
         if msg.get_type() == mag_msg and ATT is not None:
@@ -393,7 +401,14 @@ def magfit(logfile):
             expected2[axis].append(getattr(ef2, axis))
         x.append(i)
 
-    c.show_parms()
+    if args.save_params:
+        name = args.log.replace('.bin','-magfit-mag-%s.param' % (mag_idx, '1')[mag_idx == ''])
+        print("Saving params to %s" % name)
+        f = open(name, 'w')
+        c.show_parms(f)
+        f.close()
+    else:
+        c.show_parms()
 
     fig, axs = pyplot.subplots(3, 1, sharex=True)
 
@@ -416,7 +431,12 @@ def magfit(logfile):
     axs[2].set_title('Yaw Change (degrees)')
     axs[2].legend(loc='upper left')
 
-    pyplot.show()
+    if args.save_plot:
+        name = args.log.replace('.bin','-magfit-mag-%s.png' % (mag_idx, '1')[mag_idx == ''])
+        print("Saving plot as %s" % name)
+        pyplot.savefig(name)
+    else:
+        pyplot.show()
 
 
 magfit(args.log)

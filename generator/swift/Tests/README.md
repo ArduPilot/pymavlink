@@ -12,7 +12,7 @@ It will generate Swift files for `ardupilotmega.xml` definitions into `MAVLink/M
 Please keep in mind that you will probably need to re-add generated MAVLink swift files to the project as complete list of files depends on specific declarations in xml file. C headers will be compiled as Clang module, so there is no need to add them into Xcode project.
 
 Test suite consists of:
-- `DataExtensionsTests.swift` contains unit tests that cover raw-to-typed values transformations and vise versa (with informative erroring)
+- `DataExtensionsTests.swift` contains unit tests that cover raw-to-typed values transformations and vice versa (with informative erroring)
 - `MAVLinkTests.swift` covers some edge cases of parsing state machine 
 - `CompareWithCImpTests.swift` tests which compare output of Swift library with C on the same raw data input (attached tlog file)
 

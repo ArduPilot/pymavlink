@@ -13,7 +13,7 @@ except LookupError:
 from setuptools import setup, Extension
 import glob, os, shutil, fnmatch, platform, sys
 
-version = '2.4.12'
+version = '2.4.17'
 
 
 def generate_content():
@@ -121,8 +121,11 @@ setup (name = 'pymavlink',
                     'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
                     'Operating System :: OS Independent',
                     'Programming Language :: Python :: 2.7',
-                    'Programming Language :: Python :: 3.5',
-                    'Topic :: Scientific/Engineering'
+                    'Programming Language :: Python :: 3.6',
+                    'Programming Language :: Python :: 3.7',
+                    'Programming Language :: Python :: 3.8',
+                    'Programming Language :: Python :: 3.9',
+                    'Topic :: Scientific/Engineering',
                     ],
        license='LGPLv3',
        package_dir = { 'pymavlink' : '.' },
@@ -136,7 +139,7 @@ setup (name = 'pymavlink',
                                                      'C/include_v2.0/*.h',
                                                      'C/include_v2.0/*.hpp',
                                                      'CPP11/include_v2.0/*.hpp',
-                                                     'CS/common/*.cs',
+                                                     'CS/*.*',
                                                      'swift/*.swift',],
                         'pymavlink'              : ['mavnative/*.h',
                                                     'message_definitions/v*/*.xml']

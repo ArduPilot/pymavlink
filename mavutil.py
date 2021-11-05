@@ -11,6 +11,7 @@ from builtins import object
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 import copy
+import re
 from pymavlink import mavexpression
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
@@ -696,29 +697,7 @@ class mavfile(object):
             return px4_map
         if mav_type is None:
             return None
-        map = None
-        if mav_type in [mavlink.MAV_TYPE_QUADROTOR,
-                        mavlink.MAV_TYPE_HELICOPTER,
-                        mavlink.MAV_TYPE_HEXAROTOR,
-                        mavlink.MAV_TYPE_OCTOROTOR,
-                        mavlink.MAV_TYPE_DODECAROTOR,
-                        mavlink.MAV_TYPE_COAXIAL,
-                        mavlink.MAV_TYPE_TRICOPTER]:
-            map = mode_mapping_acm
-        if mav_type == mavlink.MAV_TYPE_FIXED_WING:
-            map = mode_mapping_apm
-        if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
-            map = mode_mapping_rover
-        if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
-            map = mode_mapping_rover # for the time being
-        if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
-            map = mode_mapping_tracker
-        if mav_type == mavlink.MAV_TYPE_SUBMARINE:
-            map = mode_mapping_sub
-        if map is None:
-            return None
-        inv_map = dict((a, b) for (b, a) in map.items())
-        return inv_map
+        return mode_mapping_byname(mav_type)
 
     def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0):
         '''enter arbitrary mode'''
@@ -894,7 +873,7 @@ class mavfile(object):
                 0) # param7
 
     def arducopter_disarm(self):
-        '''calibrate pressure'''
+        '''disarm motors (arducopter only)'''
         if self.mavlink10():
             self.mav.command_long_send(
                 self.target_system,  # target_system
@@ -1516,7 +1495,11 @@ class mavmmaplog(mavlogfile):
     def rewind(self):
         '''rewind to start of log'''
         self._rewind()
-        
+
+    def close(self):
+        super(mavmmaplog, self).close()
+        self.data_map.close()
+
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
 
@@ -1583,11 +1566,16 @@ class mavmmaplog(mavlogfile):
             if mtype in self.instance_offsets:
                 # populate the messages array with a new instance. This assumes we can get the instance
                 # as a single byte integer
-                self.f.seek(ofs + data_ofs + self.instance_offsets[mtype])
+                instance_field_ofs = ofs + data_ofs + self.instance_offsets[mtype]
+                if instance_field_ofs >= self.data_len:
+                    # truncated log
+                    break
+                self.f.seek(instance_field_ofs)
                 b = self.f.read(1)
                 instance, = struct.unpack('b', b)
                 mname = self.id_to_name[mtype]
-                self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
+                if mname in self.messages:
+                    self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
 
             self.offsets[mtype].append(ofs)
             self.counts[mtype] += 1
@@ -1723,7 +1711,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
                        retries=3, use_native=default_native,
-                       force_connected=False, progress_callback=None):
+                       force_connected=False, progress_callback=None, **opts):
     '''open a serial, UDP, TCP or file mavlink connection'''
     global mavfile_global
 
@@ -1758,6 +1746,26 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         # support dataflash logs
         from pymavlink import DFReader
         m = DFReader.DFReader_binary(device, zero_time_base=zero_time_base, progress_callback=progress_callback)
+        mavfile_global = m
+        return m
+
+    if device.lower().startswith('csv:'):
+        # support CSV logs
+        from pymavlink import CSVReader
+        # special-case for users wanting a : separator:
+        colon_separator_re = ""
+        if re.match(".*separator=::?.*", device):
+            opts["separator"] = ":"
+            device = re.sub(":separator=:", "", device)
+        components = device.split(":")
+        filename = components[1]
+        for nv in components[2:]:
+            (name, value) = nv.split('=')
+            opts[name] = value
+        m = CSVReader.CSVReader(filename,
+                                zero_time_base=zero_time_base,
+                                progress_callback=progress_callback,
+                                **opts)
         mavfile_global = m
         return m
 
@@ -1985,7 +1993,8 @@ mode_mapping_apm = {
     22 : 'QAUTOTUNE',
     23 : 'QACRO',
     24 : 'THERMAL',
-    }
+}
+
 mode_mapping_acm = {
     0 : 'STABILIZE',
     1 : 'ACRO',
@@ -2011,7 +2020,11 @@ mode_mapping_acm = {
     22 : 'FLOWHOLD',
     23 : 'FOLLOW',
     24 : 'ZIGZAG',
+    25 : 'SYSTEMID',
+    26 : 'AUTOROTATE',
+    27 : 'AUTO_RTL',
 }
+
 mode_mapping_rover = {
     0 : 'MANUAL',
     1 : 'ACRO',
@@ -2026,7 +2039,7 @@ mode_mapping_rover = {
     12 : 'SMART_RTL',
     15 : 'GUIDED',
     16 : 'INITIALISING'
-    }
+}
 
 mode_mapping_tracker = {
     0 : 'MANUAL',
@@ -2035,7 +2048,7 @@ mode_mapping_tracker = {
     4 : 'GUIDED',
     10 : 'AUTO',
     16 : 'INITIALISING'
-    }
+}
 
 mode_mapping_sub = {
     0: 'STABILIZE',
@@ -2047,7 +2060,75 @@ mode_mapping_sub = {
     9: 'SURFACE',
     16: 'POSHOLD',
     19: 'MANUAL',
-    }
+}
+
+mode_mapping_blimp = {
+    0 : 'LAND',
+    1 : 'MANUAL',
+    2 : 'VELOCITY',
+    3 : 'LOITER',
+}
+
+AP_MAV_TYPE_MODE_MAP_DEFAULT = {
+    # copter
+    mavlink.MAV_TYPE_HELICOPTER:  mode_mapping_acm,
+    mavlink.MAV_TYPE_TRICOPTER:   mode_mapping_acm,
+    mavlink.MAV_TYPE_QUADROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_HEXAROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_OCTOROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_DECAROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_DODECAROTOR: mode_mapping_acm,
+    mavlink.MAV_TYPE_COAXIAL:     mode_mapping_acm,
+    # plane
+    mavlink.MAV_TYPE_FIXED_WING: mode_mapping_apm,
+    # rover
+    mavlink.MAV_TYPE_GROUND_ROVER: mode_mapping_rover,
+    # boat
+    mavlink.MAV_TYPE_SURFACE_BOAT: mode_mapping_rover, # for the time being
+    # tracker
+    mavlink.MAV_TYPE_ANTENNA_TRACKER: mode_mapping_tracker,
+    # sub
+    mavlink.MAV_TYPE_SUBMARINE: mode_mapping_sub,
+    # blimp
+    mavlink.MAV_TYPE_AIRSHIP: mode_mapping_blimp,
+}
+
+
+try:
+    # Allow for using custom mode maps by importing a JSON dict from
+    # "~/.pymavlink/custom_mode_map.json" and using it to extend the hard-coded
+    # AP_MAV_TYPE_MODE_MAP_DEFAULT dict.
+    from os.path import expanduser
+
+    _custom_mode_map_path = os.path.join("~", ".pymavlink", "custom_mode_map.json")
+    _custom_mode_map_path = expanduser(_custom_mode_map_path)
+    try:
+        with open(_custom_mode_map_path) as f:
+            _json_mode_map = json.load(f)
+    except json.decoder.JSONDecodeError as ex:
+        # inform the user of a malformed custom_mode_map.json
+        print("Error: pymavlink custom mode file ('" + _custom_mode_map_path + "') is not valid JSON.")
+        raise
+    except Exception:
+        # file is not present, fall back to using default map
+        raise
+
+    try:
+        _custom_mode_map = {}
+        for mav_type, mode_map in _json_mode_map.items():
+            # make sure the custom map has the right datatypes
+            _custom_mode_map[int(mav_type)] = { int(mode_num): str(mode_name) for mode_num, mode_name in mode_map.items() }
+    except Exception:
+        # inform the user of invalid custom mode map
+        print("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
+        raise
+
+    AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
+    AP_MAV_TYPE_MODE_MAP.update(_custom_mode_map)
+except Exception:
+    # revert to using default mode map
+    AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
+
 
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
@@ -2153,53 +2234,15 @@ def interpret_px4_mode(base_mode, custom_mode):
 
 def mode_mapping_byname(mav_type):
     '''return dictionary mapping mode names to numbers, or None if unknown'''
-    map = None
-    if mav_type in [mavlink.MAV_TYPE_QUADROTOR,
-                    mavlink.MAV_TYPE_HELICOPTER,
-                    mavlink.MAV_TYPE_HEXAROTOR,
-                    mavlink.MAV_TYPE_OCTOROTOR,
-                    mavlink.MAV_TYPE_COAXIAL,
-                    mavlink.MAV_TYPE_TRICOPTER]:
-        map = mode_mapping_acm
-    if mav_type == mavlink.MAV_TYPE_FIXED_WING:
-        map = mode_mapping_apm
-    if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
-        map = mode_mapping_rover
-    if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
-        map = mode_mapping_rover # for the time being
-    if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
-        map = mode_mapping_tracker
-    if mav_type == mavlink.MAV_TYPE_SUBMARINE:
-        map = mode_mapping_sub
-    if map is None:
+    mode_map = mode_mapping_bynumber(mav_type)
+    if mode_map is None:
         return None
-    inv_map = dict((a, b) for (b, a) in map.items())
+    inv_map = dict((a, b) for (b, a) in mode_map.items())
     return inv_map
 
 def mode_mapping_bynumber(mav_type):
     '''return dictionary mapping mode numbers to name, or None if unknown'''
-    map = None
-    if mav_type in [mavlink.MAV_TYPE_QUADROTOR,
-                    mavlink.MAV_TYPE_HELICOPTER,
-                    mavlink.MAV_TYPE_HEXAROTOR,
-                    mavlink.MAV_TYPE_OCTOROTOR,
-                    mavlink.MAV_TYPE_DODECAROTOR,
-                    mavlink.MAV_TYPE_COAXIAL,
-                    mavlink.MAV_TYPE_TRICOPTER]:
-        map = mode_mapping_acm
-    if mav_type == mavlink.MAV_TYPE_FIXED_WING:
-        map = mode_mapping_apm
-    if mav_type == mavlink.MAV_TYPE_GROUND_ROVER:
-        map = mode_mapping_rover
-    if mav_type == mavlink.MAV_TYPE_SURFACE_BOAT:
-        map = mode_mapping_rover # for the time being
-    if mav_type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
-        map = mode_mapping_tracker
-    if mav_type == mavlink.MAV_TYPE_SUBMARINE:
-        map = mode_mapping_sub
-    if map is None:
-        return None
-    return map
+    return AP_MAV_TYPE_MODE_MAP[mav_type] if mav_type in AP_MAV_TYPE_MODE_MAP else None
 
 
 def mode_string_v10(msg):
@@ -2208,27 +2251,10 @@ def mode_string_v10(msg):
         return interpret_px4_mode(msg.base_mode, msg.custom_mode)
     if not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
         return "Mode(0x%08x)" % msg.base_mode
-    if msg.type in [ mavlink.MAV_TYPE_QUADROTOR, mavlink.MAV_TYPE_HEXAROTOR,
-                     mavlink.MAV_TYPE_OCTOROTOR, mavlink.MAV_TYPE_TRICOPTER,
-                     mavlink.MAV_TYPE_COAXIAL,
-                     mavlink.MAV_TYPE_HELICOPTER ]:
-        if msg.custom_mode in mode_mapping_acm:
-            return mode_mapping_acm[msg.custom_mode]
-    if msg.type == mavlink.MAV_TYPE_FIXED_WING:
-        if msg.custom_mode in mode_mapping_apm:
-            return mode_mapping_apm[msg.custom_mode]
-    if msg.type == mavlink.MAV_TYPE_GROUND_ROVER:
-        if msg.custom_mode in mode_mapping_rover:
-            return mode_mapping_rover[msg.custom_mode]
-    if msg.type == mavlink.MAV_TYPE_SURFACE_BOAT:
-        if msg.custom_mode in mode_mapping_rover:
-            return mode_mapping_rover[msg.custom_mode]
-    if msg.type == mavlink.MAV_TYPE_ANTENNA_TRACKER:
-        if msg.custom_mode in mode_mapping_tracker:
-            return mode_mapping_tracker[msg.custom_mode]
-    if msg.type == mavlink.MAV_TYPE_SUBMARINE:
-        if msg.custom_mode in mode_mapping_sub:
-            return mode_mapping_sub[msg.custom_mode]
+
+    mode_map = mode_mapping_bynumber(msg.type)
+    if mode_map and msg.custom_mode in mode_map:
+        return mode_map[msg.custom_mode]
     return "Mode(%u)" % msg.custom_mode
 
 def mode_string_apm(mode_number):
@@ -2244,7 +2270,7 @@ def mode_string_acm(mode_number):
     return "Mode(%u)" % mode_number
 
 class x25crc(object):
-    '''x25 CRC - based on checksum.h from mavlink library'''
+    '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
     def __init__(self, buf=''):
         self.crc = 0xffff
         self.accumulate(buf)

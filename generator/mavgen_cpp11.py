@@ -36,8 +36,8 @@ TYPE_MAX = {
     'uint64_t' : tmax(64),
 }
 
-# macroses stopwords. Used to replace bad enum entry name.
-MACROSES = {
+# macros stopwords. Used to replace bad enum entry name.
+MACROS = {
     'MIN': 'MIN_',
     'MAX': 'MAX_',
     'NO_DATA': 'NO_DATA_',  # fix uAvionix enum bug
@@ -71,7 +71,7 @@ namespace mavlink {
 namespace ${basename} {
 
 /**
- * Array of msg_entry needed for @p mavlink_parse_char() (trought @p mavlink_get_msg_entry())
+ * Array of msg_entry needed for @p mavlink_parse_char() (through @p mavlink_get_msg_entry())
  */
 constexpr std::array<mavlink_msg_entry_t, ${message_entry_len}> MESSAGE_ENTRIES {{ ${message_entry_array} }};
 
@@ -308,7 +308,7 @@ def enum_remove_prefix(prefix, s):
         sl.insert(0, pl[-1])
 
     ret = '_'.join(sl)
-    return MACROSES.get(ret, ret)
+    return MACROS.get(ret, ret)
 
 
 def fix_int8_t(v):
@@ -330,7 +330,7 @@ def generate_one(basename, xml):
     # work out the included headers
     xml.include_list = []
     for i in xml.include:
-        base = i[:-4]
+        base = os.path.basename(i)[:-4]
         xml.include_list.append(mav_include(base))
 
     # and message metadata array

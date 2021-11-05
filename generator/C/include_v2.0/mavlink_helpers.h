@@ -133,7 +133,8 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
         
 	mavlink_sha256_init(&ctx);
 	mavlink_sha256_update(&ctx, signing->secret_key, sizeof(signing->secret_key));
-	mavlink_sha256_update(&ctx, p, MAVLINK_CORE_HEADER_LEN+1+msg->len);
+	mavlink_sha256_update(&ctx, p, MAVLINK_NUM_HEADER_BYTES);
+	mavlink_sha256_update(&ctx, _MAV_PAYLOAD(msg), msg->len);
 	mavlink_sha256_update(&ctx, msg->ck, 2);
 	mavlink_sha256_update(&ctx, psig, 1+6);
 	mavlink_sha256_final_48(&ctx, signature);
@@ -802,7 +803,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 	}
 
 	bufferIndex++;
-	// If a message has been sucessfully decoded, check index
+	// If a message has been successfully decoded, check index
 	if (status->msg_received == MAVLINK_FRAMING_OK)
 	{
 		//while(status->current_seq != rxmsg->seq)

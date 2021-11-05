@@ -11,11 +11,10 @@ import com.MAVLink.common.msg_radio_status;
 
 /**
  * Storage for MAVLink Packet and Error statistics
- * 
  */
 public class MAVLinkStats /* implements Serializable */{
 
-    public int receivedPacketCount; // total recieved packet count for all sources
+    public int receivedPacketCount; // total received packet count for all sources
 
     public int crcErrorCount;
 
@@ -39,8 +38,7 @@ public class MAVLinkStats /* implements Serializable */{
      * Check the new received packet to see if has lost someone between this and
      * the last packet
      * 
-     * @param packet
-     *            Packet that should be checked
+     * @param packet Packet that should be checked
      */
     public void newPacket(MAVLinkPacket packet) {
         if (ignoreRadioPackets && packet.msgid == msg_radio_status.MAVLINK_MSG_ID_RADIO_STATUS) {
@@ -48,7 +46,7 @@ public class MAVLinkStats /* implements Serializable */{
         }
 
         if (systemStats[packet.sysid] == null) {
-            // only allocate stats for systems that exsist on the network
+            // only allocate stats for systems that exist on the network
             systemStats[packet.sysid] = new SystemStat();
         }
         lostPacketCount += systemStats[packet.sysid].newPacket(packet);
@@ -69,7 +67,9 @@ public class MAVLinkStats /* implements Serializable */{
         systemStats = new SystemStat[256];
     }
 
-    // stat structure for every system id
+    /**
+     * Stat structure for every system id
+     */
     public static class SystemStat {
         public int lostPacketCount; // the lost count for this source
         public int receivedPacketCount;
@@ -84,7 +84,7 @@ public class MAVLinkStats /* implements Serializable */{
         public int newPacket(MAVLinkPacket packet) {
             int newLostPackets = 0;
             if (componentStats[packet.compid] == null) {
-                // only allocate stats for systems that exsist on the network
+                // only allocate stats for systems that exist on the network
                 componentStats[packet.compid] = new ComponentStat();
             }
             newLostPackets = componentStats[packet.compid].newPacket(packet);
@@ -100,7 +100,9 @@ public class MAVLinkStats /* implements Serializable */{
         }
     }
 
-    // stat structure for every system id
+    /**
+     * stat structure for every system id
+     */
     public static class ComponentStat {
         public int lastPacketSeq;
         public int lostPacketCount; // the lost count for this source

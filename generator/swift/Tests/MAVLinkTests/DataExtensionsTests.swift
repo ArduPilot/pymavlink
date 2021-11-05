@@ -132,14 +132,14 @@ class DataExtensionsTests: XCTestCase {
         let data = Data(bytes: [0x60, 0x61, 0x62, 0x0, 0x64, 0x65]) // "`ab\0de"
         let string = try! data.string(at: 1, length: 4)
         
-        XCTAssert(string == "ab", "Expect cutted off by null-termination string")
+        XCTAssert(string == "ab", "Expect cut off by null-termination string")
     }
     
     func testGetStringDidReadExactlyLengthSizedASCIIEncodedStringWithoutNullTermination() {
         let data = Data(bytes: [0x60, 0x61, 0x62, 0x63, 0x64, 0x65]) // "`abcde"
         let string = try! data.string(at: 1, length: 3)
         
-        XCTAssert(string == "abc", "Expect cutted off by length limit string")
+        XCTAssert(string == "abc", "Expect cut off by length limit string")
     }
     
     // MARK: Test enumeration<T: Enumeration>(at offset: Data.Index) throws -> T where T.RawValue: MAVLinkNumber

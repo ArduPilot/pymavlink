@@ -8,6 +8,9 @@ package com.MAVLink.Messages;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Wrapper around {@link ByteBuffer} to represent a MAVLink message payload
+ */
 public class MAVLinkPayload {
 
     private static final byte UNSIGNED_BYTE_MIN_VALUE = 0;
@@ -26,12 +29,9 @@ public class MAVLinkPayload {
     public final ByteBuffer payload;
     public int index;
 
-    public MAVLinkPayload(int payloadSize) {
-       if(payloadSize > MAX_PAYLOAD_SIZE) {
-            payload = ByteBuffer.allocate(MAX_PAYLOAD_SIZE);
-        } else {
-            payload = ByteBuffer.allocate(payloadSize);
-        }
+    public MAVLinkPayload() {
+       // This has to be larger than the received payloadSize since MAVLINK V2 will truncate the payloads to the last non-zero value
+       payload = ByteBuffer.allocate(MAX_PAYLOAD_SIZE);
     }
 
     public ByteBuffer getData() {
@@ -57,10 +57,10 @@ public class MAVLinkPayload {
         return result;
     }
 
-    public short getUnsignedByte(){
+    public short getUnsignedByte() {
         short result = 0;
         result |= payload.get(index + 0) & 0xFF;
-        index+= 1;
+        index += 1;
         return result; 
     }
 
@@ -72,7 +72,7 @@ public class MAVLinkPayload {
         return result;
     }
 
-    public int getUnsignedShort(){
+    public int getUnsignedShort() {
         int result = 0;
         result |= (payload.get(index + 1) & 0xFF) << 8;
         result |= (payload.get(index + 0) & 0xFF);
@@ -90,7 +90,7 @@ public class MAVLinkPayload {
         return result;
     }
 
-    public long getUnsignedInt(){
+    public long getUnsignedInt() {
         long result = 0;
         result |= (payload.get(index + 3) & 0xFFL) << 24;
         result |= (payload.get(index + 2) & 0xFFL) << 16;
@@ -135,13 +135,17 @@ public class MAVLinkPayload {
     public float getFloat() {
         return Float.intBitsToFloat(getInt());
     }
+
+    public double getDouble() {
+        return Double.longBitsToDouble(getLong());
+    }   
     
     public void putByte(byte data) {
         add(data);
     }
 
-    public void putUnsignedByte(short data){
-        if(data < UNSIGNED_BYTE_MIN_VALUE || data > UNSIGNED_BYTE_MAX_VALUE){
+    public void putUnsignedByte(short data) {
+        if (data < UNSIGNED_BYTE_MIN_VALUE || data > UNSIGNED_BYTE_MAX_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned byte: " + data);
         }
 
@@ -153,8 +157,8 @@ public class MAVLinkPayload {
         add((byte) (data >> 8));
     }
 
-    public void putUnsignedShort(int data){
-        if(data < UNSIGNED_SHORT_MIN_VALUE || data > UNSIGNED_SHORT_MAX_VALUE){
+    public void putUnsignedShort(int data) {
+        if (data < UNSIGNED_SHORT_MIN_VALUE || data > UNSIGNED_SHORT_MAX_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned short: " + data);
         }
 
@@ -168,8 +172,8 @@ public class MAVLinkPayload {
         add((byte) (data >> 24));
     }
 
-    public void putUnsignedInt(long data){
-        if(data < UNSIGNED_INT_MIN_VALUE || data > UNSIGNED_INT_MAX_VALUE){
+    public void putUnsignedInt(long data) {
+        if (data < UNSIGNED_INT_MIN_VALUE || data > UNSIGNED_INT_MAX_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned int: " + data);
         }
 
@@ -187,8 +191,8 @@ public class MAVLinkPayload {
         add((byte) (data >> 56));
     }
 
-    public void putUnsignedLong(long data){
-        if(data < UNSIGNED_LONG_MIN_VALUE){
+    public void putUnsignedLong(long data) {
+        if (data < UNSIGNED_LONG_MIN_VALUE) {
             throw new IllegalArgumentException("Value is outside of the range of an unsigned long: " + data);
         }
 
@@ -197,6 +201,10 @@ public class MAVLinkPayload {
 
     public void putFloat(float data) {
         putInt(Float.floatToIntBits(data));
+    }
+
+    public void putDouble(double data) {
+        putLong(Double.doubleToLongBits(data));
     }
 
 }

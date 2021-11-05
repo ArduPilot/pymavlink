@@ -11,12 +11,13 @@
 <!-- definition of attributes -->
 <xs:attribute name="name"> <!-- used in enum,entry,message,field elements -->
 </xs:attribute>
-<xs:attribute name="id" type="xs:unsignedShort"/> <!-- used in message elements -->
+<xs:attribute name="id" type="mavlinkMsgId"/> <!-- used in message elements -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- used in field elements -->
 <xs:attribute name="enum" type="xs:string"/> <!-- used in field,param elements -->
 <xs:attribute name="display" type="xs:string"/> <!-- used in field elements -->
 <xs:attribute name="units" type="SI_Unit"/> <!-- this will get changed on the fly to xs:string if no strict-units command line option is used -->
 <xs:attribute name="instance" type="xs:boolean"/>
+<xs:attribute name="invalid" type="xs:string"/> <!-- used in message field elements -->
 <xs:attribute name="value"> <!-- used in entry elements -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
@@ -26,7 +27,7 @@
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
-<xs:attribute name="default"> <!-- used in field elements -->
+<xs:attribute name="default"> <!-- used in enum field elements -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
         <xs:pattern value="\d{1,10}"/> <!-- base 10 int -->
@@ -63,6 +64,13 @@
   </xs:simpleType>
 </xs:attribute>
 <xs:attribute name="replaced_by" type="xs:string"/> <!-- used in deprecated elements -->
+
+<!-- mavlink message IDs are unsigned 24-bit values. -->
+<xs:simpleType name="mavlinkMsgId" id="mavlinkMsgId">
+  <xs:restriction base="xs:unsignedInt">
+    <xs:maxInclusive value="16777215" id="mavlinkMsgId.maxInclusive"/>
+  </xs:restriction>
+</xs:simpleType>
 
 <xs:simpleType name="SI_Unit">
   <xs:restriction base="xs:string">
@@ -101,7 +109,7 @@
     <xs:enumeration value="deg/2"/>    <!-- degrees/2 required from dagar for HIGH_LATENCY2 message-->
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
-    <xs:enumeration value="cdeg/s"/>     <!-- centidegrees per second -->
+    <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
     <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
     <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
     <xs:enumeration value="rpm"/>      <!-- rotations per minute -->
@@ -124,8 +132,8 @@
     <!-- force -->
     <xs:enumeration value="mG"/>       <!-- milli-G -->
     <!-- mass -->
-    <xs:enumeration value="g"/>       <!-- grams -->
-    <xs:enumeration value="kg"/>      <!-- kilograms -->
+    <xs:enumeration value="g"/>        <!-- grams -->
+    <xs:enumeration value="kg"/>       <!-- kilograms -->
     <!-- pressure -->
     <xs:enumeration value="Pa"/>       <!-- Pascal -->
     <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
@@ -149,6 +157,9 @@
     <xs:enumeration value="dpix"/>     <!-- decipixels -->
     <!-- flow -->
     <xs:enumeration value="g/min"/>    <!-- grams/minute -->
+    <xs:enumeration value="cm^3/min"/> <!-- cubic centimetres/minute -->
+    <!-- volume -->
+    <xs:enumeration value="cm^3"/>     <!-- cubic centimetres -->
   </xs:restriction>
 </xs:simpleType>
 
@@ -213,6 +224,7 @@
         <xs:attribute ref="units" />
         <xs:attribute ref="default" />
         <xs:attribute ref="instance" />
+        <xs:attribute ref="invalid" />
     </xs:complexType>
 </xs:element>
 
