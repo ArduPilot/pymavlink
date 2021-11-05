@@ -1,7 +1,6 @@
-var {mavlink10, MAVLink10Processor} = require('../implementations/mavlink_common_v1.0/mavlink.js'),
-    should = require('should'),
-    sinon = require('sinon'),
-    fs = require('fs');
+var    should = require('should');
+var    sinon = require('sinon');
+var    fs = require('fs');
 
 // Actual data stream taken from APM.
 global.fixtures = global.fixtures || {};
@@ -11,6 +10,7 @@ global.fixtures.serialStream = fs.readFileSync("test/capture.mavlink");
 describe("Generated MAVLink 1.0 protocol handler object", function() {
 
     beforeEach(function() {
+        var {mavlink10, MAVLink10Processor} = require('../implementations/mavlink_common_v1.0/mavlink.js');
         this.m = new MAVLink10Processor();
 
         // Valid heartbeat payload
@@ -109,7 +109,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
         it("returns a bad_data message if a borked message is encountered", function() {
             var b = new Buffer.from([3, 0, 1, 2, 3, 4, 5]); // invalid message
             var message = this.m.parseChar(b);
-            message.should.be.an.instanceof(mavlink10.messages.bad_data);      
+            message.should.be.an.instanceof(mavlink10.messages['bad_data']);      
         });
 
         it("emits a 'message' event, provisioning callbacks with the message", function(done) {
@@ -123,7 +123,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
         it("emits a 'message' event for bad messages, provisioning callbacks with the message", function(done) {
             var b = new Buffer.from([3, 0, 1, 2, 3, 4, 5]); // invalid message
             this.m.on('message', function(message) {
-                message.should.be.an.instanceof(mavlink10.messages.bad_data);
+                message.should.be.an.instanceof(mavlink10.messages['bad_data']);
                 done();
             });
             this.m.parseChar(b);
@@ -132,20 +132,20 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
         it("on bad prefix: cuts-off first char in buffer and returns correct bad data", function() {
             var b = new Buffer.from([3, 0, 1, 2, 3, 4, 5]); // invalid message
             var message = this.m.parseChar(b);
-            message.msgbuf.length.should.be.eql(1);
-            message.msgbuf[0].should.be.eql(3);
+            message._msgbuf.length.should.be.eql(1);
+            message._msgbuf[0].should.be.eql(3);
             this.m.buf.length.should.be.eql(6);
             // should process next char
             message = this.m.parseChar();
-            message.msgbuf.length.should.be.eql(1);
-            message.msgbuf[0].should.be.eql(0);
+            message._msgbuf.length.should.be.eql(1);
+            message._msgbuf[0].should.be.eql(0);
             this.m.buf.length.should.be.eql(5);
         });
 
         it("on bad message: cuts-off message length and returns correct bad data", function() {
             var message = this.m.parseChar(this.completeInvalidMessage);
-            message.msgbuf.length.should.be.eql(8);
-            message.msgbuf.should.be.eql(this.completeInvalidMessage);
+            message._msgbuf.length.should.be.eql(8);
+            message._msgbuf.should.be.eql(this.completeInvalidMessage);
             this.m.buf.length.should.be.eql(0);
         });
 
@@ -159,7 +159,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
         // TODO: there is a option in python: robust_parsing. Maybe we should port this as well.
         // If robust_parsing is off, the following should be tested:
         // - (maybe) not returning subsequent errors for prefix errors
-        // - errors are thrown instead of catched inside
+        // - errors are thrown instead of caught inside
 
         // TODO: add tests for "try hard" parsing when implemented
 
@@ -186,7 +186,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
 
     describe("prefix decoder", function() {
  
-        it("consumes, unretrievably, the first byte of the buffer, if its a bad prefix", function() {
+        it("consumes, unretrievably, the first byte of the buffer, if it's a bad prefix", function() {
 
             var b = new Buffer.from([1, 254]);
             this.m.pushBuffer(b);
@@ -278,9 +278,10 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
 });
 
 
-describe("MAVLink X25CRC Decoder", function() {
+describe("MAVLink CRC-16/MCRF4XX Decoder", function() {
 
     beforeEach(function() {
+        var {mavlink10, MAVLink10Processor} = require('../implementations/mavlink_common_v1.0/mavlink.js');
         // Message header + payload, lacks initial MAVLink flag (FE) and CRC.
         this.heartbeatMessage = new Buffer.from([0x09, 0x03, 0xff , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x06 , 0x08 , 0x00 , 0x00 , 0x03]);
 
@@ -288,7 +289,7 @@ describe("MAVLink X25CRC Decoder", function() {
 
     // This test matches the output directly taken by inspecting what the Python implementation
     // generated for the above packet.
-    it('implements x25crc function', function() {
+    it('implements CRC-16/MCRF4XX function', function() {
             mavlink10.x25Crc(this.heartbeatMessage).should.equal(27276);
     });
 

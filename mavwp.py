@@ -224,7 +224,7 @@ class MAVWPLoader(object):
         mission = mission_pb2.Mission()
         text_format.Merge(file.read(), mission)
         defaults = mission_pb2.Waypoint()
-        # Set defaults (may be overriden in file).
+        # Set defaults (may be overridden in file).
         defaults.current = False
         defaults.autocontinue = True
         defaults.param1 = 0.0
@@ -325,7 +325,7 @@ class MAVWPLoader(object):
         f.close()
 
     def is_location_command(self, cmd):
-        '''see if cmd is a MAV_CMD with a latitide/longitude.
+        '''see if cmd is a MAV_CMD with a latitude/longitude.
         We check if it has Latitude and Longitude params in the right indexes'''
         mav_cmd = mavutil.mavlink.enums['MAV_CMD']
         if not cmd in mav_cmd:
@@ -386,6 +386,10 @@ class MAVWPLoader(object):
                     return ret
             if (w.x != 0 or w.y != 0) and self.is_location_command(w.command):
                 ret.append(idx)
+            if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
+                              mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND ]:
+                # stop at landing points
+                return ret
             exc_zones = [mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION,
                          mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION]
             w2 = self.wp(idx+1)
@@ -434,7 +438,7 @@ class MAVRallyError(Exception):
         self.message = msg
 
 class MAVRallyLoader(object):
-    '''MAVLink Rally points and Rally Land ponts loader'''
+    '''MAVLink Rally points and Rally Land points loader'''
     def __init__(self, target_system=0, target_component=0):
         self.rally_points = []
         self.target_system = target_system
@@ -495,7 +499,7 @@ class MAVRallyLoader(object):
     def set_alt(self, i, alt, break_alt=None, change_time=True):
         '''set rally point altitude(s)'''
         if i < 1 or i > self.rally_count():
-            print("Inavlid rally point number %u" % i)
+            print("Invalid rally point number %u" % i)
             return
         self.rally_points[i-1].alt = int(alt)
         if break_alt is not None:

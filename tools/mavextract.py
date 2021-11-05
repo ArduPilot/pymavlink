@@ -80,7 +80,7 @@ def process(filename):
         if mtype == 'MODE':
             flightmode = mlog.flightmode
 
-        if (isbin or islog) and m.get_type() in ["FMT", "PARM", "CMD"]:
+        if (isbin or islog) and m.get_type() in ["FMT", "PARM", "CMD", "FMTU", "MULT"]:
             file_header += m.get_msgbuf()
         if (isbin or islog) and m.get_type() == 'MSG' and m.Message.startswith("Ardu"):
             file_header += m.get_msgbuf()

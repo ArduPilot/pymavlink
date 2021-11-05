@@ -44,7 +44,8 @@ DEFAULT_STRICT_UNITS = False
 MAXIMUM_INCLUDE_FILE_NESTING = 5
 
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
-supportedLanguages = ["C", "CS", "JavaScript", "TypeScript", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11"]
+# Right now, 'JavaScript' ~= 'JavaScript_Stable', in the future it may be made equivalent to 'JavaScript_NextGen'
+supportedLanguages = ["C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11"]
 
 
 def mavgen(opts, args):
@@ -92,7 +93,7 @@ def mavgen(opts, args):
             includeadded = False
             for x in xml[:]:
                 for i in x.include:
-                    fname = os.path.join(os.path.dirname(x.filename), i)
+                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
                     # Only parse new include files
                     if fname in all_files:
                         continue
@@ -149,7 +150,7 @@ def mavgen(opts, args):
                 #check if all its includes were already done
                 all_includes_done = True
                 for i in x.include:
-                    fname = os.path.join(os.path.dirname(x.filename), i)
+                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
                     if fname not in [d.filename for d in done]:
                         all_includes_done = False
                         break
@@ -161,7 +162,7 @@ def mavgen(opts, args):
                 #print("  all includes ready, add" )
                 #now update it with the facts from all it's includes
                 for i in x.include:
-                    fname = os.path.join(os.path.dirname(x.filename), i)
+                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
                     #print("  include file %s" % i )
                     #Find the corresponding x
                     for ix in xml:
@@ -259,7 +260,10 @@ def mavgen(opts, args):
     elif opts.language == 'cs':
         from . import mavgen_cs
         mavgen_cs.generate(opts.output, xml)
-    elif opts.language == 'javascript':
+    elif (opts.language == 'javascript' ) or ( opts.language == 'javascript_stable' ):
+        from . import mavgen_javascript_stable as mavgen_javascript
+        mavgen_javascript.generate(opts.output, xml)
+    elif opts.language == 'javascript_nextgen':
         from . import mavgen_javascript
         mavgen_javascript.generate(opts.output, xml)
     elif opts.language == 'typescript':
