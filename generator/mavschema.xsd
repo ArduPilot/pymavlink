@@ -208,6 +208,7 @@
         <xs:sequence>
             <xs:element ref="description" minOccurs="0"/>
         </xs:sequence>
+        <xs:attribute ref="since" />
     </xs:complexType>
 </xs:element>
 
