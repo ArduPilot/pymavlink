@@ -254,7 +254,10 @@
 <xs:element name="enum">
     <xs:complexType>
         <xs:sequence>
-            <xs:element ref="deprecated" minOccurs="0" maxOccurs="1"/>
+            <xs:choice minOccurs="0" maxOccurs="1">
+                <xs:element ref="deprecated"/>
+                <xs:element ref="wip"/>
+            </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
             <xs:element ref="entry" maxOccurs="unbounded"/>
         </xs:sequence>
