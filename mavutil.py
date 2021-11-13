@@ -137,6 +137,7 @@ class mavfile_state(object):
         self.flightmode = "UNKNOWN"
         self.vehicle_type = "UNKNOWN"
         self.mav_type = mavlink.MAV_TYPE_FIXED_WING
+        self.mav_autopilot = mavlink.MAV_AUTOPILOT_GENERIC
         self.base_mode = 0
         self.armed = False # canonical arm state for the vehicle as a whole
 
@@ -401,6 +402,8 @@ class mavfile(object):
                 self.mav_type = msg.type
                 self.base_mode = msg.base_mode
                 self.sysid_state[self.sysid].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+                self.sysid_state[self.sysid].mav_type = msg.type
+                self.sysid_state[self.sysid].mav_autopilot = msg.autopilot
 
         elif type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
@@ -625,8 +628,8 @@ class mavfile(object):
 
     def mode_mapping(self):
         '''return dictionary mapping mode names to numbers, or None if unknown'''
-        mav_type = self.field('HEARTBEAT', 'type', self.mav_type)
-        mav_autopilot = self.field('HEARTBEAT', 'autopilot', None)
+        mav_type = self.sysid_state[self.sysid].mav_type
+        mav_autopilot = self.sysid_state[self.sysid].mav_autopilot
         if mav_autopilot == mavlink.MAV_AUTOPILOT_PX4:
             return px4_map
         if mav_type is None:
