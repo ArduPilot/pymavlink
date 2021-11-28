@@ -316,7 +316,7 @@ def mavgen_python_dialect(dialect, wire_protocol):
         py = os.path.join(dialects, 'v20', dialect + '.py')
         xml = os.path.join(dialects, 'v20', dialect + '.xml')
         if not os.path.exists(xml):
-            xml = os.path.join(mdef, 'v1.0', dialect + '.xml')
+            xml = os.path.join(mdef, 'v2.0', dialect + '.xml')
     opts = Opts(py, wire_protocol)
 
     # Python 2 to 3 compatibility
