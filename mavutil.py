@@ -1320,6 +1320,8 @@ class mavtcp(mavfile):
                 self.port.close()
                 self.port = None
             self.do_connect()
+        else:
+            sys.exit(0)
 
 
 class mavtcpin(mavfile):
