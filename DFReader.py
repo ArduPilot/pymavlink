@@ -180,6 +180,9 @@ class DFMessage(object):
             i = self.fmt.colhash[field]
         except Exception:
             raise AttributeError(field)
+        if self.fmt.msg_fmts[i] == 'Z' and self.fmt.name == 'FILE':
+            # special case for FILE contens as bytes
+            return self._elements[i]
         if isinstance(self._elements[i], bytes):
             try:
                 v = self._elements[i].decode("utf-8")
