@@ -56,12 +56,12 @@ def generate_content():
             print("No XML message definitions found")
             sys.exit(1)
 
-        dialects = [
+        protocol_versions = [
             (v10_dialects, 'v10', '1.0'),
             (v20_dialects, 'v20', '2.0')
         ]
 
-        for xml_files, dialect_version_path, protocol in dialects:
+        for xml_files, protocol_path, protocol in protocol_versions:
 
             if should_generate_external_dialects:
                 xml_files += external_dialects
@@ -73,7 +73,7 @@ def generate_content():
                     continue
                 print("Building %s for protocol %s" % (xml, protocol))
                 args = Namespace(
-                    output=os.path.join(dialects_path, dialect_version_path, dialect),
+                    output=os.path.join(dialects_path, protocol_path, dialect),
                     language="python",
                     wire_protocol=protocol,
                     definitions=[xml],
