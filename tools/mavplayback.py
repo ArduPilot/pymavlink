@@ -238,7 +238,7 @@ class App(object):
             self.fdm.set('rpm',           msg.chan3_scaled*0.01)
 
         if msg.get_type() == 'STATUSTEXT':
-            print("APM: %s" % msg.text)
+            print("AP: %s" % msg.text)
 
         if msg.get_type() == 'SYS_STATUS':
             self.flightmode.configure(text=self.mlog.flightmode)
