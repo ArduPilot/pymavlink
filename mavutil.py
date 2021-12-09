@@ -2210,13 +2210,13 @@ def mode_string_v10(msg):
     return "Mode(%u)" % msg.custom_mode
 
 def mode_string_apm(mode_number):
-    '''return mode string for APM:Plane'''
+    '''return mode string for ArduPlane'''
     if mode_number in mode_mapping_apm:
         return mode_mapping_apm[mode_number]
     return "Mode(%u)" % mode_number
 
 def mode_string_acm(mode_number):
-    '''return mode string for APM:Copter'''
+    '''return mode string for ArduCopter'''
     if mode_number in mode_mapping_acm:
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
