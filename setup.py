@@ -46,7 +46,7 @@ def generate_content():
     # for now v2.0 uses same XML files as v1.0
     v20_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
 
-    external_dialects = glob.glob(os.path.join(mdef_path, '..', 'external', 'dialects', '*.xml'))
+    external_dialects = glob.glob(os.path.join(mdef_path, '..', 'external', 'dialects', '**', '*.xml'), recursive=True)
 
     should_generate = not "NOGEN" in os.environ
     should_generate_external_dialects = not "NOGEN_EXTERNAL_DIALECTS" in os.environ
