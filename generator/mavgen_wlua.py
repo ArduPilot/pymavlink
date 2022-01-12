@@ -68,7 +68,7 @@ def generate_preamble(outf):
     print("Generating preamble")
     t.write(outf, 
 """
--- Wireshark dissector for the MAVLink protocol (please see http://qgroundcontrol.org/mavlink/start for details) 
+-- Wireshark dissector for the MAVLink protocol (please see https://mavlink.io/en for details)
 
 unknownFrameBeginOffset = 0
 local bit = require "bit32"

@@ -21,7 +21,7 @@ def generate_mavlink(directory, xml):
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created on ${parse_time} by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 #import "MVMessage.h"
@@ -84,7 +84,7 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 #import "MVMavlink.h"
@@ -122,7 +122,7 @@ def generate_base_message(directory, xml):
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 #import "mavlink.h"
@@ -164,7 +164,7 @@ def generate_base_message(directory, xml):
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 #import "MVMessage.h"
@@ -237,7 +237,7 @@ def generate_message_definitions_h(directory, xml):
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 ${{message:#import "MVMessage${name_camel_case}.h"
@@ -254,7 +254,7 @@ def generate_message(directory, m):
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 #import "MVMessage.h"
@@ -282,7 +282,7 @@ ${{fields://! ${description}
 //  MAVLink communications protocol built from ${basename}.xml
 //
 //  Created by mavgen_objc.py
-//  http://qgroundcontrol.org/mavlink
+//  https://mavlink.io/en/
 //
 
 #import "MVMessage${name_camel_case}.h"
