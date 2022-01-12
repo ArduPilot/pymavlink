@@ -702,7 +702,7 @@ public class MAVLink {
 /// Contains additional to Message info like channel, system id, component id
 /// and raw payload data, etc. Also used to store and transfer received data of
 /// unknown or corrupted Messages.
-/// [More details](http://qgroundcontrol.org/mavlink/start).
+/// [More details](https://mavlink.io/en).
 public class Packet {
     
     /// MAVlink Packet constants

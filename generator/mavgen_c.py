@@ -418,7 +418,7 @@ def generate_testsuite_h(directory, xml):
     t.write(f, '''
 /** @file
  *    @brief MAVLink comm protocol testsuite generated from ${basename}.xml
- *    @see http://qgroundcontrol.org/mavlink/
+ *    @see https://mavlink.io/en/
  */
 #pragma once
 #ifndef ${basename_upper}_TESTSUITE_H
