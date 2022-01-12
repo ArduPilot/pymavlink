@@ -13,8 +13,12 @@ MAVLINK_HELPER const mavlink_message_info_t *mavlink_get_message_info_by_id(uint
 	  use a bisection search to find the right entry. A perfect hash may be better
 	  Note that this assumes the table is sorted with primary key msgid
 	*/
-        uint32_t low=0, high=sizeof(mavlink_message_info)/sizeof(mavlink_message_info[0]);
-        while (low < high) {
+        const uint32_t count = sizeof(mavlink_message_info)/sizeof(mavlink_message_info[0]);
+        if (count == 0) {
+            return NULL;
+        }
+        uint32_t low=0, high=count-1;
+        while (low <= high) {
             uint32_t mid = (low+1+high)/2;
             if (msgid < mavlink_message_info[mid].msgid) {
                 high = mid-1;
@@ -51,8 +55,12 @@ MAVLINK_HELPER const mavlink_message_info_t *mavlink_get_message_info_by_name(co
 	  use a bisection search to find the right entry. A perfect hash may be better
 	  Note that this assumes the table is sorted with primary key name
 	*/
-        uint32_t low=0, high=sizeof(mavlink_message_names)/sizeof(mavlink_message_names[0]);
-        while (low < high) {
+        const uint32_t count = sizeof(mavlink_message_names)/sizeof(mavlink_message_names[0]);
+        if (count == 0) {
+            return NULL;
+        }
+        uint32_t low=0, high=count-1;
+        while (low <= high) {
             uint32_t mid = (low+1+high)/2;
 	    int cmp = strcmp(mavlink_message_names[mid].name, name);
 	    if (cmp == 0) {
