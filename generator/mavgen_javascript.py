@@ -988,8 +988,10 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
 def generate_footer(outf, xml):
     t.write(outf, """
 
-// Expose this code as a module
-module.exports = {${MAVHEAD}, ${MAVPROCESSOR}};
+// allow loading as both common.js (Node), and/or vanilla javascript in-browser
+if(typeof module === "object" && module.exports) {
+    module.exports = {${MAVHEAD}, ${MAVPROCESSOR}};
+}
 
 """, {'MAVHEAD': get_mavhead(xml), 'MAVPROCESSOR': get_mavprocessor(xml)})
 
