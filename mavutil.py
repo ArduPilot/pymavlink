@@ -404,6 +404,17 @@ class mavfile(object):
                 self.sysid_state[self.sysid].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
                 self.sysid_state[self.sysid].mav_type = msg.type
                 self.sysid_state[self.sysid].mav_autopilot = msg.autopilot
+        elif type == 'HIGH_LATENCY2':
+            if self.sysid == 0:
+                # lock onto id tuple of first vehicle heartbeat
+                self.sysid = src_system
+            self.flightmode = mode_string_v10(msg)
+            self.mav_type = msg.type
+            if msg.autopilot == mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA:
+                self.base_mode = msg.custom0
+                self.sysid_state[self.sysid].armed = (msg.custom0 & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            self.sysid_state[self.sysid].mav_type = msg.type
+            self.sysid_state[self.sysid].mav_autopilot = msg.autopilot
 
         elif type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
@@ -2201,7 +2212,7 @@ def mode_string_v10(msg):
     '''mode string for 1.0 protocol, from heartbeat'''
     if msg.autopilot == mavlink.MAV_AUTOPILOT_PX4:
         return interpret_px4_mode(msg.base_mode, msg.custom_mode)
-    if not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
+    if msg.get_type() != 'HIGH_LATENCY2' and not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
         return "Mode(0x%08x)" % msg.base_mode
 
     mode_map = mode_mapping_bynumber(msg.type)
