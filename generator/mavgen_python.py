@@ -316,6 +316,7 @@ def generate_message_ids(outf, msgs):
     print("Generating message IDs")
     outf.write("\n# message IDs\n")
     outf.write("MAVLINK_MSG_ID_BAD_DATA = -1\n")
+    outf.write("MAVLINK_MSG_ID_UNKNOWN = -2\n")
     for m in msgs:
         outf.write("MAVLINK_MSG_ID_%s = %u\n" % (m.name.upper(), m.id))
 
@@ -513,6 +514,21 @@ class MAVLink_bad_data(MAVLink_message):
         def __str__(self):
             '''Override the __str__ function from MAVLink_messages because non-printable characters are common in to be the reason for this message to exist.'''
             return '%s {%s, data:%s}' % (self._type, self.reason, [('%x' % ord(i) if isinstance(i, str) else '%x' % i) for i in self.data])
+
+class MAVLink_unknown(MAVLink_message):
+        '''
+        a message that we don't have in the XML used when built
+        '''
+        def __init__(self, msgid, data):
+                MAVLink_message.__init__(self, MAVLINK_MSG_ID_UNKNOWN, 'UNKNOWN_%u' % msgid)
+                self._fieldnames = ['data']
+                self.data = data
+                self._msgbuf = data
+                self._instance_field = None
+
+        def __str__(self):
+            '''Override the __str__ function from MAVLink_messages because non-printable characters are common.'''
+            return '%s {data:%s}' % (self._type, [('%x' % ord(i) if isinstance(i, str) else '%x' % i) for i in self.data])
 
 class MAVLinkSigning(object):
     '''MAVLink signing state class'''
@@ -784,7 +800,7 @@ class MAVLink(object):
                     raise MAVError('invalid MAVLink message length. Got %u expected %u, msgId=%u headerlen=%u' % (len(msgbuf)-(headerlen+2+signature_len), mlen, msgId, headerlen))
 
                 if not mapkey in mavlink_map:
-                    raise MAVError('unknown MAVLink message ID %s' % str(mapkey))
+                    return MAVLink_unknown(msgId, msgbuf)
 
                 # decode the payload
                 type = mavlink_map[mapkey]
