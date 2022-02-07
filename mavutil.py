@@ -1956,6 +1956,7 @@ mode_mapping_apm = {
     22 : 'QAUTOTUNE',
     23 : 'QACRO',
     24 : 'THERMAL',
+    25 : 'LOITERALTQLAND',
 }
 
 mode_mapping_acm = {
