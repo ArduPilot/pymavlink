@@ -14,6 +14,8 @@ import copy
 import re
 from pymavlink import mavexpression
 
+is_py3 = sys.version_info >= (3,0)
+
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
@@ -66,7 +68,9 @@ def evaluate_condition(condition, vars):
     return v
 
 def u_ord(c):
-	return ord(c) if sys.version_info.major < 3 else c
+    if is_py3:
+        return c
+    return ord(c)
 
 class location(object):
     '''represent a GPS coordinate'''
@@ -457,7 +461,10 @@ class mavfile(object):
 
             if numnew != 0:
                 if self.logfile_raw:
-                    self.logfile_raw.write(str(s))
+                    if is_py3:
+                        self.logfile_raw.write(s)
+                    else:
+                        self.logfile_raw.write(str(s))
                 if self.first_byte:
                     self.auto_mavlink_version(s)
 
@@ -467,7 +474,10 @@ class mavfile(object):
             if msg:
                 if self.logfile and  msg.get_type() != 'BAD_DATA' :
                     usec = int(time.time() * 1.0e6) & ~3
-                    self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
+                    if is_py3:
+                        self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
+                    else:
+                        self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
                 self.post_message(msg)
                 return msg
             else:
@@ -518,11 +528,11 @@ class mavfile(object):
         '''return True if using MAVLink 2.0 or later'''
         return float(self.WIRE_PROTOCOL_VERSION) >= 2
 
-    def setup_logfile(self, logfile, mode='w'):
+    def setup_logfile(self, logfile, mode='wb'):
         '''start logging to the given logfile, with timestamps'''
         self.logfile = open(logfile, mode=mode)
 
-    def setup_logfile_raw(self, logfile, mode='w'):
+    def setup_logfile_raw(self, logfile, mode='wb'):
         '''start logging raw bytes to the given logfile, without timestamps'''
         self.logfile_raw = open(logfile, mode=mode)
 
