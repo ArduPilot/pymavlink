@@ -115,7 +115,7 @@ setup (name = 'pymavlink',
                            'scripts that use pymavlink. For more information about the MAVLink protocol see '
                            'https://mavlink.io/en/'),
        url = 'https://github.com/ArduPilot/pymavlink/',
-       classifiers=['Development Status :: 4 - Beta',
+       classifiers=['Development Status :: 5 - Production/Stable',
                     'Environment :: Console',
                     'Intended Audience :: Science/Research',
                     'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
