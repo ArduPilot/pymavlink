@@ -103,7 +103,8 @@ node generator/javascript/implementations/mavlink_common_v1.0/mavlink.tests.js >
 printf "${RED}Streaming C test data into JS-NextGen for pushBuffer/parseBuffer tests${NC}\n\n"
 sleep 1
 pushd generator/C/test/posix  > $OUT2
-./testmav1.0_ardupilotmega | grep '^fe' | node ../../../../examples/testparser.js ardupilotmega 1.0 $VERBOSITY 
+make testmav1.0_common testmav2.0_common testmav1.0_ardupilotmega testmav2.0_ardupilotmega
+./testmav1.0_ardupilotmega | grep '^fe' | node ../../../../examples/testparser.js ardupilotmega 1.0 $VERBOSITY
 ./testmav2.0_ardupilotmega | grep '^fd' | node ../../../../examples/testparser.js ardupilotmega 2.0 $VERBOSITY 
 ./testmav1.0_common | grep '^fe' | node ../../../../examples/testparser.js common 1.0 $VERBOSITY
 ./testmav2.0_common | grep '^fd' | node ../../../../examples/testparser.js common 2.0 $VERBOSITY

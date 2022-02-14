@@ -39,6 +39,12 @@ testmav1.0_ardupilotmega: testmav.c
 testmav2.0_ardupilotmega: testmav.c
 	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/ardupilotmega -o $@ testmav.c
 
+testmav1.0_common: testmav.c
+	$(CC) $(CFLAGS) -I../../include_v1.0 -I../../include_v1.0/common -o $@ testmav.c
+
+testmav2.0_common: testmav.c
+	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/common -o $@ testmav.c
+
 testmav2.0_minimal: testmav.c
 	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/minimal -o $@ testmav.c
 
