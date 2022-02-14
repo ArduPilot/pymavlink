@@ -21,7 +21,7 @@ jobs:
     - name: Install mavlink message
       run: |
         git clone git://github.com/ArduPilot/mavlink.git
-        ln -s $PWD/mavlink/message_definitions ../
+        ln -s $PWD/mavlink/message_definitions
     - name: Install dependencies
       run: |
         python -m pip install -U pip
