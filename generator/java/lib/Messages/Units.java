@@ -13,7 +13,6 @@ import java.lang.reflect.Field;
 @SuppressWarnings("unchecked")
 public @interface Units {
 
-	//UnitsEnum value();
 	String value();
 
 	class Test {
