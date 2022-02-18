@@ -13,8 +13,8 @@ except LookupError:
 from setuptools import setup, Extension
 import glob, os, shutil, fnmatch, platform, sys
 
-version = '2.4.25'
-
+sys.path.insert(0, os.path.dirname(__file__))
+from __init__ import __version__
 
 def generate_content():
     # generate the file content...
@@ -107,7 +107,7 @@ class custom_build_py(build_py):
 
 
 setup (name = 'pymavlink',
-       version = version,
+       version = __version__,
        description = 'Python MAVLink code',
        long_description = ('A Python library for handling MAVLink protocol streams and log files. This allows for the '
                            'creation of simple scripts to analyse telemetry logs from autopilots such as ArduPilot which use '
