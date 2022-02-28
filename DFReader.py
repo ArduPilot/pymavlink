@@ -113,6 +113,16 @@ class DFFormat(object):
         instance_idx = unit_ids.find('#')
         if instance_idx != -1:
             self.instance_field = self.columns[instance_idx]
+            # work out offset and length of instance field in message
+            pre_fmt = self.format[:instance_idx]
+            pre_sfmt = ""
+            for c in pre_fmt:
+                (s, mul, type) = FORMAT_TO_STRUCT[c]
+                pre_sfmt += s
+            self.instance_ofs = struct.calcsize(pre_sfmt)
+            (ifmt,) = self.format[instance_idx]
+            self.instance_len = struct.calcsize(ifmt)
+
 
     def set_mult_ids(self, mult_ids):
         '''set mult IDs string from FMTU'''
@@ -759,6 +769,7 @@ class DFReader_binary(DFReader):
         self._count = 0
         self.name_to_id = {}
         self.id_to_name = {}
+        type_instances = {}
         for i in range(256):
             self.offsets.append([])
             self.counts.append(0)
@@ -794,7 +805,15 @@ class DFReader_binary(DFReader):
                 fmt = self.formats[mtype]
                 lengths[mtype] = fmt.len
             elif self.formats[mtype].instance_field is not None:
-                self._parse_next()
+                fmt = self.formats[mtype]
+                # see if we've has this instance value before
+                idata = self.data_map[ofs+3+fmt.instance_ofs:ofs+3+fmt.instance_ofs+fmt.instance_len]
+                if not mtype in type_instances:
+                    type_instances[mtype] = set()
+                if not idata in type_instances[mtype]:
+                    # its a new one, need to parse it so we have the complete set of instances
+                    type_instances[mtype].add(idata)
+                    self._parse_next()
 
             self.counts[mtype] += 1
             mlen = lengths[mtype]
