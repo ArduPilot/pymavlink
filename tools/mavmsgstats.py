@@ -13,6 +13,8 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
 
+os.environ['MAVLINK20'] = '1'
+
 from pymavlink import mavutil
 
 categories = {
@@ -32,22 +34,44 @@ def show_stats(logfile):
     '''show stats on a file'''
     print("Processing log %s" % filename)
     mlog = mavutil.mavlink_connection(filename)
+
     sizes = {}
     total_size = 0
-    names = mlog.name_to_id.keys()
     pairs = []
 
-    for name in names:
-        sizes[name] = 0
+    if filename.endswith("tlog"):
+        counts = {}
+        names = []
+        while True:
+            m = mlog.recv_match()
+            if m is None:
+                break
+            t = m.get_type()
+            if t not in counts:
+                sizes[t] = m._header.mlen
+                counts[t] = 0
+                names.append(t)
+            counts[t] += 1
+        for (name, size) in sizes.items():
+            size_for_this_message = size * counts[name]
+            pairs.append((name, size_for_this_message))
+            total_size += size_for_this_message
 
-    for name in names:
-        mid = mlog.name_to_id[name]
-        count = mlog.counts[mid]
-        mlen = mlog.formats[mid].len
-        size = count * mlen
-        total_size += size
-        sizes[name] += size
-        pairs.append((name, count*mlen))
+    else:
+
+        names = mlog.name_to_id.keys()
+
+        for name in names:
+            sizes[name] = 0
+
+        for name in names:
+            mid = mlog.name_to_id[name]
+            count = mlog.counts[mid]
+            mlen = mlog.formats[mid].len
+            size = count * mlen
+            total_size += size
+            sizes[name] += size
+            pairs.append((name, count*mlen))
 
     pairs = sorted(pairs, key = lambda p : p[1])
     print("Total size: %u" % total_size)
