@@ -1211,6 +1211,8 @@ class mavtcp(mavfile):
         mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
     def do_connect(self):
+        if sys.platform != 'darwin':
+            self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         retries = self.retries
         if retries <= 0:
             # try to connect at least once:
@@ -1218,7 +1220,8 @@ class mavtcp(mavfile):
         while retries >= 0:
             retries -= 1
             try:
-                self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                if sys.platform == 'darwin':
+                    self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.port.connect(self.destination_addr)
                 break
             except Exception as e:
