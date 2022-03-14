@@ -263,7 +263,10 @@ class DFMessage(object):
                     v = v.tostring()
             else:
                 if isinstance(v,str):
-                    v = bytes(v,'ascii')
+                    try:
+                        v = bytes(v,'ascii')
+                    except UnicodeEncodeError:
+                        v = v.encode()
                 elif isinstance(v, array.array):
                     v = v.tobytes()
             if mul is not None:
