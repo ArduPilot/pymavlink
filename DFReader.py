@@ -486,7 +486,11 @@ class DFReader(object):
         self.verbose = False
         self.params = {}
         self._flightmodes = None
-        self.messages = {}
+        self.messages = {
+            'MAV': self,
+            '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
+        }
+        self.percent = 0
 
     def _rewind(self):
         '''reset state on rewind'''
@@ -495,7 +499,10 @@ class DFReader(object):
         # need their messages to disappear to.  If they want their own
         # copy they can copy.copy it!
         self.messages.clear()
-        self.messages['MAV'] = self
+        self.messages = {
+            'MAV': self,
+            '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
+        }
         if self._flightmodes is not None and len(self._flightmodes) > 0:
             self.flightmode = self._flightmodes[0][0]
         else:
