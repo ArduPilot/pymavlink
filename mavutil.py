@@ -23,13 +23,13 @@ is_py3 = sys.version_info >= (3,0)
 supports_type_annotations = sys.version_info >= (3,6)
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
-# without having complex spec files. To allow for installs that don't have ardupilotmega
+# without having complex spec files. To allow for installs that don't have the "all" dialect
 # at all we avoid throwing an exception if it isn't installed
 try:
     if supports_type_annotations:
-        from pymavlink.dialects.v10 import ardupilotmega
+        from pymavlink.dialects.v10 import all
     else:
-        from pymavlink.dialects.v10.python2 import ardupilotmega
+        from pymavlink.dialects.v10.python2 import all
 except Exception:
     pass
 
@@ -52,7 +52,7 @@ global_link_id = 0
 
 # Use a globally-set MAVLink dialect if one has been specified as an environment variable.
 if not 'MAVLINK_DIALECT' in os.environ:
-    os.environ['MAVLINK_DIALECT'] = 'ardupilotmega'
+    os.environ['MAVLINK_DIALECT'] = 'all'
 
 def mavlink10():
     '''return True if using MAVLink 1.0 or later'''
