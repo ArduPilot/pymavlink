@@ -10,6 +10,12 @@
 
 <!-- definition of attributes -->
 <xs:attribute name="name"> <!-- used in enum,entry,message,field elements -->
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+        <xs:pattern value="[\w_]+"/> <!-- Force only word characters in names (a-zA-Z0-9_ and many unicode). No whitespace -->
+    </xs:restriction>
+  </xs:simpleType>
+
 </xs:attribute>
 <xs:attribute name="id" type="mavlinkMsgId"/> <!-- used in message elements -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- used in field elements -->
