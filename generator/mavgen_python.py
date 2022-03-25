@@ -289,27 +289,47 @@ def generate_enums(outf, enums):
 # enums
 
 class EnumEntry(object):
-    def __init__(self, name, description):
+    __slots__ = ('name', 'description', 'param')
+    def __init__(self, name, description='', params=None):
         self.name = name
         self.description = description
-        self.param = {}
+        self.param = {} if params is None else params
 
 enums = {}
 ''')
-    wrapper = textwrap.TextWrapper(initial_indent="", subsequent_indent="                        # ")
+    wrapper = textwrap.TextWrapper(subsequent_indent=" ")
     for e in enums:
-        outf.write("\n# %s\n" % e.name)
-        outf.write("enums['%s'] = {}\n" % e.name)
+        chunks = []
+        chunks.append("\nenums[%r] = {" % e.name)
         for entry in e.entry:
-            outf.write("%s = %u # %s\n" % (entry.name, entry.value, wrapper.fill(entry.description)))
-            outf.write("enums['%s'][%d] = EnumEntry('%s', '''%s''')\n" % (e.name,
-                                                                          int(entry.value), entry.name,
-                                                                          entry.description))
-            for param in entry.param:
-                outf.write("enums['%s'][%d].param[%d] = '''%s'''\n" % (e.name,
-                                                                       int(entry.value),
-                                                                       int(param.index),
-                                                                       param.description))
+            chunks.append("\n\t%d: EnumEntry(%r"
+                          % (int(entry.value), entry.name))
+            descr = entry.description.strip()
+            if len(entry.name) + len(descr) > 60:
+                # wrap long description over multiple lines
+                chunks.append(",")
+                for line in wrapper.wrap(entry.description.strip()):
+                    chunks.append("\n\t\t")
+                    chunks.append(repr(line))
+            elif descr:
+                # short description fits on the same line
+                chunks.append(", %r" % descr)
+            if entry.param:
+                chunks.append(",\n\t\tparams={")
+                for param in entry.param:
+                    chunks.append("\n\t\t\t%d: %r,"
+                                  % (int(param.index), param.description))
+                chunks.append("\n\t\t}") # closing params={...}
+            chunks.append("),") # closing EnumEntry(...)
+        chunks.append("\n}\n") # closing enums[%r] = {...}
+        outf.write("".join(chunks))
+
+    outf.write('''
+# insert enum values into module namespace
+for enum in enums.values():
+    globals().update((entry.name, i) for (i, entry) in enum.items())
+del enum
+''')
 
 
 def generate_message_ids(outf, msgs):
