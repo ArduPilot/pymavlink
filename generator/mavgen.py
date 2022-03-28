@@ -26,13 +26,10 @@ from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
 from builtins import object
+import operator
 import os
-import re
 import sys
 from . import mavparse
-
-# XSD schema file
-schemaFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mavschema.xsd")
 
 # Set defaults for generating MAVLink code
 DEFAULT_WIRE_PROTOCOL = mavparse.PROTOCOL_1_0
@@ -57,29 +54,6 @@ def mavgen(opts, args):
     xml = []
     all_files = set()
 
-    # Enable validation by default, disabling it if explicitly requested
-    if opts.validate:
-        try:
-            from lxml import etree
-            with open(schemaFile, 'r') as f:
-                xmlschema_root = etree.parse(f)
-                if not opts.strict_units:
-                    # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
-                    for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
-                        elem.set("type", "xs:string")
-                xmlschema = etree.XMLSchema(xmlschema_root)
-        except ImportError:
-            print("WARNING: Failed to import lxml module etree. Are lxml, libxml2 and libxslt installed? XML validation will not be performed", file=sys.stderr)
-            opts.validate = False
-        except etree.XMLSyntaxError as err:
-            print("WARNING: XML Syntax Errors detected in %s XML schema file. XML validation will not be performed" % schemaFile, file=sys.stderr)
-            print(str(err.error_log), file=sys.stderr)
-            opts.validate = False
-        except Exception as e:
-            print("Exception:", e)
-            print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
-            opts.validate = False
-
     def expand_includes():
         """Expand includes. Root files already parsed objects in the xml list."""
 
@@ -97,17 +71,9 @@ def mavgen(opts, args):
                     # Only parse new include files
                     if fname in all_files:
                         continue
-                    # Validate XML file with XSD file if possible.
-                    if opts.validate:
-                        print("Validating %s" % fname)
-                        if not mavgen_validate(fname):
-                            print("ERROR Validation of %s failed" % fname)
-                            exit(1)
-                    else:
-                        print("Validation skipped for %s." % fname)
                     # Parsing
                     print("Parsing %s" % fname)
-                    xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
+                    xml.append(mavparse.MAVXML(fname, opts.wire_protocol, validate=opts.validate, validate_strict_units=opts.strict_units))
                     all_files.add(fname)
                     includeadded = True
             return includeadded
@@ -192,49 +158,13 @@ def mavgen(opts, args):
             if not update_oneiteration():
                 break
 
-    def mavgen_validate(xmlfile):
-        """Uses lxml to validate an XML file. We define mavgen_validate
-           here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
-        xmlvalid = True
-        try:
-            with open(xmlfile, 'r') as f:
-                xmldocument = etree.parse(f)
-                xmlschema.assertValid(xmldocument)
-                forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
-                                    export$|extends$|finally$|for$|function$|if$|import$|in$|instanceof$|let$|new$|\
-                                    return$|super$|switch$|this$|throw$|try$|typeof$|var$|void$|while$|with$|yield$|\
-                                    enum$|await$|implements$|package$|protected$|static$|interface$|private$|public$|\
-                                    abstract$|boolean$|byte$|char$|double$|final$|float$|goto$|int$|long$|native$|\
-                                    short$|synchronized$|transient$|volatile$).*", re.IGNORECASE)
-                for element in xmldocument.iter('enum', 'entry', 'message', 'field'):
-                    if forbidden_names_re.search(element.get('name')):
-                        print("Validation error:", file=sys.stderr)
-                        print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
-                        xmlvalid = False
-
-            return xmlvalid
-        except etree.XMLSchemaError:
-            return False
-        except etree.DocumentInvalid as err:
-            sys.exit('ERROR: %s' % str(err.error_log))
-        return True
-
     # Process all XML files, validating them as necessary.
     for fname in args:
         # only add each dialect file argument once.
         if fname in all_files:
             continue
         all_files.add(fname)
-
-        if opts.validate:
-            print("Validating %s" % fname)
-            if not mavgen_validate(fname):
-                return False
-        else:
-            print("Validation skipped for %s." % fname)
-
-        print("Parsing %s" % fname)
-        xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
+        xml.append(mavparse.MAVXML(fname, opts.wire_protocol, validate=opts.validate, validate_strict_units=opts.strict_units))
 
     # expand includes
     expand_includes()

@@ -12,6 +12,7 @@ from builtins import object
 import errno
 import operator
 import os
+import re
 import sys
 import time
 import xml.parsers.expat
@@ -23,6 +24,9 @@ PROTOCOL_2_0 = "2.0"
 # message flags
 FLAG_HAVE_TARGET_SYSTEM    = 1
 FLAG_HAVE_TARGET_COMPONENT = 2
+
+# XSD schema file
+schemaFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mavschema.xsd")
 
 class MAVParseError(Exception):
     def __init__(self, message, inner_exception=None):
@@ -185,7 +189,17 @@ class MAVEnum(object):
 
 class MAVXML(object):
     '''parse a mavlink XML file'''
-    def __init__(self, filename, wire_protocol_version=PROTOCOL_0_9):
+    def __init__(self, filename, wire_protocol_version=PROTOCOL_0_9, validate=True, validate_strict_units=True):
+
+        # Validate XML file with XSD file if possible.
+        if validate:
+            print("Validating %s" % filename)
+            self.validate_xml(filename, strict_units=validate_strict_units)
+        else:
+            print("Validation skipped for %s." % filename)
+
+        print("Parsing %s" % filename)
+
         self.filename = filename
         self.basename = os.path.basename(filename)
         if self.basename.lower().endswith(".xml"):
@@ -445,6 +459,62 @@ class MAVXML(object):
     def __str__(self):
         return "MAVXML for %s from %s (%u message, %u enums)" % (
             self.basename, self.filename, len(self.message), len(self.enum))
+
+
+    def setup_for_validation(self, strict_units=True):
+        # import validation libraries
+        try:
+            from lxml import etree
+            with open(schemaFile, 'r') as f:
+                xmlschema_root = etree.parse(f)
+                if not strict_units:
+                    # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
+                    for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
+                        elem.set("type", "xs:string")
+                self.xmlschema = etree.XMLSchema(xmlschema_root)
+        except ImportError:
+            print("WARNING: Failed to import lxml module etree. Are lxml, libxml2 and libxslt installed? XML validation will not be performed", file=sys.stderr)
+            return False
+        except etree.XMLSyntaxError as err:
+            print("WARNING: XML Syntax Errors detected in %s XML schema file. XML validation will not be performed" % schemaFile, file=sys.stderr)
+            print(str(err.error_log), file=sys.stderr)
+            return False
+        except Exception as e:
+            print("Exception:", e)
+            print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
+            return False
+        return True
+
+    def validate_xml(self, xmlfilepath, strict_units=False):
+        """Uses lxml to validate an XML file"""
+        if not self.setup_for_validation(strict_units=strict_units):
+            return
+
+        import lxml
+
+        xmlvalid = True
+        try:
+            with open(xmlfilepath, 'r') as f:
+                xmldocument = lxml.etree.parse(f)
+                self.xmlschema.assertValid(xmldocument)
+                forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
+                                    export$|extends$|finally$|for$|function$|if$|import$|in$|instanceof$|let$|new$|\
+                                    return$|super$|switch$|this$|throw$|try$|typeof$|var$|void$|while$|with$|yield$|\
+                                    enum$|await$|implements$|package$|protected$|static$|interface$|private$|public$|\
+                                    abstract$|boolean$|byte$|char$|double$|final$|float$|goto$|int$|long$|native$|\
+                                    short$|synchronized$|transient$|volatile$).*", re.IGNORECASE)
+                for element in xmldocument.iter('enum', 'entry', 'message', 'field'):
+                    if forbidden_names_re.search(element.get('name')):
+                        print("Validation error:", file=sys.stderr)
+                        print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
+                        xmlvalid = False
+
+            return xmlvalid
+        except lxml.etree.XMLSchemaError:
+            print("ERROR Validation of %s failed" % xmlfilepath)
+            sys.exit(1)
+        except lxml.etree.DocumentInvalid as err:
+            sys.exit('ERROR: %s' % str(err.error_log))
 
 
 def message_checksum(msg):
