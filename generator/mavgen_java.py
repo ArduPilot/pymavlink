@@ -34,7 +34,7 @@ package com.MAVLink.enums;
  * ${description}
  */
 public class ${name} {
-${{entry:   public static final long ${name} = ${value}L; /* ${description} |${{param:${description}| }} */
+${{entry:   public static final int ${name} = ${value}; /* ${description} |${{param:${description}| }} */
 }}
 }
             ''', en)
