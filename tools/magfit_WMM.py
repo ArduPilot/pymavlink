@@ -287,7 +287,7 @@ def magfit(logfile):
 
     if args.att_source is not None:
         ATT_NAME = args.att_source
-    if parameters['AHRS_EKF_TYPE'] == 2:
+    elif parameters['AHRS_EKF_TYPE'] == 2:
         ATT_NAME = 'NKF1'
     elif parameters['AHRS_EKF_TYPE'] == 3:
         ATT_NAME = 'XKF1'

@@ -54,7 +54,7 @@
   "name": "jspack",
   "repository": {
     "type": "git",
-    "url": "git://github.com/birchroad/node-jspack.git"
+    "url": "https://github.com/birchroad/node-jspack.git"
   },
   "scripts": {
     "pretest": "npm install",
