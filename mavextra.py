@@ -623,6 +623,39 @@ def EAS2TAS(ARSP,GPS,BARO,ground_temp=25):
     tempK = ground_temp + 273.15 - 0.0065 * GPS.Alt
     return sqrt(1.225 / (BARO.Press / (287.26 * tempK)))
 
+SSL_AIR_DENSITY = 1.225
+C_TO_KELVIN = 273.15
+ISA_LAPSE_RATE = 0.0065
+ISA_GAS_CONSTANT = 287.26
+SSL_AIR_TEMPERATURE = 288.15
+SSL_AIR_PRESSURE = 101325.01576
+
+def SimpleAtmosphere(alt_km):
+    REARTH = 6369.0
+    GMR    = 34.163195
+
+    # geometric to geopotential altitude
+    h = alt_km*REARTH/(alt_km+REARTH)
+
+    if (h < 11.0):
+        # Troposphere
+        theta = (SSL_AIR_TEMPERATURE - 6.5 * h) / SSL_AIR_TEMPERATURE
+        delta = pow(theta, GMR / 6.5)
+    else:
+        # Stratosphere
+        theta = 216.65 / SSL_AIR_TEMPERATURE
+        delta = 0.2233611 * exp(-GMR * (h - 11.0) / 216.65)
+
+    sigma = delta/theta
+    return (sigma, delta, theta)
+
+def eas2tas(alt_m, groundtemp=25.0):
+    '''eas2tas from altitude in meters AMSL'''
+    (sigma, delta, theta) = SimpleAtmosphere(alt_m*0.001)
+    pressure = SSL_AIR_PRESSURE * delta
+    tempK = groundtemp + C_TO_KELVIN - ISA_LAPSE_RATE * alt_m
+    eas2tas_squared = SSL_AIR_DENSITY / (pressure / (ISA_GAS_CONSTANT * tempK))
+    return sqrt(eas2tas_squared)
 
 def airspeed_ratio(VFR_HUD):
     '''recompute airspeed with a different ARSPD_RATIO'''
