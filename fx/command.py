@@ -39,6 +39,7 @@ class Command(ABC):
         if mav_serializer is None:
             mav_serializer = MavSerializer()
         self.ms = mav_serializer
+
     @abstractmethod
     def serialize_payload(self, *args, **kwargs) -> bytes:
         pass
@@ -200,7 +201,9 @@ class SetParamCommand(Command):
             self.ms.target_component,
             kwargs["name"].encode("utf-8"),
             kwargs["value"],
-            kwargs["type"] if isinstance(kwargs["type"], int) else getattr(mavutil.mavlink,kwargs["type"]),
+            kwargs["type"]
+            if isinstance(kwargs["type"], int)
+            else getattr(mavutil.mavlink, kwargs["type"]),
         )
         return payload.pack(self.ms.mav)
 
