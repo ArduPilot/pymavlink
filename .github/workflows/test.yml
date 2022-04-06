@@ -7,10 +7,9 @@ on: [push, pull_request]
 
 jobs:
   build:
-
     runs-on: ubuntu-20.04
     strategy:
-      fail-fast: false  # don't cancel if a job from the matrix fails
+      fail-fast: false # don't cancel if a job from the matrix fails
       matrix:
         python-version: [2.7, 3.5, 3.6, 3.7, 3.8, 3.9]
 
@@ -29,7 +28,7 @@ jobs:
           sudo apt install -y libgtest-dev g++
       - uses: actions/setup-node@v2-beta
         with:
-          node-version: '12'
+          node-version: "12"
       - run: npm install
       - name: Lint with flake8
         run: |
@@ -47,7 +46,7 @@ jobs:
       # install
       - name: Install mavlink message
         run: |
-          git clone git://github.com/ArduPilot/mavlink.git
+          git clone https://github.com/flylogix/mavlink.git
           ln -s $PWD/mavlink/message_definitions ../
 
       - name: Install pymavlink
@@ -76,11 +75,11 @@ jobs:
           mavgen.py --lang='Java'       --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0 --strict-units
           mavgen.py --lang='C++11'      --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=2.0 --strict-units # C++11 generator only supports 2.0
 
-      - name : Test generators
+      - name: Test generators
         run: |
           ./test_generator.sh
 
-      - name : Test NPM
+      - name: Test NPM
         run: |
           cd generator/javascript && npm test
 
