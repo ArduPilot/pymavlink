@@ -32,7 +32,7 @@ Available commands
 
 * HeartbeatCommand
     
-    * No payload parameters required
+    * `get_payload()` No payload parameters required
 
 * ArmCommand
 
@@ -56,7 +56,7 @@ Available commands
 
 * GetAllParamsCommand
 
-    * No payload parameters required
+    * `get_payload()` No payload parameters required
 
 * SetParamCommand
 
