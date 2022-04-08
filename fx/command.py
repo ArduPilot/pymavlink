@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import math
 from enum import Enum
 
-from mav import MavSerializer
+from pymavlink.fx.mav import MavSerializer
 
 from pymavlink import mavutil
 
