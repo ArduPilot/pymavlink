@@ -31,8 +31,11 @@ namespace mavlink {
 #define MAVLINK_NUM_NON_PAYLOAD_BYTES (MAVLINK_NUM_HEADER_BYTES + MAVLINK_NUM_CHECKSUM_BYTES)
 
 #define MAVLINK_SIGNATURE_BLOCK_LEN 13
+#define MAVLINK_MAC_BLOCK_LEN 16
+#define MAVLINK_NONCE_BLOCK_LEN 24
+#define MAVLINK_ENCRYPTION_BLOCK_LEN 40 //nonce (24bytes) + mac (16bytes) + TODO: targetid (1byte)
 
-#define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN) ///< Maximum packet length
+#define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN + MAVLINK_ENCRYPTION_BLOCK_LEN) ///< Maximum packet length
 
 /**
  * Old-style 4 byte param union
@@ -118,6 +121,8 @@ typedef struct __mavlink_message {
 	uint64_t payload64[(MAVLINK_MAX_PAYLOAD_LEN+MAVLINK_NUM_CHECKSUM_BYTES+7)/8];
 	uint8_t ck[2];          ///< incoming checksum bytes
 	uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
+    uint8_t mac[16];
+    uint8_t nonce[24];
 }) mavlink_message_t;
 
 typedef enum {
@@ -199,14 +204,17 @@ typedef enum {
     MAVLINK_PARSE_STATE_GOT_PAYLOAD,
     MAVLINK_PARSE_STATE_GOT_CRC1,
     MAVLINK_PARSE_STATE_GOT_BAD_CRC1,
-    MAVLINK_PARSE_STATE_SIGNATURE_WAIT
+    MAVLINK_PARSE_STATE_SIGNATURE_WAIT,
+    MAVLINK_PARSE_STATE_MAC_WAIT,
+    MAVLINK_PARSE_STATE_NONCE_WAIT
 } mavlink_parse_state_t; ///< The state machine for the comm parser
 
 typedef enum {
     MAVLINK_FRAMING_INCOMPLETE=0,
     MAVLINK_FRAMING_OK=1,
     MAVLINK_FRAMING_BAD_CRC=2,
-    MAVLINK_FRAMING_BAD_SIGNATURE=3
+    MAVLINK_FRAMING_BAD_SIGNATURE=3,
+    MAVLINK_FRAMING_BAD_DECRYPTION=4
 } mavlink_framing_t;
 
 #define MAVLINK_STATUS_FLAG_IN_MAVLINK1  1 // last incoming packet was MAVLink1
@@ -228,6 +236,8 @@ typedef struct __mavlink_status {
     uint16_t packet_rx_drop_count;      ///< Number of packet drops
     uint8_t flags;                      ///< MAVLINK_STATUS_FLAG_*
     uint8_t signature_wait;             ///< number of signature bytes left to receive
+    uint8_t nonce_wait;
+    uint8_t mac_wait;
     struct __mavlink_signing *signing;  ///< optional signing state
     struct __mavlink_signing_streams *signing_streams; ///< global record of stream timestamps
 } mavlink_status_t;
@@ -241,7 +251,8 @@ typedef bool (*mavlink_accept_unsigned_t)(const mavlink_status_t *status, uint32
   flags controlling signing
  */
 #define MAVLINK_SIGNING_FLAG_SIGN_OUTGOING 1    ///< Enable outgoing signing
-
+#define MAVLINK_ENCRYPTION_FLAG_ENCRYPTION_OUTGOING 1 //< Enable outgoing encryption
+#define MAVLINK_ENCRYPTION_FLAG_FORCE_ENCRYPTION 2 //< Enable outgoing encryption
 /*
   state of MAVLink signing for this channel
  */
@@ -290,11 +301,35 @@ typedef struct __mavlink_msg_entry {
 	uint8_t target_component_ofs; // payload offset to target_component, or 0
 } mavlink_msg_entry_t;
 
+typedef struct mavlink_device_certificate
+{
+    uint8_t device_id;
+    char device_name[20];
+    char maintainer[20];
+    uint8_t privileges;
+    uint8_t public_key[32];
+    uint8_t public_key_auth[32];
+    uint8_t secret_key[32];
+    uint8_t sign[64];
+}mavlink_device_certificate_t;
+
+typedef struct mavlink_encryption_storage{
+    uint8_t flags;                    ///< MAVLINK_SIGNING_FLAG_*
+    uint8_t target_id[8];             ///< Multiple target ids
+    uint8_t key[32][8];               ///< Key storage for encryption
+    uint8_t certificate_nonce[32];           ///< Random value to mix session keys
+    uint8_t encryption_nonce[24];        ///< Random value to mix message encryption
+    uint8_t number_of_keys;           ///< Number of stored keys
+}mavlink_encryption_storage_t;
+
+
+
 /*
   incompat_flags bits
  */
 #define MAVLINK_IFLAG_SIGNED  0x01
-#define MAVLINK_IFLAG_MASK    0x01 // mask of all understood bits
+#define MAVLINK_IFLAG_ENCRYPTED  0x02
+#define MAVLINK_IFLAG_MASK    0x03 // mask of all understood bits
 
 #ifdef MAVLINK_USE_CXX_NAMESPACE
 } // namespace mavlink
