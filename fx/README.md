@@ -3,7 +3,7 @@
 Import the libraries
 
 ```python
-from mav import MavSerializer
+from pymavlink.fx.mav import MavSerializer
 from pymavlink import mavutil
 import command
 ```
