@@ -300,12 +300,11 @@ MAVLINK_HELPER uint8_t py_mavlink_parse_char(uint8_t c, py_message_t* pymsg, mav
     // If a message has been successfully decoded, check index
     if (status->msg_received == 1)
     {
-        //while(status->current_seq != rxmsg->seq)
-        //{
-        //  status->packet_rx_drop_count++;
-        //               status->current_seq++;
-        //}
-        status->current_rx_seq = rxmsg->seq;
+        if (status->current_rx_seq != rxmsg->seq)
+        {
+            status->packet_rx_drop_count += (uint8_t)(rxmsg->seq - status->current_rx_seq);
+        }
+        status->current_rx_seq = rxmsg->seq + 1;
         // Initial condition: If no packet has been received so far, drop count is undefined
         if (status->packet_rx_success_count == 0) status->packet_rx_drop_count = 0;
         // Count this packet as received
