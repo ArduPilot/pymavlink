@@ -329,37 +329,66 @@ def generate_enums(outf, enums):
 
 
 class EnumEntry(object):
-    def __init__(self, name, description):
+    def __init__(self, name, description, param=None):
         self.name = name
         self.description = description
-        self.param = {}
+        self.param = param if param is not None else {}
 
 
-enums = {}
 """
     )
-    wrapper = textwrap.TextWrapper(
-        initial_indent="", subsequent_indent="                        # "
+
+    for e in enums:
+        for entry in e.entry:
+            outf.write("%s = %u\n" % (entry.name, entry.value))
+
+    outf.write(
+        """
+
+enums = {
+"""
     )
     for e in enums:
-        outf.write("\n# %s\n" % e.name)
-        outf.write('enums["%s"] = {}\n' % e.name)
+        outf.write("""    "%s": {""" % (e.name,))
         for entry in e.entry:
-            if entry.description == "":
-                outf.write("%s = %u\n" % (entry.name, entry.value))
+            if len(entry.param) == 0:
+                outf.write(
+                    '''
+        %s: EnumEntry(
+            "%s",
+            """%s""",
+        ),'''
+                    % (
+                        entry.name,
+                        entry.name,
+                        entry.description,
+                    )
+                )
             else:
-                outf.write(
-                    "%s = %u  # %s\n" % (entry.name, entry.value, wrapper.fill(entry.description))
+                params_dict = "{\n                %s,\n            }" % (
+                    ",\n                ".join(
+                        [
+                            '%d: """%s"""' % (int(param.index), param.description)
+                            for param in entry.param
+                        ]
+                    )
                 )
-            outf.write(
-                'enums["%s"][%d] = EnumEntry("%s", """%s""")\n'
-                % (e.name, int(entry.value), entry.name, entry.description)
-            )
-            for param in entry.param:
                 outf.write(
-                    'enums["%s"][%d].param[%d] = """%s"""\n'
-                    % (e.name, int(entry.value), int(param.index), param.description)
+                    '''
+        %s: EnumEntry(
+            "%s",
+            """%s""",
+            %s,
+        ),'''
+                    % (
+                        entry.name,
+                        entry.name,
+                        entry.description,
+                        params_dict,
+                    )
                 )
+        outf.write("\n    },\n")
+    outf.write("}\n")
 
 
 def generate_message_ids(outf, msgs):
