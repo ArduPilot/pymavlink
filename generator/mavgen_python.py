@@ -28,11 +28,10 @@ Generated from: ${FILELIST}
 
 Note: this file has been auto-generated. DO NOT EDIT
 """
-from __future__ import print_function
-
 import array
 import hashlib
 import json
+import logging
 import os
 import platform
 import struct
@@ -54,6 +53,8 @@ MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 MAVLINK_IFLAG_SIGNED = 0x01
 
+logger = logging.getLogger(__name__)
+
 # Not yet supported on other dialects
 native_supported = platform.system() != "Windows"
 # Will force use of native code regardless of what client app wants
@@ -65,7 +66,7 @@ if native_supported and float(WIRE_PROTOCOL_VERSION) <= 1:
     try:
         import mavnative
     except ImportError:
-        print("ERROR LOADING MAVNATIVE - falling back to python implementation")
+        logger.error("ERROR LOADING MAVNATIVE - falling back to python implementation")
         native_supported = False
 else:
     # mavnative isn't supported for MAVLink2 yet
@@ -670,7 +671,7 @@ class MAVLink(object):
         self.startup_time = time.time()
         self.signing = MAVLinkSigning()
         if native_supported and (use_native or native_testing or native_force):
-            print("NOTE: mavnative is currently beta-test code")
+            logger.warning("NOTE: mavnative is currently beta-test code")
             self.native = mavnative.NativeConnection(MAVLink_message, mavlink_map)
         else:
             self.native = None
@@ -738,7 +739,7 @@ class MAVLink(object):
                 m = self.__parse_char_native(self.test_buf)
                 m2 = self.__parse_char_legacy()
                 if m2 != m:
-                    print("Native: %s\\nLegacy: %s\\n" % (m, m2))
+                    logger.error("Native: %s\\nLegacy: %s\\n", m, m2)
                     raise Exception("Native vs. Legacy mismatch")
             else:
                 m = self.__parse_char_native(self.buf)
@@ -834,16 +835,16 @@ class MAVLink(object):
         if stream_key in self.signing.stream_timestamps:
             if timestamp <= self.signing.stream_timestamps[stream_key]:
                 # reject old timestamp
-                # print("old timestamp")
+                logger.info("old timestamp")
                 return False
         else:
             # a new stream has appeared. Accept the timestamp if it is at most
             # one minute behind our current timestamp
             if timestamp + 6000 * 1000 < self.signing.timestamp:
-                # print("bad new stream ", timestamp/(100.0 * 1000 * 60 * 60 * 24 * 365), self.signing.timestamp/(100.0 * 1000 * 60 * 60 * 24 * 365))
+                logger.info("bad new stream %s %s", timestamp / (100.0 * 1000 * 60 * 60 * 24 * 365), self.signing.timestamp / (100.0 * 1000 * 60 * 60 * 24 * 365))
                 return False
             self.signing.stream_timestamps[stream_key] = timestamp
-            # print("new stream")
+            logger.info("new stream")
 
         h = hashlib.new("sha256")
         h.update(self.signing.secret_key)
@@ -856,7 +857,7 @@ class MAVLink(object):
             sig1 = str(h.digest())[:6]
             sig2 = str(msgbuf)[-6:]
         if sig1 != sig2:
-            # print("sig mismatch")
+            logger.info("sig mismatch")
             return False
 
         # the timestamp we next send with is the max of the received timestamp and
