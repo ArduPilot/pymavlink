@@ -110,7 +110,6 @@ class x25crc(object):
 
     def accumulate_str(self, buf):
         """add in some more bytes"""
-        accum = self.crc
         bytes_array = array.array("B")
         try:  # if buf is bytes
             bytes_array.frombytes(buf)
@@ -126,12 +125,12 @@ def to_string(s):
     """desperate attempt to convert a string regardless of what garbage we get"""
     try:
         return s.decode("utf-8")
-    except Exception as e:
+    except Exception:
         pass
     try:
         s2 = s.encode("utf-8", "ignore")
         x = u"%s" % s2
-        return s2
+        return x
     except Exception:
         pass
     # so it's a nasty one. Let's grab as many characters as we can
@@ -282,7 +281,7 @@ class MAVLink_message(object):
         return True
 
     def to_dict(self):
-        d = dict({})
+        d = {}
         d["mavpackettype"] = self._type
         for a in self._fieldnames:
             d[a] = self.format_attr(a)
@@ -338,7 +337,7 @@ class MAVLink_message(object):
         """support indexing, allowing for multi-instance sensors in one message"""
         if self._instances is None:
             raise IndexError()
-        if not key in self._instances:
+        if key not in self._instances:
             raise IndexError()
         return self._instances[key]
 
@@ -846,14 +845,13 @@ class MAVLink(object):
             if m is None:
                 return ret
             ret.append(m)
-        return ret
 
     def check_signature(self, msgbuf, srcSystem, srcComponent):
         """check signature on incoming message"""
         if isinstance(msgbuf, array.array):
             try:
                 msgbuf = msgbuf.tostring()
-            except:
+            except Exception:
                 msgbuf = msgbuf.tobytes()
         timestamp_buf = msgbuf[-12:-6]
         link_id = msgbuf[-13]
@@ -925,7 +923,7 @@ class MAVLink(object):
         if mlen != len(msgbuf) - (headerlen + 2 + signature_len):
             raise MAVError("invalid MAVLink message length. Got %u expected %u, msgId=%u headerlen=%u" % (len(msgbuf) - (headerlen + 2 + signature_len), mlen, msgId, headerlen))
 
-        if not mapkey in mavlink_map:
+        if mapkey not in mavlink_map:
             return MAVLink_unknown(msgId, msgbuf)
 
         # decode the payload

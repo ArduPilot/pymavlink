@@ -56,7 +56,7 @@ jobs:
 
       - name: Lint generated python code
         run: |
-          flake8 --ignore='W503,E203,E501,E741,E713,E722,F841' --statistics dialects/
+          flake8 --ignore='W503,E203,E501,E741' --statistics dialects/
 
       - name: Generate messages
         run: |
