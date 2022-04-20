@@ -33,7 +33,6 @@ import hashlib
 import json
 import logging
 import os
-import platform
 import struct
 import sys
 import time
@@ -53,23 +52,38 @@ MAVLINK_IFLAG_SIGNED = 0x01
 
 logger = logging.getLogger(__name__)
 
-# Not yet supported on other dialects
-native_supported = platform.system() != "Windows"
+''',
+        {
+            "FILELIST": ",".join(args),
+            "DIALECT": os.path.splitext(os.path.basename(basename))[0],
+            "WIRE_PROTOCOL_VERSION": xml.wire_protocol_version,
+        },
+    )
+
+    if xml.wire_protocol_version == "1.0":
+        t.write(
+            outf,
+            """
 # Will force use of native code regardless of what client app wants
 native_force = "MAVNATIVE_FORCE" in os.environ
 # Will force both native and legacy code to be used and their results compared
 native_testing = "MAVNATIVE_TESTING" in os.environ
 
-if native_supported and float(WIRE_PROTOCOL_VERSION) <= 1:
+native_supported = False
+if os.name == "posix":
     try:
         import mavnative
+
+        native_supported = True
     except ImportError:
         logger.error("ERROR LOADING MAVNATIVE - falling back to python implementation")
-        native_supported = False
-else:
-    # mavnative isn't supported for MAVLink2 yet
-    native_supported = False
 
+""",
+        )
+
+    t.write(
+        outf,
+        '''
 # allow MAV_IGNORE_CRC=1 to ignore CRC, allowing some
 # corrupted msgs to be seen
 MAVLINK_IGNORE_CRC = os.environ.get("MAV_IGNORE_CRC", 0)
@@ -159,19 +173,42 @@ class MAVLink_header(object):
         self.compat_flags = compat_flags
 
     def pack(self, force_mavlink1=False):
-        if WIRE_PROTOCOL_VERSION == "2.0" and not force_mavlink1:
+''',
+        xml,
+    )
+
+    if xml.wire_protocol_version == "2.0":
+        t.write(
+            outf,
+            """
+        if force_mavlink1:
             return struct.pack(
-                "<BBBBBBBHB",
-                ${PROTOCOL_MARKER},
+                "<BBBBBB",
+                PROTOCOL_MARKER_V1,
                 self.mlen,
-                self.incompat_flags,
-                self.compat_flags,
                 self.seq,
                 self.srcSystem,
                 self.srcComponent,
-                self.msgId & 0xFFFF,
-                self.msgId >> 16,
+                self.msgId,
             )
+        return struct.pack(
+            "<BBBBBBBHB",
+            PROTOCOL_MARKER_V2,
+            self.mlen,
+            self.incompat_flags,
+            self.compat_flags,
+            self.seq,
+            self.srcSystem,
+            self.srcComponent,
+            self.msgId & 0xFFFF,
+            self.msgId >> 16,
+        )
+""",
+        )
+    else:
+        t.write(
+            outf,
+            """
         return struct.pack(
             "<BBBBBB",
             PROTOCOL_MARKER_V1,
@@ -181,6 +218,13 @@ class MAVLink_header(object):
             self.srcComponent,
             self.msgId,
         )
+""",
+            xml,
+        )
+
+    t.write(
+        outf,
+        '''
 
 
 class MAVLink_message(object):
@@ -304,7 +348,15 @@ class MAVLink_message(object):
 
     def _pack(self, mav, crc_extra, payload, force_mavlink1=False):
         plen = len(payload)
-        if WIRE_PROTOCOL_VERSION != "1.0" and not force_mavlink1:
+''',
+        extend_with_type_info(xml.__dict__),
+    )
+
+    if xml.wire_protocol_version == "2.0":
+        t.write(
+            outf,
+            """
+        if not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
             # variable length arrays and smaller packets
             nullbyte = chr(0)
@@ -313,6 +365,12 @@ class MAVLink_message(object):
                 nullbyte = 0
             while plen > 1 and payload[plen - 1] == nullbyte:
                 plen -= 1
+""",
+        )
+
+    t.write(
+        outf,
+        """
         self._payload = payload[:plen]
         incompat_flags = 0
         if mav.signing.sign_outgoing:
@@ -328,8 +386,21 @@ class MAVLink_message(object):
         )
         self._msgbuf = self._header.pack(force_mavlink1=force_mavlink1) + self._payload
         crc = x25crc(self._msgbuf[1:])
-        if ${crc_extra}:  # using CRC extra
-            crc.accumulate_str(struct.pack("B", crc_extra))
+""",
+    )
+
+    if xml.crc_extra:
+        t.write(
+            outf,
+            """
+        # we are using CRC extra
+        crc.accumulate_str(struct.pack("B", crc_extra))
+""",
+        )
+
+    t.write(
+        outf,
+        '''
         self._crc = crc.crc
         self._msgbuf += struct.pack("<H", self._crc)
         if mav.signing.sign_outgoing and not force_mavlink1:
@@ -348,13 +419,6 @@ class MAVLink_message(object):
         return self._instances[key]
 
 ''',
-        {
-            "FILELIST": ",".join(args),
-            "PROTOCOL_MARKER": xml.protocol_marker,
-            "DIALECT": os.path.splitext(os.path.basename(basename))[0],
-            "crc_extra": xml.crc_extra,
-            "WIRE_PROTOCOL_VERSION": xml.wire_protocol_version,
-        },
     )
 
 
@@ -710,10 +774,6 @@ class MAVLink(object):
         self.expected_length = HEADER_LEN_V1 + 2
         self.have_prefix_error = False
         self.robust_parsing = False
-        self.protocol_marker = ${protocol_marker}
-        self.little_endian = ${little_endian}
-        self.crc_extra = ${crc_extra}
-        self.sort_fields = ${sort_fields}
         self.total_packets_sent = 0
         self.total_bytes_sent = 0
         self.total_packets_received = 0
@@ -721,13 +781,25 @@ class MAVLink(object):
         self.total_receive_errors = 0
         self.startup_time = time.time()
         self.signing = MAVLinkSigning()
+''',
+    )
+
+    if xml.wire_protocol_version == "1.0":
+        t.write(
+            outf,
+            """
         if native_supported and (use_native or native_testing or native_force):
             logger.warning("NOTE: mavnative is currently beta-test code")
             self.native = mavnative.NativeConnection(MAVLink_message, mavlink_map)
         else:
             self.native = None
-        if native_testing:
-            self.test_buf = bytearray()
+        self.test_buf = bytearray()
+""",
+        )
+
+    t.write(
+        outf,
+        '''
         self.mav20_unpacker = struct.Struct("<cBBBBBBHB")
         self.mav10_unpacker = struct.Struct("<cBBBBB")
         self.mav20_h3_unpacker = struct.Struct("BBB")
@@ -755,20 +827,57 @@ class MAVLink(object):
 
     def bytes_needed(self):
         """return number of bytes needed for next parsing stage"""
+''',
+        xml,
+    )
+
+    if xml.wire_protocol_version == "1.0":
+        t.write(
+            outf,
+            """
         if self.native:
             ret = self.native.expected_length - self.buf_len()
         else:
             ret = self.expected_length - self.buf_len()
+""",
+            xml,
+        )
+    else:
+        t.write(
+            outf,
+            """
+        ret = self.expected_length - self.buf_len()
+""",
+            xml,
+        )
 
+    t.write(
+        outf,
+        """
         if ret <= 0:
             return 1
         return ret
 
+""",
+        xml,
+    )
+
+    if xml.wire_protocol_version == "1.0":
+        t.write(
+            outf,
+            '''
     def __parse_char_native(self, c):
         """this method exists only to see in profiling results"""
         m = self.native.parse_chars(c)
         return m
 
+''',
+            xml,
+        )
+
+    t.write(
+        outf,
+        '''
     def __callbacks(self, msg):
         """this method exists only to make profiling results easier to read"""
         if self.callback:
@@ -780,6 +889,14 @@ class MAVLink(object):
 
         self.total_bytes_received += len(c)
 
+''',
+        xml,
+    )
+
+    if xml.wire_protocol_version == "1.0":
+        t.write(
+            outf,
+            """
         if self.native:
             if native_testing:
                 self.test_buf.extend(c)
@@ -792,6 +909,21 @@ class MAVLink(object):
                 m = self.__parse_char_native(self.buf)
         else:
             m = self.__parse_char_legacy()
+""",
+            xml,
+        )
+    else:
+        t.write(
+            outf,
+            """
+        m = self.__parse_char_legacy()
+""",
+            xml,
+        )
+
+    t.write(
+        outf,
+        '''
 
         if m is not None:
             self.total_packets_received += 1
@@ -957,9 +1089,23 @@ class MAVLink(object):
         except struct.error as emsg:
             raise MAVError("Unable to unpack MAVLink CRC: %s" % emsg)
         crcbuf = msgbuf[1 : -(2 + signature_len)]
-        if ${crc_extra}:
-            # using CRC extra
-            crcbuf.append(crc_extra)
+''',
+        xml,
+    )
+
+    if xml.crc_extra:
+        t.write(
+            outf,
+            """
+        # we are using CRC extra
+        crcbuf.append(crc_extra)
+""",
+            xml,
+        )
+
+    t.write(
+        outf,
+        """
         crc2 = x25crc(crcbuf)
         if crc != crc2.crc and not MAVLINK_IGNORE_CRC:
             raise MAVError("invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x" % (msgId, crc, crc2.crc))
@@ -1005,25 +1151,39 @@ class MAVLink(object):
             raise MAVError("Unable to unpack MAVLink payload type=%s fmt=%s payloadLength=%u: %s" % (msgtype, fmt, len(mbuf), emsg))
 
         tlist = list(t)
+""",
+        xml,
+    )
+
+    if xml.sort_fields:
+        t.write(
+            outf,
+            """
+
         # handle sorted fields
-        if ${sort_fields}:
-            t = tlist[:]
-            if sum(len_map) == len(len_map):
-                # message has no arrays in it
-                for i in range(0, len(tlist)):
-                    tlist[i] = t[order_map[i]]
-            else:
-                # message has some arrays
-                tlist = []
-                for i in range(0, len(order_map)):
-                    order = order_map[i]
-                    L = len_map[order]
-                    tip = sum(len_map[:order])
-                    field = t[tip]
-                    if L == 1 or isinstance(field, str):
-                        tlist.append(field)
-                    else:
-                        tlist.append(t[tip : (tip + L)])
+        t = tlist[:]
+        if sum(len_map) == len(len_map):
+            # message has no arrays in it
+            for i in range(0, len(tlist)):
+                tlist[i] = t[order_map[i]]
+        else:
+            # message has some arrays
+            tlist = []
+            for i in range(0, len(order_map)):
+                order = order_map[i]
+                L = len_map[order]
+                tip = sum(len_map[:order])
+                field = t[tip]
+                if L == 1 or isinstance(field, str):
+                    tlist.append(field)
+                else:
+                    tlist.append(t[tip : (tip + L)])
+""",
+        )
+
+    t.write(
+        outf,
+        """
 
         # terminate any strings
         for i in range(0, len(tlist)):
@@ -1045,7 +1205,7 @@ class MAVLink(object):
         m._crc = crc
         m._header = MAVLink_header(msgId, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent)
         return m
-''',
+""",
         xml,
     )
 
