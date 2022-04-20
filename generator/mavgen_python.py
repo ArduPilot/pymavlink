@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-'''
+"""
 parse a MAVLink protocol XML file and generate a python implementation
 
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
-'''
+"""
 from __future__ import print_function
 
 from builtins import range
@@ -280,11 +280,11 @@ class MAVLink_message(object):
 
 """,
         {
-            'FILELIST': ",".join(args),
-            'PROTOCOL_MARKER': xml.protocol_marker,
-            'DIALECT': os.path.splitext(os.path.basename(basename))[0],
-            'crc_extra': xml.crc_extra,
-            'WIRE_PROTOCOL_VERSION': xml.wire_protocol_version,
+            "FILELIST": ",".join(args),
+            "PROTOCOL_MARKER": xml.protocol_marker,
+            "DIALECT": os.path.splitext(os.path.basename(basename))[0],
+            "crc_extra": xml.crc_extra,
+            "WIRE_PROTOCOL_VERSION": xml.wire_protocol_version,
         },
     )
 
@@ -292,7 +292,7 @@ class MAVLink_message(object):
 def generate_enums(outf, enums):
     print("Generating enums")
     outf.write(
-        '''
+        """
 # enums
 
 class EnumEntry(object):
@@ -302,7 +302,7 @@ class EnumEntry(object):
         self.param = {}
 
 enums = {}
-'''
+"""
     )
     wrapper = textwrap.TextWrapper(
         initial_indent="", subsequent_indent="                        # "
@@ -340,7 +340,7 @@ def byname_hash_from_field_attribute(m, attribute):
         value = getattr(field, attribute, None)
         if value is None or value == "":
             continue
-        if attribute == 'units':
+        if attribute == "units":
             # hack; remove the square brackets further up
             if value[0] == "[":
                 value = value[1:-1]
@@ -446,51 +446,51 @@ class %s(MAVLink_message):
 
 
 def native_mavfmt(field):
-    '''work out the struct format for a type (in a form expected by mavnative)'''
+    """work out the struct format for a type (in a form expected by mavnative)"""
     map = {
-        'float': 'f',
-        'double': 'd',
-        'char': 'c',
-        'int8_t': 'b',
-        'uint8_t': 'B',
-        'uint8_t_mavlink_version': 'v',
-        'int16_t': 'h',
-        'uint16_t': 'H',
-        'int32_t': 'i',
-        'uint32_t': 'I',
-        'int64_t': 'q',
-        'uint64_t': 'Q',
+        "float": "f",
+        "double": "d",
+        "char": "c",
+        "int8_t": "b",
+        "uint8_t": "B",
+        "uint8_t_mavlink_version": "v",
+        "int16_t": "h",
+        "uint16_t": "H",
+        "int32_t": "i",
+        "uint32_t": "I",
+        "int64_t": "q",
+        "uint64_t": "Q",
     }
     return map[field.type]
 
 
 def mavfmt(field):
-    '''work out the struct format for a type'''
+    """work out the struct format for a type"""
     map = {
-        'float': 'f',
-        'double': 'd',
-        'char': 'c',
-        'int8_t': 'b',
-        'uint8_t': 'B',
-        'uint8_t_mavlink_version': 'B',
-        'int16_t': 'h',
-        'uint16_t': 'H',
-        'int32_t': 'i',
-        'uint32_t': 'I',
-        'int64_t': 'q',
-        'uint64_t': 'Q',
+        "float": "f",
+        "double": "d",
+        "char": "c",
+        "int8_t": "b",
+        "uint8_t": "B",
+        "uint8_t_mavlink_version": "B",
+        "int16_t": "h",
+        "uint16_t": "H",
+        "int32_t": "i",
+        "uint32_t": "I",
+        "int64_t": "q",
+        "uint64_t": "Q",
     }
 
     if field.array_length:
-        if field.type == 'char':
-            return str(field.array_length) + 's'
+        if field.type == "char":
+            return str(field.array_length) + "s"
         return str(field.array_length) + map[field.type]
     return map[field.type]
 
 
 def mavdefault(field):
-    '''returns default value for field (as string) for mavlink2 extensions'''
-    if field.type == 'char':
+    """returns default value for field (as string) for mavlink2 extensions"""
+    if field.type == "char":
         default_value = "''"
     else:
         default_value = "0"
@@ -963,23 +963,23 @@ def generate_methods(outf, msgs):
     for m in msgs:
         comment = "%s\n\n%s" % (wrapper.fill(m.description.strip()), field_descriptions(m.fields))
 
-        selffieldnames = 'self, '
+        selffieldnames = "self, "
         for i in range(len(m.fields)):
             f = m.fields[i]
             if f.omit_arg:
-                selffieldnames += '%s=%s, ' % (f.name, f.const_value)
+                selffieldnames += "%s=%s, " % (f.name, f.const_value)
             elif m.extensions_start is not None and i >= m.extensions_start:
                 fdefault = m.fielddefaults[i]
                 selffieldnames += "%s=%s, " % (f.name, fdefault)
             else:
-                selffieldnames += '%s, ' % f.name
+                selffieldnames += "%s, " % f.name
         selffieldnames = selffieldnames[:-2]
 
         sub = {
-            'NAMELOWER': m.name.lower(),
-            'SELFFIELDNAMES': selffieldnames,
-            'COMMENT': comment,
-            'FIELDNAMES': ", ".join(m.fieldnames),
+            "NAMELOWER": m.name.lower(),
+            "SELFFIELDNAMES": selffieldnames,
+            "COMMENT": comment,
+            "FIELDNAMES": ", ".join(m.fieldnames),
         }
 
         t.write(
@@ -1010,11 +1010,11 @@ def generate_methods(outf, msgs):
 
 
 def generate(basename, xml):
-    '''generate complete python implementation'''
-    if basename.endswith('.py'):
+    """generate complete python implementation"""
+    if basename.endswith(".py"):
         filename = basename
     else:
-        filename = basename + '.py'
+        filename = basename + ".py"
 
     msgs = []
     enums = []
@@ -1027,9 +1027,9 @@ def generate(basename, xml):
     for m in msgs:
         m.fielddefaults = []
         if xml[0].little_endian:
-            m.fmtstr = '<'
+            m.fmtstr = "<"
         else:
-            m.fmtstr = '>'
+            m.fmtstr = ">"
         m.native_fmtstr = m.fmtstr
         m.instance_field = None
         for f in m.ordered_fields:
