@@ -29,12 +29,18 @@ Generated from: ${FILELIST}
 Note: this file has been auto-generated. DO NOT EDIT
 """
 from __future__ import print_function
-from builtins import range
-from builtins import object
-import struct, array, time, json, os, sys, platform
+
+import array
+import hashlib
+import json
+import os
+import platform
+import struct
+import sys
+import time
+from builtins import object, range
 
 from pymavlink.generator.mavcrc import x25crc
-import hashlib
 
 WIRE_PROTOCOL_VERSION = "${WIRE_PROTOCOL_VERSION}"
 DIALECT = "${DIALECT}"
