@@ -302,7 +302,7 @@ class MAVLink_message(object):
         self._msgbuf += sig
         mav.signing.timestamp += 1
 
-    def pack(self, mav, crc_extra, payload, force_mavlink1=False):
+    def _pack(self, mav, crc_extra, payload, force_mavlink1=False):
         plen = len(payload)
         if WIRE_PROTOCOL_VERSION != "1.0" and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
@@ -335,6 +335,9 @@ class MAVLink_message(object):
         if mav.signing.sign_outgoing and not force_mavlink1:
             self.sign_packet(mav)
         return self._msgbuf
+
+    def pack(self, mav, force_mavlink1=False):
+        raise NotImplementedError("MAVLink_message cannot be serialized directly")
 
     def __getitem__(self, key):
         """support indexing, allowing for multi-instance sensors in one message"""
@@ -504,7 +507,7 @@ ${docstring}
         ${init_fields}
 
     def pack(self, mav, force_mavlink1=False):
-        return MAVLink_message.pack(self, mav, self.crc_extra, self.unpacker.pack(${pack_fields}), force_mavlink1=force_mavlink1)
+        return self._pack(mav, self.crc_extra, self.unpacker.pack(${pack_fields}), force_mavlink1=force_mavlink1)
 ''',
             {
                 "classname": classname,
