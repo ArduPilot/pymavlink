@@ -28,7 +28,6 @@ Generated from: ${FILELIST}
 
 Note: this file has been auto-generated. DO NOT EDIT
 """
-import array
 import hashlib
 import json
 import logging
@@ -79,56 +78,19 @@ class x25crc(object):
     def __init__(self, buf=None):
         self.crc = 0xFFFF
         if buf is not None:
-            if isinstance(buf, str):
-                self.accumulate_str(buf)
-            else:
-                self.accumulate(buf)
+            self.accumulate(buf)
 
     def accumulate(self, buf):
-        """add in some more bytes"""
+        """add in some more bytes (it also accepts python2 strings)"""
+        if sys.version_info[0] == 2 and type(buf) is str:
+            buf = bytearray(buf)
+
         accum = self.crc
         for b in buf:
             tmp = b ^ (accum & 0xFF)
             tmp = (tmp ^ (tmp << 4)) & 0xFF
             accum = (accum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
         self.crc = accum
-
-    def accumulate_str(self, buf):
-        """add in some more bytes"""
-        bytes_array = array.array("B")
-        try:  # if buf is bytes
-            bytes_array.frombytes(buf)
-        except TypeError:  # if buf is str
-            bytes_array.frombytes(buf.encode())
-        except AttributeError:  # Python < 3.2
-            bytes_array.fromstring(buf)
-        self.accumulate(bytes_array)
-
-
-# swiped from DFReader.py
-def to_string(s):
-    """desperate attempt to convert a string regardless of what garbage we get"""
-    try:
-        return s.decode("utf-8")
-    except Exception:
-        pass
-    try:
-        s2 = s.encode("utf-8", "ignore")
-        x = u"%s" % s2
-        return x
-    except Exception:
-        pass
-    # so it's a nasty one. Let's grab as many characters as we can
-    r = ""
-    try:
-        for c in s:
-            r2 = r + c
-            r2 = r2.encode("ascii", "ignore")
-            x = u"%s" % r2
-            r = r2
-    except Exception:
-        pass
-    return r + "_XXX"
 
 
 class MAVLink_header(object):
@@ -174,7 +136,7 @@ class MAVLink_message(object):
     def __init__(self, msgId, name):
         self._header = MAVLink_header(msgId)
         self._payload = None
-        self._msgbuf = None
+        self._msgbuf = bytearray(b"")
         self._crc = None
         self._fieldnames = []
         self._type = name
@@ -187,13 +149,13 @@ class MAVLink_message(object):
         """override field getter"""
         raw_attr = getattr(self, field)
         if isinstance(raw_attr, bytes):
-            raw_attr = to_string(raw_attr).rstrip("\\00")
+            if sys.version_info[0] == 2:
+                return raw_attr.rstrip(b"\\x00")
+            return raw_attr.decode(errors="backslashreplace").rstrip("\\x00")
         return raw_attr
 
     def get_msgbuf(self):
-        if isinstance(self._msgbuf, bytearray):
-            return self._msgbuf
-        return bytearray(self._msgbuf)
+        return self._msgbuf
 
     def get_header(self):
         return self._header
@@ -291,9 +253,9 @@ class MAVLink_message(object):
         if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
             # variable length arrays and smaller packets
-            nullbyte = chr(0)
-            # in Python2, type("fred") is str but also type("fred")==bytes
-            if str(type(payload)) == "<class 'bytes'>":
+            if sys.version_info[0] == 2:
+                nullbyte = chr(0)
+            else:
                 nullbyte = 0
             while plen > 1 and payload[plen - 1] == nullbyte:
                 plen -= 1
@@ -310,16 +272,17 @@ class MAVLink_message(object):
             srcSystem=mav.srcSystem,
             srcComponent=mav.srcComponent,
         )
-        self._msgbuf = self._header.pack(force_mavlink1=force_mavlink1) + self._payload
+        self._msgbuf = bytearray(self._header.pack(force_mavlink1=force_mavlink1))
+        self._msgbuf += self._payload
         crc = x25crc(self._msgbuf[1:])
         if ${crc_extra}:
             # we are using CRC extra
-            crc.accumulate_str(struct.pack("B", crc_extra))
+            crc.accumulate(struct.pack("B", crc_extra))
         self._crc = crc.crc
         self._msgbuf += struct.pack("<H", self._crc)
         if mav.signing.sign_outgoing and not force_mavlink1:
             self.sign_packet(mav)
-        return self._msgbuf
+        return bytes(self._msgbuf)
 
     def pack(self, mav, force_mavlink1=False):
         raise NotImplementedError("MAVLink_message cannot be serialized directly")
@@ -497,7 +460,7 @@ ${docstring}
     fielddisplays_by_name = {${field_displays}}
     fieldenums_by_name = {${field_nums}}
     fieldunits_by_name = {${field_units}}
-    native_format = bytearray("${native_fmtstr}", "ascii")
+    native_format = bytearray(b"${native_fmtstr}")
     orders = ${orders}
     lengths = ${lengths}
     array_lengths = ${array_lengths}
@@ -622,19 +585,6 @@ class MAVError(Exception):
         self.message = msg
 
 
-class MAVString(str):
-    """NUL terminated string"""
-
-    def __init__(self, s):
-        str.__init__(self)
-
-    def __str__(self):
-        i = self.find(chr(0))
-        if i == -1:
-            return self[:]
-        return self[0:i]
-
-
 class MAVLink_bad_data(MAVLink_message):
     """
     a piece of bad data in a mavlink stream
@@ -645,12 +595,16 @@ class MAVLink_bad_data(MAVLink_message):
         self._fieldnames = ["data", "reason"]
         self.data = data
         self.reason = reason
-        self._msgbuf = data
+        self._msgbuf = bytearray(data)
         self._instance_field = None
 
     def __str__(self):
         """Override the __str__ function from MAVLink_messages because non-printable characters are common in to be the reason for this message to exist."""
-        return "%s {%s, data:%s}" % (self._type, self.reason, [("%x" % ord(i) if isinstance(i, str) else "%x" % i) for i in self.data])
+        if sys.version_info[0] == 2:
+            hexstr = ["{:x}".format(ord(i)) for i in self.data]
+        else:
+            hexstr = ["{:x}".format(i) for i in self.data]
+        return "%s {%s, data:%s}" % (self._type, self.reason, hexstr)
 
 
 class MAVLink_unknown(MAVLink_message):
@@ -662,12 +616,16 @@ class MAVLink_unknown(MAVLink_message):
         MAVLink_message.__init__(self, MAVLINK_MSG_ID_UNKNOWN, "UNKNOWN_%u" % msgid)
         self._fieldnames = ["data"]
         self.data = data
-        self._msgbuf = data
+        self._msgbuf = bytearray(data)
         self._instance_field = None
 
     def __str__(self):
         """Override the __str__ function from MAVLink_messages because non-printable characters are common."""
-        return "%s {data:%s}" % (self._type, [("%x" % ord(i) if isinstance(i, str) else "%x" % i) for i in self.data])
+        if sys.version_info[0] == 2:
+            hexstr = ["{:x}".format(ord(i)) for i in self.data]
+        else:
+            hexstr = ["{:x}".format(i) for i in self.data]
+        return "%s {data:%s}" % (self._type, hexstr)
 
 
 class MAVLinkSigning(object):
@@ -801,14 +759,12 @@ class MAVLink(object):
         self.have_prefix_error = False
         if self.buf_len() >= 3:
             sbuf = self.buf[self.buf_index : 3 + self.buf_index]
-            if sys.version_info.major < 3:
-                sbuf = str(sbuf)
             (magic, self.expected_length, incompat_flags) = self.mav20_h3_unpacker.unpack(sbuf)
             if magic == PROTOCOL_MARKER_V2 and (incompat_flags & MAVLINK_IFLAG_SIGNED):
                 self.expected_length += MAVLINK_SIGNATURE_BLOCK_LEN
             self.expected_length += header_len + 2
         if self.expected_length >= (header_len + 2) and self.buf_len() >= self.expected_length:
-            mbuf = array.array("B", self.buf[self.buf_index : self.buf_index + self.expected_length])
+            mbuf = self.buf[self.buf_index : self.buf_index + self.expected_length]
             self.buf_index += self.expected_length
             self.expected_length = header_len + 2
             if self.robust_parsing:
@@ -833,18 +789,13 @@ class MAVLink(object):
             return None
         ret = [m]
         while True:
-            m = self.parse_char("")
+            m = self.parse_char(b"")
             if m is None:
                 return ret
             ret.append(m)
 
     def check_signature(self, msgbuf, srcSystem, srcComponent):
         """check signature on incoming message"""
-        if isinstance(msgbuf, array.array):
-            try:
-                msgbuf = msgbuf.tostring()
-            except Exception:
-                msgbuf = msgbuf.tobytes()
         timestamp_buf = msgbuf[-12:-6]
         link_id = msgbuf[-13]
         (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf)
@@ -869,13 +820,8 @@ class MAVLink(object):
         h = hashlib.new("sha256")
         h.update(self.signing.secret_key)
         h.update(msgbuf[:-6])
-        if str(type(msgbuf)) == "<class 'bytes'>" or str(type(msgbuf)) == "<class 'bytearray'>":
-            # Python 3
-            sig1 = h.digest()[:6]
-            sig2 = msgbuf[-6:]
-        else:
-            sig1 = str(h.digest())[:6]
-            sig2 = str(msgbuf)[-6:]
+        sig1 = h.digest()[:6]
+        sig2 = msgbuf[-6:]
         if sig1 != sig2:
             logger.info("sig mismatch")
             return False
@@ -980,7 +926,6 @@ class MAVLink(object):
         tlist = list(t)
         # handle sorted fields
         if ${sort_fields}:
-            t = tlist[:]
             if sum(len_map) == len(len_map):
                 # message has no arrays in it
                 for i in range(0, len(tlist)):
@@ -993,21 +938,19 @@ class MAVLink(object):
                     L = len_map[order]
                     tip = sum(len_map[:order])
                     field = t[tip]
-                    if L == 1 or isinstance(field, str):
+                    if L == 1 or isinstance(field, bytes):
                         tlist.append(field)
                     else:
-                        tlist.append(t[tip : (tip + L)])
+                        tlist.append(list(t[tip : (tip + L)]))
 
         # terminate any strings
-        for i in range(0, len(tlist)):
-            if msgtype.fieldtypes[i] == "char":
-                if sys.version_info.major >= 3:
-                    tlist[i] = to_string(tlist[i])
-                tlist[i] = str(MAVString(tlist[i]))
-        t = tuple(tlist)
+        for i, elem in enumerate(tlist):
+            if isinstance(elem, bytes):
+                tlist[i] = elem.rstrip(b"\\x00")
+
         # construct the message object
         try:
-            m = msgtype(*t)
+            m = msgtype(*tlist)
         except Exception as emsg:
             raise MAVError("Unable to instantiate MAVLink message of type %s : %s" % (msgtype, emsg))
         m._signed = sig_ok
