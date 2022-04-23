@@ -657,6 +657,10 @@ def eas2tas(alt_m, groundtemp=25.0):
     eas2tas_squared = SSL_AIR_DENSITY / (pressure / (ISA_GAS_CONSTANT * tempK))
     return sqrt(eas2tas_squared)
 
+def airspeed_tas(VFR_HUD,GLOBAL_POSITION_INT):
+    '''airspeed as true airspeed from VFR_HUD and GLOBAL_POSITION_INT'''
+    return eas2tas(GLOBAL_POSITION_INT.alt*0.001) * VFR_HUD.airspeed
+
 def airspeed_ratio(VFR_HUD):
     '''recompute airspeed with a different ARSPD_RATIO'''
     from . import mavutil
