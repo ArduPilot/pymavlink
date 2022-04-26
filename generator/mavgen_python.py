@@ -413,84 +413,89 @@ def generate_classes(outf, msgs):
         else:
             instance_field = "None"
             instance_offset = -1
-        outf.write(
-            '''
 
-class %s(MAVLink_message):
-    """
-%s
-    """
-
-    id = MAVLINK_MSG_ID_%s
-    name = "%s"
-    fieldnames = [%s]
-    ordered_fieldnames = [%s]
-    fieldtypes = [%s]
-    fielddisplays_by_name = {%s}
-    fieldenums_by_name = {%s}
-    fieldunits_by_name = {%s}
-    format = "%s"
-    native_format = bytearray("%s", "ascii")
-    orders = %s
-    lengths = %s
-    array_lengths = %s
-    crc_extra = %s
-    unpacker = struct.Struct("%s")
-    instance_field = %s
-    instance_offset = %d
-
-    def __init__(self'''
-            % (
-                classname,
-                wrapper.fill(m.description.strip()),
-                m.name.upper(),
-                m.name.upper(),
-                fieldname_str,
-                ordered_fieldname_str,
-                fieldtypes_str,
-                fielddisplays_str,
-                fieldenums_str,
-                fieldunits_str,
-                m.fmtstr,
-                m.native_fmtstr,
-                m.order_map,
-                m.len_map,
-                m.array_len_map,
-                m.crc_extra,
-                m.fmtstr,
-                instance_field,
-                instance_offset,
-            )
-        )
+        arg_fields = []
         for i in range(len(m.fields)):
             fname = m.fieldnames[i]
             if m.extensions_start is not None and i >= m.extensions_start:
                 fdefault = m.fielddefaults[i]
-                outf.write(", %s=%s" % (fname, fdefault))
+                arg_fields.append("%s=%s" % (fname, fdefault))
             else:
-                outf.write(", %s" % fname)
-        outf.write("):\n")
-        outf.write(
-            "        MAVLink_message.__init__(self, %s.id, %s.name)\n" % (classname, classname)
-        )
-        outf.write("        self._fieldnames = %s.fieldnames\n" % (classname))
-        outf.write("        self._instance_field = %s.instance_field\n" % (classname))
-        outf.write("        self._instance_offset = %s.instance_offset\n" % (classname))
+                arg_fields.append("%s" % fname)
+
+        init_fields = []
         for f in m.fields:
-            outf.write("        self.%s = %s\n" % (f.name, f.name))
-        outf.write(
-            '''
-    def pack(self, mav, force_mavlink1=False):
-        return MAVLink_message.pack(self, mav, %u, struct.pack("%s"'''
-            % (m.crc_extra, m.fmtstr)
-        )
+            init_fields.append("self.%s = %s" % (f.name, f.name))
+
+        pack_fields = []
         for field in m.ordered_fields:
             if field.type != "char" and field.array_length > 1:
                 for i in range(field.array_length):
-                    outf.write(", self.{0:s}[{1:d}]".format(field.name, i))
+                    pack_fields.append("self.{0:s}[{1:d}]".format(field.name, i))
             else:
-                outf.write(", self.{0:s}".format(field.name))
-        outf.write("), force_mavlink1=force_mavlink1)\n")
+                pack_fields.append("self.{0:s}".format(field.name))
+
+        t.write(
+            outf,
+            '''
+
+
+class ${classname}(MAVLink_message):
+    """
+${docstring}
+    """
+
+    id = MAVLINK_MSG_ID_${msg_name_upper}
+    name = "${msg_name_upper}"
+    fieldnames = [${field_names}]
+    ordered_fieldnames = [${ordered_field_names}]
+    fieldtypes = [${field_types}]
+    fielddisplays_by_name = {${field_displays}}
+    fieldenums_by_name = {${field_nums}}
+    fieldunits_by_name = {${field_units}}
+    format = "${fmtstr}"
+    native_format = bytearray("${native_fmtstr}", "ascii")
+    orders = ${orders}
+    lengths = ${lengths}
+    array_lengths = ${array_lengths}
+    crc_extra = ${crc_extra}
+    unpacker = struct.Struct("${fmtstr}")
+    instance_field = ${instance_field}
+    instance_offset = ${instance_offset}
+
+    def __init__(self, ${arg_fields}):
+        MAVLink_message.__init__(self, ${classname}.id, ${classname}.name)
+        self._fieldnames = ${classname}.fieldnames
+        self._instance_field = ${classname}.instance_field
+        self._instance_offset = ${classname}.instance_offset
+        ${init_fields}
+
+    def pack(self, mav, force_mavlink1=False):
+        return MAVLink_message.pack(self, mav, self.crc_extra, struct.pack(self.format, ${pack_fields}), force_mavlink1=force_mavlink1)
+''',
+            {
+                "classname": classname,
+                "docstring": wrapper.fill(m.description.strip()),
+                "msg_name_upper": m.name.upper(),
+                "field_names": fieldname_str,
+                "ordered_field_names": ordered_fieldname_str,
+                "field_types": fieldtypes_str,
+                "field_displays": fielddisplays_str,
+                "field_nums": fieldenums_str,
+                "field_units": fieldunits_str,
+                "fmtstr": m.fmtstr,
+                "native_fmtstr": m.native_fmtstr,
+                "orders": m.order_map,
+                "lengths": m.len_map,
+                "array_lengths": m.array_len_map,
+                "crc_extra": m.crc_extra,
+                "instance_field": instance_field,
+                "instance_offset": instance_offset,
+                "arg_fields": ", ".join(arg_fields),
+                "init_fields": "\n        ".join(init_fields),
+                "pack_fields": ", ".join(pack_fields),
+            },
+        )
 
 
 def native_mavfmt(field):
