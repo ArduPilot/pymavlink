@@ -258,6 +258,9 @@ class MAVLink_message(object):
         if other is None:
             return False
 
+        if not isinstance(other, MAVLink_message):
+            return False
+
         if self.get_type() != other.get_type():
             return False
 
