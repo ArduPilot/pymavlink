@@ -701,11 +701,7 @@ class MAVLink(object):
         self.srcSystem = srcSystem
         self.srcComponent = srcComponent
         self.callback = None
-        self.callback_args = None
-        self.callback_kwargs = None
         self.send_callback = None
-        self.send_callback_args = None
-        self.send_callback_kwargs = None
         self.buf = bytearray()
         self.buf_index = 0
         self.expected_length = HEADER_LEN_V1 + 2
@@ -735,15 +731,11 @@ class MAVLink(object):
         self.mav_csum_unpacker = struct.Struct("<H")
         self.mav_sign_unpacker = struct.Struct("<IH")
 
-    def set_callback(self, callback, *args, **kwargs):
+    def set_callback(self, callback):
         self.callback = callback
-        self.callback_args = args
-        self.callback_kwargs = kwargs
 
-    def set_send_callback(self, callback, *args, **kwargs):
+    def set_send_callback(self, callback):
         self.send_callback = callback
-        self.send_callback_args = args
-        self.send_callback_kwargs = kwargs
 
     def send(self, mavmsg, force_mavlink1=False):
         """send a MAVLink message"""
@@ -753,7 +745,7 @@ class MAVLink(object):
         self.total_packets_sent += 1
         self.total_bytes_sent += len(buf)
         if self.send_callback:
-            self.send_callback(mavmsg, *self.send_callback_args, **self.send_callback_kwargs)
+            self.send_callback(mavmsg)
 
     def buf_len(self):
         return len(self.buf) - self.buf_index
@@ -777,7 +769,7 @@ class MAVLink(object):
     def __callbacks(self, msg):
         """this method exists only to make profiling results easier to read"""
         if self.callback:
-            self.callback(msg, *self.callback_args, **self.callback_kwargs)
+            self.callback(msg)
 
     def parse_char(self, c):
         """input some data bytes, possibly returning a new message"""
