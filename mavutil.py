@@ -1531,11 +1531,11 @@ class mavmmaplog(mavlogfile):
                 self.offsets[mtype] = []
                 self.counts[mtype] = 0
                 msg = mavlink.mavlink_map[mtype]
-                self.name_to_id[msg.name] = mtype
-                self.id_to_name[mtype] = msg.name
+                self.name_to_id[msg.msgname] = mtype
+                self.id_to_name[mtype] = msg.msgname
                 self.f.seek(ofs)
                 m = self.recv_msg()
-                add_message(self.messages, msg.name, m)
+                add_message(self.messages, msg.msgname, m)
                 if m._instance_field is not None:
                     instance_idx = m.ordered_fieldnames.index(m._instance_field)
                     self.instance_offsets[mtype] = m._instance_offset
