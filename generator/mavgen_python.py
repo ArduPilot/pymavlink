@@ -466,7 +466,7 @@ ${docstring}
     """
 
     id = MAVLINK_MSG_ID_${msg_name_upper}
-    name = "${msg_name_upper}"
+    msgname = "${msg_name_upper}"
     fieldnames = [${field_names}]
     ordered_fieldnames = [${ordered_field_names}]
     fieldtypes = [${field_types}]
@@ -484,7 +484,7 @@ ${docstring}
     instance_offset = ${instance_offset}
 
     def __init__(self, ${arg_fields}):
-        MAVLink_message.__init__(self, ${classname}.id, ${classname}.name)
+        MAVLink_message.__init__(self, ${classname}.id, ${classname}.msgname)
         self._fieldnames = ${classname}.fieldnames
         self._instance_field = ${classname}.instance_field
         self._instance_offset = ${classname}.instance_offset
