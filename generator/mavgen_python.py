@@ -899,11 +899,11 @@ class MAVLink(object):
             return MAVLink_unknown(msgId, msgbuf)
 
         # decode the payload
-        type = mavlink_map[mapkey]
-        fmt = type.format
-        order_map = type.orders
-        len_map = type.lengths
-        crc_extra = type.crc_extra
+        msgtype = mavlink_map[mapkey]
+        fmt = msgtype.format
+        order_map = msgtype.orders
+        len_map = msgtype.lengths
+        crc_extra = msgtype.crc_extra
 
         # decode the checksum
         try:
@@ -945,18 +945,18 @@ class MAVLink(object):
             if not accept_signature:
                 raise MAVError("Invalid signature")
 
-        csize = type.unpacker.size
+        csize = msgtype.unpacker.size
         mbuf = msgbuf[headerlen : -(2 + signature_len)]
         if len(mbuf) < csize:
             # zero pad to give right size
             mbuf.extend([0] * (csize - len(mbuf)))
         if len(mbuf) < csize:
-            raise MAVError("Bad message of type %s length %u needs %s" % (type, len(mbuf), csize))
+            raise MAVError("Bad message of type %s length %u needs %s" % (msgtype, len(mbuf), csize))
         mbuf = mbuf[:csize]
         try:
-            t = type.unpacker.unpack(mbuf)
+            t = msgtype.unpacker.unpack(mbuf)
         except struct.error as emsg:
-            raise MAVError("Unable to unpack MAVLink payload type=%s fmt=%s payloadLength=%u: %s" % (type, fmt, len(mbuf), emsg))
+            raise MAVError("Unable to unpack MAVLink payload type=%s fmt=%s payloadLength=%u: %s" % (msgtype, fmt, len(mbuf), emsg))
 
         tlist = list(t)
         # handle sorted fields
@@ -981,16 +981,16 @@ class MAVLink(object):
 
         # terminate any strings
         for i in range(0, len(tlist)):
-            if type.fieldtypes[i] == "char":
+            if msgtype.fieldtypes[i] == "char":
                 if sys.version_info.major >= 3:
                     tlist[i] = to_string(tlist[i])
                 tlist[i] = str(MAVString(tlist[i]))
         t = tuple(tlist)
         # construct the message object
         try:
-            m = type(*t)
+            m = msgtype(*t)
         except Exception as emsg:
-            raise MAVError("Unable to instantiate MAVLink message of type %s : %s" % (type, emsg))
+            raise MAVError("Unable to instantiate MAVLink message of type %s : %s" % (msgtype, emsg))
         m._signed = sig_ok
         if m._signed:
             m._link_id = msgbuf[-13]
