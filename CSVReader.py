@@ -26,6 +26,7 @@ from builtins import object
 
 import csv
 import struct
+import os
 
 from . import mavutil
 from . import mavextra
@@ -89,6 +90,8 @@ class CSVReader(object):
                  timestamp_expression=None,
                  ):
 
+        separator = os.environ.get("CSV_SEPARATOR", separator)
+
         self.messages = { 'MAV' : self }
         self.filename = filename
         self.separator = separator
@@ -100,6 +103,7 @@ class CSVReader(object):
         self.verbose = False
         self.f = None
         self.linecount = None
+        self.params = {}
 
         self._rewind()  # opens files etc etc
         self.recv_msg()  # populate self.messages
