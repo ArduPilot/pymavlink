@@ -919,7 +919,7 @@ class MAVLink(object):
             signature_len = 0
 
         if ord(magic) != PROTOCOL_MARKER_V1 and ord(magic) != PROTOCOL_MARKER_V2:
-            raise MAVError("invalid MAVLink prefix '%s'" % magic)
+            raise MAVError("invalid MAVLink prefix '{}'".format(hex(ord(magic))))
         if mlen != len(msgbuf) - (headerlen + 2 + signature_len):
             raise MAVError("invalid MAVLink message length. Got %u expected %u, msgId=%u headerlen=%u" % (len(msgbuf) - (headerlen + 2 + signature_len), mlen, msgId, headerlen))
 
