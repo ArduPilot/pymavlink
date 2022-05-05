@@ -145,6 +145,7 @@ setup (name = 'pymavlink',
                                                     'message_definitions/v*/*.xml']
                         },
        packages = ['pymavlink',
+                   'pymavlink.fx',
                    'pymavlink.generator',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
