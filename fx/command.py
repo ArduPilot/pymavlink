@@ -219,3 +219,20 @@ class GetParamCommand(Command):
             -1,
         )
         return payload.pack(self.ms.mav)
+
+class PreflightCalibrationCommand(Command):
+    def serialize_payload(self, *args, **kwargs) -> bytes:
+        payload = self.ms.mav.command_long_encode(
+            self.ms.target_system,
+            self.ms.target_component,
+            mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,  # command
+            0,  # confirmation
+            0,  # param 1
+            0,  # param 2
+            1,  # param 3
+            0,  # param 4
+            0,  # param 5
+            0,  # param 6
+            0,  # param 7
+        )
+        return payload.pack(self.ms.mav)
