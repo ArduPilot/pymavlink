@@ -24,7 +24,7 @@
 '''
 from __future__ import print_function
 
-from math import sin, cos, sqrt, asin, atan2, pi, acos
+from math import sin, cos, sqrt, asin, atan2, pi, acos, radians
 
 
 class Vector3(object):
@@ -423,7 +423,7 @@ class Rotation(object):
         self.pitch = pitch
         self.yaw = yaw
         self.r = Matrix3()
-        self.r.from_euler(self.roll, self.pitch, self.yaw)
+        self.r.from_euler(radians(self.roll), radians(self.pitch), radians(self.yaw))
         self.rt = self.r.transposed()
 
 # the rotations used in APM
