@@ -313,14 +313,7 @@ def generate_field_dissector(outf, msg, field, offset, cmd=None, param=None):
         t.write(outf,
 """
     field_offset = offset + ${foffset}
-    value = padded(field_offset, ${fbytes}):${ftvbfunc}()
-    if (field_offset + ${fbytes} <= limit) then
-        subtree = tree:add_le(f.${fvar}, buffer(field_offset, ${fbytes}), value)
-    elseif (field_offset < limit) then
-        subtree = tree:add_le(f.${fvar}, buffer(field_offset, limit - offset - ${foffset}), value)
-    else
-        subtree = tree:add_le(f.${fvar}, value)
-    end
+    subtree, value = tree:add_le(f.${fvar}, padded(field_offset, ${fbytes}))
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         if flag_enum is not None:
