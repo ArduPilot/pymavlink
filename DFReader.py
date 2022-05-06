@@ -816,6 +816,7 @@ class DFReader_binary(DFReader):
                 if not idata in type_instances[mtype]:
                     # its a new one, need to parse it so we have the complete set of instances
                     type_instances[mtype].add(idata)
+                    self.offset = ofs
                     self._parse_next()
 
             self.counts[mtype] += 1
