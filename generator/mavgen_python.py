@@ -338,19 +338,11 @@ class EnumEntry(object):
 enums = {}
 """
     )
-    wrapper = textwrap.TextWrapper(
-        initial_indent="", subsequent_indent="                        # "
-    )
     for e in enums:
         outf.write("\n# %s\n" % e.name)
         outf.write('enums["%s"] = {}\n' % e.name)
         for entry in e.entry:
-            if entry.description == "":
-                outf.write("%s = %u\n" % (entry.name, entry.value))
-            else:
-                outf.write(
-                    "%s = %u  # %s\n" % (entry.name, entry.value, wrapper.fill(entry.description))
-                )
+            outf.write("%s = %u\n" % (entry.name, entry.value))
             outf.write(
                 'enums["%s"][%d] = EnumEntry("%s", """%s""")\n'
                 % (e.name, int(entry.value), entry.name, entry.description)
