@@ -54,6 +54,10 @@ jobs:
         run: |
           python setup.py build install
 
+      - name: Lint generated python code
+        run: |
+          flake8 --ignore='W503,E203,E501,E741,E713,E722,F841' --statistics dialects/
+
       - name: Generate messages
         run: |
           mavgen.py --lang='C'          --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0 --strict-units
