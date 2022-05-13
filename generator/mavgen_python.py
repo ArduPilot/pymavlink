@@ -343,14 +343,16 @@ enums = {}
         outf.write('enums["%s"] = {}\n' % e.name)
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
+            description = entry.description.replace("\t", "    ")
             outf.write(
                 'enums["%s"][%d] = EnumEntry("%s", """%s""")\n'
-                % (e.name, int(entry.value), entry.name, entry.description)
+                % (e.name, int(entry.value), entry.name, description)
             )
             for param in entry.param:
+                description = param.description.replace("\t", "    ")
                 outf.write(
                     'enums["%s"][%d].param[%d] = """%s"""\n'
-                    % (e.name, int(entry.value), int(param.index), param.description)
+                    % (e.name, int(entry.value), int(param.index), description)
                 )
 
 
