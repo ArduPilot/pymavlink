@@ -582,7 +582,7 @@ def mavdefault(field):
         if field.array_length == 0:
             return "0"
         else:
-            return "[" + ", ".join(["0"] * field.array_length) + "]"
+            return "(" + ", ".join(["0"] * field.array_length) + ")"
 
 
 def generate_mavlink_class(outf, msgs, xml):
