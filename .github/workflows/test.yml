@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: [2.7, 3.5, 3.6, 3.7, 3.8, 3.9, '3.10']
+        python-version: ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
 
     steps:
       - uses: actions/checkout@v2
@@ -24,6 +24,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest pytest-mock numpy
+          if [ "${{ matrix.python-version }}" != "2.7" ] && [ "${{ matrix.python-version }}" != "3.5" ]
+          then
+            pip install mypy
+          fi
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           sudo apt update
           sudo apt install -y libgtest-dev g++
@@ -56,8 +60,13 @@ jobs:
 
       - name: Lint generated python code
         run: |
-          flake8 --ignore='W503,E203,E501,E741' --statistics dialects/
-
+          if [ "${{ matrix.python-version }}" = "2.7" ] || [ "${{ matrix.python-version }}" = "3.5" ]
+          then
+            flake8 --ignore='W503,E203,E501,E741' --statistics dialects/v10/python2/*.py dialects/v20/python2/*.py
+          else
+            flake8 --ignore='W503,E203,E501,E741' --statistics dialects/
+            mypy --config-file ./.github/workflows/mypy-generated.ini dialects/v10/*.py dialects/v20/*.py
+          fi
       - name: Generate messages
         run: |
           mavgen.py --lang='C'          --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0 --strict-units
