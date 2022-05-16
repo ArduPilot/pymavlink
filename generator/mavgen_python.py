@@ -33,7 +33,6 @@ import hashlib
 import json
 import logging
 import os
-import platform
 import struct
 import sys
 import time
@@ -53,22 +52,19 @@ MAVLINK_IFLAG_SIGNED = 0x01
 
 logger = logging.getLogger(__name__)
 
-# Not yet supported on other dialects
-native_supported = platform.system() != "Windows"
 # Will force use of native code regardless of what client app wants
 native_force = "MAVNATIVE_FORCE" in os.environ
 # Will force both native and legacy code to be used and their results compared
 native_testing = "MAVNATIVE_TESTING" in os.environ
 
-if native_supported and float(WIRE_PROTOCOL_VERSION) <= 1:
+native_supported = False
+if os.name == "posix" and float(WIRE_PROTOCOL_VERSION) <= 1:
     try:
         import mavnative
+
+        native_supported = True
     except ImportError:
         logger.error("ERROR LOADING MAVNATIVE - falling back to python implementation")
-        native_supported = False
-else:
-    # mavnative isn't supported for MAVLink2 yet
-    native_supported = False
 
 # allow MAV_IGNORE_CRC=1 to ignore CRC, allowing some
 # corrupted msgs to be seen
@@ -159,7 +155,7 @@ class MAVLink_header(object):
         self.compat_flags = compat_flags
 
     def pack(self, force_mavlink1=False):
-        if WIRE_PROTOCOL_VERSION == "2.0" and not force_mavlink1:
+        if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             return struct.pack(
                 "<BBBBBBBHB",
                 ${PROTOCOL_MARKER},
@@ -304,7 +300,7 @@ class MAVLink_message(object):
 
     def _pack(self, mav, crc_extra, payload, force_mavlink1=False):
         plen = len(payload)
-        if WIRE_PROTOCOL_VERSION != "1.0" and not force_mavlink1:
+        if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
             # variable length arrays and smaller packets
             nullbyte = chr(0)
@@ -328,7 +324,8 @@ class MAVLink_message(object):
         )
         self._msgbuf = self._header.pack(force_mavlink1=force_mavlink1) + self._payload
         crc = x25crc(self._msgbuf[1:])
-        if ${crc_extra}:  # using CRC extra
+        if ${crc_extra}:
+            # we are using CRC extra
             crc.accumulate_str(struct.pack("B", crc_extra))
         self._crc = crc.crc
         self._msgbuf += struct.pack("<H", self._crc)
