@@ -454,7 +454,6 @@ ${docstring}
     fielddisplays_by_name = {${field_displays}}
     fieldenums_by_name = {${field_nums}}
     fieldunits_by_name = {${field_units}}
-    format = "${fmtstr}"
     native_format = bytearray("${native_fmtstr}", "ascii")
     orders = ${orders}
     lengths = ${lengths}
@@ -472,7 +471,7 @@ ${docstring}
         ${init_fields}
 
     def pack(self, mav, force_mavlink1=False):
-        return MAVLink_message.pack(self, mav, self.crc_extra, struct.pack(self.format, ${pack_fields}), force_mavlink1=force_mavlink1)
+        return MAVLink_message.pack(self, mav, self.crc_extra, self.unpacker.pack(${pack_fields}), force_mavlink1=force_mavlink1)
 ''',
             {
                 "classname": classname,
@@ -900,7 +899,6 @@ class MAVLink(object):
 
         # decode the payload
         msgtype = mavlink_map[mapkey]
-        fmt = msgtype.format
         order_map = msgtype.orders
         len_map = msgtype.lengths
         crc_extra = msgtype.crc_extra
@@ -956,7 +954,7 @@ class MAVLink(object):
         try:
             t = msgtype.unpacker.unpack(mbuf)
         except struct.error as emsg:
-            raise MAVError("Unable to unpack MAVLink payload type=%s fmt=%s payloadLength=%u: %s" % (msgtype, fmt, len(mbuf), emsg))
+            raise MAVError("Unable to unpack MAVLink payload type=%s payloadLength=%u: %s" % (msgtype, len(mbuf), emsg))
 
         tlist = list(t)
         # handle sorted fields
