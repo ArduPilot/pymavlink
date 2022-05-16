@@ -11,6 +11,7 @@ from builtins import object
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 import copy
+import json
 import re
 from pymavlink import mavexpression
 
@@ -20,7 +21,6 @@ is_py3 = sys.version_info >= (3,0)
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
 try:
-    import json
     from pymavlink.dialects.v10 import ardupilotmega
 except Exception:
     pass
