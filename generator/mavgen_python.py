@@ -735,7 +735,7 @@ class MAVLink(object):
         self.seq = (self.seq + 1) % 256
         self.total_packets_sent += 1
         self.total_bytes_sent += len(buf)
-        if self.send_callback:
+        if self.send_callback is not None and self.send_callback_args is not None and self.send_callback_kwargs is not None:
             self.send_callback(mavmsg, *self.send_callback_args, **self.send_callback_kwargs)
 
     def buf_len(self):
@@ -743,7 +743,7 @@ class MAVLink(object):
 
     def bytes_needed(self):
         """return number of bytes needed for next parsing stage"""
-        if self.native:
+        if self.native is not None:
             ret = self.native.expected_length - self.buf_len()
         else:
             ret = self.expected_length - self.buf_len()
@@ -759,7 +759,7 @@ class MAVLink(object):
 
     def __callbacks(self, msg):
         """this method exists only to make profiling results easier to read"""
-        if self.callback:
+        if self.callback is not None and self.callback_args is not None and self.callback_kwargs is not None:
             self.callback(msg, *self.callback_args, **self.callback_kwargs)
 
     def parse_char(self, c):
@@ -768,7 +768,7 @@ class MAVLink(object):
 
         self.total_bytes_received += len(c)
 
-        if self.native:
+        if self.native is not None:
             if native_testing:
                 self.test_buf.extend(c)
                 m = self.__parse_char_native(self.test_buf)
