@@ -16,12 +16,16 @@ import re
 from pymavlink import mavexpression
 
 is_py3 = sys.version_info >= (3,0)
+supports_type_annotations = sys.version_info >= (3,6)
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
 try:
-    from pymavlink.dialects.v10 import ardupilotmega
+    if supports_type_annotations:
+        from pymavlink.dialects.v10 import ardupilotmega
+    else:
+        from pymavlink.dialects.v10.python2 import ardupilotmega
 except Exception:
     pass
 
@@ -102,28 +106,33 @@ def add_message(messages, mtype, msg):
     messages[mtype]._instances = prev_instances
     messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
 
-def set_dialect(dialect):
+def set_dialect(dialect, with_type_annotations=None):
     '''set the MAVLink dialect to work with.
     For example, set_dialect("ardupilotmega")
     '''
     global mavlink, current_dialect
     from .generator import mavparse
+
+    if with_type_annotations is None:
+        with_type_annotations = supports_type_annotations
+
+    legacy_python_module = "python2." if not with_type_annotations else ""
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
-        modname = "pymavlink.dialects.v20." + dialect
+        modname = "pymavlink.dialects.v20." + legacy_python_module + dialect
     elif mavlink is None or mavlink.WIRE_PROTOCOL_VERSION == "1.0" or not 'MAVLINK09' in os.environ:
         wire_protocol = mavparse.PROTOCOL_1_0
-        modname = "pymavlink.dialects.v10." + dialect
+        modname = "pymavlink.dialects.v10." + legacy_python_module + dialect
     else:
         wire_protocol = mavparse.PROTOCOL_0_9
-        modname = "pymavlink.dialects.v09." + dialect
+        modname = "pymavlink.dialects.v09." + legacy_python_module + dialect
 
     try:
         mod = __import__(modname)
     except Exception:
         # auto-generate the dialect module
         from .generator.mavgen import mavgen_python_dialect
-        mavgen_python_dialect(dialect, wire_protocol)
+        mavgen_python_dialect(dialect, wire_protocol, with_type_annotations=with_type_annotations)
         mod = __import__(modname)
     components = modname.split('.')
     for comp in components[1:]:
