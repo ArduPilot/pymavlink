@@ -15,6 +15,8 @@ from . import mavparse, mavtemplate
 
 t = mavtemplate.MAVTemplate()
 
+MAX_INT=2147483647
+
 def generate_enums(basename, xml):
     '''generate main header per XML file'''
     directory = os.path.join(basename, '''enums''')
@@ -34,10 +36,19 @@ package com.MAVLink.enums;
  * ${description}
  */
 public class ${name} {
-${{entry:   public static final long ${name} = ${value}L; /* ${description} |${{param:${description}| }} */
-}}
-}
             ''', en)
+        for entry in en.entry:
+            if entry.value <= MAX_INT:
+                t.write(f, '''
+public static final int ${name} = ${value}; /* ${description} |${{param:${description}| }} */
+                    ''', entry)
+            else:
+                t.write(f, '''
+public static final long ${name} = ${value}l; /* ${description} |${{param:${description}| }} */
+                    ''', entry)
+        t.write(f, '''
+}
+            ''')
         f.close()
 
 
