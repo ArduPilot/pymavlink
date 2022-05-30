@@ -101,7 +101,7 @@
     <xs:enumeration value="K"/>        <!-- Kelvin -->
     <xs:enumeration value="degC"/>     <!-- degrees Celsius -->
     <xs:enumeration value="cdegC"/>    <!-- centi degrees Celsius -->
-	<xs:enumeration value="cdegK"/>    <!-- centi degrees Kelvin -->
+    <xs:enumeration value="cdegK"/>    <!-- centi degrees Kelvin -->
     <!-- angle -->
     <xs:enumeration value="rad"/>      <!-- radians -->
     <xs:enumeration value="rad/s"/>    <!-- radians per second -->
@@ -137,7 +137,7 @@
     <xs:enumeration value="kg"/>       <!-- kilograms -->
     <!-- pressure -->
     <xs:enumeration value="Pa"/>       <!-- Pascal -->
-	<xs:enumeration value="daPa"/>     <!-- deca-Pascal -->
+    <xs:enumeration value="daPa"/>     <!-- deca-Pascal -->
     <xs:enumeration value="hPa"/>      <!-- hecto-Pascal -->
     <xs:enumeration value="kPa"/>      <!-- kilo-Pascal -->
     <xs:enumeration value="mbar"/>     <!-- millibar -->
