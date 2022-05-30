@@ -46,8 +46,28 @@ class Command(ABC):
 
 
 class Context:
-    def __init__(self, command: Command) -> None:
+    def __init__(
+        self, command: Command, use_fx_format: bool = False, delimiter: bytes = None
+    ) -> None:
         self._command = command
+        self._use_fx_format = use_fx_format
+        self._delimiter = delimiter
+
+    @property
+    def delimiter(self) -> bytes:
+        return self._delimiter
+
+    @delimiter.setter
+    def delimiter(self, delimiter: bytes) -> None:
+        self._delimiter = delimiter
+
+    @property
+    def use_fx_format(self) -> bool:
+        return self._use_fx_format
+
+    @use_fx_format.setter
+    def use_fx_format(self, use_fx_format: bool) -> None:
+        self._use_fx_format = use_fx_format
 
     @property
     def command(self) -> Command:
@@ -58,7 +78,17 @@ class Context:
         self._command = command
 
     def get_payload(self, *args, **kwargs):
-        return self._command.serialize_payload(*args, **kwargs)
+        payload = self._command.serialize_payload(*args, **kwargs)
+        if not self._use_fx_format:
+            return payload
+        if self._delimiter:
+            payload += self._delimiter
+        return struct.pack(
+            ">HH{}s".format(len(payload)),
+            len(bytes([self._command.ms.target_system]) + payload),
+            self._command.ms.target_system,
+            payload,
+        )
 
 
 class HeartbeatCommand(Command):
@@ -219,6 +249,7 @@ class GetParamCommand(Command):
             -1,
         )
         return payload.pack(self.ms.mav)
+
 
 class PreflightCalibrationCommand(Command):
     def serialize_payload(self, *args, **kwargs) -> bytes:
