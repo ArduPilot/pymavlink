@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import math
+import struct
 from enum import Enum
 
 from pymavlink.fx.mav import MavSerializer
