@@ -1,0 +1,15 @@
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 120
+
+[tool.mypy]
+ignore_missing_imports = true
+exclude = [
+    'build/',
+    '.pytest_cache/',
+    'cmake-build-debug/',
+    '/setup\.py$'
+]
