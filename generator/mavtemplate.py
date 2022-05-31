@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 simple templating system for mavlink generator
 

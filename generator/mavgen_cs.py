@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 parse a MAVLink protocol XML file and generate a C# implementation
 
