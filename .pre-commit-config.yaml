@@ -29,22 +29,29 @@ repos:
       - id: check-toml
 
   # Use to sort python imports by name and put system import first.
-  - repo: https://github.com/pycqa/isort
-    rev: 5.10.1
-    hooks:
-      - id: isort
-        args: [--check-only]
-        name: isort (python)
+#  - repo: https://github.com/pycqa/isort
+#    rev: 5.10.1
+#    hooks:
+#      - id: isort
+#        args: [--check-only]
+#        name: isort (python)
 
   - repo: https://github.com/pycqa/flake8
     rev: 3.9.2
     hooks:
       - id: flake8
+        args: ["--max-complexity=10", "--max-line-length=127", "--select=E9,F63,F7,F82"]
 
   # Use to check python typing to show errors.
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v0.950'
+#  - repo: https://github.com/pre-commit/mirrors-mypy
+#    rev: 'v0.950'
+#    hooks:
+#      - id: mypy
+#        args: [--no-strict-optional, --ignore-missing-imports]
+#        additional_dependencies: [types-PyYAML, types-requests]
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.8.0
     hooks:
-      - id: mypy
-        args: [--no-strict-optional, --ignore-missing-imports]
-        additional_dependencies: [types-PyYAML, types-requests]
+      - id: shellcheck
+        args: ["--severity=error"]  # only show errors
