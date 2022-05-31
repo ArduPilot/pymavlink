@@ -15,18 +15,26 @@ jobs:
         python-version: [2.7, 3.5, 3.6, 3.7, 3.8, 3.9, '3.10']
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
+        id: install
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 pytest pytest-mock numpy
+          pip install flake8 pytest pytest-mock numpy types-PyYAML types-requests types-setuptools types-protobuf pre-commit
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           sudo apt update
           sudo apt install -y libgtest-dev g++
+          
+          if [[ ${{ matrix.python-version }} == "2.7" ]] || [[ ${{ matrix.python-version }} == "3.5" ]] || [[ ${{ matrix.python-version }} == "3.6" ]]; then
+            SKIP_PRECOMMIT=1
+          else
+            SKIP_PRECOMMIT=0
+          fi
+          echo "::set-output name=SKIP_PRECOMMIT::$SKIP_PRECOMMIT"
       - uses: actions/setup-node@v2-beta
         with:
           node-version: '12'
@@ -38,6 +46,11 @@ jobs:
           # exit-zero treats all errors as warnings. The GitHub web ui editor is 127 chars wide
           SELECT=C,E10,E11,E401,E502,E703,E8,E9,F,W191,W291,W292,W293,W391
           flake8 . --count --exit-zero --select=${SELECT} --max-complexity=10 --max-line-length=127 --statistics
+      - name: Check pre-commit
+        if: steps.install.outputs.SKIP_PRECOMMIT == 0
+        run: |
+          echo ${{ matrix.python-version }}
+          pre-commit run --all-files
       # NOTE: we must do all testing on the installed python package, not
       # on the build tree. Otherwise the testing is invalid and may not
       # indicate the code actually works
