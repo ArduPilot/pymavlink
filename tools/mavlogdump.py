@@ -221,33 +221,34 @@ while True:
           csv_out[0] = "{:.8f}".format(last_timestamp)
           print(args.csv_sep.join(csv_out))
         break
-    available_types.add(m.get_type())
-    if isbin and m.get_type() == "FMT" and args.format == 'csv':
+    m_type = m.get_type()
+    available_types.add(m_type)
+    if isbin and m_type == "FMT" and args.format == 'csv':
         if m.Name == types[0]:
             fields += m.Columns.split(',')
             csv_out = ["" for x in fields]
             print(args.csv_sep.join(fields))
 
-    if args.reduce and reduce_msg(m.get_type(), args.reduce):
+    if args.reduce and reduce_msg(m_type, args.reduce):
         continue
 
     if args.reduce_rate > 0 and reduce_rate_msg(m, args.reduce_rate):
         continue
     
     if output is not None:
-        if (isbin or islog) and m.get_type() == "FMT":
+        if (isbin or islog) and m_type == "FMT":
             output.write(m.get_msgbuf())
             continue
-        if (isbin or islog) and (m.get_type() == "PARM" and args.parms):
+        if (isbin or islog) and (m_type == "PARM" and args.parms):
             output.write(m.get_msgbuf())
             continue
-        if m.get_type() == 'PARAM_VALUE' and args.parms:
+        if m_type == 'PARAM_VALUE' and args.parms:
             timestamp = getattr(m, '_timestamp', None)
             output.write(struct.pack('>Q', int(timestamp*1.0e6)) + m.get_msgbuf())
             continue
 
     if not mavutil.evaluate_condition(args.condition, mlog.messages) and (
-            not (m.get_type() in ['FMT', 'FMTU', 'MULT','PARM','MODE'] and args.meta)):
+            not (m_type in ['FMT', 'FMTU', 'MULT','PARM','MODE'] and args.meta)):
         continue
     if args.source_system is not None and args.source_system != m.get_srcSystem():
         continue
@@ -256,15 +257,15 @@ while True:
     if args.link is not None and args.link != m._link:
         continue
 
-    if types is not None and m.get_type() != 'BAD_DATA' and not match_type(m.get_type(), types):
+    if types is not None and m_type != 'BAD_DATA' and not match_type(m_type, types):
         continue
 
-    if nottypes is not None and match_type(m.get_type(), nottypes):
+    if nottypes is not None and match_type(m_type, nottypes):
         continue
 
     # Ignore BAD_DATA messages is the user requested or if they're because of a bad prefix. The
     # latter case is normally because of a mismatched MAVLink version.
-    if m.get_type() == 'BAD_DATA' and (args.no_bad_data is True or m.reason == "Bad prefix"):
+    if m_type == 'BAD_DATA' and (args.no_bad_data is True or m.reason == "Bad prefix"):
         continue
 
     # Grab the timestamp.
@@ -277,7 +278,7 @@ while True:
         try:
             output.write(m.get_msgbuf())
         except Exception as ex:
-            print("Failed to write msg %s: %s" % (m.get_type(), str(ex)))
+            print("Failed to write msg %s: %s" % (m_type, str(ex)))
 
     # If quiet is specified, don't display output to the terminal.
     if args.quiet:
@@ -297,7 +298,7 @@ while True:
 
         # Prepare the message as a single object with 'meta' and 'data' keys holding
         # the message's metadata and actual data respectively.
-        meta = {"type": m.get_type(), "timestamp": timestamp}
+        meta = {"type": m_type, "timestamp": timestamp}
         if args.show_source:
             meta["srcSystem"] = m.get_srcSystem()
             meta["srcComponent"] = m.get_srcComponent()
@@ -313,7 +314,6 @@ while True:
     # CSV format outputs columnar data with a user-specified delimiter
     elif args.format == 'csv':
         data = m.to_dict()
-        type = m.get_type()
 
         # If this message has a duplicate timestamp, copy its data into the existing data list. Also
         # do this if it's the first message encountered.
@@ -321,7 +321,7 @@ while True:
             if isbin:
                 newData = [str(data[y]) if y != "timestamp" else "" for y in fields]
             else:
-                newData = [str(data[y.split('.')[-1]]) if y.split('.')[0] == type and y.split('.')[-1] in data else "" for y in fields]
+                newData = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
 
             for i, val in enumerate(newData):
                 if val:
@@ -334,19 +334,19 @@ while True:
             if isbin:
                 csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
             else:
-                csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == type and y.split('.')[-1] in data else "" for y in fields]
+                csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
     # MAT format outputs data to a .mat file specified through the
     # --mat_file option
     elif args.format == 'mat':
         # If this packet contains data (i.e. is not a FMT
         # packet), append the data in this packet to the
         # corresponding list
-        if m.get_type()!='FMT':
+        if m_type != 'FMT':
 
             # If this packet type has not yet been
             # seen, add a new entry to the big dict
-            if m.get_type() not in MAT:
-                MAT[m.get_type()] = {}
+            if m_type not in MAT:
+                MAT[m_type] = {}
 
             md = m.to_dict()
             del md['mavpackettype']
@@ -354,10 +354,10 @@ while True:
             for col in cols:
                 # If this column hasn't had data entered,
                 # make a new key and list
-                if col in MAT[m.get_type()]:
-                    MAT[m.get_type()][col].append(md[col])
+                if col in MAT[m_type]:
+                    MAT[m_type][col].append(md[col])
                 else:
-                    MAT[m.get_type()][col] = [md[col]]
+                    MAT[m_type][col] = [md[col]]
     elif args.show_types:
         # do nothing
         pass
