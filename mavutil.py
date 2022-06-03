@@ -75,9 +75,9 @@ def u_ord(c):
 class location(object):
     '''represent a GPS coordinate'''
     def __init__(self, lat, lng, alt=0, heading=0):
-        self.lat = lat
-        self.lng = lng
-        self.alt = alt
+        self.lat = lat  # in degrees
+        self.lng = lng  # in degrees
+        self.alt = alt  # in metres
         self.heading = heading
 
     def __str__(self):
