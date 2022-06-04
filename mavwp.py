@@ -493,6 +493,9 @@ class MissionItemProtocol_Fence(MissionItemProtocol):
         '''try to load from an old "FENCE_POINT" format file (just a list of
         latlon pairs - or fall back to QGC formats'''
 
+        if not mavutil.mavlink20():
+            raise ValueError("Must be using mavlink2")
+
         version_line = get_first_line_from_file(filename)
 
         if (version_line is None or
@@ -580,6 +583,9 @@ class MissionItemProtocol_Rally(MissionItemProtocol):
 
     def load(self, filename):
         '''attempts to load from legacy rally file'''
+        if not mavutil.mavlink20():
+            raise ValueError("Must be using mavlink2")
+
         version_line = get_first_line_from_file(filename)
         if version_line is None or not re.match("^RALLY ", version_line):
             return super(MissionItemProtocol_Rally, self).load(filename)
@@ -620,7 +626,7 @@ class MissionItemProtocol_Rally(MissionItemProtocol):
                     int(lat_deg * 1e7),  # x (latitude)
                     int(lng_deg * 1e7),  # y (longitude)
                     alt * 1e3,      # z (altitude)
-                    self.mav_mission_type(),
+                    self.mav_mission_type()
                 )
                 points.append(w)
                 seq += 1
