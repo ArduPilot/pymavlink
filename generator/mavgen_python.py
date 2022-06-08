@@ -347,6 +347,28 @@ class MAVLink_message(object):
             raise IndexError()
         return self._instances[key]
 
+
+class mavlink_msg_deprecated_name_property(object):
+    """
+    This handles the class variable name change from name to msgname for
+    subclasses of MAVLink_message during a transition period.
+
+    This is used by setting the class variable to
+    `mavlink_msg_deprecated_name_property()`.
+    """
+
+    def __get__(self, instance, owner):
+        if instance is not None:
+            logger.error("Using .name on a MAVLink_message is not supported, use .get_type() instead.")
+            raise AttributeError("Class {} has no attribute 'name'".format(owner.__name__))
+        logger.warning(
+            """Using .name on a MAVLink_message class is deprecated, consider using .msgname instead.
+Note that if compatibility with pymavlink 2.4.30 and earlier is desired, use something like this:
+
+msg_name =  msg.msgname if hasattr(msg, "msgname") else msg.name"""
+        )
+        return owner.msgname
+
 ''',
         {
             "FILELIST": ",".join(args),
@@ -508,6 +530,11 @@ ${docstring}
 
     def pack(self, mav, force_mavlink1=False):
         return self._pack(mav, self.crc_extra, self.unpacker.pack(${pack_fields}), force_mavlink1=force_mavlink1)
+
+
+# Define name on the class for backwards compatibility (it is now msgname).
+# Done with setattr to hide the class variable from mypy.
+setattr(${classname}, "name", mavlink_msg_deprecated_name_property())
 ''',
             {
                 "classname": classname,
