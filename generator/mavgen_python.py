@@ -105,11 +105,22 @@ def to_string(s):
     # so it's a nasty one. Let's grab as many characters as we can
     r = ""
     try:
-        for c in s:
-            r2 = r + c
-            r2 = r2.encode("ascii", "ignore")
-            x = u"%s" % r2
-            r = r2
+        for index, c in enumerate(s):
+            # check if all the remaining characters are zero
+            if s.count(s[index]) == len(s[index:]):
+                break
+            try:
+                r2 = c.encode("ascii", "ignore")
+                x = u"%s" % r2
+                r += x
+            except Exception:
+                # method of last resort, print the value recieved in hex
+                try:
+                    r2 = "\\\\" + str(hex(c))
+                    r += r2
+                except Exception as e:
+                    print(e)
+                    pass
     except Exception:
         pass
     return r + "_XXX"
