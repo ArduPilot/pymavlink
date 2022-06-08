@@ -50,6 +50,9 @@ MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 MAVLINK_IFLAG_SIGNED = 0x01
 
+if sys.version_info[0] == 2:
+    logging.basicConfig()
+
 logger = logging.getLogger(__name__)
 
 # Will force use of native code regardless of what client app wants
