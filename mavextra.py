@@ -1566,3 +1566,68 @@ def reset_state_data():
     first_fix = None
     dcm_state = None
     earth_field = None
+
+# terrain functions, using MAVProxy elevation module
+EleModel = None
+
+def terrain_height(lat,lon):
+    '''get terrain height'''
+    global EleModel
+    if EleModel is None:
+        from MAVProxy.modules.mavproxy_map.mp_elevation import ElevationModel
+        EleModel = ElevationModel("srtm",offline=1)
+    return EleModel.GetElevation(lat,lon)
+
+def terrain_margin_lat_lon(lat1,lon1,alt1,lat2,lon2,alt2):
+    '''
+    return minimum height above terrain on path between two positions (AMSL)
+    '''
+    distance = distance_lat_lon(lat1, lon1, lat2, lon2)
+    steps = distance / 10
+    dlat = (lat2-lat1) / steps
+    dlon = (lon2-lon1) / steps
+    dalt = (alt2-alt1) / steps
+    min_margin = None
+
+    for i in range(max(1,int(steps))):
+        talt = terrain_height(lat1,lon1)
+        margin = alt1 - talt
+        if min_margin is None or margin < min_margin:
+            min_margin = margin
+        lat1 += dlat
+        lon1 += dlon
+        alt1 += dalt
+    return min_margin
+
+def terrain_margin(TERR,lat,lon,antenna_height):
+    '''
+    return minimum height above terrain on path between two positions (AMSL)
+    '''
+    alt = terrain_height(lat,lon)+antenna_height
+    return terrain_margin_lat_lon(TERR.Lat,TERR.Lng,TERR.CHeight+TERR.TerrH,lat,lon,alt)
+
+def radio_margin(TERR,lat,lon,antenna_height):
+    '''
+    return how much height we could lose and still have line of sight from an antenna at antenna_height
+    above ground at lat/lon
+    '''
+    ant_alt = terrain_height(lat,lon)+antenna_height
+    if hasattr(TERR,'CHeight'):
+        alt = TERR.CHeight+TERR.TerrH
+    else:
+        # allow for GPS messages
+        alt = TERR.Alt
+    low = -alt
+    high = 0
+    while high > low+1:
+        test = 0.5*(low+high)
+        m = terrain_margin_lat_lon(TERR.Lat,TERR.Lng,alt+test,lat,lon,ant_alt)
+        if m > 0:
+            high = test
+        elif m < 0:
+            low = test
+        else:
+            low = test
+            high = test
+    return -high
+    
