@@ -2,10 +2,10 @@
 
 from builtins import object
 
+import weakref
 from time import sleep
 from threading import Thread, Event, Lock
-from pymavlink import mavutil
-mavlink = mavutil.mavlink
+from pymavlink import mavutil, mavlink
 
 
 class WriteLockedFile(object):
@@ -43,6 +43,7 @@ class mavactive(object):
         self.connection.mav.file = WriteLockedFile(self.connection.mav.file)
         # set up the kill event and initialise the heartbeat thread
         self._kill = Event()
+        self._finalizer = weakref.finalize(self, self.kill)
         self._birth()
 
     def _birth(self):
@@ -83,7 +84,3 @@ class mavactive(object):
             return # already alive
 
         self._birth()
-
-    def __del__(self):
-        """ End the thread cleanly on program end. """
-        self.kill()
