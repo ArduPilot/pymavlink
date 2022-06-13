@@ -177,15 +177,8 @@ class ChangeHeadingCommand(Command):
     def calculate_destination(lon_start, lat_start, heading, d):
         R = 6378.1  # Radius of the Earth (km)
 
-        lat_end = math.asin(
-            math.sin(lat_start) * math.cos(d / R)
-            + math.cos(lat_start) * math.sin(d / R) * math.cos(heading)
-        )
-
-        lon_end = lon_start + math.atan2(
-            math.sin(heading) * math.sin(d / R) * math.cos(lat_start),
-            math.cos(d / R) - math.sin(lat_start) * math.sin(lat_end),
-        )
+        lat_end = lat_start - d / R * math.cos(heading)
+        lon_end = lon_start + d / R * math.sin(heading)
 
         return lon_end, lat_end
 
@@ -195,9 +188,7 @@ class SetWaypointCommand(Command):
         if "waypoint_id" not in kwargs:
             raise TypeError("Missing waypoint_id value")
         payload = self.ms.mav.mission_set_current_encode(
-            self.ms.target_system,
-            self.ms.target_component,
-            int(kwargs["waypoint_id"]),
+            self.ms.target_system, self.ms.target_component, int(kwargs["waypoint_id"])
         )
         return payload.pack(self.ms.mav)
 
@@ -217,8 +208,7 @@ class SetModeCommand(Command):
 class GetAllParamsCommand(Command):
     def serialize_payload(self, *args, **kwargs) -> bytes:
         payload = self.ms.mav.param_request_list_encode(
-            self.ms.target_system,
-            self.ms.target_component,
+            self.ms.target_system, self.ms.target_component
         )
         return payload.pack(self.ms.mav)
 
