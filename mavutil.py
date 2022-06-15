@@ -1493,6 +1493,7 @@ class mavmmaplog(mavlogfile):
         self.id_to_name = {}
 
         self.instance_offsets = {}
+        self.instance_lengths = {}
 
         self.type_nums = None
 
@@ -1536,7 +1537,13 @@ class mavmmaplog(mavlogfile):
                 m = self.recv_msg()
                 add_message(self.messages, msg.name, m)
                 if m._instance_field is not None:
+                    instance_idx = m.ordered_fieldnames.index(m._instance_field)
                     self.instance_offsets[mtype] = m._instance_offset
+                    alen = m.array_lengths[instance_idx]
+                    if alen > 0:
+                        self.instance_lengths[mtype] = alen
+                    else:
+                        self.instance_lengths[mtype] = 1
 
             if mtype in self.instance_offsets:
                 # populate the messages array with a new instance. This assumes we can get the instance
@@ -1546,11 +1553,29 @@ class mavmmaplog(mavlogfile):
                     # truncated log
                     break
                 self.f.seek(instance_field_ofs)
-                b = self.f.read(1)
-                instance, = struct.unpack('b', b)
+                ilen = self.instance_lengths[mtype]
+                ipad = 0
+                if ilen + (instance_field_ofs - ofs) > mlen-2:
+                    # message is MAVLink2.0 zero truncated
+                    ipad = ilen + (instance_field_ofs - ofs) - (mlen-2)
+                    ilen -= ipad
+                if ilen > 0:
+                    b = self.f.read(ilen)
+                else:
+                    b = bytes([0]*ilen)
+                if ipad > 0:
+                    b += bytes([0]*ipad)
+                if ilen+ipad > 1:
+                    # assume string
+                    while len(b) > 0 and b[-1] == 0:
+                        b = b[:-1]
+                    instance = b.decode('ASCII',errors='ignore').rstrip()
+                else:
+                    instance, = struct.unpack('b', b)
                 mname = self.id_to_name[mtype]
                 if mname in self.messages:
-                    self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
+                    iname = "%s[%s]" % (mname, str(instance))
+                    self.messages[iname] = self.messages[mname]
 
             self.offsets[mtype].append(ofs)
             self.counts[mtype] += 1
