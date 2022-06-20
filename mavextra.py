@@ -1061,19 +1061,21 @@ def gps_offset(lat, lon, east, north):
   distance = math.sqrt(east**2 + north**2)
   return gps_newpos(lat, lon, bearing, distance)
 
-ekf_home = None
+ekf_origin = None
 
 def ekf1_pos(EKF1):
   '''calculate EKF position when EKF disabled'''
-  global ekf_home
+  global ekf_origin
   from . import mavutil
   self = mavutil.mavfile_global
-  if ekf_home is None:
-      if not 'GPS' in self.messages or self.messages['GPS'].Status != 3:
+  if getattr(EKF1,'C',0) != 0:
+      return None
+  if ekf_origin is None:
+      if not 'ORGN' in self.messages:
           return None
-      ekf_home = self.messages['GPS']
-      (ekf_home.Lat, ekf_home.Lng) = gps_offset(ekf_home.Lat, ekf_home.Lng, -EKF1.PE, -EKF1.PN)
-  (lat,lon) = gps_offset(ekf_home.Lat, ekf_home.Lng, EKF1.PE, EKF1.PN)
+      ekf_origin = self.messages['ORGN']
+      (ekf_origin.Lat, ekf_origin.Lng) = (ekf_origin.Lat, ekf_origin.Lng)
+  (lat,lon) = gps_offset(ekf_origin.Lat, ekf_origin.Lng, EKF1.PE, EKF1.PN)
   return (lat, lon)
 
 def quat_to_euler(q):
