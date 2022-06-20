@@ -901,7 +901,7 @@ class DFReader_binary(DFReader):
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
-            type.update(set(['MODE','MSG','PARM','STAT']))
+            type.update(set(['MODE','MSG','PARM','STAT','ORGN']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1139,7 +1139,7 @@ class DFReader_text(DFReader):
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
             self.type_list = type.copy()
-            self.type_list.update(set(['MODE','MSG','PARM','STAT']))
+            self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN']))
             self.type_list = list(self.type_list)
             self.indexes = []
             self.type_nums = []
