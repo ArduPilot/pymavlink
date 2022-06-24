@@ -11,6 +11,9 @@ import java.lang.reflect.Field;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 @SuppressWarnings("unchecked")
+/**
+ * Description annotation to provide programmatic access to the MAVLink description for each field
+ */
 public @interface Description {
 
 	String value();
