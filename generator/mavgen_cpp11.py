@@ -43,6 +43,19 @@ MACROS = {
     'NO_DATA': 'NO_DATA_',  # fix uAvionix enum bug
 }
 
+RESERVED_WORDS = ['EOF', 'asm', 'double',   'new',  'switch',
+                  'auto', 'else', 'operator', 'template',
+                  'break',    'enum', 'private',  'this',
+                  'case', 'extern',   'protected',    'throw',
+                  'catch',    'float',    'public',   'try',
+                  'char', 'for',  'register', 'typedef',
+                  'class',    'friend',   'return',   'union',
+                  'const',    'goto', 'short',    'unsigned',
+                  'continue', 'if',   'signed',   'virtual',
+                  'default',  'inline',   'sizeof',   'void',
+                  'delete',   'int',  'static',   'volatile',
+                  'do',   'long', 'struct',   'while']
+
 EType = collections.namedtuple('EType', ('type', 'max'))
 
 
@@ -308,6 +321,10 @@ def enum_remove_prefix(prefix, s):
         sl.insert(0, pl[-1])
 
     ret = '_'.join(sl)
+
+    if ret in RESERVED_WORDS:
+        ret += '_'
+
     return MACROS.get(ret, ret)
 
 
