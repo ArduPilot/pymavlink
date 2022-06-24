@@ -333,6 +333,7 @@ class EnumEntry(object):
         self.name = name
         self.description = description
         self.param = {}
+        self.has_location = False
 
 
 enums = {}
@@ -348,6 +349,9 @@ enums = {}
                 'enums["%s"][%d] = EnumEntry("%s", """%s""")\n'
                 % (e.name, int(entry.value), entry.name, description)
             )
+            if entry.has_location:
+                outf.write('enums["%s"][%d].has_location = True\n' %
+                           (e.name, int(entry.value),))
             for param in entry.param:
                 description = param.description.replace("\t", "    ")
                 outf.write(
