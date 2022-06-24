@@ -30,7 +30,7 @@ def generate_enums(basename, xml):
 
 package com.MAVLink.enums;
 
-/** 
+/**
  * ${description}
  */
 public class ${name} {
@@ -163,7 +163,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
     public static final int MAVLINK_MSG_LENGTH = ${wire_length};
     private static final long serialVersionUID = MAVLINK_MSG_ID_${name};
 
-    ${{ordered_fields:  
+    ${{ordered_fields:
     /**
      * ${description}
      */
@@ -342,7 +342,7 @@ ${importString}
  *
  * The signature is a combination of a typeid, timestamp, and SHA256 hash.
  * OPTIONAL fields mean that, if they are not used, they do not exist in the MAVLink frame at all. Typically target sysid and target compid are not used, and signature is only used if signing is set up between both ends.
- * 
+ *
  * @see <a href="https://mavlink.io">mavlink.io</a> for more documentation on the MAVLink protocol
  */
 public class MAVLinkPacket implements Serializable {
@@ -558,7 +558,7 @@ public class MAVLinkPacket implements Serializable {
     xml_msgs.sort(key=lambda msg: msg.id)
 
     for msg in xml_msgs:
-        t.write(f, ''' 
+        t.write(f, '''
             case msg_${name_lower}.MAVLINK_MSG_ID_${name}:
                 return  new msg_${name_lower}(this);
             ''',msg)
@@ -691,7 +691,7 @@ def generate_one(basename, xml):
                 f.decode_left = ''
                 f.decode_right = 'm.%s' % (f.name)
 
-                f.unpackField = ''' 
+                f.unpackField = '''
         for (int i = 0; i < this.%s.length; i++) {
             this.%s[i] = payload.get%s();
         }
