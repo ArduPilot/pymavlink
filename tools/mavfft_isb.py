@@ -162,8 +162,8 @@ def mavfft_fttd(logfile, multi_log):
     window = {}
     S2 = {}
     hntch_mode_names = { 0:"No", 1:"Throttle", 2:"RPM", 3:"ESC", 4:"FFT"}
-    hntch_option_names = { 0:"Single", 1:"Double", 2:"Dynamic", 4:"Loop-Rate"}
-    batch_mode_names = { 0:"Pre-filter", 1:"Sensor-rate", 2:"Post-filter" }
+    hntch_option_names = { 0:"Single", 1:"Double", 2:"Dynamic", 4:"Loop-Rate", 8:"AllIMUs", 16:"Triple"}
+    batch_mode_names = { 0:"Pre-filter", 1:"Sensor-rate", 2:"Post-filter", 4:"Pre+post-filter" }
     fft_peak = int(args.fft_peak)
 
     first_freq = None
@@ -282,15 +282,25 @@ def mavfft_fttd(logfile, multi_log):
 
         if hntch_mode is not None and hntch_option is not None and batch_mode is not None:
             option_label = ""
-            for hopt in hntch_option_names:
+            batch_label = ""
+            for hopt, hname in hntch_option_names.items():
                 if hopt & int(hntch_option) != 0:
                     if len(option_label) > 0:
                         option_label += "+"
-                    option_label += hntch_option_names[hopt]
+                    option_label += hname
+            if int(hntch_option) == 0:
+                option_label = hntch_option_names[0]
+            for bopt, bname in batch_mode_names.items():
+                if bopt & int(batch_mode) != 0:
+                    if len(batch_label) > 0:
+                        batch_label += "+"
+                    batch_label += bname
+            if int(batch_mode) == 0:
+                option_label = batch_mode_names[0]
             textstr = '\n'.join((
                 r'%s tracking' % (hntch_mode_names[hntch_mode], ),
                 r'%s notch' % (option_label, ),
-                r'%s sampling' % (batch_mode_names[batch_mode], )))
+                r'%s sampling' % (batch_label, )))
 
             props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
 
