@@ -35,6 +35,7 @@ Pymavlink has several dependencies :
 Optional :
     - numpy : for FFT
     - pytest : for tests
+    - pre-commit: for tests
 
 ### On Linux
 
@@ -57,7 +58,7 @@ sudo apt-get install python3-numpy python3-pytest
 Using pip you can install the required dependencies for pymavlink :
 
 ```bash
-sudo python -m pip install --upgrade future lxml
+sudo python -m pip install --upgrade future lxml pre-commit
 ```
 
 ### On Windows
@@ -149,6 +150,53 @@ This `custom_mode_map.json` file can be used to:
 Notes:
   - Whilst the `MAV_TYPE` and mode numbers are integers, they need to be defined as `string`s in the JSON file, as raw integers can't be used as dictionary keys in JSON.
   - This feature _updates_ the default definitions. You can use it to change the name-to-number mapping for a mode, but you completely can't remove an existing mapping.
+
+# Test suite
+Pymavlink implements a number of tests and some CI (Continus Integration) rules to ensure the codebase remains usable and stable over contributions.
+As for July 2022, we start using pre-commit (https://pre-commit.com) as a central tools for developpement and CI tests.
+
+## Test suite tools installation
+Use Pip is the simplest way to install the test suite tools
+
+```bash
+sudo python -m pip install --upgrade flake8 pytest pytest-mock numpy types-PyYAML types-requests types-setuptools types-protobuf pre-commit
+```
+
+## Running tests
+
+### Static tests and code styles
+From pymavlink root directory :
+```bash
+pre-commit run --all-files
+```
+
+This run all pre-commit hooks against all the files. That is what is done in CI.
+
+### Generator testings
+To tests Pymavlink MAVLink languages generator, you need to have MAVLink messages definitions installed.
+A way to do this is to clone MAVLink git repository into Pymavlink parent directory :
+
+```bash
+git clone https://github.com/ArduPilot/mavlink.git ../mavlink
+```
+
+Then install your current Pymavlink version :
+```bash
+sudo python -m pip install . -v
+```
+
+Finally: run
+```bash
+flake8 --ignore='W503,E203,E501,E741,E713,E722,F841' --statistics dialects/
+```
+This does Python checking on the generated code.
+
+```bash
+./test_generate_all.sh
+./test_generator.sh
+python -m pytest
+```
+Those test all generators and check that their output is usable.
 
 
 # License
