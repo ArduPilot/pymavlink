@@ -34,7 +34,7 @@ def generate_enums(dir, enums):
             f.write("export enum {} {{\n".format(camelcase(e.name)))
             for entry in e.entry:
                 f.write(
-                    "\t{} = {}, // {}\n".format(entry.name, entry.value, entry.description.remove("\r"," ").remove("\n"," ")))
+                    "\t{} = {}, // {}\n".format(entry.name, entry.value, entry.description.replace("\r"," ").replace("\n"," ")))
             f.write("}")
 
 
