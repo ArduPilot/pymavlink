@@ -4,8 +4,6 @@
 decode FTP file transfers from tlog
 '''
 
-
-import time
 import struct
 import sys
 

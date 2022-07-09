@@ -6,7 +6,7 @@ fit best estimate of magnetometer offsets, diagonals, off-diagonals, cmot and sc
 # to allow print to file with both python 2 and 3
 from __future__ import print_function
 
-import sys, time, math, copy
+import sys, math, copy
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

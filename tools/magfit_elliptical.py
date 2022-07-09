@@ -5,7 +5,7 @@ fit best estimate of magnetometer offsets
 '''
 from __future__ import print_function
 
-import time, math
+import math
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
