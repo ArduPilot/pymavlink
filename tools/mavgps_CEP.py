@@ -7,8 +7,6 @@ This assumes the GPS modules were not moving during the test
 '''
 from builtins import range
 
-import os
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("logs", metavar="LOG", nargs="+")

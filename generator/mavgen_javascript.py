@@ -12,7 +12,6 @@ from builtins import range
 import os
 import textwrap
 from . import mavtemplate
-import sys
 
 t = mavtemplate.MAVTemplate()
 

@@ -6,7 +6,7 @@ Copyright Michael Oborne 2018
 Released under GNU GPL version 3 or later
 '''
 
-import sys, textwrap, os, time, re
+import textwrap, os, time, re
 from . import mavparse, mavtemplate
 
 t = mavtemplate.MAVTemplate()

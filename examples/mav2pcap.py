@@ -19,8 +19,6 @@ from future import standard_library
 standard_library.install_aliases()
 from builtins import object
 from builtins import open
-import sys
-import os
 
 from pymavlink import mavutil
 

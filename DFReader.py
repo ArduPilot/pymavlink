@@ -14,7 +14,6 @@ from builtins import object
 import array
 import math
 import sys
-import os
 import mmap
 import platform
 
