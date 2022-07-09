@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 Parse a MAVLink protocol XML file and generate a Java implementation
 
