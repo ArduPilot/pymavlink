@@ -1,5 +1,5 @@
-from builtins import range
 #!/usr/bin/env python
+from builtins import range
 
 import hashlib, sys
 
