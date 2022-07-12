@@ -26,13 +26,11 @@ from __future__ import print_function
 from future import standard_library
 standard_library.install_aliases()
 from builtins import object
+import copy
+import operator
 import os
-import re
 import sys
 from . import mavparse
-
-# XSD schema file
-schemaFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mavschema.xsd")
 
 # Set defaults for generating MAVLink code
 DEFAULT_WIRE_PROTOCOL = mavparse.PROTOCOL_1_0
@@ -48,37 +46,300 @@ MAXIMUM_INCLUDE_FILE_NESTING = 5
 supportedLanguages = ["C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11"]
 
 
+class MAVXMLs(object):
+    '''a collection of parsed MAVXML objects, rooted at filename'''
+    def __init__(self, filename, wire_protocol=None, validate=True, validate_strict_units=True):
+
+        self.filepath = os.path.abspath(filename)
+
+        # dictionary of filepath -> MAVXML (parsed XML object)
+        self.MAVXML = {}
+
+        # parse all reachable include files:
+        self.process_filepath(
+            self.filepath,
+            all_files=set(),
+            wire_protocol=wire_protocol,
+            validate=validate,
+            validate_strict_units=validate_strict_units
+        )
+
+        # populate the traditional aggregate values (e.g. aggregate
+        # list of messages)
+        self.create_aggregate_values()
+
+    def process_filepath(self, filepath, all_files, wire_protocol=None, validate=True, validate_strict_units=True):
+        '''turn filepath into a MAVXML object - and then do the same for all
+        its includes.  Populates self.MAVXML with those objects, keyed
+        by filepath
+        '''
+        # Only parse new include files
+        if filepath in self.MAVXML:
+            return
+        self.MAVXML[filepath] = mavparse.MAVXML(
+            filepath,
+            wire_protocol,
+            validate=validate,
+            validate_strict_units=validate_strict_units)
+
+        # recurse into our own includes
+        for include in self.MAVXML[filepath].include:
+            if os.path.isabs(include):
+                include_filepath = include
+            else:
+                include_filepath = os.path.join(os.path.dirname(filepath), include)
+            self.process_filepath(
+                include_filepath,
+                all_files,
+                wire_protocol=wire_protocol,
+                validate=validate,
+                validate_strict_units=validate_strict_units)
+
+    def traverse_filepath(self, filepath, function, seen=None):
+        if seen is None:
+            seen = set()
+        '''calls function on document structure inferred by <include>, returns list of results'''
+        ret = []
+        for include in self.MAVXML[filepath].include:
+            if os.path.isabs(include):
+                include_fpath = include
+            else:
+                include_fpath = os.path.join(os.path.dirname(filepath), include)
+            if include_fpath in seen:
+                continue
+            seen.add(include_fpath)
+            ret.extend(self.traverse_filepath(include_fpath, function, seen=seen))
+        ret.append(function(self, filepath))
+        return ret
+
+    def traverse(self, function, seen=None):
+        return self.traverse_filepath(self.filepath, function=function, seen=seen)
+
+    def total_msgs(self):
+        '''returns a count of messages in this document and all documents in
+        its include_MAVXML list'''
+
+        def msg_count(self, filepath):
+            return len(self.MAVXML[filepath].message)
+
+        counts = self.traverse(msg_count)
+        return reduce(lambda a, b : a + b, counts)
+
+    def total_filecount(self):
+        '''returns number of files parsed to create this MAVXMLs object'''
+        def file_count(self, filepath):
+            return 1
+        counts = self.traverse(file_count)
+        return len(counts)
+
+    def aggregate_value_keybits(self):
+        return [
+            "crcs",
+            "lengths",
+            "min_lengths",
+            "flags",
+            "target_system_ofs",
+            "target_component_ofs",
+            "names",
+        ]
+
+    def create_aggregate_values(self):
+        # hashes by message-id:
+        class Aggregates(object):
+            pass
+        self.aggregates = Aggregates()
+        for keybit in self.aggregate_value_keybits():
+            mykey = "message_" + keybit
+            setattr(self.aggregates, mykey, dict())
+
+        self.largest_payload = 0
+
+        def update_aggregate_values(self, filepath):
+            print("Merging %s" % os.path.basename(filepath))
+            mavxml = self.MAVXML[filepath]
+
+            for keybit in self.aggregate_value_keybits():
+                mykey = "message_" + keybit
+                theirkey = "message_" + keybit
+                mine = getattr(self.aggregates, mykey)
+                theirs = getattr(mavxml, theirkey)
+                mine.update(theirs)
+
+            if mavxml.largest_payload > self.largest_payload:
+                self.largest_payload = mavxml.largest_payload
+
+        self.traverse(update_aggregate_values)
+
+        # now sort aggregate values:
+
+
+    def filelist(self):
+        '''returns a list of files used to create this MAVXMLs object'''
+
+        def filepath(self, filepath):
+            return os.path.basename(filepath)
+
+        return sorted(self.traverse(filepath))
+
+    def all_messages(self):
+        '''returns messages from all files used to create this MAVXML object'''
+
+        def message(self, filepath):
+            return self.MAVXML[filepath].message
+
+        ret = []
+        for l in self.traverse(message):
+            ret.extend(l)
+
+        return sorted(ret, key=operator.attrgetter('name'))
+
+    def aggregate(self, filepath, attribute_name):
+        '''walks filepath and its includes, returns mapping from message id to
+        attribute value for supplied attribute.  So if attribute_name
+        is "message_crc", the return hash will have a mapping from id
+        to crc for each message in the XML corresponding to filepath
+        and all its includes.
+        '''
+        ret = {}
+
+        def getter(self, filepath2):
+            ret.update(getattr(self.MAVXML[filepath2], attribute_name))
+
+        self.traverse_filepath(filepath, getter)
+
+        return ret
+
+    def aggregate_enums_collect(self, filepath, seen):
+        seen.add(filepath)
+
+        def do_merge_enum(enum1, enum2):
+            '''merge entries from enum2 back into enum1'''
+            enum1_entry_by_name = {}
+            enum1_entry_by_value = {}
+            for entry in enum1.entry:
+                enum1_entry_by_name[entry.name] = enum
+                enum1_entry_by_value[entry.value] = enum
+            for entry in enum2.entry:
+                if entry.name in enum1_entry_by_name:
+                    print("%s already has a %s" % (enum1.name, entry.name))
+                    sys.exit(1)
+                if entry.value in enum1_entry_by_value:
+                    print("%s already has value %u" % (enum1.name, entry.value))
+                    sys.exit(1)
+                enum1.entry.append(copy.deepcopy(entry))
+
+        enums_by_name = {}
+
+        must_emit_enum = {}
+
+        mavxml = self.MAVXML[filepath]
+
+        ret = []  # order must be preserved
+
+        for include in mavxml.include:
+            if os.path.isabs(include):
+                include_fpath = include
+            else:
+                include_fpath = os.path.join(os.path.dirname(filepath), include)
+            if include_fpath in seen:
+                continue
+            seen.add(include_fpath)
+            for enum in self.aggregate_enums_collect(include_fpath, seen):
+                if enum.name not in enums_by_name:
+                    enums_by_name[enum.name] = copy.deepcopy(enum)
+                    ret.append(enums_by_name[enum.name])
+                    continue
+
+                must_emit_enum[enum.name] = True
+                do_merge_enum(enums_by_name[enum.name], enum)
+
+        for enum in mavxml.enum:
+            must_emit_enum[enum.name] = True
+            if enum.name not in enums_by_name:
+                enums_by_name[enum.name] = copy.deepcopy(enum)
+                ret.append(enums_by_name[enum.name])
+                continue
+
+            do_merge_enum(enums_by_name[enum.name], enum)
+
+        return filter(lambda x : x.name in must_emit_enum, ret)
+
+
+    def aggregate_enums(self, filepath):
+        '''returns enumerations from all files used to create this MAVXML
+        object.  Enumeration values will be merged in each enum'''
+
+        ret = self.aggregate_enums_collect(filepath, set())
+
+        # sort values numerically, add end marker
+        for enum in ret:
+            enum.entry = sorted(enum.entry, key=lambda x : x.value)
+            # add on the "enum end" bit:
+            enum.entry.append(mavparse.MAVEnumEntry("%s_ENUM_END" % enum.name, enum.entry[-1].value+1, end_marker=True))
+
+        return ret
+
+class MAVGen(object):
+    '''the MAVGen script'''
+
+    def __init__(self, filepath, opts):
+        self.filepath = filepath
+        self.wire_protocol = opts.wire_protocol
+        self.validate = opts.validate
+        self.validate_strict_units = opts.strict_units
+        self.output = opts.output
+
+        # for emit:
+        self.language = opts.language.lower()
+        print('self.language=%s' % self.language)
+
+    def parse(self):
+        # construct MAVXML objects and container for same:
+        self.xml = MAVXMLs(
+            self.filepath,
+            wire_protocol=self.wire_protocol,
+            validate=self.validate,
+            validate_strict_units=self.validate_strict_units
+        )
+
+    def run(self):
+        '''replacement mavgen XML wrangling'''
+
+        self.parse()
+
+        print("Found %u MAVLink message types in %u XML files" %
+              (self.xml.total_msgs(), self.xml.total_filecount()))
+
+        if self.language == 'c':
+            from . import mavgen_c
+            mavgen_c.generate(
+                self.output,
+                self.xml,
+                wire_protocol=self.wire_protocol
+            )
+        else:
+            print("Unsupported language %s" % self.language)
+            return False
+
+        return True
+
 def mavgen(opts, args):
     """Generate mavlink message formatters and parsers (C and Python ) using options
     and args where args are a list of xml files. This function allows python
     scripts under Windows to control mavgen using the same interface as
     shell scripts under Unix"""
 
+    if opts.language.lower() == 'c':
+        if len(args) != 1:
+            raise ValueError("Expected a single XML file to process")
+        mg = MAVGen(args[0], opts)
+        return mg.run()
+
+    if len(args) != 1:
+        raise ValueError("Expected a single XML file to process")
+
     xml = []
     all_files = set()
-
-    # Enable validation by default, disabling it if explicitly requested
-    if opts.validate:
-        try:
-            from lxml import etree
-            with open(schemaFile, 'r') as f:
-                xmlschema_root = etree.parse(f)
-                if not opts.strict_units:
-                    # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
-                    for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
-                        elem.set("type", "xs:string")
-                xmlschema = etree.XMLSchema(xmlschema_root)
-        except ImportError:
-            print("WARNING: Failed to import lxml module etree. Are lxml, libxml2 and libxslt installed? XML validation will not be performed", file=sys.stderr)
-            opts.validate = False
-        except etree.XMLSyntaxError as err:
-            print("WARNING: XML Syntax Errors detected in %s XML schema file. XML validation will not be performed" % schemaFile, file=sys.stderr)
-            print(str(err.error_log), file=sys.stderr)
-            opts.validate = False
-        except Exception as e:
-            print("Exception:", e)
-            print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
-            opts.validate = False
 
     def expand_includes():
         """Expand includes. Root files already parsed objects in the xml list."""
@@ -97,17 +358,9 @@ def mavgen(opts, args):
                     # Only parse new include files
                     if fname in all_files:
                         continue
-                    # Validate XML file with XSD file if possible.
-                    if opts.validate:
-                        print("Validating %s" % fname)
-                        if not mavgen_validate(fname):
-                            print("ERROR Validation of %s failed" % fname)
-                            exit(1)
-                    else:
-                        print("Validation skipped for %s." % fname)
                     # Parsing
                     print("Parsing %s" % fname)
-                    xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
+                    xml.append(mavparse.MAVXML(fname, opts.wire_protocol, validate=opts.validate, validate_strict_units=opts.strict_units))
                     all_files.add(fname)
                     includeadded = True
             return includeadded
@@ -192,49 +445,13 @@ def mavgen(opts, args):
             if not update_oneiteration():
                 break
 
-    def mavgen_validate(xmlfile):
-        """Uses lxml to validate an XML file. We define mavgen_validate
-           here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
-        xmlvalid = True
-        try:
-            with open(xmlfile, 'r') as f:
-                xmldocument = etree.parse(f)
-                xmlschema.assertValid(xmldocument)
-                forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
-                                    export$|extends$|finally$|for$|function$|if$|import$|in$|instanceof$|let$|new$|\
-                                    return$|super$|switch$|this$|throw$|try$|typeof$|var$|void$|while$|with$|yield$|\
-                                    enum$|await$|implements$|package$|protected$|static$|interface$|private$|public$|\
-                                    abstract$|boolean$|byte$|char$|double$|final$|float$|goto$|int$|long$|native$|\
-                                    short$|synchronized$|transient$|volatile$).*", re.IGNORECASE)
-                for element in xmldocument.iter('enum', 'entry', 'message', 'field'):
-                    if forbidden_names_re.search(element.get('name')):
-                        print("Validation error:", file=sys.stderr)
-                        print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
-                        xmlvalid = False
-
-            return xmlvalid
-        except etree.XMLSchemaError:
-            return False
-        except etree.DocumentInvalid as err:
-            sys.exit('ERROR: %s' % str(err.error_log))
-        return True
-
     # Process all XML files, validating them as necessary.
     for fname in args:
         # only add each dialect file argument once.
         if fname in all_files:
             continue
         all_files.add(fname)
-
-        if opts.validate:
-            print("Validating %s" % fname)
-            if not mavgen_validate(fname):
-                return False
-        else:
-            print("Validation skipped for %s." % fname)
-
-        print("Parsing %s" % fname)
-        xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
+        xml.append(mavparse.MAVXML(fname, opts.wire_protocol, validate=opts.validate, validate_strict_units=opts.strict_units))
 
     # expand includes
     expand_includes()
@@ -248,9 +465,6 @@ def mavgen(opts, args):
     if opts.language == 'python':
         from . import mavgen_python
         mavgen_python.generate(opts.output, xml)
-    elif opts.language == 'c':
-        from . import mavgen_c
-        mavgen_c.generate(opts.output, xml)
     elif opts.language == 'lua':
         from . import mavgen_lua
         mavgen_lua.generate(opts.output, xml)

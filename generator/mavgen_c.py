@@ -116,7 +116,7 @@ extern "C" {
 
 // ENUM DEFINITIONS
 
-${{enum:
+${{aggregate_enum:
 /** @brief ${description} */
 #ifndef HAVE_ENUM_${name}
 #define HAVE_ENUM_${name}
@@ -518,8 +518,9 @@ ${{message:    mavlink_test_${name_lower}(system_id, component_id, last_msg);
 
     f.close()
 
-def copy_fixed_headers(directory, xml):
+def copy_fixed_headers(directory, mavxmls, wire_protocol=None):
     '''copy the fixed protocol headers to the target directory'''
+
     import shutil, filecmp
     hlist = {
         "0.9": [ 'protocol.h', 'mavlink_helpers.h', 'mavlink_types.h', 'checksum.h' ],
@@ -528,9 +529,9 @@ def copy_fixed_headers(directory, xml):
                  'mavlink_get_info.h', 'mavlink_sha256.h' ]
         }
     basepath = os.path.dirname(os.path.realpath(__file__))
-    srcpath = os.path.join(basepath, 'C/include_v%s' % xml.wire_protocol_version)
-    print("Copying fixed headers for protocol %s to %s" % (xml.wire_protocol_version, directory))
-    for h in hlist[xml.wire_protocol_version]:
+    srcpath = os.path.join(basepath, 'C/include_v%s' % wire_protocol)
+    print("Copying fixed headers for protocol %s to %s" % (wire_protocol, directory))
+    for h in hlist[wire_protocol]:
         src = os.path.realpath(os.path.join(srcpath, h))
         dest = os.path.realpath(os.path.join(directory, h))
         if src == dest or (os.path.exists(dest) and filecmp.cmp(src, dest)):
@@ -541,8 +542,12 @@ class mav_include(object):
     def __init__(self, base):
         self.base = base
 
-def generate_one(basename, xml):
+def generate_one(basename, filepath, mavxmls):
     '''generate headers for one XML file'''
+
+    xml = mavxmls.MAVXML[filepath]
+
+    xml.xml_hash = hash(xml.basename)
 
     directory = os.path.join(basename, xml.basename)
 
@@ -579,25 +584,35 @@ def generate_one(basename, xml):
     xml.message_lengths_array = ''
     if not xml.command_24bit:
         for msgid in range(256):
-            mlen = xml.message_min_lengths.get(msgid, 0)
+            mlen = mavxmls.aggregates.message_min_lengths.get(msgid, 0)
             xml.message_lengths_array += '%u, ' % mlen
-        xml.message_lengths_array = xml.message_lengths_array[:-2]
+        xml.message_lengths_array = xml.aggregates.message_lengths_array[:-2]
+
+    crcs = mavxmls.aggregate(filepath, "message_crcs")
+    message_names = mavxmls.aggregate(filepath, "message_names")
 
     # and message CRCs array
     xml.message_crcs_array = ''
     if xml.command_24bit:
         # we sort with primary key msgid
-        for msgid in sorted(xml.message_crcs.keys()):
-            xml.message_crcs_array += '{%u, %u, %u, %u, %u, %u, %u}, ' % (msgid,
-                                                                      xml.message_crcs[msgid],
-                                                                      xml.message_min_lengths[msgid],
-                                                                      xml.message_lengths[msgid],
-                                                                      xml.message_flags[msgid],
-                                                                      xml.message_target_system_ofs[msgid],
-                                                                      xml.message_target_component_ofs[msgid])
+        min_lengths = mavxmls.aggregate(filepath, "message_min_lengths")
+        lengths = mavxmls.aggregate(filepath, "message_lengths")
+        flags = mavxmls.aggregate(filepath, "message_flags")
+        target_system_ofs = mavxmls.aggregate(filepath, "message_target_system_ofs")
+        target_component_ofs = mavxmls.aggregate(filepath, "message_target_component_ofs")
+        for msgid in sorted(crcs.keys()):
+            xml.message_crcs_array += '{%u, %u, %u, %u, %u, %u, %u}, ' % (
+                msgid,
+                crcs[msgid],
+                min_lengths[msgid],
+                lengths[msgid],
+                flags[msgid],
+                target_system_ofs[msgid],
+                target_component_ofs[msgid]
+            )
     else:
         for msgid in range(256):
-            crc = xml.message_crcs.get(msgid, 0)
+            crc = crcs.get(msgid, 0)
             xml.message_crcs_array += '%u, ' % crc
     xml.message_crcs_array = xml.message_crcs_array[:-2]
 
@@ -605,12 +620,12 @@ def generate_one(basename, xml):
     xml.message_info_array = ''
     if xml.command_24bit:
         # we sort with primary key msgid
-        for msgid in sorted(xml.message_names.keys()):
-            name = xml.message_names[msgid]
+        for msgid in sorted(message_names.keys()):
+            name = message_names[msgid]
             xml.message_info_array += 'MAVLINK_MESSAGE_INFO_%s, ' % name
     else:
         for msgid in range(256):
-            name = xml.message_names.get(msgid, None)
+            name = message_names.get(msgid, None)
             if name is not None:
                 xml.message_info_array += 'MAVLINK_MESSAGE_INFO_%s, ' % name
             else:
@@ -623,7 +638,7 @@ def generate_one(basename, xml):
     # form message name array
     xml.message_name_array = ''
     # sort by names
-    for msgid, name in sorted(iteritems(xml.message_names), key=lambda k_v: (k_v[1], k_v[0])):
+    for msgid, name in sorted(iteritems(message_names), key=lambda k_v: (k_v[1], k_v[0])):
         xml.message_name_array += '{ "%s", %u }, ' % (name, msgid)
     xml.message_name_array = xml.message_name_array[:-2]
 
@@ -683,6 +698,9 @@ def generate_one(basename, xml):
             m.MAVPACKED_START = ""
             m.MAVPACKED_END = ""
 
+    # enumerations; we include all enumerations for this file and its includes
+    xml.aggregate_enum = mavxmls.aggregate_enums(filepath)
+
     # cope with uint8_t_mavlink_version
     for m in xml.message:
         m.arg_fields = []
@@ -708,11 +726,13 @@ def generate_one(basename, xml):
     generate_testsuite_h(directory, xml)
 
 
-def generate(basename, xml_list):
+def generate(basename, mavxmls, wire_protocol=None):
     '''generate complete MAVLink C implemenation'''
 
-    for idx in range(len(xml_list)):
-        xml = xml_list[idx]
-        xml.xml_hash = hash(xml.basename)        
-        generate_one(basename, xml)
-    copy_fixed_headers(basename, xml_list[0])
+    # generate_one is called with a depth-first traversal from the top
+    # file being processed in a generation run
+    def _generate(self, filepath):
+        generate_one(basename, filepath, mavxmls)
+
+    mavxmls.traverse(_generate)
+    copy_fixed_headers(basename, mavxmls, wire_protocol=wire_protocol)
