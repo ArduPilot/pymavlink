@@ -6,8 +6,8 @@ Copyright Michael Oborne 2018
 Released under GNU GPL version 3 or later
 '''
 
-import textwrap, os, re
-from . import mavparse, mavtemplate
+import os, re
+from . import mavtemplate
 
 t = mavtemplate.MAVTemplate()
 

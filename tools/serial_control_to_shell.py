@@ -6,7 +6,6 @@ Copyright Peter Barker 2021
 
 import optparse
 import os
-import pymavlink
 import re
 import select
 import subprocess

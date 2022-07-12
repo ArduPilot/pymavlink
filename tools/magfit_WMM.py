@@ -40,7 +40,6 @@ from pymavlink import mavextra
 from pymavlink.rotmat import Vector3
 from pymavlink.rotmat import Matrix3
 
-import matplotlib
 import matplotlib.pyplot as pyplot
 import numpy
 

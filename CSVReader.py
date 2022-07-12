@@ -25,7 +25,6 @@ from builtins import range
 from builtins import object
 
 import csv
-import struct
 import os
 
 from . import mavutil

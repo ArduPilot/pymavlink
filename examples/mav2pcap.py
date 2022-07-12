@@ -22,7 +22,7 @@ from builtins import open
 
 from pymavlink import mavutil
 
-from construct import ULInt16, Struct, Byte, Bytes, Const
+from construct import ULInt16, Struct, Byte, Const
 from construct.core import FieldError
 from argparse import ArgumentParser, FileType
 

@@ -7,8 +7,6 @@ from __future__ import print_function
 
 import numpy
 import pylab
-import matplotlib
-import matplotlib.pyplot as pyplot
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

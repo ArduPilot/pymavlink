@@ -5,7 +5,7 @@ find signs of aliasing on IMU3
 
 from pymavlink import mavutil
 from pymavlink import mavextra
-import math, multiprocessing, random, time
+import multiprocessing, random, time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
