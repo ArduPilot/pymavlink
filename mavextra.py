@@ -1633,3 +1633,17 @@ def radio_margin(TERR,lat,lon,antenna_height):
             high = test
     return -high
     
+def mm_curr(RCOU,BAT,PWM_MIN,PWM_MAX,Mfirst,Mlast):
+    '''
+    motor model to predict current draw given PWM to VTOL motors
+    returned value should be proportional to expected total current draw
+    '''
+    total_curr = 0.0
+    voltage = BAT.Volt
+    for m in range(Mfirst,Mlast+1):
+        pwm = getattr(RCOU,'C%u'%m,None)
+        if pwm is None:
+            return 0.0
+        command = voltage*max(pwm - PWM_MIN,0)/(PWM_MAX-PWM_MIN)
+        total_curr += command**2
+    return total_curr
