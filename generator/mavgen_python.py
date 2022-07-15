@@ -345,19 +345,31 @@ enums = {}
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
             description = entry.description.replace("\t", "    ")
-            outf.write(
-                'enums["%s"][%d] = EnumEntry("%s", """%s""")\n'
-                % (e.name, int(entry.value), entry.name, description)
-            )
+            if "\n" in description:
+                outf.write(
+                    'enums["%s"][%d] = EnumEntry(\n    "%s",\n    """%s""",\n)\n'
+                    % (e.name, int(entry.value), entry.name, description)
+                )
+            else:
+                outf.write(
+                    'enums["%s"][%d] = EnumEntry("%s", """%s""")\n'
+                    % (e.name, int(entry.value), entry.name, description)
+                )
             if entry.has_location:
                 outf.write('enums["%s"][%d].has_location = True\n' %
                            (e.name, int(entry.value),))
             for param in entry.param:
                 description = param.description.replace("\t", "    ")
-                outf.write(
-                    'enums["%s"][%d].param[%d] = """%s"""\n'
-                    % (e.name, int(entry.value), int(param.index), description)
-                )
+                if "\n" in description:
+                    outf.write(
+                        'enums["%s"][%d].param[\n    %d\n] = """%s"""\n'
+                        % (e.name, int(entry.value), int(param.index), description)
+                    )
+                else:
+                    outf.write(
+                        'enums["%s"][%d].param[%d] = """%s"""\n'
+                        % (e.name, int(entry.value), int(param.index), description)
+                    )
 
 
 def generate_message_ids(outf, msgs):
