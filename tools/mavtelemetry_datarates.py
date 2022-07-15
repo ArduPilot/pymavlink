@@ -14,7 +14,7 @@ standard_library.install_aliases()
 from builtins import str
 
 ## Generate window for calculating the datasize
-from tkinter import Tk, TOP, BOTH, LEFT, RIGHT, CENTER, RIDGE, IntVar, IntVar
+from tkinter import Tk, TOP, BOTH, LEFT, RIGHT, CENTER, RIDGE, IntVar
 from tkinter.ttk import Frame, Label, Entry, Combobox, Checkbutton
 
 # import MAVLink messages length dictionary
