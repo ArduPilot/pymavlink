@@ -31,5 +31,11 @@ class MAVXMLTest(unittest.TestCase):
             _ = MAVXML(test_filepath)
 
 
+    def test_wire_protocol_version(self):
+        """Test that an unknown MAVLink wire protocol version raises an exception"""
+        with self.assertRaises(MAVParseError):
+            _ = MAVXML(filename="", wire_protocol_version=42)
+
+
 if __name__ == '__main__':
     unittest.main()
