@@ -56,6 +56,7 @@ parser.add_argument("--link", type=int, default=None, help="filter by comms link
 parser.add_argument("--verbose", action='store_true', help="Dump messages in a much more verbose (but non-parseable) format")
 parser.add_argument("--mav10", action='store_true', help="parse as MAVLink1")
 parser.add_argument("--reduce", type=int, default=0, help="reduce streaming messages")
+parser.add_argument("--reduce-rate", type=float, default=0, help="reduce messages to maximum rate in Hz")
 parser.add_argument("log", metavar="LOG")
 parser.add_argument("--profile", action='store_true', help="run the Yappi python profiler")
 parser.add_argument("--meta", action='store_true', help="output meta-data msgs even if not matching condition")
@@ -126,6 +127,26 @@ def reduce_msg(mtype, reduction_ratio):
     reduction_count[mtype] += 1
     if reduction_count[mtype] == reduction_ratio:
         reduction_count[mtype] = 0
+        return False
+    return True
+
+last_msg_rate_t = {}
+
+def reduce_rate_msg(m, reduction_rate):
+    '''return True if this msg should be discarded by reduction'''
+    global last_msg_rate_t
+    mtype = m.get_type()
+    if mtype in ['PARM','MSG','FMT','FMTU','MULT','MODE','EVT']:
+        return False
+    t = getattr(m,'_timestamp',None)
+    if t is None:
+        return False
+    if not mtype in last_msg_rate_t:
+        last_msg_rate_t[mtype] = t
+    dt = t - last_msg_rate_t[mtype]
+
+    if dt < 0 or dt >= 1.0/reduction_rate:
+        last_msg_rate_t[mtype] = t
         return False
     return True
 
@@ -210,6 +231,9 @@ while True:
     if args.reduce and reduce_msg(m.get_type(), args.reduce):
         continue
 
+    if args.reduce_rate > 0 and reduce_rate_msg(m, args.reduce_rate):
+        continue
+    
     if output is not None:
         if (isbin or islog) and m.get_type() == "FMT":
             output.write(m.get_msgbuf())
