@@ -434,7 +434,7 @@ class MAVXML(object):
                     m.target_component_ofs = f.wire_offset
             m.num_fields = len(m.fieldnames)
             if m.num_fields > 64:
-                raise MAVParseError("num_fields=%u : Maximum number of field names allowed is" % (
+                raise MAVParseError("num_fields=%u : Maximum number of field names allowed is %u" % (
                     m.num_fields, 64))
             m.crc_extra = message_checksum(m)
 
