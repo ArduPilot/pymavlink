@@ -228,7 +228,7 @@ class MAVXML(object):
             self.allow_extensions = True
         else:
             print("Unknown wire protocol version")
-            print("Available versions are: %s %s" % (PROTOCOL_0_9, PROTOCOL_1_0, PROTOCOL_2_0))
+            print("Available versions are: %s %s %s" % (PROTOCOL_0_9, PROTOCOL_1_0, PROTOCOL_2_0))
             raise MAVParseError('Unknown MAVLink wire protocol version %s' % wire_protocol_version)
 
         in_element_list = []
