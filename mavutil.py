@@ -1571,7 +1571,7 @@ class mavmmaplog(mavlogfile):
                         b = b[:-1]
                     instance = b.decode('ASCII',errors='ignore').rstrip()
                 else:
-                    instance, = struct.unpack('b', b)
+                    instance, = struct.unpack('b', b[:1])
                 mname = self.id_to_name[mtype]
                 if mname in self.messages:
                     iname = "%s[%s]" % (mname, str(instance))
