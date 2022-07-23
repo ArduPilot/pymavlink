@@ -25,6 +25,7 @@ parser.add_argument("--output", dest='fft_output', default='psd', action='store'
 parser.add_argument("--notch-params", default=False, action='store_true', help="whether to output estimated harmonic notch parameters")
 parser.add_argument("--notch-peak", dest='fft_peak', default=0, action='store', help="peak to select when setting notch parameters")
 parser.add_argument("--axis", dest='axis', default='XYZ', action='store', help="Select which axis to plot default: XYZ")
+parser.add_argument("--max-freq", dest='max_freq', default=None, action='store', help="Define maximum frequency to plot on all axis")
 
 args = parser.parse_args()
 
@@ -279,6 +280,9 @@ def mavfft_fttd(logfile, multi_log):
                 pylab.ylabel('PSD $' + scale_label + 'd^2/s^2/Hz$')
             else:
                 pylab.ylabel('PSD $' + scale_label + 'm^2/s^4/Hz$')
+
+        if args.max_freq is not None:
+            pylab.xlim((0,float(args.max_freq)))
 
         if hntch_mode is not None and hntch_option is not None and batch_mode is not None:
             option_label = ""
