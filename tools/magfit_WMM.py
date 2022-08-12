@@ -31,6 +31,7 @@ parser.add_argument("--lon", type=float, default=0, help="longitude")
 parser.add_argument("--att-source", default=None, help="attitude source message")
 parser.add_argument("--save-plot", action='store_true', default=False, help="save plot to .png file")
 parser.add_argument("--save-params", action='store_true', default=False, help="save params to .param file")
+parser.add_argument("--iter", type=int, default=100, help="max optimization iterations")
 
 parser.add_argument("log", metavar="LOG")
 
@@ -218,7 +219,7 @@ def fit_WWW():
             for i in range(3):
                 bounds.append((-args.max_cmot,args.max_cmot))
 
-    (p,err,iterations,imode,smode) = optimize.fmin_slsqp(wmm_error, p, bounds=bounds, full_output=True)
+    (p,err,iterations,imode,smode) = optimize.fmin_slsqp(wmm_error, p, bounds=bounds, full_output=True, iter=args.iter)
     if imode != 0:
         print("Fit failed: %s" % smode)
         sys.exit(1)
