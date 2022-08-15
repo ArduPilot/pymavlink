@@ -105,10 +105,14 @@ class custom_build_py(build_py):
         # distutils uses old-style classes, so no super()
         build_py.run(self)
 
+with open("README.md", "r", encoding = "utf-8") as fh:
+    long_description = fh.read()
 
 setup (name = 'pymavlink',
        version = __version__,
        description = 'Python MAVLink code',
+       long_description = long_description,
+       long_description_content_type = "text/markdown",
        long_description = ('A Python library for handling MAVLink protocol streams and log files. This allows for the '
                            'creation of simple scripts to analyse telemetry logs from autopilots such as ArduPilot which use '
                            'the MAVLink protocol. See the scripts that come with the package for examples of small, useful '
