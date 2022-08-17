@@ -113,11 +113,6 @@ setup (name = 'pymavlink',
        description = 'Python MAVLink code',
        long_description = long_description,
        long_description_content_type = "text/markdown",
-       long_description = ('A Python library for handling MAVLink protocol streams and log files. This allows for the '
-                           'creation of simple scripts to analyse telemetry logs from autopilots such as ArduPilot which use '
-                           'the MAVLink protocol. See the scripts that come with the package for examples of small, useful '
-                           'scripts that use pymavlink. For more information about the MAVLink protocol see '
-                           'https://mavlink.io/en/'),
        url = 'https://github.com/ArduPilot/pymavlink/',
        classifiers=['Development Status :: 5 - Production/Stable',
                     'Environment :: Console',
