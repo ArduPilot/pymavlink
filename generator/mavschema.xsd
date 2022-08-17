@@ -86,6 +86,7 @@
     <xs:enumeration value="cs"/>       <!-- centiseconds -->
     <xs:enumeration value="ms"/>       <!-- milliseconds -->
     <xs:enumeration value="us"/>       <!-- microseconds -->
+    <xs:enumeration value="ns"/>       <!-- nanoseconds -->
     <xs:enumeration value="Hz"/>       <!-- Herz -->
     <xs:enumeration value="MHz"/>      <!-- Mega-Herz -->
     <!-- distance -->
