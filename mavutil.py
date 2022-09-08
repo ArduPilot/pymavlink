@@ -15,7 +15,7 @@ import json
 import re
 from pymavlink import mavexpression
 
-is_py3 = sys.version_info >= (3,0)
+is_py3 = sys.version_info >= (3, 0)
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
@@ -46,17 +46,21 @@ global_link_id = 0
 if not 'MAVLINK_DIALECT' in os.environ:
     os.environ['MAVLINK_DIALECT'] = 'ardupilotmega'
 
+
 def mavlink10():
     '''return True if using MAVLink 1.0 or later'''
     return not 'MAVLINK09' in os.environ
+
 
 def mavlink20():
     '''return True if using MAVLink 2.0'''
     return 'MAVLINK20' in os.environ
 
+
 def evaluate_expression(expression, vars, nocondition=False):
     '''evaluation an expression'''
     return mavexpression.evaluate_expression(expression, vars, nocondition)
+
 
 def evaluate_condition(condition, vars):
     '''evaluation a conditional (boolean) statement'''
@@ -67,13 +71,16 @@ def evaluate_condition(condition, vars):
         return False
     return v
 
+
 def u_ord(c):
     if is_py3:
         return c
     return ord(c)
 
+
 class location(object):
     '''represent a GPS coordinate'''
+
     def __init__(self, lat, lng, alt=0, heading=0):
         self.lat = lat  # in degrees
         self.lng = lng  # in degrees
@@ -82,6 +89,7 @@ class location(object):
 
     def __str__(self):
         return "lat=%.6f,lon=%.6f,alt=%.1f" % (self.lat, self.lng, self.alt)
+
 
 def add_message(messages, mtype, msg):
     '''add a msg to array of messages, taking account of instance messages'''
@@ -101,6 +109,7 @@ def add_message(messages, mtype, msg):
     messages[mtype] = copy.copy(msg)
     messages[mtype]._instances = prev_instances
     messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
+
 
 def set_dialect(dialect):
     '''set the MAVLink dialect to work with.
@@ -131,40 +140,48 @@ def set_dialect(dialect):
     current_dialect = dialect
     mavlink = mod
 
+
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
+
 class mavfile_state(object):
     '''state for a particular system id'''
+
     def __init__(self):
-        self.messages = { 'MAV' : self }
+        self.messages = {'MAV': self}
         self.flightmode = "UNKNOWN"
         self.vehicle_type = "UNKNOWN"
         self.mav_type = mavlink.MAV_TYPE_FIXED_WING
         self.mav_autopilot = mavlink.MAV_AUTOPILOT_GENERIC
         self.base_mode = 0
-        self.armed = False # canonical arm state for the vehicle as a whole
+        self.armed = False  # canonical arm state for the vehicle as a whole
 
         if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
+            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
             mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
         else:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
+            self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0, 0, 0, 0, 0, 0, 0, 0, 0)
+
 
 class param_state(object):
     '''state for a particular system id/component id pair'''
+
     def __init__(self):
         self.params = {}
 
+
 class mavfile(object):
     '''a generic mavlink port'''
-    def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True, use_native=default_native):
+
+    def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True,
+                 use_native=default_native):
         global mavfile_global
         if input:
             mavfile_global = self
         self.fd = fd
         self.sysid = 0
-        self.param_sysid = (0,0)
+        self.param_sysid = (0, 0)
         self.address = address
         self.timestamp = 0
         self.last_seq = {}
@@ -179,13 +196,14 @@ class mavfile(object):
         # param state for each sysid/compid tuple
         self.param_state = {}
         self.param_state[self.param_sysid] = param_state()
-        
+
         # status of param fetch, indexed by sysid,compid tuple
         self.source_system = source_system
         self.source_component = source_component
         self.first_byte = True
         self.robust_parsing = True
-        self.mav = mavlink.MAVLink(self, srcSystem=self.source_system, srcComponent=self.source_component, use_native=use_native)
+        self.mav = mavlink.MAVLink(self, srcSystem=self.source_system, srcComponent=self.source_component,
+                                   use_native=use_native)
         self.mav.robust_parsing = self.robust_parsing
         self.logfile = None
         self.logfile_raw = None
@@ -206,7 +224,7 @@ class mavfile(object):
     @property
     def target_component(self):
         return self.param_sysid[1]
-    
+
     @target_system.setter
     def target_system(self, value):
         self.sysid = value
@@ -229,45 +247,45 @@ class mavfile(object):
         if self.param_sysid[1] == 0:
             eff_tuple = (self.sysid, 1)
             if eff_tuple in self.param_state:
-                return getattr(self.param_state[eff_tuple],'params')
-        return getattr(self.param_state[self.param_sysid],'params')
+                return getattr(self.param_state[eff_tuple], 'params')
+        return getattr(self.param_state[self.param_sysid], 'params')
 
     @property
     def messages(self):
-        return getattr(self.sysid_state[self.sysid],'messages')
+        return getattr(self.sysid_state[self.sysid], 'messages')
 
     @property
     def flightmode(self):
-        return getattr(self.sysid_state[self.sysid],'flightmode')
+        return getattr(self.sysid_state[self.sysid], 'flightmode')
 
     @flightmode.setter
     def flightmode(self, value):
-        setattr(self.sysid_state[self.sysid],'flightmode',value)
+        setattr(self.sysid_state[self.sysid], 'flightmode', value)
 
     @property
     def vehicle_type(self):
-        return getattr(self.sysid_state[self.sysid],'vehicle_type')
+        return getattr(self.sysid_state[self.sysid], 'vehicle_type')
 
     @vehicle_type.setter
     def vehicle_type(self, value):
-        setattr(self.sysid_state[self.sysid],'vehicle_type',value)
+        setattr(self.sysid_state[self.sysid], 'vehicle_type', value)
 
     @property
     def mav_type(self):
-        return getattr(self.sysid_state[self.sysid],'mav_type')
+        return getattr(self.sysid_state[self.sysid], 'mav_type')
 
     @mav_type.setter
     def mav_type(self, value):
-        setattr(self.sysid_state[self.sysid],'mav_type',value)
-    
+        setattr(self.sysid_state[self.sysid], 'mav_type', value)
+
     @property
     def base_mode(self):
-        return getattr(self.sysid_state[self.sysid],'base_mode')
+        return getattr(self.sysid_state[self.sysid], 'base_mode')
 
     @base_mode.setter
     def base_mode(self, value):
-        setattr(self.sysid_state[self.sysid],'base_mode',value)
-    
+        setattr(self.sysid_state[self.sysid], 'base_mode', value)
+
     def auto_mavlink_version(self, buf):
         '''auto-switch mavlink protocol version'''
         global mavlink
@@ -277,7 +295,7 @@ class mavfile(object):
             magic = ord(buf[0])
         except:
             magic = buf[0]
-        if not magic in [ 85, 254, 253 ]:
+        if not magic in [85, 254, 253]:
             return
         self.first_byte = False
         if self.WIRE_PROTOCOL_VERSION == "0.9" and magic == 254:
@@ -293,7 +311,7 @@ class mavfile(object):
             set_dialect(current_dialect)
         else:
             return
-        # switch protocol 
+        # switch protocol
         (callback, callback_args, callback_kwargs) = (self.mav.callback,
                                                       self.mav.callback_args,
                                                       self.mav.callback_kwargs)
@@ -316,11 +334,10 @@ class mavfile(object):
         '''default write method'''
         raise RuntimeError('no write() method supplied')
 
-
     def select(self, timeout):
         '''wait for up to timeout seconds for more data'''
         if self.fd is None:
-            time.sleep(min(timeout,0.5))
+            time.sleep(min(timeout, 0.5))
             return True
         try:
             (rin, win, xin) = select.select([self.fd], [], [], timeout)
@@ -387,15 +404,15 @@ class mavfile(object):
                 last_seq = -1
             else:
                 last_seq = self.last_seq[src_tuple]
-            seq = (last_seq+1) % 256
+            seq = (last_seq + 1) % 256
             seq2 = msg.get_seq()
             if seq != seq2 and last_seq != -1:
                 diff = (seq2 - seq) % 256
                 self.mav_loss += diff
-                #print("lost %u seq=%u seq2=%u last_seq=%u src_tupe=%s %s" % (diff, seq, seq2, last_seq, str(src_tuple), msg.get_type()))
+                # print("lost %u seq=%u seq2=%u last_seq=%u src_tupe=%s %s" % (diff, seq, seq2, last_seq, str(src_tuple), msg.get_type()))
             self.last_seq[src_tuple] = seq2
             self.mav_count += 1
-        
+
         self.timestamp = msg._timestamp
         if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
             if self.sysid == 0:
@@ -436,20 +453,18 @@ class mavfile(object):
             hook(self, msg)
 
         if (msg.get_signed() and
-            self.mav.signing.link_id == 0 and
-            msg.get_link_id() != 0 and
-            self.target_system == msg.get_srcSystem() and
-            self.target_component == msg.get_srcComponent()):
+                self.mav.signing.link_id == 0 and
+                msg.get_link_id() != 0 and
+                self.target_system == msg.get_srcSystem() and
+                self.target_component == msg.get_srcComponent()):
             # change to link_id from incoming packet
             self.mav.signing.link_id = msg.get_link_id()
-
 
     def packet_loss(self):
         '''packet loss as a percentage'''
         if self.mav_count == 0:
             return 0
-        return (100.0*self.mav_loss)/(self.mav_count+self.mav_loss)
-
+        return (100.0 * self.mav_loss) / (self.mav_count + self.mav_loss)
 
     def recv_msg(self):
         '''message receive routine'''
@@ -472,7 +487,7 @@ class mavfile(object):
             # we can extract
             msg = self.mav.parse_char(s)
             if msg:
-                if self.logfile and  msg.get_type() != 'BAD_DATA' :
+                if self.logfile and msg.get_type() != 'BAD_DATA':
                     usec = int(time.time() * 1.0e6) & ~3
                     if is_py3:
                         self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
@@ -485,7 +500,7 @@ class mavfile(object):
                 # timeout
                 if numnew == 0:
                     return None
-                
+
     def recv_match(self, condition=None, type=None, blocking=False, timeout=None):
         '''recv the next MAVLink message that matches the given condition
         type can be a string or a list of strings'''
@@ -496,7 +511,7 @@ class mavfile(object):
             if timeout is not None:
                 now = time.time()
                 if now < start_time:
-                    start_time = now # If an external process rolls back system time, we should not spin forever.
+                    start_time = now  # If an external process rolls back system time, we should not spin forever.
                 if start_time + timeout < time.time():
                     return None
             m = self.recv_msg()
@@ -507,7 +522,7 @@ class mavfile(object):
                     if timeout is None:
                         self.select(0.05)
                     else:
-                        self.select(timeout/2)
+                        self.select(timeout / 2)
                     continue
                 return None
             if type is not None and not m.get_type() in type:
@@ -555,7 +570,7 @@ class mavfile(object):
             self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
         except Exception:
             if sys.version_info.major >= 3 and not isinstance(name, bytes):
-                name = bytes(name,'ascii')
+                name = bytes(name, 'ascii')
             self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
 
     def time_since(self, mtype):
@@ -621,7 +636,7 @@ class mavfile(object):
     def set_mode_flag(self, flag, enable):
         '''
         Enables/ disables MAV_MODE_FLAG
-        @param flag The mode flag, 
+        @param flag The mode flag,
           see MAV_MODE_FLAG enum
         @param enable Enable the flag, (True/False)
         '''
@@ -632,9 +647,9 @@ class mavfile(object):
             elif not enable:
                 mode = mode & ~flag
             self.mav.command_long_send(self.target_system, self.target_component,
-                                           mavlink.MAV_CMD_DO_SET_MODE, 0,
-                                           mode,
-                                           0, 0, 0, 0, 0, 0)
+                                       mavlink.MAV_CMD_DO_SET_MODE, 0,
+                                       mode,
+                                       0, 0, 0, 0, 0, 0)
         else:
             print("Set mode flag not supported")
 
@@ -657,7 +672,7 @@ class mavfile(object):
             return None
         return mode_mapping_byname(mav_type)
 
-    def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0):
+    def set_mode_apm(self, mode, custom_mode=0, custom_sub_mode=0):
         '''enter arbitrary mode'''
         if isinstance(mode, str):
             mode_map = self.mode_mapping()
@@ -690,14 +705,14 @@ class mavfile(object):
         self.mav.command_long_send(self.target_system, self.target_component,
                                    mavlink.MAV_CMD_DO_SET_MODE, 0, mode, custom_mode, custom_sub_mode, 0, 0, 0, 0)
 
-    def set_mode(self, mode, custom_mode = 0, custom_sub_mode = 0):
+    def set_mode(self, mode, custom_mode=0, custom_sub_mode=0):
         '''set arbitrary flight mode'''
         mav_autopilot = self.field('HEARTBEAT', 'autopilot', None)
         if mav_autopilot == mavlink.MAV_AUTOPILOT_PX4:
             self.set_mode_px4(mode, custom_mode, custom_sub_mode)
         else:
             self.set_mode_apm(mode)
-        
+
     def set_mode_rtl(self):
         '''enter RTL mode'''
         if self.mavlink10():
@@ -744,22 +759,21 @@ class mavfile(object):
                                    channel, pwm,
                                    0, 0, 0, 0, 0)
 
-
     def set_relay(self, relay_pin=0, state=True):
         '''Set relay_pin to value of state'''
         if self.mavlink10():
             self.mav.command_long_send(
                 self.target_system,  # target_system
-                self.target_component, # target_component
-                mavlink.MAV_CMD_DO_SET_RELAY, # command
-                0, # Confirmation
-                relay_pin, # Relay Number
-                int(state), # state (1 to indicate arm)
-                0, # param3 (all other params meaningless)
-                0, # param4
-                0, # param5
-                0, # param6
-                0) # param7
+                self.target_component,  # target_component
+                mavlink.MAV_CMD_DO_SET_RELAY,  # command
+                0,  # Confirmation
+                relay_pin,  # Relay Number
+                int(state),  # state (1 to indicate arm)
+                0,  # param3 (all other params meaningless)
+                0,  # param4
+                0,  # param5
+                0,  # param6
+                0)  # param7
         else:
             print("Setting relays not supported.")
 
@@ -806,11 +820,11 @@ class mavfile(object):
         self.recv_match(type='VFR_HUD', blocking=True)
         self.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
         if relative_alt:
-            alt = self.messages['GLOBAL_POSITION_INT'].relative_alt*0.001
+            alt = self.messages['GLOBAL_POSITION_INT'].relative_alt * 0.001
         else:
             alt = self.messages['VFR_HUD'].alt
-        return location(self.messages['GPS_RAW_INT'].lat*1.0e-7,
-                        self.messages['GPS_RAW_INT'].lon*1.0e-7,
+        return location(self.messages['GPS_RAW_INT'].lat * 1.0e-7,
+                        self.messages['GPS_RAW_INT'].lon * 1.0e-7,
                         alt,
                         self.messages['VFR_HUD'].heading)
 
@@ -820,15 +834,15 @@ class mavfile(object):
             self.mav.command_long_send(
                 self.target_system,  # target_system
                 self.target_component,
-                mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
-                0, # confirmation
-                1, # param1 (1 to indicate arm)
-                0, # param2 (all other params meaningless)
-                0, # param3
-                0, # param4
-                0, # param5
-                0, # param6
-                0) # param7
+                mavlink.MAV_CMD_COMPONENT_ARM_DISARM,  # command
+                0,  # confirmation
+                1,  # param1 (1 to indicate arm)
+                0,  # param2 (all other params meaningless)
+                0,  # param3
+                0,  # param4
+                0,  # param5
+                0,  # param6
+                0)  # param7
 
     def arducopter_disarm(self):
         '''disarm motors (arducopter only)'''
@@ -836,15 +850,15 @@ class mavfile(object):
             self.mav.command_long_send(
                 self.target_system,  # target_system
                 self.target_component,
-                mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
-                0, # confirmation
-                0, # param1 (0 to indicate disarm)
-                0, # param2 (all other params meaningless)
-                0, # param3
-                0, # param4
-                0, # param5
-                0, # param6
-                0) # param7
+                mavlink.MAV_CMD_COMPONENT_ARM_DISARM,  # command
+                0,  # confirmation
+                0,  # param1 (0 to indicate disarm)
+                0,  # param2 (all other params meaningless)
+                0,  # param3
+                0,  # param4
+                0,  # param5
+                0,  # param6
+                0)  # param7
 
     def motors_armed(self):
         '''return true if motors armed'''
@@ -864,7 +878,6 @@ class mavfile(object):
             if not self.motors_armed():
                 return
 
-
     def field(self, type, field, default=None):
         '''convenient function for returning an arbitrary MAVLink
            field with a default'''
@@ -879,7 +892,8 @@ class mavfile(object):
             return default
         return self.params[name]
 
-    def setup_signing(self, secret_key, sign_outgoing=True, allow_unsigned_callback=None, initial_timestamp=None, link_id=None):
+    def setup_signing(self, secret_key, sign_outgoing=True, allow_unsigned_callback=None, initial_timestamp=None,
+                      link_id=None):
         '''setup for MAVLink2 signing'''
         self.mav.signing.secret_key = secret_key
         self.mav.signing.sign_outgoing = sign_outgoing
@@ -907,6 +921,7 @@ class mavfile(object):
         self.mav.signing.link_id = 0
         self.mav.signing.timestamp = 0
 
+
 def set_close_on_exec(fd):
     '''set the clone on exec flag on a file descriptor. Ignore exceptions'''
     try:
@@ -917,21 +932,29 @@ def set_close_on_exec(fd):
     except Exception:
         pass
 
+
 class FakeSerial():
     def __init__(self):
         pass
+
     def read(self, len):
         return ""
+
     def write(self, buf):
         raise Exception("write always fails")
+
     def inWaiting(self):
         return 0
+
     def close(self):
         pass
 
+
 class mavserial(mavfile):
     '''a serial mavlink port'''
-    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, source_component=0, use_native=default_native, force_connected=False):
+
+    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, source_component=0,
+                 use_native=default_native, force_connected=False):
         import serial
         if ',' in device and not os.path.exists(device):
             device, baud = device.split(',')
@@ -956,7 +979,8 @@ class mavserial(mavfile):
         except Exception:
             fd = None
         self.set_baudrate(self.baud)
-        mavfile.__init__(self, fd, device, source_system=source_system, source_component=source_component, use_native=use_native)
+        mavfile.__init__(self, fd, device, source_system=source_system, source_component=source_component,
+                         use_native=use_native)
         self.rtscts = False
 
     def set_rtscts(self, enable):
@@ -974,11 +998,11 @@ class mavserial(mavfile):
         except Exception:
             # for pySerial 3.0, which doesn't have setBaudrate()
             self.port.baudrate = baudrate
-    
+
     def close(self):
         self.port.close()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         if n is None:
             n = self.mav.bytes_needed()
         if self.fd is None:
@@ -998,7 +1022,7 @@ class mavserial(mavfile):
             if self.autoreconnect:
                 self.reset()
             return -1
-            
+
     def reset(self):
         import serial
         try:
@@ -1024,11 +1048,13 @@ class mavserial(mavfile):
             return True
         except Exception:
             return False
-        
+
 
 class mavudp(mavfile):
     '''a UDP mavlink socket'''
-    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native, timeout=0):
+
+    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0,
+                 use_native=default_native, timeout=0):
         a = device.split(':')
         if len(a) != 2:
             print("UDP ports must be specified as host:port")
@@ -1051,16 +1077,17 @@ class mavudp(mavfile):
         self.clients = set()
         self.clients_last_alive = {}
         self.resolved_destination_addr = None
-        mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
+        mavfile.__init__(self, self.port.fileno(), device, source_system=source_system,
+                         source_component=source_component, input=input, use_native=use_native)
 
     def close(self):
         self.port.close()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         try:
             data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
         except socket.error as e:
-            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
+            if e.errno in [errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED]:
                 return ""
             raise
         if self.udp_server:
@@ -1076,7 +1103,8 @@ class mavudp(mavfile):
                 current_time = time.time()
                 to_remove = set()
                 for address in self.clients:
-                    if len(self.clients) == 1 or self.timeout <= 0 or self.clients_last_alive[address] + self.timeout > current_time:
+                    if len(self.clients) == 1 or self.timeout <= 0 or self.clients_last_alive[
+                        address] + self.timeout > current_time:
                         self.port.sendto(buf, address)
                     elif len(self.clients) > 1 and len(to_remove) < len(self.clients) - 1:
                         # we keep always at least 1 client, so we don't break old behavior
@@ -1111,8 +1139,10 @@ class mavudp(mavfile):
 
         return m
 
+
 class mavmcast(mavfile):
     '''a UDP multicast mavlink socket'''
+
     def __init__(self, device, broadcast=False, source_system=255, source_component=0, use_native=default_native):
         a = device.split(':')
         mcast_ip = "239.255.145.50"
@@ -1150,16 +1180,16 @@ class mavmcast(mavfile):
         self.port.close()
         self.port_out.close()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         try:
             data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
             if self.myport is None:
                 try:
-                    (myaddr,self.myport) = self.port_out.getsockname()
+                    (myaddr, self.myport) = self.port_out.getsockname()
                 except Exception:
                     pass
         except socket.error as e:
-            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
+            if e.errno in [errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED]:
                 return ""
             raise
         if self.myport == new_addr[1]:
@@ -1186,10 +1216,11 @@ class mavmcast(mavfile):
             self.post_message(m)
 
         return m
-    
+
 
 class mavtcp(mavfile):
     '''a TCP mavlink socket'''
+
     def __init__(self,
                  device,
                  autoreconnect=False,
@@ -1205,10 +1236,11 @@ class mavtcp(mavfile):
 
         self.autoreconnect = autoreconnect
 
-        self.retries = retries
+        self.retries = 10e9
         self.do_connect()
 
-        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
+        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system,
+                         source_component=source_component, use_native=use_native)
 
     def do_connect(self):
         if sys.platform != 'darwin':
@@ -1248,7 +1280,7 @@ class mavtcp(mavfile):
         print("EOF on TCP socket")
         self.reconnect()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         if self.port is None:
             self.reconnect()
         if n is None:
@@ -1256,9 +1288,9 @@ class mavtcp(mavfile):
         try:
             data = self.port.recv(n)
         except socket.error as e:
-            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
+            if e.errno in [errno.EAGAIN, errno.EWOULDBLOCK]:
                 return ""
-            if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
+            if e.errno in [errno.ECONNRESET, errno.EPIPE]:
                 self.handle_disconnect()
             raise
         if len(data) == 0:
@@ -1277,7 +1309,7 @@ class mavtcp(mavfile):
         try:
             self.port.send(buf)
         except socket.error as e:
-            if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
+            if e.errno in [errno.ECONNRESET, errno.EPIPE]:
                 self.handle_disconnect()
             pass
 
@@ -1292,6 +1324,7 @@ class mavtcp(mavfile):
 
 class mavtcpin(mavfile):
     '''a TCP input mavlink socket'''
+
     def __init__(self, device, source_system=255, source_component=0, retries=3, use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
@@ -1305,20 +1338,23 @@ class mavtcpin(mavfile):
         self.listen.setblocking(0)
         set_close_on_exec(self.listen.fileno())
         self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-        mavfile.__init__(self, self.listen.fileno(), "tcpin:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
+        mavfile.__init__(self, self.listen.fileno(), "tcpin:" + device, source_system=source_system,
+                         source_component=source_component, use_native=use_native)
         self.port = None
+        self.timeout = 15
 
     def close(self):
         self.listen.close()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         if not self.port:
             try:
                 (self.port, addr) = self.listen.accept()
             except Exception:
                 return ''
-            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
-            self.port.setblocking(0) 
+            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+            self.port.setblocking(0)
+            self.port.settimeout(self.timeout)
             set_close_on_exec(self.port.fileno())
             self.fd = self.port.fileno()
 
@@ -1327,7 +1363,7 @@ class mavtcpin(mavfile):
         try:
             data = self.port.recv(n)
         except socket.error as e:
-            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
+            if e.errno in [errno.EAGAIN, errno.EWOULDBLOCK]:
                 return ""
             self.port.close()
             self.port = None
@@ -1340,8 +1376,13 @@ class mavtcpin(mavfile):
             return
         try:
             self.port.send(buf)
+        except socket.timeout:
+            self.port.close()
+            self.port = None
+            self.fd = self.listen.fileno()
+            pass
         except socket.error as e:
-            if e.errno in [ errno.EPIPE ]:
+            if e.errno in [errno.EPIPE]:
                 self.port.close()
                 self.port = None
                 self.fd = self.listen.fileno()
@@ -1350,9 +1391,11 @@ class mavtcpin(mavfile):
 
 class mavlogfile(mavfile):
     '''a MAVLink logfile reader/writer'''
+
     def __init__(self, filename, planner_format=None,
                  write=False, append=False,
-                 robust_parsing=True, notimestamps=False, source_system=255, source_component=0, use_native=default_native):
+                 robust_parsing=True, notimestamps=False, source_system=255, source_component=0,
+                 use_native=default_native):
         self.filename = filename
         self.writeable = write
         self.robust_parsing = robust_parsing
@@ -1367,7 +1410,8 @@ class mavlogfile(mavfile):
         self.f = open(filename, mode)
         self.filesize = os.path.getsize(filename)
         self.percent = 0
-        mavfile.__init__(self, None, filename, source_system=source_system, source_component=source_component, notimestamps=notimestamps, use_native=use_native)
+        mavfile.__init__(self, None, filename, source_system=source_system, source_component=source_component,
+                         notimestamps=notimestamps, use_native=use_native)
         if self.notimestamps:
             self._timestamp = 0
         else:
@@ -1380,7 +1424,7 @@ class mavlogfile(mavfile):
     def close(self):
         self.f.close()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         if n is None:
             n = self.mav.bytes_needed()
         return self.f.read(n)
@@ -1393,14 +1437,13 @@ class mavlogfile(mavfile):
         while True:
             (tusec,) = struct.unpack('>Q', tbuf)
             t = tusec * 1.0e-6
-            if abs(t - self._last_timestamp) <= 3*24*60*60:
+            if abs(t - self._last_timestamp) <= 3 * 24 * 60 * 60:
                 break
             c = self.f.read(1)
             if len(c) != 1:
                 break
             tbuf = tbuf[1:] + c
         return t
-
 
     def pre_message(self):
         '''read timestamp if needed'''
@@ -1414,8 +1457,8 @@ class mavlogfile(mavfile):
             if len(tbuf) != 21 or tbuf[0] != '-' or tbuf[20] != ':':
                 raise RuntimeError('bad planner timestamp %s' % tbuf)
             hnsec = self._two64 + float(tbuf[0:20])
-            t = hnsec * 1.0e-7         # convert to seconds
-            t -= 719163 * 24 * 60 * 60 # convert to 1970 base
+            t = hnsec * 1.0e-7  # convert to seconds
+            t -= 719163 * 24 * 60 * 60  # convert to 1970 base
             self._link = 0
         else:
             tbuf = self.f.read(8)
@@ -1424,8 +1467,8 @@ class mavlogfile(mavfile):
             (tusec,) = struct.unpack('>Q', tbuf)
             t = tusec * 1.0e-6
             if (self._last_timestamp is not None and
-                self._last_message.get_type() == "BAD_DATA" and
-                abs(t - self._last_timestamp) > 3*24*60*60):
+                    self._last_message.get_type() == "BAD_DATA" and
+                    abs(t - self._last_timestamp) > 3 * 24 * 60 * 60):
                 t = self.scan_timestamp(tbuf)
             self._link = tusec & 0x3
         self._timestamp = t
@@ -1435,7 +1478,7 @@ class mavlogfile(mavfile):
         # read the timestamp
         super(mavlogfile, self).post_message(msg)
         if self.planner_format:
-            self.f.read(1) # trailing newline
+            self.f.read(1)  # trailing newline
         self.timestamp = msg._timestamp
         self._last_message = msg
         if msg.get_type() != "BAD_DATA":
@@ -1446,6 +1489,7 @@ class mavlogfile(mavfile):
 class mavmmaplog(mavlogfile):
     '''a MAVLink log file accessed via mmap. Used for fast read-only
     access with low memory overhead where particular message types are wanted'''
+
     def __init__(self, filename, progress_callback=None):
         import platform, mmap
         mavlogfile.__init__(self, filename)
@@ -1502,21 +1546,22 @@ class mavmmaplog(mavlogfile):
 
         MARKER_V1 = 0xFE
         MARKER_V2 = 0xFD
-        
-        while ofs+8+6 < self.data_len:
-            marker = u_ord(self.data_map[ofs+8])
-            mlen = u_ord(self.data_map[ofs+9]) + 8
+
+        while ofs + 8 + 6 < self.data_len:
+            marker = u_ord(self.data_map[ofs + 8])
+            mlen = u_ord(self.data_map[ofs + 9]) + 8
             if marker == MARKER_V1:
-                mtype = u_ord(self.data_map[ofs+13])
+                mtype = u_ord(self.data_map[ofs + 13])
                 mlen += 8
                 data_ofs = 14
             elif marker == MARKER_V2:
-                if ofs+8+10 > self.data_len:
+                if ofs + 8 + 10 > self.data_len:
                     break
-                mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
+                mtype = u_ord(self.data_map[ofs + 15]) | (u_ord(self.data_map[ofs + 16]) << 8) | (
+                        u_ord(self.data_map[ofs + 17]) << 16)
                 mlen += 12
                 data_ofs = 18
-                incompat_flags = u_ord(self.data_map[ofs+10])
+                incompat_flags = u_ord(self.data_map[ofs + 10])
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
             else:
@@ -1555,21 +1600,21 @@ class mavmmaplog(mavlogfile):
                 self.f.seek(instance_field_ofs)
                 ilen = self.instance_lengths[mtype]
                 ipad = 0
-                if ilen + (instance_field_ofs - ofs) > mlen-2:
+                if ilen + (instance_field_ofs - ofs) > mlen - 2:
                     # message is MAVLink2.0 zero truncated
-                    ipad = ilen + (instance_field_ofs - ofs) - (mlen-2)
+                    ipad = ilen + (instance_field_ofs - ofs) - (mlen - 2)
                     ilen -= ipad
                 if ilen > 0:
                     b = self.f.read(ilen)
                 else:
-                    b = bytes([0]*ilen)
+                    b = bytes([0] * ilen)
                 if ipad > 0:
-                    b += bytes([0]*ipad)
-                if ilen+ipad > 1:
+                    b += bytes([0] * ipad)
+                if ilen + ipad > 1:
                     # assume string
                     while len(b) > 0 and b[-1] == 0:
                         b = b[:-1]
-                    instance = b.decode('ASCII',errors='ignore').rstrip()
+                    instance = b.decode('ASCII', errors='ignore').rstrip()
                 else:
                     instance, = struct.unpack('b', b[:1])
                 mname = self.id_to_name[mtype]
@@ -1596,7 +1641,7 @@ class mavmmaplog(mavlogfile):
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
-            type.update(set(['HEARTBEAT','PARAM_VALUE']))
+            type.update(set(['HEARTBEAT', 'PARAM_VALUE']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1638,7 +1683,7 @@ class mavmmaplog(mavlogfile):
                     if timeout is None:
                         self.select(0.05)
                     else:
-                        self.select(timeout/2)
+                        self.select(timeout / 2)
                     continue
                 return None
             if type is not None and not m.get_type() in type:
@@ -1646,7 +1691,7 @@ class mavmmaplog(mavlogfile):
             if not evaluate_condition(condition, self.messages):
                 continue
             return m
-        
+
     def flightmode_list(self):
         '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
         tstamp = None
@@ -1674,12 +1719,14 @@ class mavmmaplog(mavlogfile):
         self._rewind()
         return self._flightmodes
 
+
 class mavchildexec(mavfile):
     '''a MAVLink child processes reader/writer'''
+
     def __init__(self, filename, source_system=255, source_component=0, use_native=default_native):
         from subprocess import Popen, PIPE
         import fcntl
-        
+
         self.filename = filename
         self.child = Popen(filename, shell=False, stdout=PIPE, stdin=PIPE, bufsize=0)
         self.fd = self.child.stdout.fileno()
@@ -1690,12 +1737,13 @@ class mavchildexec(mavfile):
         fl = fcntl.fcntl(self.child.stdout.fileno(), fcntl.F_GETFL)
         fcntl.fcntl(self.child.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-        mavfile.__init__(self, self.fd, filename, source_system=source_system, source_component=source_component, use_native=use_native)
+        mavfile.__init__(self, self.fd, filename, source_system=source_system, source_component=source_component,
+                         use_native=use_native)
 
     def close(self):
         self.child.close()
 
-    def recv(self,n=None):
+    def recv(self, n=None):
         try:
             x = self.child.stdout.read(1)
         except Exception:
@@ -1724,24 +1772,30 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         set_dialect(dialect)
     if device.startswith('tcp:'):
         return mavtcp(device[4:],
-                      autoreconnect=autoreconnect,
+                      autoreconnect=True,
                       source_system=source_system,
                       source_component=source_component,
                       retries=retries,
                       use_native=use_native)
     if device.startswith('tcpin:'):
-        return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
+        return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries,
+                        use_native=use_native)
     if device.startswith('udpin:'):
-        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native, timeout=udp_timeout)
+        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component,
+                      use_native=use_native, timeout=udp_timeout)
     if device.startswith('udpout:'):
-        return mavudp(device[7:], input=False, source_system=source_system, source_component=source_component, use_native=use_native)
+        return mavudp(device[7:], input=False, source_system=source_system, source_component=source_component,
+                      use_native=use_native)
     if device.startswith('udpbcast:'):
-        return mavudp(device[9:], input=False, source_system=source_system, source_component=source_component, use_native=use_native, broadcast=True)
+        return mavudp(device[9:], input=False, source_system=source_system, source_component=source_component,
+                      use_native=use_native, broadcast=True)
     # For legacy purposes we accept the following syntax and let the caller to specify direction
     if device.startswith('udp:'):
-        return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native)
+        return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component,
+                      use_native=use_native)
     if device.startswith('mcast:'):
-        return mavmcast(device[6:], source_system=source_system, source_component=source_component, use_native=use_native)
+        return mavmcast(device[6:], source_system=source_system, source_component=source_component,
+                        use_native=use_native)
 
     if device.lower().endswith('.bin') or device.lower().endswith('.px4log'):
         # support dataflash logs
@@ -1776,17 +1830,19 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         if DFReader.DFReader_is_text_log(device):
             m = DFReader.DFReader_text(device, zero_time_base=zero_time_base, progress_callback=progress_callback)
             mavfile_global = m
-            return m    
+            return m
 
-    # list of suffixes to prevent setting DOS paths as UDP sockets
-    logsuffixes = ['mavlink', 'log', 'raw', 'tlog' ]
+            # list of suffixes to prevent setting DOS paths as UDP sockets
+    logsuffixes = ['mavlink', 'log', 'raw', 'tlog']
     suffix = device.split('.')[-1].lower()
     if device.find(':') != -1 and not suffix in logsuffixes:
-        return mavudp(device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
+        return mavudp(device, source_system=source_system, source_component=source_component, input=input,
+                      use_native=use_native)
     if os.path.isfile(device):
         if device.endswith(".elf") or device.find("/bin/") != -1:
             print("executing '%s'" % device)
-            return mavchildexec(device, source_system=source_system, source_component=source_component, use_native=use_native)
+            return mavchildexec(device, source_system=source_system, source_component=source_component,
+                                use_native=use_native)
         elif not write and not append and not notimestamps:
             return mavmmaplog(device, progress_callback=progress_callback)
         else:
@@ -1801,8 +1857,10 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                      use_native=use_native,
                      force_connected=force_connected)
 
+
 class periodic_event(object):
     '''a class for fixed frequency events'''
+
     def __init__(self, frequency):
         self.frequency = float(frequency)
         self.last_time = time.time()
@@ -1810,7 +1868,7 @@ class periodic_event(object):
     def force(self):
         '''force immediate triggering'''
         self.last_time = 0
-        
+
     def trigger(self):
         '''return True if we should trigger now'''
         tnow = time.time()
@@ -1819,7 +1877,7 @@ class periodic_event(object):
             print("Warning, time moved backwards. Restarting timer.")
             self.last_time = tnow
 
-        if self.last_time + (1.0/self.frequency) <= tnow:
+        if self.last_time + (1.0 / self.frequency) <= tnow:
             self.last_time = tnow
             return True
         return False
@@ -1827,9 +1885,11 @@ class periodic_event(object):
 
 try:
     from curses import ascii
+
     have_ascii = True
 except:
     have_ascii = False
+
 
 def is_printable(c):
     '''see if a character is printable'''
@@ -1842,6 +1902,7 @@ def is_printable(c):
         ic = ord(c)
     return ic >= 32 and ic <= 126
 
+
 def all_printable(buf):
     '''see if a string is all printable'''
     for c in buf:
@@ -1849,8 +1910,10 @@ def all_printable(buf):
             return False
     return True
 
+
 class SerialPort(object):
     '''auto-detected serial port'''
+
     def __init__(self, device, description=None, hwid=None):
         self.device = device
         self.description = description
@@ -1863,6 +1926,7 @@ class SerialPort(object):
         if self.hwid is not None:
             ret += " : " + self.hwid
         return ret
+
 
 def auto_detect_serial_win32(preferred_list=['*']):
     '''try to auto-detect serial ports on win32'''
@@ -1888,14 +1952,13 @@ def auto_detect_serial_win32(preferred_list=['*']):
     # now the rest
     ret.extend(others)
     return ret
-        
 
-        
 
 def auto_detect_serial_unix(preferred_list=['*']):
     '''try to auto-detect serial ports on unix'''
     import glob
-    glist = glob.glob('/dev/ttyS*') + glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*') + glob.glob('/dev/serial/by-id/*')
+    glist = glob.glob('/dev/ttyS*') + glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*') + glob.glob(
+        '/dev/serial/by-id/*')
     ret = []
     others = []
     # try preferred ones first
@@ -1913,12 +1976,14 @@ def auto_detect_serial_unix(preferred_list=['*']):
     ret.extend(others)
     return ret
 
+
 def auto_detect_serial(preferred_list=['*']):
     '''try to auto-detect serial port'''
-    # see if 
+    # see if
     if os.name == 'nt':
         return auto_detect_serial_win32(preferred_list=preferred_list)
     return auto_detect_serial_unix(preferred_list=preferred_list)
+
 
 def mode_string_v09(msg):
     '''mode string for 0.9 protocol'''
@@ -1942,114 +2007,115 @@ def mode_string_v09(msg):
     MAV_NAV_LANDING = 6
     MAV_NAV_LOST = 7
     MAV_NAV_LOITER = 8
-    
+
     cmode = (mode, nav_mode)
     mapping = {
-        (MAV_MODE_UNINIT, MAV_NAV_GROUNDED)  : "INITIALISING",
-        (MAV_MODE_MANUAL, MAV_NAV_VECTOR)    : "MANUAL",
-        (MAV_MODE_TEST3,  MAV_NAV_VECTOR)    : "CIRCLE",
-        (MAV_MODE_GUIDED, MAV_NAV_VECTOR)    : "GUIDED",
-        (MAV_MODE_TEST1,  MAV_NAV_VECTOR)    : "STABILIZE",
-        (MAV_MODE_TEST2,  MAV_NAV_LIFTOFF)   : "FBWA",
-        (MAV_MODE_AUTO,   MAV_NAV_WAYPOINT)  : "AUTO",
-        (MAV_MODE_AUTO,   MAV_NAV_RETURNING) : "RTL",
-        (MAV_MODE_AUTO,   MAV_NAV_LOITER)    : "LOITER",
-        (MAV_MODE_AUTO,   MAV_NAV_LIFTOFF)   : "TAKEOFF",
-        (MAV_MODE_AUTO,   MAV_NAV_LANDING)   : "LANDING",
-        (MAV_MODE_AUTO,   MAV_NAV_HOLD)      : "LOITER",
-        (MAV_MODE_GUIDED, MAV_NAV_VECTOR)    : "GUIDED",
-        (MAV_MODE_GUIDED, MAV_NAV_WAYPOINT)  : "GUIDED",
-        (100,             MAV_NAV_VECTOR)    : "STABILIZE",
-        (101,             MAV_NAV_VECTOR)    : "ACRO",
-        (102,             MAV_NAV_VECTOR)    : "ALT_HOLD",
-        (107,             MAV_NAV_VECTOR)    : "CIRCLE",
-        (109,             MAV_NAV_VECTOR)    : "LAND",
-        }
+        (MAV_MODE_UNINIT, MAV_NAV_GROUNDED): "INITIALISING",
+        (MAV_MODE_MANUAL, MAV_NAV_VECTOR): "MANUAL",
+        (MAV_MODE_TEST3, MAV_NAV_VECTOR): "CIRCLE",
+        (MAV_MODE_GUIDED, MAV_NAV_VECTOR): "GUIDED",
+        (MAV_MODE_TEST1, MAV_NAV_VECTOR): "STABILIZE",
+        (MAV_MODE_TEST2, MAV_NAV_LIFTOFF): "FBWA",
+        (MAV_MODE_AUTO, MAV_NAV_WAYPOINT): "AUTO",
+        (MAV_MODE_AUTO, MAV_NAV_RETURNING): "RTL",
+        (MAV_MODE_AUTO, MAV_NAV_LOITER): "LOITER",
+        (MAV_MODE_AUTO, MAV_NAV_LIFTOFF): "TAKEOFF",
+        (MAV_MODE_AUTO, MAV_NAV_LANDING): "LANDING",
+        (MAV_MODE_AUTO, MAV_NAV_HOLD): "LOITER",
+        (MAV_MODE_GUIDED, MAV_NAV_VECTOR): "GUIDED",
+        (MAV_MODE_GUIDED, MAV_NAV_WAYPOINT): "GUIDED",
+        (100, MAV_NAV_VECTOR): "STABILIZE",
+        (101, MAV_NAV_VECTOR): "ACRO",
+        (102, MAV_NAV_VECTOR): "ALT_HOLD",
+        (107, MAV_NAV_VECTOR): "CIRCLE",
+        (109, MAV_NAV_VECTOR): "LAND",
+    }
     if cmode in mapping:
         return mapping[cmode]
     return "Mode(%s,%s)" % cmode
 
+
 mode_mapping_apm = {
-    0 : 'MANUAL',
-    1 : 'CIRCLE',
-    2 : 'STABILIZE',
-    3 : 'TRAINING',
-    4 : 'ACRO',
-    5 : 'FBWA',
-    6 : 'FBWB',
-    7 : 'CRUISE',
-    8 : 'AUTOTUNE',
-    10 : 'AUTO',
-    11 : 'RTL',
-    12 : 'LOITER',
-    13 : 'TAKEOFF',
-    14 : 'AVOID_ADSB',
-    15 : 'GUIDED',
-    16 : 'INITIALISING',
-    17 : 'QSTABILIZE',
-    18 : 'QHOVER',
-    19 : 'QLOITER',
-    20 : 'QLAND',
-    21 : 'QRTL',
-    22 : 'QAUTOTUNE',
-    23 : 'QACRO',
-    24 : 'THERMAL',
-    25 : 'LOITERALTQLAND',
+    0: 'MANUAL',
+    1: 'CIRCLE',
+    2: 'STABILIZE',
+    3: 'TRAINING',
+    4: 'ACRO',
+    5: 'FBWA',
+    6: 'FBWB',
+    7: 'CRUISE',
+    8: 'AUTOTUNE',
+    10: 'AUTO',
+    11: 'RTL',
+    12: 'LOITER',
+    13: 'TAKEOFF',
+    14: 'AVOID_ADSB',
+    15: 'GUIDED',
+    16: 'INITIALISING',
+    17: 'QSTABILIZE',
+    18: 'QHOVER',
+    19: 'QLOITER',
+    20: 'QLAND',
+    21: 'QRTL',
+    22: 'QAUTOTUNE',
+    23: 'QACRO',
+    24: 'THERMAL',
+    25: 'LOITERALTQLAND',
 }
 
 mode_mapping_acm = {
-    0 : 'STABILIZE',
-    1 : 'ACRO',
-    2 : 'ALT_HOLD',
-    3 : 'AUTO',
-    4 : 'GUIDED',
-    5 : 'LOITER',
-    6 : 'RTL',
-    7 : 'CIRCLE',
-    8 : 'POSITION',
-    9 : 'LAND',
-    10 : 'OF_LOITER',
-    11 : 'DRIFT',
-    13 : 'SPORT',
-    14 : 'FLIP',
-    15 : 'AUTOTUNE',
-    16 : 'POSHOLD',
-    17 : 'BRAKE',
-    18 : 'THROW',
-    19 : 'AVOID_ADSB',
-    20 : 'GUIDED_NOGPS',
-    21 : 'SMART_RTL',
-    22 : 'FLOWHOLD',
-    23 : 'FOLLOW',
-    24 : 'ZIGZAG',
-    25 : 'SYSTEMID',
-    26 : 'AUTOROTATE',
-    27 : 'AUTO_RTL',
+    0: 'STABILIZE',
+    1: 'ACRO',
+    2: 'ALT_HOLD',
+    3: 'AUTO',
+    4: 'GUIDED',
+    5: 'LOITER',
+    6: 'RTL',
+    7: 'CIRCLE',
+    8: 'POSITION',
+    9: 'LAND',
+    10: 'OF_LOITER',
+    11: 'DRIFT',
+    13: 'SPORT',
+    14: 'FLIP',
+    15: 'AUTOTUNE',
+    16: 'POSHOLD',
+    17: 'BRAKE',
+    18: 'THROW',
+    19: 'AVOID_ADSB',
+    20: 'GUIDED_NOGPS',
+    21: 'SMART_RTL',
+    22: 'FLOWHOLD',
+    23: 'FOLLOW',
+    24: 'ZIGZAG',
+    25: 'SYSTEMID',
+    26: 'AUTOROTATE',
+    27: 'AUTO_RTL',
 }
 
 mode_mapping_rover = {
-    0 : 'MANUAL',
-    1 : 'ACRO',
-    2 : 'LEARNING',
-    3 : 'STEERING',
-    4 : 'HOLD',
-    5 : 'LOITER',
-    6 : 'FOLLOW',
-    7 : 'SIMPLE',
-    10 : 'AUTO',
-    11 : 'RTL',
-    12 : 'SMART_RTL',
-    15 : 'GUIDED',
-    16 : 'INITIALISING'
+    0: 'MANUAL',
+    1: 'ACRO',
+    2: 'LEARNING',
+    3: 'STEERING',
+    4: 'HOLD',
+    5: 'LOITER',
+    6: 'FOLLOW',
+    7: 'SIMPLE',
+    10: 'AUTO',
+    11: 'RTL',
+    12: 'SMART_RTL',
+    15: 'GUIDED',
+    16: 'INITIALISING'
 }
 
 mode_mapping_tracker = {
-    0 : 'MANUAL',
-    1 : 'STOP',
-    2 : 'SCAN',
-    4 : 'GUIDED',
-    10 : 'AUTO',
-    16 : 'INITIALISING'
+    0: 'MANUAL',
+    1: 'STOP',
+    2: 'SCAN',
+    4: 'GUIDED',
+    10: 'AUTO',
+    16: 'INITIALISING'
 }
 
 mode_mapping_sub = {
@@ -2065,28 +2131,28 @@ mode_mapping_sub = {
 }
 
 mode_mapping_blimp = {
-    0 : 'LAND',
-    1 : 'MANUAL',
-    2 : 'VELOCITY',
-    3 : 'LOITER',
+    0: 'LAND',
+    1: 'MANUAL',
+    2: 'VELOCITY',
+    3: 'LOITER',
 }
 
 AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     # copter
-    mavlink.MAV_TYPE_HELICOPTER:  mode_mapping_acm,
-    mavlink.MAV_TYPE_TRICOPTER:   mode_mapping_acm,
-    mavlink.MAV_TYPE_QUADROTOR:   mode_mapping_acm,
-    mavlink.MAV_TYPE_HEXAROTOR:   mode_mapping_acm,
-    mavlink.MAV_TYPE_OCTOROTOR:   mode_mapping_acm,
-    mavlink.MAV_TYPE_DECAROTOR:   mode_mapping_acm,
+    mavlink.MAV_TYPE_HELICOPTER: mode_mapping_acm,
+    mavlink.MAV_TYPE_TRICOPTER: mode_mapping_acm,
+    mavlink.MAV_TYPE_QUADROTOR: mode_mapping_acm,
+    mavlink.MAV_TYPE_HEXAROTOR: mode_mapping_acm,
+    mavlink.MAV_TYPE_OCTOROTOR: mode_mapping_acm,
+    mavlink.MAV_TYPE_DECAROTOR: mode_mapping_acm,
     mavlink.MAV_TYPE_DODECAROTOR: mode_mapping_acm,
-    mavlink.MAV_TYPE_COAXIAL:     mode_mapping_acm,
+    mavlink.MAV_TYPE_COAXIAL: mode_mapping_acm,
     # plane
     mavlink.MAV_TYPE_FIXED_WING: mode_mapping_apm,
     # rover
     mavlink.MAV_TYPE_GROUND_ROVER: mode_mapping_rover,
     # boat
-    mavlink.MAV_TYPE_SURFACE_BOAT: mode_mapping_rover, # for the time being
+    mavlink.MAV_TYPE_SURFACE_BOAT: mode_mapping_rover,  # for the time being
     # tracker
     mavlink.MAV_TYPE_ANTENNA_TRACKER: mode_mapping_tracker,
     # sub
@@ -2094,7 +2160,6 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     # blimp
     mavlink.MAV_TYPE_AIRSHIP: mode_mapping_blimp,
 }
-
 
 try:
     # Allow for using custom mode maps by importing a JSON dict from
@@ -2119,7 +2184,8 @@ try:
         _custom_mode_map = {}
         for mav_type, mode_map in _json_mode_map.items():
             # make sure the custom map has the right datatypes
-            _custom_mode_map[int(mav_type)] = { int(mode_num): str(mode_name) for mode_num, mode_name in mode_map.items() }
+            _custom_mode_map[int(mav_type)] = {int(mode_num): str(mode_name) for mode_num, mode_name in
+                                               mode_map.items()}
     except Exception:
         # inform the user of invalid custom mode map
         print("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
@@ -2131,77 +2197,95 @@ except Exception:
     # revert to using default mode map
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
 
-
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
 # string, used in DFReader and possibly other places.  These are
 # related but distict from what is found in mavlink messages; see
 # "Custom mode definitions", below.
 mainstate_mapping_px4 = {
-    0 : 'MANUAL',
-    1 : 'ALTCTL',
-    2 : 'POSCTL',
-    3 : 'AUTO_MISSION',
-    4 : 'AUTO_LOITER',
-    5 : 'AUTO_RTL',
-    6 : 'ACRO',
-    7 : 'OFFBOARD',
-    8 : 'STAB',
-    9 : 'RATTITUDE',
-    10 : 'AUTO_TAKEOFF',
-    11 : 'AUTO_LAND',
-    12 : 'AUTO_FOLLOW_TARGET',
-    13 : 'MAX',
+    0: 'MANUAL',
+    1: 'ALTCTL',
+    2: 'POSCTL',
+    3: 'AUTO_MISSION',
+    4: 'AUTO_LOITER',
+    5: 'AUTO_RTL',
+    6: 'ACRO',
+    7: 'OFFBOARD',
+    8: 'STAB',
+    9: 'RATTITUDE',
+    10: 'AUTO_TAKEOFF',
+    11: 'AUTO_LAND',
+    12: 'AUTO_FOLLOW_TARGET',
+    13: 'MAX',
 }
+
+
 def mode_string_px4(MainState):
     return mainstate_mapping_px4.get(MainState, "Unknown")
 
 
 # Custom mode definitions from PX4
-PX4_CUSTOM_MAIN_MODE_MANUAL            = 1
-PX4_CUSTOM_MAIN_MODE_ALTCTL            = 2
-PX4_CUSTOM_MAIN_MODE_POSCTL            = 3
-PX4_CUSTOM_MAIN_MODE_AUTO              = 4
-PX4_CUSTOM_MAIN_MODE_ACRO              = 5
-PX4_CUSTOM_MAIN_MODE_OFFBOARD          = 6
-PX4_CUSTOM_MAIN_MODE_STABILIZED        = 7
-PX4_CUSTOM_MAIN_MODE_RATTITUDE         = 8
+PX4_CUSTOM_MAIN_MODE_MANUAL = 1
+PX4_CUSTOM_MAIN_MODE_ALTCTL = 2
+PX4_CUSTOM_MAIN_MODE_POSCTL = 3
+PX4_CUSTOM_MAIN_MODE_AUTO = 4
+PX4_CUSTOM_MAIN_MODE_ACRO = 5
+PX4_CUSTOM_MAIN_MODE_OFFBOARD = 6
+PX4_CUSTOM_MAIN_MODE_STABILIZED = 7
+PX4_CUSTOM_MAIN_MODE_RATTITUDE = 8
 
-PX4_CUSTOM_SUB_MODE_OFFBOARD           = 0
-PX4_CUSTOM_SUB_MODE_AUTO_READY         = 1
-PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF       = 2
-PX4_CUSTOM_SUB_MODE_AUTO_LOITER        = 3
-PX4_CUSTOM_SUB_MODE_AUTO_MISSION       = 4
-PX4_CUSTOM_SUB_MODE_AUTO_RTL           = 5
-PX4_CUSTOM_SUB_MODE_AUTO_LAND          = 6
-PX4_CUSTOM_SUB_MODE_AUTO_RTGS          = 7
+PX4_CUSTOM_SUB_MODE_OFFBOARD = 0
+PX4_CUSTOM_SUB_MODE_AUTO_READY = 1
+PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF = 2
+PX4_CUSTOM_SUB_MODE_AUTO_LOITER = 3
+PX4_CUSTOM_SUB_MODE_AUTO_MISSION = 4
+PX4_CUSTOM_SUB_MODE_AUTO_RTL = 5
+PX4_CUSTOM_SUB_MODE_AUTO_LAND = 6
+PX4_CUSTOM_SUB_MODE_AUTO_RTGS = 7
 PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET = 8
 
-auto_mode_flags  = mavlink.MAV_MODE_FLAG_AUTO_ENABLED \
-                 | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED \
-                 | mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
+auto_mode_flags = mavlink.MAV_MODE_FLAG_AUTO_ENABLED \
+                  | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED \
+                  | mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
 
-px4_map = { "MANUAL":        (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,   PX4_CUSTOM_MAIN_MODE_MANUAL,      0                                       ),
-            "STABILIZED":    (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,   PX4_CUSTOM_MAIN_MODE_STABILIZED,  0                                       ),
-            "ACRO":          (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED |                                           mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,   PX4_CUSTOM_MAIN_MODE_ACRO,        0                                       ),
-            "RATTITUDE":     (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED |                                           mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,   PX4_CUSTOM_MAIN_MODE_RATTITUDE,   0                                       ),
-            "ALTCTL":        (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,   PX4_CUSTOM_MAIN_MODE_ALTCTL,      0                                       ),
-            "POSCTL":        (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,   PX4_CUSTOM_MAIN_MODE_POSCTL,      0                                       ),
-            "LOITER":        (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_LOITER         ),
-            "MISSION":       (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_MISSION        ),
-            "RTL":           (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_RTL            ),
-            "LAND":          (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_LAND           ),
-            "RTGS":          (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_RTGS           ),
-            "FOLLOWME":      (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET  ),
-            "OFFBOARD":      (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_OFFBOARD,    0                                       ),
-            "TAKEOFF":       (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags,                                                                        PX4_CUSTOM_MAIN_MODE_AUTO,        PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF        )}
+px4_map = {"MANUAL": (
+    mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,
+    PX4_CUSTOM_MAIN_MODE_MANUAL, 0),
+    "STABILIZED": (
+        mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,
+        PX4_CUSTOM_MAIN_MODE_STABILIZED, 0),
+    "ACRO": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,
+             PX4_CUSTOM_MAIN_MODE_ACRO, 0),
+    "RATTITUDE": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,
+                  PX4_CUSTOM_MAIN_MODE_RATTITUDE, 0),
+    "ALTCTL": (
+        mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,
+        PX4_CUSTOM_MAIN_MODE_ALTCTL, 0),
+    "POSCTL": (
+        mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlink.MAV_MODE_FLAG_STABILIZE_ENABLED | mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED,
+        PX4_CUSTOM_MAIN_MODE_POSCTL, 0),
+    "LOITER": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+               PX4_CUSTOM_SUB_MODE_AUTO_LOITER),
+    "MISSION": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+                PX4_CUSTOM_SUB_MODE_AUTO_MISSION),
+    "RTL": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+            PX4_CUSTOM_SUB_MODE_AUTO_RTL),
+    "LAND": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+             PX4_CUSTOM_SUB_MODE_AUTO_LAND),
+    "RTGS": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+             PX4_CUSTOM_SUB_MODE_AUTO_RTGS),
+    "FOLLOWME": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+                 PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET),
+    "OFFBOARD": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_OFFBOARD, 0),
+    "TAKEOFF": (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | auto_mode_flags, PX4_CUSTOM_MAIN_MODE_AUTO,
+                PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF)}
 
 
 def interpret_px4_mode(base_mode, custom_mode):
-    custom_main_mode = (custom_mode & 0xFF0000)   >> 16
-    custom_sub_mode  = (custom_mode & 0xFF000000) >> 24
+    custom_main_mode = (custom_mode & 0xFF0000) >> 16
+    custom_sub_mode = (custom_mode & 0xFF000000) >> 24
 
-    if base_mode & mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED != 0: #manual modes
+    if base_mode & mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED != 0:  # manual modes
         if custom_main_mode == PX4_CUSTOM_MAIN_MODE_MANUAL:
             return "MANUAL"
         elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_ACRO:
@@ -2214,7 +2298,7 @@ def interpret_px4_mode(base_mode, custom_mode):
             return "ALTCTL"
         elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_POSCTL:
             return "POSCTL"
-    elif (base_mode & auto_mode_flags) == auto_mode_flags: #auto modes
+    elif (base_mode & auto_mode_flags) == auto_mode_flags:  # auto modes
         if custom_main_mode & PX4_CUSTOM_MAIN_MODE_AUTO != 0:
             if custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_MISSION:
                 return "MISSION"
@@ -2234,6 +2318,7 @@ def interpret_px4_mode(base_mode, custom_mode):
                 return "OFFBOARD"
     return "UNKNOWN"
 
+
 def mode_mapping_byname(mav_type):
     '''return dictionary mapping mode names to numbers, or None if unknown'''
     mode_map = mode_mapping_bynumber(mav_type)
@@ -2241,6 +2326,7 @@ def mode_mapping_byname(mav_type):
         return None
     inv_map = dict((a, b) for (b, a) in mode_map.items())
     return inv_map
+
 
 def mode_mapping_bynumber(mav_type):
     '''return dictionary mapping mode numbers to name, or None if unknown'''
@@ -2259,11 +2345,13 @@ def mode_string_v10(msg):
         return mode_map[msg.custom_mode]
     return "Mode(%u)" % msg.custom_mode
 
+
 def mode_string_apm(mode_number):
     '''return mode string for ArduPlane'''
     if mode_number in mode_mapping_apm:
         return mode_mapping_apm[mode_number]
     return "Mode(%u)" % mode_number
+
 
 def mode_string_acm(mode_number):
     '''return mode string for ArduCopter'''
@@ -2271,8 +2359,10 @@ def mode_string_acm(mode_number):
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
 
+
 class x25crc(object):
     '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
+
     def __init__(self, buf=''):
         self.crc = 0xffff
         self.accumulate(buf)
@@ -2287,117 +2377,120 @@ class x25crc(object):
         accum = self.crc
         for b in byte_buf:
             tmp = b ^ (accum & 0xff)
-            tmp = (tmp ^ (tmp<<4)) & 0xFF
-            accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
+            tmp = (tmp ^ (tmp << 4)) & 0xFF
+            accum = (accum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
             accum = accum & 0xFFFF
         self.crc = accum
 
+
 class MavlinkSerialPort(object):
-        '''an object that looks like a serial port, but
-        transmits using mavlink SERIAL_CONTROL packets'''
-        def __init__(self, portname, baudrate, devnum=0, devbaud=0, timeout=3, debug=0):
-                from . import mavutil
+    '''an object that looks like a serial port, but
+    transmits using mavlink SERIAL_CONTROL packets'''
 
-                self.baudrate = 0
-                self.timeout = timeout
-                self._debug = debug
-                self.buf = ''
-                self.port = devnum
-                self.debug("Connecting with MAVLink to %s ..." % portname)
-                self.mav = mavutil.mavlink_connection(portname, autoreconnect=True, baud=baudrate)
-                self.mav.wait_heartbeat()
-                self.debug("HEARTBEAT OK\n")
-                if devbaud != 0:
-                    self.setBaudrate(devbaud)
-                self.debug("Locked serial device\n")
+    def __init__(self, portname, baudrate, devnum=0, devbaud=0, timeout=3, debug=0):
+        from . import mavutil
 
-        def debug(self, s, level=1):
-                '''write some debug text'''
-                if self._debug >= level:
-                        print(s)
+        self.baudrate = 0
+        self.timeout = timeout
+        self._debug = debug
+        self.buf = ''
+        self.port = devnum
+        self.debug("Connecting with MAVLink to %s ..." % portname)
+        self.mav = mavutil.mavlink_connection(portname, autoreconnect=True, baud=baudrate)
+        self.mav.wait_heartbeat()
+        self.debug("HEARTBEAT OK\n")
+        if devbaud != 0:
+            self.setBaudrate(devbaud)
+        self.debug("Locked serial device\n")
 
-        def write(self, b):
-                '''write some bytes'''
-                from . import mavutil
-                self.debug("sending '%s' (0x%02x) of len %u\n" % (b, ord(b[0]), len(b)), 2)
-                while len(b) > 0:
-                        n = len(b)
-                        if n > 70:
-                                n = 70
-                        buf = [ord(x) for x in b[:n]]
-                        buf.extend([0]*(70-len(buf)))
-                        self.mav.mav.serial_control_send(self.port,
-                                                         mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
-                                                         mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
-                                                         0,
-                                                         0,
-                                                         n,
-                                                         buf)
-                        b = b[n:]
+    def debug(self, s, level=1):
+        '''write some debug text'''
+        if self._debug >= level:
+            print(s)
 
-        def _recv(self):
-                '''read some bytes into self.buf'''
-                from . import mavutil
-                start_time = time.time()
-                while time.time() < start_time + self.timeout:
-                        m = self.mav.recv_match(condition='SERIAL_CONTROL.count!=0',
-                                                type='SERIAL_CONTROL', blocking=False, timeout=0)
-                        if m is not None and m.count != 0:
-                                break
-                        self.mav.mav.serial_control_send(self.port,
-                                                         mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
-                                                         mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
-                                                         0,
-                                                         0,
-                                                         0, [0]*70)
-                        m = self.mav.recv_match(condition='SERIAL_CONTROL.count!=0',
-                                                type='SERIAL_CONTROL', blocking=True, timeout=0.01)
-                        if m is not None and m.count != 0:
-                                break
-                if m is not None:
-                        if self._debug > 2:
-                                print(m)
-                        data = m.data[:m.count]
-                        self.buf += ''.join(str(chr(x)) for x in data)
+    def write(self, b):
+        '''write some bytes'''
+        from . import mavutil
+        self.debug("sending '%s' (0x%02x) of len %u\n" % (b, ord(b[0]), len(b)), 2)
+        while len(b) > 0:
+            n = len(b)
+            if n > 70:
+                n = 70
+            buf = [ord(x) for x in b[:n]]
+            buf.extend([0] * (70 - len(buf)))
+            self.mav.mav.serial_control_send(self.port,
+                                             mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
+                                             mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
+                                             0,
+                                             0,
+                                             n,
+                                             buf)
+            b = b[n:]
 
-        def read(self, n):
-                '''read some bytes'''
-                if len(self.buf) == 0:
-                        self._recv()
-                if len(self.buf) > 0:
-                        if n > len(self.buf):
-                                n = len(self.buf)
-                        ret = self.buf[:n]
-                        self.buf = self.buf[n:]
-                        if self._debug >= 2:
-                            for b in ret:
-                                self.debug("read 0x%x" % ord(b), 2)
-                        return ret
-                return ''
+    def _recv(self):
+        '''read some bytes into self.buf'''
+        from . import mavutil
+        start_time = time.time()
+        while time.time() < start_time + self.timeout:
+            m = self.mav.recv_match(condition='SERIAL_CONTROL.count!=0',
+                                    type='SERIAL_CONTROL', blocking=False, timeout=0)
+            if m is not None and m.count != 0:
+                break
+            self.mav.mav.serial_control_send(self.port,
+                                             mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
+                                             mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
+                                             0,
+                                             0,
+                                             0, [0] * 70)
+            m = self.mav.recv_match(condition='SERIAL_CONTROL.count!=0',
+                                    type='SERIAL_CONTROL', blocking=True, timeout=0.01)
+            if m is not None and m.count != 0:
+                break
+        if m is not None:
+            if self._debug > 2:
+                print(m)
+            data = m.data[:m.count]
+            self.buf += ''.join(str(chr(x)) for x in data)
 
-        def flushInput(self):
-                '''flush any pending input'''
-                self.buf = ''
-                saved_timeout = self.timeout
-                self.timeout = 0.5
-                self._recv()
-                self.timeout = saved_timeout
-                self.buf = ''
-                self.debug("flushInput")
+    def read(self, n):
+        '''read some bytes'''
+        if len(self.buf) == 0:
+            self._recv()
+        if len(self.buf) > 0:
+            if n > len(self.buf):
+                n = len(self.buf)
+            ret = self.buf[:n]
+            self.buf = self.buf[n:]
+            if self._debug >= 2:
+                for b in ret:
+                    self.debug("read 0x%x" % ord(b), 2)
+            return ret
+        return ''
 
-        def setBaudrate(self, baudrate):
-                '''set baudrate'''
-                from . import mavutil
-                if self.baudrate == baudrate:
-                        return
-                self.baudrate = baudrate
-                self.mav.mav.serial_control_send(self.port,
-                                                 mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE,
-                                                 0,
-                                                 self.baudrate,
-                                                 0, [0]*70)
-                self.flushInput()
-                self.debug("Changed baudrate %u" % self.baudrate)
+    def flushInput(self):
+        '''flush any pending input'''
+        self.buf = ''
+        saved_timeout = self.timeout
+        self.timeout = 0.5
+        self._recv()
+        self.timeout = saved_timeout
+        self.buf = ''
+        self.debug("flushInput")
+
+    def setBaudrate(self, baudrate):
+        '''set baudrate'''
+        from . import mavutil
+        if self.baudrate == baudrate:
+            return
+        self.baudrate = baudrate
+        self.mav.mav.serial_control_send(self.port,
+                                         mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE,
+                                         0,
+                                         self.baudrate,
+                                         0, [0] * 70)
+        self.flushInput()
+        self.debug("Changed baudrate %u" % self.baudrate)
+
 
 def decode_bitmask(messagetype, field, value):
     try:
@@ -2440,11 +2533,12 @@ def decode_bitmask(messagetype, field, value):
             if value == 0:
                 continue
         if value & bit_value:
-            ret.append( EnumBitInfo(i, True, enum_entry_name) )
+            ret.append(EnumBitInfo(i, True, enum_entry_name))
             value = value & ~bit_value
         else:
-            ret.append( EnumBitInfo(i, False, enum_entry_name) )
+            ret.append(EnumBitInfo(i, False, enum_entry_name))
     return ret
+
 
 def dump_message_verbose(f, m):
     '''write an excruciatingly detailed dump of message m to file descriptor f'''
@@ -2456,8 +2550,11 @@ def dump_message_verbose(f, m):
     if timestamp != "":
         timestamp = "%s.%02u: " % (
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
-            int(timestamp*100.0)%100)
-    f.write("%s%s (id=%u) (link=%s) (signed=%s) (seq=%u) (src=%u/%u)\n" % (timestamp, m.get_type(), m.get_msgId(), str(m.get_link_id()), str(m.get_signed()), m.get_seq(), m.get_srcSystem(), m.get_srcComponent()))
+            int(timestamp * 100.0) % 100)
+    f.write("%s%s (id=%u) (link=%s) (signed=%s) (seq=%u) (src=%u/%u)\n" % (
+        timestamp, m.get_type(), m.get_msgId(), str(m.get_link_id()), str(m.get_signed()), m.get_seq(),
+        m.get_srcSystem(),
+        m.get_srcComponent()))
     for fieldname in m.get_fieldnames():
 
         # format in those most boring way possible:
@@ -2505,7 +2602,7 @@ def dump_message_verbose(f, m):
 
             if divisor is not None:
                 if type(value) == list:
-                    value = [x/divisor for x in value]
+                    value = [x / divisor for x in value]
                 else:
                     value = value / divisor
 
@@ -2541,8 +2638,8 @@ def dump_message_verbose(f, m):
                         name = "[UNKNOWN]"
                     f.write("      %s %s\n" % (svalue, name))
                 continue
-#            except NameError as e:
-#                pass
+        #            except NameError as e:
+        #                pass
         except AttributeError as e:
             # e.g. BAD_DATA
             pass
@@ -2567,6 +2664,7 @@ def dump_message_verbose(f, m):
 
 
 if __name__ == '__main__':
-        serial_list = auto_detect_serial(preferred_list=['*FTDI*',"*Arduino_Mega_2560*", "*3D_Robotics*", "*USB_to_UART*", '*PX4*', '*FMU*'])
-        for port in serial_list:
-            print("%s" % port)
+    serial_list = auto_detect_serial(
+        preferred_list=['*FTDI*', "*Arduino_Mega_2560*", "*3D_Robotics*", "*USB_to_UART*", '*PX4*', '*FMU*'])
+    for port in serial_list:
+        print("%s" % port)
