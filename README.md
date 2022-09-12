@@ -29,10 +29,9 @@ Pymavlink has several dependencies :
 
     - [future](http://python-future.org/) : for Python 2 and Python 3 interoperability
     - [lxml](http://lxml.de/installation.html) : for checking and parsing xml file 
-    - python3-dev : for mavnative (or python-dev for Python 2)
-    - a C compiler : for mavnative
 
 Optional :
+
     - numpy : for FFT
     - pytest : for tests
 
@@ -42,10 +41,10 @@ lxml has some additional dependencies that can be installed with your package ma
 
 .. note::
 
-   If you continue to use Python 2 you may need to change package names here (e.g. python3-dev => python-dev)
+   If you continue to use Python 2 you may need to change package names here (e.g. python3-numpy => python-numpy)
 
 ```bash
-sudo apt-get install gcc python3-dev libxml2-dev libxslt-dev
+sudo apt-get install libxml2-dev libxslt-dev
 ```
 
 Optional for FFT scripts and tests:
@@ -78,12 +77,7 @@ sudo python -m pip install --upgrade pymavlink
 
 #### Mavnative
 
-By default, pymavlink will try to compile and install mavnative which is a C extension for parsing mavlink. Mavnative only supports mavlink1.
-To skip mavnative installation and reduce dependencies like `gcc` and `python-dev`, you can pass `DISABLE_MAVNATIVE=True` environment variable to the installation command:
-
-```bash
-sudo DISABLE_MAVNATIVE=True python -m pip install --upgrade pymavlink
-```
+Starting from September 2022, mavnative, a C extension for parsing mavlink, was deprecated and removed. Mavnative developpement was stalled for long time, it only supports MAVLink1 and doesn't get any fix on the protocol.
 
 ### For developers
 

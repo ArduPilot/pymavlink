@@ -55,20 +55,6 @@ if sys.version_info[0] == 2:
 
 logger = logging.getLogger(__name__)
 
-# Will force use of native code regardless of what client app wants
-native_force = "MAVNATIVE_FORCE" in os.environ
-# Will force both native and legacy code to be used and their results compared
-native_testing = "MAVNATIVE_TESTING" in os.environ
-
-native_supported = False
-if os.name == "posix" and float(WIRE_PROTOCOL_VERSION) <= 1:
-    try:
-        import mavnative
-
-        native_supported = True
-    except ImportError:
-        logger.error("ERROR LOADING MAVNATIVE - falling back to python implementation")
-
 # allow MAV_IGNORE_CRC=1 to ignore CRC, allowing some
 # corrupted msgs to be seen
 MAVLINK_IGNORE_CRC = os.environ.get("MAV_IGNORE_CRC", 0)
@@ -263,9 +249,8 @@ class MAVLink_message(object):
         if self.get_type() != other.get_type():
             return False
 
-        # We do not compare CRC because native code doesn't provide it
-        # if self.get_crc() != other.get_crc():
-        #    return False
+        if self.get_crc() != other.get_crc():
+            return False
 
         if self.get_seq() != other.get_seq():
             return False
@@ -562,7 +547,7 @@ setattr(${classname}, "name", mavlink_msg_deprecated_name_property())
 
 
 def native_mavfmt(field):
-    """work out the struct format for a type (in a form expected by mavnative)"""
+    """Work out the struct format for a type."""
     map = {
         "float": "f",
         "double": "d",
@@ -732,13 +717,6 @@ class MAVLink(object):
         self.total_receive_errors = 0
         self.startup_time = time.time()
         self.signing = MAVLinkSigning()
-        if native_supported and (use_native or native_testing or native_force):
-            logger.warning("NOTE: mavnative is currently beta-test code")
-            self.native = mavnative.NativeConnection(MAVLink_message, mavlink_map)
-        else:
-            self.native = None
-        if native_testing:
-            self.test_buf = bytearray()
         self.mav20_unpacker = struct.Struct("<cBBBBBBHB")
         self.mav10_unpacker = struct.Struct("<cBBBBB")
         self.mav20_h3_unpacker = struct.Struct("BBB")
@@ -770,19 +748,11 @@ class MAVLink(object):
 
     def bytes_needed(self):
         """return number of bytes needed for next parsing stage"""
-        if self.native is not None:
-            ret = self.native.expected_length - self.buf_len()
-        else:
-            ret = self.expected_length - self.buf_len()
+        ret = self.expected_length - self.buf_len()
 
         if ret <= 0:
             return 1
         return ret
-
-    def __parse_char_native(self, c):
-        """this method exists only to see in profiling results"""
-        m = self.native.parse_chars(c)
-        return m
 
     def __callbacks(self, msg):
         """this method exists only to make profiling results easier to read"""
@@ -795,18 +765,7 @@ class MAVLink(object):
 
         self.total_bytes_received += len(c)
 
-        if self.native is not None:
-            if native_testing:
-                self.test_buf.extend(c)
-                m = self.__parse_char_native(self.test_buf)
-                m2 = self.__parse_char_legacy()
-                if m2 != m:
-                    logger.error("Native: %s\\nLegacy: %s\\n", m, m2)
-                    raise Exception("Native vs. Legacy mismatch")
-            else:
-                m = self.__parse_char_native(self.buf)
-        else:
-            m = self.__parse_char_legacy()
+        m = self.__parse_char_legacy()
 
         if m is not None:
             self.total_packets_received += 1
@@ -821,7 +780,7 @@ class MAVLink(object):
         return m
 
     def __parse_char_legacy(self):
-        """input some data bytes, possibly returning a new message (uses no native code)"""
+        """input some data bytes, possibly returning a new message"""
         header_len = HEADER_LEN_V1
         if self.buf_len() >= 1 and self.buf[self.buf_index] == PROTOCOL_MARKER_V2:
             header_len = HEADER_LEN_V2

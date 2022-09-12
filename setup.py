@@ -11,8 +11,8 @@ except LookupError:
     func = lambda name, enc=ascii: {True: enc}.get(name=='mbcs')
     codecs.register(func)
 
-from setuptools import setup, Extension
-import glob, os, shutil, fnmatch, platform, sys
+from setuptools import setup
+import glob, os, shutil, fnmatch, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from __init__ import __version__
@@ -76,28 +76,6 @@ def generate_content():
                 print("Building failed %s for protocol 2.0" % xml)
                 sys.exit(1)
 
-extensions = []  # Assume we might be unable to build native code
-# check if we need to compile mavnative
-disable_mavnative = os.getenv("DISABLE_MAVNATIVE", False)
-if type(disable_mavnative) is str and disable_mavnative in ["True", "true", "1"]:
-    disable_mavnative = True
-else:
-    disable_mavnative = False
-
-if platform.system() != 'Windows' and not disable_mavnative:
-    extensions = [ Extension('mavnative',
-                   sources=['mavnative/mavnative.c'],
-                   include_dirs=[
-                       'generator/C/include_v1.0',
-                       'generator/C/include_v2.0',
-                       'mavnative'
-                       ]
-                   ) ]
-else:
-    print("###################################")
-    print("Skipping mavnative")
-    print("###################################")
-
 
 class custom_build_py(build_py):
     def run(self):
@@ -141,8 +119,7 @@ setup (name = 'pymavlink',
                                                      'CPP11/include_v2.0/*.hpp',
                                                      'CS/*.*',
                                                      'swift/*.swift',],
-                        'pymavlink'              : ['mavnative/*.h',
-                                                    'message_definitions/v*/*.xml']
+                        'pymavlink'              : ['message_definitions/v*/*.xml']
                         },
        packages = ['pymavlink',
                    'pymavlink.generator',
@@ -175,5 +152,4 @@ setup (name = 'pymavlink',
             'lxml',
        ],
        cmdclass={'build_py': custom_build_py},
-       ext_modules = extensions
        )
