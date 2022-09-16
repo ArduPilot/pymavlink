@@ -151,7 +151,32 @@ def reduce_rate_msg(m, reduction_rate):
     return True
 
 if args.csv_sep == "tab":
-    args.csv_sep = "\t"
+    args.csv_sep = ","
+
+# swiped from DFReader.py
+def to_string(s):
+    """desperate attempt to convert a string regardless of what garbage we get"""
+    try:
+        return s.decode("utf-8")
+    except Exception:
+        pass
+    try:
+        s2 = s.encode("utf-8", "ignore")
+        x = u"%s" % s2
+        return x
+    except Exception:
+        pass
+    # so it's a nasty one. Let's grab as many characters as we can
+    r = ""
+    try:
+        for c in s:
+            r2 = r + c
+            r2 = r2.encode("ascii", "ignore")
+            x = u"%s" % r2
+            r = r2
+    except Exception:
+        pass
+    return r + "_XXX"
 
 def match_type(mtype, patterns):
     '''return True if mtype matches pattern'''
@@ -307,10 +332,15 @@ while True:
         for key in data.keys():
             if type(data[key]) == array.array:
                 data[key] = list(data[key])
+        # convert any byte-strings into utf-8 strings.  Don't die trying.
+        for key in data.keys():
+            if type(data[key]) == bytes:
+                data[key] = to_string(data[key])
         outMsg = {"meta": meta, "data": data}
 
         # Now print out this object with stringified properly.
         print(json.dumps(outMsg))
+
     # CSV format outputs columnar data with a user-specified delimiter
     elif args.format == 'csv':
         data = m.to_dict()
