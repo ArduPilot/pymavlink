@@ -8,6 +8,7 @@ Released under GNU GPL version 3 or later
 from __future__ import print_function
 from __future__ import absolute_import
 from builtins import object
+from builtins import sum as builtin_sum
 
 from math import *
 
@@ -220,9 +221,10 @@ def average(var, key, N):
     if not key in average_data:
         average_data[key] = [var]*N
         return var
-    average_data[key].pop(0)
-    average_data[key].append(var)
-    return sum(average_data[key])/N
+    l = average_data[key]
+    l.pop(0)
+    l.append(var)
+    return builtin_sum(l) / N
 
 derivative_data = {}
 
