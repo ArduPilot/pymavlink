@@ -2274,24 +2274,35 @@ def mode_string_acm(mode_number):
 
 class x25crc(object):
     '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
-    def __init__(self, buf=''):
+    def __init__(self, buf=None):
         self.crc = 0xffff
-        self.accumulate(buf)
+        if buf is not None:
+            if isinstance(buf, str):
+                self.accumulate_str(buf)
+            else:
+                self.accumulate(buf)
 
     def accumulate(self, buf):
         '''add in some more bytes'''
-        byte_buf = array.array('B')
-        if isinstance(buf, array.array):
-            byte_buf.extend(buf)
-        else:
-            byte_buf.fromstring(buf)
         accum = self.crc
-        for b in byte_buf:
+        for b in buf:
             tmp = b ^ (accum & 0xff)
             tmp = (tmp ^ (tmp<<4)) & 0xFF
             accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
-            accum = accum & 0xFFFF
         self.crc = accum
+
+    def accumulate_str(self, buf):
+        '''add in some more bytes'''
+        accum = self.crc
+        import array
+        bytes_array = array.array('B')
+        try:  # if buf is bytes
+            bytes_array.frombytes(buf)
+        except TypeError:  # if buf is str
+            bytes_array.frombytes(buf.encode())
+        except AttributeError:  # Python < 3.2
+            bytes_array.fromstring(buf)
+        self.accumulate(bytes_array)
 
 class MavlinkSerialPort(object):
         '''an object that looks like a serial port, but
