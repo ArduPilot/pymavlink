@@ -214,7 +214,7 @@ class MAVWPLoader(object):
             self.add(w, comment)
             comment = ''
 
-    def _read_waypoints_v110(self, file):
+    def _read_waypoints_v110(self, file, use_mission_item_int=False):
         '''read a version 110 waypoint'''
         comment = ''
         for line in file:
@@ -227,7 +227,9 @@ class MAVWPLoader(object):
             a = line.split()
             if len(a) != 12:
                 raise MAVWPError("invalid waypoint line with %u values" % len(a))
-            if mavutil.mavlink10():
+            if use_mission_item_int:
+                fn = mavutil.mavlink.MAVLink_mission_item_int_message
+            elif mavutil.mavlink10():
                 fn = mavutil.mavlink.MAVLink_mission_item_message
             else:
                 fn = mavutil.mavlink.MAVLink_waypoint_message
@@ -248,6 +250,9 @@ class MAVWPLoader(object):
             if w.command == 0 and w.seq == 0 and self.count() == 0:
                 # special handling for Mission Planner created home wp
                 w.command = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+            if type(w) == mavutil.mavlink.MAVLink_mission_item_int_message:
+                w.x = int(w.x * 1e7)
+                w.y = int(w.y * 1e7)
             self.add(w, comment)
             comment = ''
 
@@ -307,14 +312,16 @@ class MAVWPLoader(object):
                    waypoint.z or defaults.z)
             self.add(w)
 
-    def load(self, filename):
+    def load(self, filename, use_mission_item_int=False):
         '''load waypoints from a file.
         returns number of waypoints loaded'''
+        use_extra_commandline = False
         f = open(filename, mode='r')
         version_line = f.readline().strip()
         if version_line == "QGC WPL 100":
             readfn = self._read_waypoints_v100
         elif version_line == "QGC WPL 110":
+            use_extra_commandline = True
             readfn = self._read_waypoints_v110
         elif version_line == "QGC WPL PB 110":
             readfn = self._read_waypoints_pb_110
@@ -323,7 +330,10 @@ class MAVWPLoader(object):
             raise MAVWPError("Unsupported waypoint format '%s'" % version_line)
 
         self.clear()
-        readfn(f)
+        if use_extra_commandline:
+            readfn(f, use_mission_item_int=use_mission_item_int)
+        else:
+            readfn(f)
         f.close()
 
         return len(self.wpoints)
