@@ -10,6 +10,7 @@ from builtins import object
 
 import time, copy
 import logging
+import struct
 from . import mavutil
 try:
     from google.protobuf import text_format
@@ -129,6 +130,42 @@ class MAVWPLoader(object):
         '''clear waypoint list'''
         self.wpoints = []
         self.last_change = time.time()
+
+    # crc32 swiped from embed.py in AP source tree
+    def crc32(self, bytes, crc=0):
+        '''crc32 equivalent to crc32_small() from AP_Math/crc.cpp'''
+        for byte in bytes:
+            crc ^= byte
+            for i in range(8):
+                mask = (-(crc & 1)) & 0xFFFFFFFF
+                crc >>= 1
+                crc ^= (0xEDB88320 & mask)
+        return crc
+
+    def checksum(self):
+        '''return a checksum suitable for MISSION_CHECKSUM message'''
+        crc = 0
+        i = 1
+        for wp in self.wpoints[1:]:
+            try:
+                crc = self.crc32(struct.pack(
+                    "<BHBffffiif",
+                    wp.frame,
+                    wp.command,
+                    wp.autocontinue,
+                    wp.param1,
+                    wp.param2,
+                    wp.param3,
+                    wp.param4,
+                    wp.x,
+                    wp.y,
+                    wp.z
+                ), crc)
+            except AttributeError as e:
+                print("%s" % str(e))
+                return None
+            i += 1
+        return crc
 
     def _read_waypoints_v100(self, file):
         '''read a version 100 waypoint'''
