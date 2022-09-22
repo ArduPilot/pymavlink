@@ -8,7 +8,14 @@ __pycache__
 generator/C/
 generator/CPP11/include_v2.0
 generator/python/
-generator/message_definitions
+dialects/v10/*.py
+!dialects/v10/__init__.py
+dialects/v20/*.py
+!dialects/v20/__init__.py
+external/v10/*.py
+!external/v10/__init__.py
+external/v20/*.py
+!external/v20/__init__.py
 *.swp
 MANIFEST
 dist/

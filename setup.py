@@ -38,12 +38,16 @@ def generate_content():
             print("Using message definitions from %s" % mdef_path)
             break
 
+    message_definitions_path = mdef_path
     dialects_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dialects')
+    dialects_external_path = os.path.join(dialects_path, 'external')
 
-    v10_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
+    v10_dialects = [(f, False) for f in glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))]
 
     # for now v2.0 uses same XML files as v1.0
-    v20_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
+    v20_dialects = [(f, False) for f in glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))]
+
+    external_dialects = glob.glob(os.path.join(os.path.dirname(os.path.abspath(mdef_path)), 'external', 'dialects', '*.xml'))
 
     should_generate = not "NOGEN" in os.environ
     if should_generate:
@@ -51,28 +55,31 @@ def generate_content():
             print("No XML message definitions found")
             sys.exit(1)
 
-        for xml in v10_dialects:
+        for xml, _ in v10_dialects:
             shutil.copy(xml, os.path.join(dialects_path, 'v10'))
-        for xml in v20_dialects:
+        for xml, _ in v20_dialects:
             shutil.copy(xml, os.path.join(dialects_path, 'v20'))
+        for xml in external_dialects:
+            v10_dialects.append((xml, True))
+            v20_dialects.append((xml, True))
 
-        for xml in v10_dialects:
+        for xml, is_external in v10_dialects:
             dialect = os.path.basename(xml)[:-4]
             wildcard = os.getenv("MAVLINK_DIALECT",'*')
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 1.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, mdef_path, is_external):
                 print("Building failed %s for protocol 1.0" % xml)
                 sys.exit(1)
 
-        for xml in v20_dialects:
+        for xml, is_external in v20_dialects:
             dialect = os.path.basename(xml)[:-4]
             wildcard = os.getenv("MAVLINK_DIALECT",'*')
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 2.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, mdef_path, is_external):
                 print("Building failed %s for protocol 2.0" % xml)
                 sys.exit(1)
 
@@ -148,7 +155,9 @@ setup (name = 'pymavlink',
                    'pymavlink.generator',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
-                   'pymavlink.dialects.v20'],
+                   'pymavlink.dialects.v20',
+                   'pymavlink.external.v10',
+                   'pymavlink.external.v20'],
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
                    'tools/mavtogpx.py', 'tools/magfit_gps.py',
