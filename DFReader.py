@@ -666,6 +666,14 @@ class DFReader(object):
             self.flightmode = mavutil.mode_string_px4(m.MainState)
         if type == 'PARM' and getattr(m, 'Name', None) is not None:
             self.params[m.Name] = m.Value
+            if hasattr(m,'Default'):
+                if not hasattr(self,'param_defaults'):
+                    self.param_defaults = {}
+                if math.isnan(m.Default):
+                    if not m.Name in self.param_defaults:
+                        self.param_defaults[m.Name] = m.Value
+                else:
+                    self.param_defaults[m.Name] = m.Default
         self._set_time(m)
 
     def recv_match(self, condition=None, type=None, blocking=False):
