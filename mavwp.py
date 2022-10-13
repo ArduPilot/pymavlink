@@ -325,17 +325,17 @@ class MAVWPLoader(object):
         f.close()
 
     def is_location_command(self, cmd):
-        '''see if cmd is a MAV_CMD with a latitude/longitude.
-        We check if it has Latitude and Longitude params in the right indexes'''
+        '''see if cmd is a MAV_CMD with a latitude/longitude'''
         mav_cmd = mavutil.mavlink.enums['MAV_CMD']
         if not cmd in mav_cmd:
             return False
-        if not mav_cmd[cmd].param.get(5,'').startswith('Latitude'):
-            return False
-        if not mav_cmd[cmd].param.get(6,'').startswith('Longitude'):
-            return False
-        return True
+        return getattr(mav_cmd[cmd],'has_location',True)
 
+    def is_location_wp(self, w):
+        '''see if w.command is a MAV_CMD with a latitude/longitude'''
+        if w.x == 0 and w.y == 0:
+            return False
+        return self.is_location_command(w.command)
 
     def view_indexes(self, done=None):
         '''return a list waypoint indexes in view order'''
@@ -357,14 +357,14 @@ class MAVWPLoader(object):
         while idx < self.count():
             w = self.wp(idx)
             if idx in done:
-                if w.x != 0 or w.y != 0:
+                if self.is_location_wp(w):
                     ret.append(idx)
                 break
             done.add(idx)
             if w.command == mavutil.mavlink.MAV_CMD_DO_JUMP:
                 idx = int(w.param1)
                 w = self.wp(idx)
-                if w.x != 0 or w.y != 0:
+                if self.is_location_wp(w):
                     ret.append(idx)
                 continue
             # display loops for exclusion and inclusion zones
@@ -384,7 +384,7 @@ class MAVWPLoader(object):
                     ret.append(idx)
                     ret.append(inclusion_start)
                     return ret
-            if (w.x != 0 or w.y != 0) and self.is_location_command(w.command):
+            if self.is_location_wp(w):
                 ret.append(idx)
             if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
                               mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND ]:
