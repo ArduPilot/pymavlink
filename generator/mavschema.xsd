@@ -128,6 +128,7 @@
     <xs:enumeration value="cA"/>       <!-- centi-Ampere -->
     <xs:enumeration value="mA"/>       <!-- milli-Ampere -->
     <xs:enumeration value="mAh"/>      <!-- milli-Ampere hour -->
+    <xs:enumeration value="Ah"/>       <!-- Ampere hour -->
     <!-- magnetism -->
     <xs:enumeration value="mT"/>       <!-- milli-Tesla -->
     <xs:enumeration value="gauss"/>    <!-- Gauss -->
