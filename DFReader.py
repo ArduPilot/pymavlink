@@ -238,7 +238,14 @@ class DFMessage(object):
                     noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
                 if struct.pack(">d", val) != noisy_nan:
                     val = "qnan"
-            ret += "%s : %s, " % (c, val)
+
+            if is_py3:
+                ret += "%s : %s, " % (c, val)
+            else:
+                try:
+                    ret += "%s : %s, " % (c, val)
+                except UnicodeDecodeError:
+                    ret += "%s : %s, " % (c, to_string(val))
             col_count += 1
         if col_count != 0:
             ret = ret[:-2]
