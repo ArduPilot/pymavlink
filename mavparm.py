@@ -61,7 +61,7 @@ class MAVParmDict(dict):
                 if ack is None:
                     time.sleep(0.1)
                     continue
-                if str(name).upper() == str(ack.param_id).upper():
+                if str(name) == ack.param_id.decode('ascii'):
                     got_ack = True
                     self.__setitem__(name, float(value))
                     break

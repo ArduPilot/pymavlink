@@ -48,7 +48,7 @@ def AccelSearch(filename):
                 logcount += 1
             return False
         if m.get_type() == 'PARAM_VALUE':
-            if m.param_id.startswith('INS_PRODUCT_ID'):
+            if m.param_id.decode('ascii').startswith('INS_PRODUCT_ID'):
                 if m.param_value not in [0.0, 5.0]:
                     return False
         if m.get_type() == 'RAW_IMU':

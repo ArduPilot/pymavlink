@@ -94,6 +94,9 @@ def add_message(messages, mtype, msg):
         messages[mtype] = msg
         return
     instance_value = getattr(msg, msg._instance_field)
+    if isinstance(instance_value, bytes):
+        # cope with string instance values, such as NAMED_VALUE_FLOAT
+        instance_value = instance_value.decode(errors="backslashreplace").rstrip("\\x00")
     if not mtype in messages:
         messages[mtype] = copy.copy(msg)
         messages[mtype]._instances = {}
@@ -432,7 +435,7 @@ class mavfile(object):
         elif type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
-            self.param_state[src_tuple].params[msg.param_id] = msg.param_value
+            self.param_state[src_tuple].params[msg.param_id.decode('ascii')] = msg.param_value
         elif type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
             self.flightmode = mode_string_v09(msg)
         elif type == 'GPS_RAW':

@@ -32,7 +32,7 @@ def mavparms(logfile):
         except Exception:
             return
         if m.get_type() == 'PARAM_VALUE':
-            pname = str(m.param_id).strip()
+            pname = m.param_id.decode('ascii')
             value = m.param_value
         else:
             pname = m.Name

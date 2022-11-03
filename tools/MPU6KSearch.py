@@ -82,7 +82,8 @@ def IMUCheckFail(filename):
                     print('UNCALIBRATED: %s' % m)
                     return False
         elif mtype == 'PARAM_VALUE':
-            if m.param_id.startswith('INS_ACCOFFS_') or m.param_id.startswith('INS_ACC2OFFS_'):
+            param_id = m.param_id.decode('ascii')
+            if param_id.startswith('INS_ACCOFFS_') or param_id.startswith('INS_ACC2OFFS_'):
                 if m.param_value == 0.0:
                     print('UNCALIBRATED: %s' % m)
                     return False

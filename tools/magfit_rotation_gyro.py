@@ -129,7 +129,7 @@ def magfit(logfile):
                 name = str(m.Name)
                 value = int(m.Value)
             else:
-                name = str(m.param_id)
+                name = m.param_id.decode('ascii')
                 value = int(m.param_value)
             if name == "AHRS_ORIENTATION":
                 AHRS_ORIENTATION = value

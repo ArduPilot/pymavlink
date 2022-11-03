@@ -93,7 +93,7 @@ def magfit(logfile):
         m = mlog.recv_match(condition=args.condition)
         if m is None:
             break
-        if m.get_type() == "PARAM_VALUE" and m.param_id == "RC3_MIN":
+        if m.get_type() == "PARAM_VALUE" and m.param_id.decode('ascii') == "RC3_MIN":
             rc3_min = float(m.param_value)
         if m.get_type() == "SENSOR_OFFSETS":
             # update current offsets
