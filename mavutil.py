@@ -15,6 +15,9 @@ import json
 import re
 from pymavlink import mavexpression
 
+# We want to re-export x25crc here
+from pymavlink.generator.mavcrc import x25crc as x25crc
+
 is_py3 = sys.version_info >= (3,0)
 supports_type_annotations = sys.version_info >= (3,6)
 
@@ -2280,27 +2283,6 @@ def mode_string_acm(mode_number):
     if mode_number in mode_mapping_acm:
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
-
-class x25crc(object):
-    '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
-    def __init__(self, buf=''):
-        self.crc = 0xffff
-        self.accumulate(buf)
-
-    def accumulate(self, buf):
-        '''add in some more bytes'''
-        byte_buf = array.array('B')
-        if isinstance(buf, array.array):
-            byte_buf.extend(buf)
-        else:
-            byte_buf.fromstring(buf)
-        accum = self.crc
-        for b in byte_buf:
-            tmp = b ^ (accum & 0xff)
-            tmp = (tmp ^ (tmp<<4)) & 0xFF
-            accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
-            accum = accum & 0xFFFF
-        self.crc = accum
 
 class MavlinkSerialPort(object):
         '''an object that looks like a serial port, but
