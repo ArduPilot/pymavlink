@@ -157,15 +157,15 @@ def to_string(s):
         except Exception:
             break
     return r + '_XXX'
-    
-def null_term(str):
+
+def null_term(string):
     '''null terminate a string'''
-    if isinstance(str, bytes):
-        str = to_string(str)
-    idx = str.find("\0")
+    if isinstance(string, bytes):
+        string = to_string(string)
+    idx = string.find("\0")
     if idx != -1:
-        str = str[:idx]
-    return str
+        string = string[:idx]
+    return string
 
 
 class DFMessage(object):
