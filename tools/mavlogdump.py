@@ -155,28 +155,13 @@ if args.csv_sep == "tab":
 
 # swiped from DFReader.py
 def to_string(s):
-    """desperate attempt to convert a string regardless of what garbage we get"""
-    try:
-        return s.decode("utf-8")
-    except Exception:
-        pass
-    try:
-        s2 = s.encode("utf-8", "ignore")
-        x = u"%s" % s2
-        return x
-    except Exception:
-        pass
-    # so it's a nasty one. Let's grab as many characters as we can
-    r = ""
-    try:
-        for c in s:
-            r2 = r + c
-            r2 = r2.encode("ascii", "ignore")
-            x = u"%s" % r2
-            r = r2
-    except Exception:
-        pass
-    return r + "_XXX"
+    '''desperate attempt to convert a string regardless of what garbage we get'''
+    if isinstance(s, str):
+        return s
+    if sys.version_info[0] == 2:
+        # In python2 we want to return unicode for passed in unicode
+        return s
+    return s.decode(errors="backslashreplace")
 
 def match_type(mtype, patterns):
     '''return True if mtype matches pattern'''
@@ -259,7 +244,7 @@ while True:
 
     if args.reduce_rate > 0 and reduce_rate_msg(m, args.reduce_rate):
         continue
-    
+
     if output is not None:
         if (isbin or islog) and m_type == "FMT":
             output.write(m.get_msgbuf())
