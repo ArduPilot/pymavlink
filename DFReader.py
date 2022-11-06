@@ -127,7 +127,7 @@ class DFFormat(object):
     def set_mult_ids(self, mult_ids):
         '''set mult IDs string from FMTU'''
         self.mult_ids = mult_ids
-            
+
     def __str__(self):
         return ("DFFormat(%s,%s,%s,%s)" %
                 (self.type, self.name, self.format, self.columns))
@@ -135,28 +135,12 @@ class DFFormat(object):
 # Swiped into mavgen_python.py
 def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
-    try:
-        return s.decode("utf-8")
-    except Exception as e:
-        pass
-    try:
-        s2 = s.encode('utf-8', 'ignore')
-        x = u"%s" % s2
-        return s2
-    except Exception:
-        pass
-    # so it's a nasty one. Let's grab as many characters as we can
-    r = ''
-    while s != '':
-        try:
-            r2 = r + s[0]
-            s = s[1:]
-            r2 = r2.encode('ascii', 'ignore')
-            x = u"%s" % r2
-            r = r2
-        except Exception:
-            break
-    return r + '_XXX'
+    if isinstance(s, str):
+        return s
+    if sys.version_info[0] == 2:
+        # In python2 we want to return unicode for passed in unicode
+        return s
+    return s.decode(errors="backslashreplace")
 
 def null_term(string):
     '''null terminate a string'''
@@ -1130,7 +1114,7 @@ class DFReader_text(DFReader):
             if mtype == "FMTU":
                 self.offset = ofs
                 self._parse_next()
-                
+
             ofs = self.data_map.find(b"\n", ofs)
             if ofs == -1:
                 break
