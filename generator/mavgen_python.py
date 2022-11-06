@@ -554,15 +554,21 @@ def generate_classes(outf, msgs, enable_type_annotations):
 
         init_fields = []
         for f in m.fields:
-            init_fields.append("self.%s = %s" % (f.name, f.name))
+            if f.type == "char":
+                init_fields.append("self._%s_raw = %s" % (f.name, f.name))
+                init_fields.append('self.%s = %s.decode("ascii", errors="replace")' % (f.name, f.name))
+            else:
+                init_fields.append("self.%s = %s" % (f.name, f.name))
 
         pack_fields = []
         for field in m.ordered_fields:
-            if field.type != "char" and field.array_length > 1:
+            if field.type == "char":
+                pack_fields.append("self._{0:s}_raw".format(field.name))
+            elif field.array_length == 0:
+                pack_fields.append("self.{0:s}".format(field.name))
+            else:
                 for i in range(field.array_length):
                     pack_fields.append("self.{0:s}[{1:d}]".format(field.name, i))
-            else:
-                pack_fields.append("self.{0:s}".format(field.name))
 
         t.write(
             outf,
