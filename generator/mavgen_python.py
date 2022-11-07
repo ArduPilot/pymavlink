@@ -556,7 +556,7 @@ def generate_classes(outf, msgs, enable_type_annotations):
         for f in m.fields:
             if f.type == "char":
                 init_fields.append("self._%s_raw = %s" % (f.name, f.name))
-                init_fields.append('self.%s = %s.decode("ascii", errors="replace")' % (f.name, f.name))
+                init_fields.append('self.%s = %s.split(b"\\x00", 1)[0].decode("ascii", errors="replace")' % (f.name, f.name))
             else:
                 init_fields.append("self.%s = %s" % (f.name, f.name))
 
