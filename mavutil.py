@@ -92,11 +92,11 @@ class location(object):
 
 def add_message(messages, mtype, msg):
     '''add a msg to array of messages, taking account of instance messages'''
-    if msg._instance_field is None or getattr(msg, msg._instance_field, None) is None:
+    if getattr(msg, '_instance_field', None) is None:
         # simple case, no instance field
         messages[mtype] = msg
         return
-    instance_value = getattr(msg, msg._instance_field)
+    instance_value = getattr(msg, '_instance_field')
     if not mtype in messages:
         messages[mtype] = copy.copy(msg)
         messages[mtype]._instances = {}
