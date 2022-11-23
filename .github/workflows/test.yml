@@ -15,9 +15,10 @@ jobs:
         python-version: ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
@@ -31,10 +32,11 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           sudo apt update
           sudo apt install -y libgtest-dev g++
-      - uses: actions/setup-node@v2-beta
+
+      - uses: actions/setup-node@v3
         with:
-          node-version: '12'
-      - run: npm install
+          node-version: '16'
+
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
@@ -67,6 +69,7 @@ jobs:
             flake8 --ignore='W503,E203,E501,E741' --statistics dialects/
             mypy --config-file ./.github/workflows/mypy-generated.ini dialects/v10/*.py dialects/v20/*.py
           fi
+
       - name: Generate messages
         run: |
           mavgen.py --lang='C'          --output=/tmp/mavgen_test mavlink/message_definitions/v1.0/common.xml --wire-protocol=1.0 --strict-units
@@ -95,9 +98,9 @@ jobs:
         run: |
           ./test_generator.sh
 
-      - name : Test NPM
+      - name : Test JavaScript Bindings - generated tests and Mocha tests
         run: |
-          cd generator/javascript && npm test
+          ./test_gen_js.sh && cd generator/javascript && npm test && cd -
 
       - name: Test with pytest
         run: |

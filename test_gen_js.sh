@@ -38,12 +38,6 @@ fi
 
 test -z "$MDEF" && MDEF="../message_definitions"
 
-# delete the pretests file if more than 1 minute old, this prevents the 'npm test' call near the end having to re-do the pretests
-if [ "`find pretests.done.swp -mmin +5 2>/dev/null`" ]; then
- rm pretests.done.swp
-fi
-
-if [[ ! -f "pretests.done.swp" ]]; then
 
     # build js bindings we want to test
     printf "${RED}Generating JS-NextGen bindings to test...${NC}\n\n"
@@ -75,20 +69,9 @@ if [[ ! -f "pretests.done.swp" ]]; then
     cd ../..
 
    printf "${RED}JS-NextGen PRETEST setup done.${NC}\n\n"
-    touch pretests.done.swp
 
 
-else
 
-    printf "${RED}JS-NextGen PRETEST setup already recently done, skipping.${NC}\n\n"
-
-fi
-
-# 'npm test' sets this env var , so this stops it becoming a recursive call.
-if [[ ! -z "${npm_package_scripts_pretest}" ]]; then
-# stop here if we are in pre-test
-exit 0
-fi
 
 # run the automatically generated tool for build/pack, ie create and pack one of everything, no byte-level checking of the packed results tho, comes later.
 printf "${RED}Running non-NPM JS-NextGen create/pack tests ...${NC}\n\n"
@@ -111,15 +94,14 @@ make testmav1.0_common testmav2.0_common testmav1.0_ardupilotmega testmav2.0_ard
 popd  > $OUT2
 
 
-# make big collection ~990 of mocha tests based on C output like the above but more thorough, this includes byte-level checking of the packed results
-# run the ~990 or more mocha tests we just made:  
+# we also have a big collection ~990 of mocha tests based on C output like the above but more thorough, this includes byte-level 
+# checking of the packed results etc.
+# u can/should also run the ~990 or more mocha tests we just made:  
 #( this uses generator/javascript/package.json -> runs make_tests.py -> outputs made_tests.js -> which are then executed by 'mocha test' )
-printf "\n${RED}Running automated JS-NextGen NPM test suite...${NC}\n\n"
-sleep 1
-cd generator/javascript
-
-npm test  2>/dev/null > $OUT0
-cd ../..
+echo "tip: if not bring auto-run as a auto-test, u can run the next-stage of tests with mocha here:"
+echo "cd generator/javascript"
+echo "npm test"
+echo "cd -"
 
 
 printf "\n${RED}JS-NextGen Testing done.${NC}\n\n"
