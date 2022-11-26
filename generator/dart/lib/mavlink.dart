@@ -6,6 +6,7 @@
 
 library mavlink;
 
+export 'minimal.dart';
 export 'src/parser.dart';
 export 'src/types.dart';
 export 'src/mavlink_packet.dart';

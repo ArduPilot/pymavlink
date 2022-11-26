@@ -6,7 +6,6 @@
 
 import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/mavlink.dart';
-import 'package:mavlink/src/enums/mav_component.dart';
 
 /// States from the parsing state machine
 enum MAV_states {

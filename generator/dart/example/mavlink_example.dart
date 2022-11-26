@@ -1,5 +1,4 @@
 import 'package:mavlink/mavlink.dart';
-import 'package:mavlink/enums.dart';
 import 'package:mavlink/test.dart';
 
 void main() {
