@@ -45,7 +45,7 @@ MAXIMUM_INCLUDE_FILE_NESTING = 5
 
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
 # Right now, 'JavaScript' ~= 'JavaScript_Stable', in the future it may be made equivalent to 'JavaScript_NextGen'
-supportedLanguages = ["C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python2", "Python3", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11"]
+supportedLanguages = ["C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python2", "Python3", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11", "Dart"]
 
 
 def mavgen(opts, args):
@@ -291,6 +291,9 @@ def mavgen(opts, args):
     elif opts.language == 'c++11':
         from . import mavgen_cpp11
         mavgen_cpp11.generate(opts.output, xml)
+    elif opts.language == 'dart':
+        from . import mavgen_dart
+        mavgen_dart.generate(opts.output, xml)
     else:
         print("Unsupported language %s" % opts.language)
 
