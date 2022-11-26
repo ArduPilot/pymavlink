@@ -12,7 +12,7 @@ import 'package:mavlink/common.dart';
 class MAVLinkStats {
   MAVLinkStats();
 
-  MAVLinkStats.withIgnoreRadioPackets({required this.ignoreRadioPackets});
+  MAVLinkStats.withIgnoreRadioPackets(this._ignoreRadioPackets);
 
   int _receivedPacketCount = 0; // total received packet count for all sources
   int get receivedPacketCount => _receivedPacketCount;
@@ -103,39 +103,39 @@ class ComponentStat {
   int get receivedPacketCount => _receivedPacketCount;
 
   int _newPacket(MAVLinkPacket packet) {
-        int newLostPackets = 0;
-        if (hasLostPackets(packet)) {
+    int newLostPackets = 0;
+    if (hasLostPackets(packet)) {
         newLostPackets = _updateLostPacketCount(packet);
-        }
+    }
     _lastPacketSeq = packet.seq;
     _advanceLastPacketSequence(packet.seq);
     _receivedPacketCount++;
-        return newLostPackets;
-    }
+    return newLostPackets;
+  }
 
-    void resetStats() {
+  void resetStats() {
     _lastPacketSeq = -1;
     _lostPacketCount = 0;
     _receivedPacketCount = 0;
-    }
+  }
 
   int _updateLostPacketCount(MAVLinkPacket packet) {
-        int lostPackets;
+    int lostPackets;
     if (packet.seq - _lastPacketSeq < 0) {
         lostPackets = (packet.seq - _lastPacketSeq) + 255;
-        } else {
+    } else {
         lostPackets = (packet.seq - _lastPacketSeq);
-        }
-    _lostPacketCount += lostPackets;
-        return lostPackets;
     }
+    _lostPacketCount += lostPackets;
+    return lostPackets;
+  }
 
   void _advanceLastPacketSequence(int lastSeq) {
-        // wrap from 255 to 0 if necessary
+    // wrap from 255 to 0 if necessary
     _lastPacketSeq = (lastSeq + 1) & 0xFF;
-    }
+  }
 
-    bool hasLostPackets(MAVLinkPacket packet) {
+  bool hasLostPackets(MAVLinkPacket packet) {
     return _lastPacketSeq >= 0 && packet.seq != _lastPacketSeq;
-    }
+  }
 }

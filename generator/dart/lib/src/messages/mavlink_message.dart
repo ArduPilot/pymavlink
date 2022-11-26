@@ -7,15 +7,14 @@
 import 'package:mavlink/mavlink.dart';
 
 abstract class MAVLinkMessage {
-  int sysID = 0;
-  int compID = 0;
-  int msgID = 0;
-  bool isMavlink2 = false;
+  int sysID;
+  int compID;
+  int msgID;
+  bool isMavlink2;
 
-  MAVLinkMessage({required this.sysID, required this.compID, required this.msgID, bool this.isMavlink2 = false});
+  MAVLinkMessage({required this.sysID, required this.compID, required this.msgID, this.isMavlink2 = false});
 
   MAVLinkPacket pack(int seq);
   void unpack(MAVLinkPayload payload);
-  String toString();
   String getMessageName();
 }

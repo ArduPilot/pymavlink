@@ -412,30 +412,30 @@ class MAVLinkPacket {
     /**
      * Payload length
      */
-    int len = 0;
+    int len;
 
     /**
      * Message sequence
      */
-    int seq = 0;
+    int seq;
 
     /**
      * ID of the SENDING system. Allows to differentiate different MAVs on the
      * same network.
      */
-    int sysID = 0;
+    int sysID;
 
     /**
      * ID of the SENDING component. Allows to differentiate different components
      * of the same system, e.g. the IMU and the autopilot.
      */
-    int compID = 0;
+    int compID;
 
     /**
      * ID of the message - the id defines what the payload means and how it
      * should be correctly decoded.
      */
-    int msgID = 0;
+    int msgID;
 
     /**
      * Data of the message, depends on the message id.
@@ -455,23 +455,21 @@ class MAVLinkPacket {
     /**
      * Flag to indicate which MAVLink version this packet is
      */
-    bool isMavlink2 = false;
+    bool isMavlink2;
 
     /**
      * Flags that must be understood
      */
-    int incompatFlags = 0;
+    int incompatFlags;
 
     /**
      * Flags that can be ignored if not understood
      */
-    int compatFlags = 0;
+    int compatFlags;
 
     MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, this.incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false});
 
-    MAVLinkPacket.MAVLink2({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, this.incompatFlags = 0, this.compatFlags = 0}) {
-      this.isMavlink2 = true;
-    }
+    MAVLinkPacket.MAVLink2({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, this.incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = true});
 
     /**
      * Check if the size of the Payload is equal to the "len" byte

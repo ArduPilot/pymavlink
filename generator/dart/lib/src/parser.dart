@@ -52,7 +52,7 @@ class Parser {
     bool _isMavlink2 = false;
 
     Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats) {
-      stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPackets: ignoreRadioPacketStats);
+      stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPacketStats);
     }
 
     /// This is a convenience function which handles the complete MAVLink
