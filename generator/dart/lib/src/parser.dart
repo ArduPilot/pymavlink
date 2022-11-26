@@ -8,7 +8,7 @@ import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/mavlink.dart';
 
 /// States from the parsing state machine
-enum MAV_states {
+enum _MAV_states {
     MAVLINK_PARSE_STATE_UNINIT,
     MAVLINK_PARSE_STATE_IDLE,
     MAVLINK_PARSE_STATE_GOT_STX,
@@ -43,7 +43,7 @@ class Parser {
         if(_V) print(buf.toString());
     }
 
-    MAV_states _state = MAV_states.MAVLINK_PARSE_STATE_UNINIT;
+    _MAV_states _state = _MAV_states.MAVLINK_PARSE_STATE_UNINIT;
 
     MAVLinkStats stats = MAVLinkStats();
     MAVLinkPacket? _m;
@@ -64,17 +64,17 @@ class Parser {
         // force to 8 bits
         c &= 0xFF;
         switch (_state) {
-            case MAV_states.MAVLINK_PARSE_STATE_UNINIT:
-            case MAV_states.MAVLINK_PARSE_STATE_IDLE:
+            case _MAV_states.MAVLINK_PARSE_STATE_UNINIT:
+            case _MAV_states.MAVLINK_PARSE_STATE_IDLE:
                 // MAVLink 1 and 2
                 if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK2) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
                     if (!_isMavlink2) {
                         _isMavlink2 = true;
                         _logv("Turning mavlink2 ON");
                     }
                 } else if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK1) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
                     if (_isMavlink2) {
                         _isMavlink2 = false;
                         _logv("Turning mavlink2 OFF");
@@ -82,123 +82,121 @@ class Parser {
                 }
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_STX:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_STX:
                 // MAVLink 1 and 2
                 _m!.len = c;
                 if (_isMavlink2) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH;
                 } else {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
                 }
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH:
                 // MAVLink 1 and 2
                 _m!.incompatFlags = c;
                 if (c != 0 && c != 1) {
                     // message includes an incompatible feature flag
-                    _state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                     break;
                 }
-                _state = MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS;
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS:
                 // MAVLink 2 only
                 _m!.compatFlags = c;
-                _state = MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS:
                 _m!.seq = c;
-                _state = MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ;
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ:
                 // back to MAVLink 1 and 2
                 _m!.sysID = c;
-                _state = MAV_states.MAVLINK_PARSE_STATE_GOT_SYSID;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SYSID;
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_SYSID:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SYSID:
                 // MAVLink 1 and 2
                 _m!.compID = c;
-                _state = MAV_states.MAVLINK_PARSE_STATE_GOT_COMPID;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPID;
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_COMPID:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPID:
                 // MAVLink 1 and 2
                 _m!.msgID = c;
                 if (_isMavlink2) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1;
                 } else if (_m!.len > 0) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
                 } else {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
                 }
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1:
                 // MAVLink 2 only
                 _m!.msgID |= c << 8;
-                _state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2;
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2:
                 // MAVLink 2 only
                 _m!.msgID |= c << 16;
                 if (_m!.len > 0) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
                 } else {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
                 }
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3:
                 // back to MAVLink 1 and 2
                 _m!.payload.putUnsignedByte(MAVUint8(c));
                 if (_m!.payloadIsFilled()) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
                 }
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD:
                 bool crcGen = _m!.generateCRC(_m!.payload.size());
                 // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
                 if (c != _m!.crc.getLSB() || !crcGen) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                     stats.crcError();
                 } else {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1;
                 }
                 break;
 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1:
                 // Check second checksum byte
                 if (c != _m!.crc.getMSB()) {
-                    _state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                    _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                     stats.crcError();
                 } else { // crc is good
                     stats.newPacket(_m!);
                     
                     if (!_isMavlink2 || (_m!.incompatFlags != 0x01)) {
                         // If no signature, then return the message.
-                        _state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                        _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                         return _m;
                     } else {
-                        // TODO: MAVLink 2 - signed
-                        _state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                        stats.crcError();
+                        _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                     }
                 }
                 break;
                 
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2:
+              case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2:
                 // TODO: implement signature parsing and validation
-                _state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                 stats.crcError();
                 break;
-            case MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE:
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE:
                 break;
         } // switch
         return null;
