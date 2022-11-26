@@ -193,7 +193,7 @@ class MSG_${name} extends MAVLinkMessage {
     static final String ${name}_units = "${units}";
 ''', item)
         if item.array_length == 0:
-            if item.type == 'BigInt':
+            if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                 t.write(f, '''
     ${type} _${name} = BigInt.zero;
 ''', item)
@@ -209,7 +209,7 @@ class MSG_${name} extends MAVLinkMessage {
         }
 ''', item)
         else:
-            if item.type == 'BigInt':
+            if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                 t.write(f, '''
     final List<${type}> _${name} = List<${type}>.filled(${array_length}, BigInt.from(0), growable: false);
 ''', item)
@@ -234,7 +234,7 @@ class MSG_${name} extends MAVLinkMessage {
         if (setter.length < ${array_length}) {
           for (int i=setter.length; i<${array_length}; i++) {
 ''', item)
-                if item.type == 'BigInt':
+                if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                     t.write(f, '''
             _${name}[i] = BigInt.zero;
 ''', item)
@@ -619,7 +619,7 @@ class MAVLinkPacket {
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
-    hlist = ['lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart', 'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
+    hlist = ['lib/src/types.dart', 'lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart', 'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
              'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md', 'pubspec.yaml', 'test/mavlink_test.dart']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'dart')
@@ -644,18 +644,18 @@ class mav_include(object):
 def mavfmt(field, typeInfo=0):
     '''work out the struct format for a type'''
     map = {
-        'float'    : ('double', 'Float'),
-        'double'   : ('double', 'Double'),
-        'char'     : ('int', 'UnsignedByte'),
-        'int8_t'   : ('int', 'Byte'),
-        'uint8_t'  : ('int', 'UnsignedByte'),
-        'uint8_t_mavlink_version'  : ('int', 'UnsignedByte'),
-        'int16_t'  : ('int', 'Short'),
-        'uint16_t' : ('int', 'UnsignedShort'),
-        'int32_t'  : ('int', 'Int'),
-        'uint32_t' : ('int', 'UnsignedInt'),
-        'int64_t'  : ('BigInt', 'Long'),
-        'uint64_t' : ('BigInt', 'UnsignedLong'),
+        'float'    : ('MAVFloat', 'Float'),
+        'double'   : ('MAVDouble', 'Double'),
+        'char'     : ('MAVChar', 'UnsignedByte'),
+        'int8_t'   : ('MAVInt8', 'Byte'),
+        'uint8_t'  : ('MAVUint8', 'UnsignedByte'),
+        'uint8_t_mavlink_version'  : ('MAVUint8', 'UnsignedByte'),
+        'int16_t'  : ('MAVInt16', 'Short'),
+        'uint16_t' : ('MAVUint16', 'UnsignedShort'),
+        'int32_t'  : ('MAVInt32', 'Int'),
+        'uint32_t' : ('MAVUint32', 'UnsignedInt'),
+        'int64_t'  : ('MAVInt64', 'Long'),
+        'uint64_t' : ('MAVUint64', 'UnsignedLong'),
     }
 
     return map[field.type][typeInfo]
