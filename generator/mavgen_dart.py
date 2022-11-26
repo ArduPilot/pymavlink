@@ -98,9 +98,9 @@ import 'dart:collection';
  *
  */
 class ${basename}_CRC {
-    static final HashMap<int, int> MAVLINK_MESSAGE_CRCS = HashMap.of({
+    static const Map<int, int> MAVLINK_MESSAGE_CRCS = const {
       ${message_crcs_array}
-    });
+    };
     static final int _CRC_INIT_VALUE = 0xffff;
     int _crcValue = _CRC_INIT_VALUE;
 
@@ -394,14 +394,14 @@ ${importString}
  * @see <a href="https://mavlink.io">mavlink.io</a> for more documentation on the MAVLink protocol
  */
 class MAVLinkPacket {
-    static final int MAVLINK_STX_MAVLINK1 = 0xFE; // 254
-    static final int MAVLINK_STX_MAVLINK2 = 0xFD; // 253
-    static final int MAVLINK1_HEADER_LEN = 6;
-    static final int MAVLINK2_HEADER_LEN = 10;
-    static final int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
-    static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
+    static const int MAVLINK_STX_MAVLINK1 = 0xFE; // 254
+    static const int MAVLINK_STX_MAVLINK2 = 0xFD; // 253
+    static const int MAVLINK1_HEADER_LEN = 6;
+    static const int MAVLINK2_HEADER_LEN = 10;
+    static const int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
+    static const int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
 
-    static final bool _V = false;
+    static const bool _V = false;
 
     static void _logv(String str) {
         StringBuffer buf = StringBuffer("MAVLinkPacket: ");

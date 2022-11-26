@@ -37,7 +37,7 @@ enum MAV_states {
 class Parser {
     Parser();
 
-    static final bool _V = false;
+    static const bool _V = false;
   
     static void _logv(String str) {
         StringBuffer buf = StringBuffer("Parser: ");

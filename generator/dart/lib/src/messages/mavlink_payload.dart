@@ -8,7 +8,7 @@ import 'dart:typed_data';
 import 'package:binary/binary.dart';
 
 class MAVLinkPayload {
-  static final int MAX_PAYLOAD_SIZE = 255;
+  static const int MAX_PAYLOAD_SIZE = 255;
   
   final _payload = ByteData(MAX_PAYLOAD_SIZE);
   int _index = 0;
