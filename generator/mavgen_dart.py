@@ -101,8 +101,8 @@ class ${basename}_CRC {
     static final HashMap<int, int> MAVLINK_MESSAGE_CRCS = HashMap.of({
       ${message_crcs_array}
     });
-    static final int CRC_INIT_VALUE = 0xffff;
-    int crcValue = CRC_INIT_VALUE;
+    static final int _CRC_INIT_VALUE = 0xffff;
+    int _crcValue = _CRC_INIT_VALUE;
 
     /**
      * Accumulate the CRC by adding one char at a time.
@@ -115,9 +115,9 @@ class ${basename}_CRC {
     void update_checksum(int? data) {
         if (data == null) return;
         data = data & 0xff; //cast because we want an unsigned type
-        int tmp = data ^ (crcValue & 0xff);
+        int tmp = data ^ (_crcValue & 0xff);
         tmp ^= (tmp << 4) & 0xff;
-        crcValue = ((crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
+        _crcValue = ((_crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
     }
 
     /**
@@ -139,15 +139,15 @@ class ${basename}_CRC {
      * Initialize the buffer for the CRC16/MCRF4XX
      */
     void start_checksum() {
-        crcValue = CRC_INIT_VALUE;
+        _crcValue = _CRC_INIT_VALUE;
     }
 
     int getMSB() {
-        return ((crcValue >> 8) & 0xff);
+        return ((_crcValue >> 8) & 0xff);
     }
 
     int getLSB() {
-        return (crcValue & 0xff);
+        return (_crcValue & 0xff);
     }
 }
 ''', xml)
@@ -401,12 +401,12 @@ class MAVLinkPacket {
     static final int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
     static final int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
 
-    static final bool V = false;
+    static final bool _V = false;
 
-    static void logv(String str) {
+    static void _logv(String str) {
         StringBuffer buf = StringBuffer("MAVLinkPacket: ");
         buf.write(str);
-        if(V) print(buf.toString());
+        if(_V) print(buf.toString());
     }
 
     /**
@@ -518,7 +518,7 @@ class MAVLinkPacket {
      * @param payload
      * @return minimum length of valid data
      */
-    int mavTrimPayload(final Uint8List payload)
+    static int mavTrimPayload(final Uint8List payload)
     {
         int length = payload.length;
         while (length > 1 && payload[length-1] == 0) {
@@ -578,7 +578,7 @@ class MAVLinkPacket {
         StringBuffer buf = StringBuffer("encode: ");
         buf.write("isMavlink2="); buf.write(isMavlink2.toString());
         buf.write("msgID="); buf.write(msgID.toString());
-        logv(buf.toString());
+        _logv(buf.toString());
 
         return buffer.buffer.asUint8List();
     }

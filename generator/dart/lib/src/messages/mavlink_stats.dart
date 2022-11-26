@@ -4,6 +4,8 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
+import 'dart:collection';
+
 import 'package:mavlink/mavlink.dart';
 import 'package:mavlink/common.dart';
 
@@ -12,109 +14,128 @@ class MAVLinkStats {
 
   MAVLinkStats.withIgnoreRadioPackets({required this.ignoreRadioPackets});
 
-  int receivedPacketCount = 0; // total received packet count for all sources
-  int crcErrorCount = 0;
-  int lostPacketCount = 0; // total lost packet count for all sources
-  bool ignoreRadioPackets = false;
+  int _receivedPacketCount = 0; // total received packet count for all sources
+  int get receivedPacketCount => _receivedPacketCount;
+
+  int _crcErrorCount = 0;
+  int get crcErrorCount => _crcErrorCount;
+
+  int _lostPacketCount = 0; // total lost packet count for all sources
+  int get lostPacketCount => _lostPacketCount;
+
+  bool _ignoreRadioPackets = false;
+  bool get ignoreRadioPackets => _ignoreRadioPackets;
 
   // stats are nil for a system id until a packet has been received from a system
-  var systemStats = <SystemStat>[]; // stats for each system that is known
+  final LinkedHashMap<int, SystemStat> _systemStats = LinkedHashMap.of({}); // stats for each system that is known
+  LinkedHashMap<int, SystemStat> get systemStats => _systemStats;
 
   /// Check the new received packet to see if has lost someone between this and
   /// the last packet
   /// 
   /// @param packet Packet that should be checked
   void newPacket(MAVLinkPacket packet) {
-    if (ignoreRadioPackets && packet.msgID == MSG_RADIO_STATUS.MAVLINK_MSG_ID_RADIO_STATUS) {
+    if (_ignoreRadioPackets && packet.msgID == MSG_RADIO_STATUS.MAVLINK_MSG_ID_RADIO_STATUS) {
       return;
     }
 
-    if (systemStats[packet.sysID] == null) {
+    if (!_systemStats.containsKey(packet.sysID)) {
       // allocate stats for systems that exist on the network
-      systemStats[packet.sysID] = SystemStat();
+      _systemStats[packet.sysID] = SystemStat();
     }
-    lostPacketCount += systemStats[packet.sysID].newPacket(packet);
-    receivedPacketCount++;
+    _lostPacketCount += _systemStats[packet.sysID]!._newPacket(packet);
+    _receivedPacketCount++;
   }
 
   /// Called when a CRC error happens on the parser
   void crcError() {
-    crcErrorCount++;
+    _crcErrorCount++;
   }
 
   void resetStats() {
-    crcErrorCount = 0;
-    lostPacketCount = 0;
-    receivedPacketCount = 0;
-    systemStats = <SystemStat>[];
+    _crcErrorCount = 0;
+    _lostPacketCount = 0;
+    _receivedPacketCount = 0;
+    _systemStats.clear();
   }
 }
 
 /// Stat structure for every system id
 class SystemStat {
-  int lostPacketCount = 0; // the lost count for this source
-  int receivedPacketCount = 0;
+  int _lostPacketCount = 0; // the lost count for this source
+  int get lostPacketCount => _lostPacketCount;
+
+  int _receivedPacketCount = 0;
+  int get receivedPacketCount => _receivedPacketCount;
 
   // stats are nil for a component id until a packet has been received from a system
-  var componentStats = <ComponentStat>[]; // stats for each component that is known
+  final LinkedHashMap<int, ComponentStat> _componentStats = LinkedHashMap.of({}); // stats for each component that is known
+  LinkedHashMap<int, ComponentStat> get componentStats => _componentStats;
 
-  int newPacket(MAVLinkPacket packet) {
+  int _newPacket(MAVLinkPacket packet) {
     int newLostPackets = 0;
-    // allocate stats for systems that exist on the network
-    componentStats[packet.compID] = ComponentStat();
-    newLostPackets = componentStats[packet.compID].newPacket(packet);
-    lostPacketCount += newLostPackets;
-    receivedPacketCount++;
+    if (!_componentStats.containsKey(packet.compID)) {
+      // allocate stats for components that exist on the network
+      _componentStats[packet.compID] = ComponentStat();
+    }
+    newLostPackets = componentStats[packet.compID]!._newPacket(packet);
+    _lostPacketCount += newLostPackets;
+    _receivedPacketCount++;
     return newLostPackets;
   }
 
   void resetStats() {
-    lostPacketCount = 0;
-    receivedPacketCount = 0;
-    componentStats = <ComponentStat>[];
+    _lostPacketCount = 0;
+    _receivedPacketCount = 0;
+    _componentStats.clear();
   }
 }
 
 /// stat structure for every system id
 class ComponentStat {
-    int lastPacketSeq = -1;
-    int lostPacketCount = 0; // the lost count for this source
-    int receivedPacketCount = 0;
+  int _lastPacketSeq = -1;
+  int get lastPacketSeq => _lastPacketSeq;
 
-    int newPacket(MAVLinkPacket packet) {
+  int _lostPacketCount = 0; // the lost count for this source
+  int get lostPacketCount => _lostPacketCount;
+
+  int _receivedPacketCount = 0;
+  int get receivedPacketCount => _receivedPacketCount;
+
+  int _newPacket(MAVLinkPacket packet) {
         int newLostPackets = 0;
         if (hasLostPackets(packet)) {
-            newLostPackets = updateLostPacketCount(packet);
+        newLostPackets = _updateLostPacketCount(packet);
         }
-        lastPacketSeq = packet.seq;
-        advanceLastPacketSequence(packet.seq);
-        receivedPacketCount++;
+    _lastPacketSeq = packet.seq;
+    _advanceLastPacketSequence(packet.seq);
+    _receivedPacketCount++;
         return newLostPackets;
     }
 
     void resetStats() {
-        lastPacketSeq = -1;
-        lostPacketCount = 0;
-        receivedPacketCount = 0;
+    _lastPacketSeq = -1;
+    _lostPacketCount = 0;
+    _receivedPacketCount = 0;
     }
 
-    int updateLostPacketCount(MAVLinkPacket packet) {
+  int _updateLostPacketCount(MAVLinkPacket packet) {
         int lostPackets;
-        if (packet.seq - lastPacketSeq < 0) {
-            lostPackets = (packet.seq - lastPacketSeq) + 255;
+    if (packet.seq - _lastPacketSeq < 0) {
+        lostPackets = (packet.seq - _lastPacketSeq) + 255;
         } else {
-            lostPackets = (packet.seq - lastPacketSeq);
+        lostPackets = (packet.seq - _lastPacketSeq);
         }
-        lostPacketCount += lostPackets;
+    _lostPacketCount += lostPackets;
         return lostPackets;
     }
 
-    void advanceLastPacketSequence(int lastSeq) {
+  void _advanceLastPacketSequence(int lastSeq) {
         // wrap from 255 to 0 if necessary
-        lastPacketSeq = (lastSeq + 1) & 0xFF;
+    _lastPacketSeq = (lastSeq + 1) & 0xFF;
     }
 
     bool hasLostPackets(MAVLinkPacket packet) {
-        return lastPacketSeq >= 0 && packet.seq != lastPacketSeq;
+    return _lastPacketSeq >= 0 && packet.seq != _lastPacketSeq;
     }
 }
