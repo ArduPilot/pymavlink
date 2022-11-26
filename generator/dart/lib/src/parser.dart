@@ -6,7 +6,6 @@
 
 import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/mavlink.dart';
-import 'package:binary/binary.dart';
 import 'package:mavlink/src/enums/mav_component.dart';
 
 /// States from the parsing state machine
@@ -158,7 +157,7 @@ class Parser {
 
             case MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3:
                 // back to MAVLink 1 and 2
-                _m!.payload.putByte(c);
+                _m!.payload.putUnsignedByte(MAVUint8(c));
                 if (_m!.payloadIsFilled()) {
                     _state = MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
                 }

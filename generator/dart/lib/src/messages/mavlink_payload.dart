@@ -5,7 +5,8 @@
  */
 
 import 'dart:typed_data';
-import 'package:binary/binary.dart';
+
+import 'package:mavlink/mavlink.dart';
 
 class MAVLinkPayload {
   static const int MAX_PAYLOAD_SIZE = 255;
@@ -26,43 +27,49 @@ class MAVLinkPayload {
     _index = 0;
   }
 
-  int getByte() {
-    int result = _payload.getInt8(_index);
-    _index += 1;
+  MAVInt8 getByte() {
+    MAVInt8 result = MAVInt8(_payload.getInt8(_index));
+    _index += result.bytes;
     return result;
   }
 
-  int getUnsignedByte() {
-    int result = _payload.getUint8(_index);
-    _index += 1;
+  MAVUint8 getUnsignedByte() {
+    MAVUint8 result = MAVUint8(_payload.getUint8(_index));
+    _index += result.bytes;
     return result;
   }
 
-  int getShort() {
-    int result = _payload.getInt16(_index, Endian.little);
-    _index += 2;
+  MAVChar getChar() {
+    MAVChar result = MAVChar(_payload.getUint8(_index));
+    _index += result.bytes;
     return result;
   }
 
-  int getUnsignedShort() {
-    int result = _payload.getUint16(_index, Endian.little);
-    _index += 2;
+  MAVInt16 getShort() {
+    MAVInt16 result = MAVInt16(_payload.getInt16(_index, Endian.little));
+    _index += result.bytes;
     return result;
   }
 
-  int getInt() {
-    int result = _payload.getInt32(_index, Endian.little);
-    _index += 4;
+  MAVUint16 getUnsignedShort() {
+    MAVUint16 result = MAVUint16(_payload.getUint16(_index, Endian.little));
+    _index += result.bytes;
     return result;
   }
 
-  int getUnsignedInt() {
-    int result = _payload.getUint32(_index, Endian.little);
-    _index += 4;
+  MAVInt32 getInt() {
+    MAVInt32 result = MAVInt32(_payload.getInt32(_index, Endian.little));
+    _index += result.bytes;
     return result;
   }
 
-  BigInt getLong() {
+  MAVUint32 getUnsignedInt() {
+    MAVUint32 result = MAVUint32(_payload.getUint32(_index, Endian.little));
+    _index += result.bytes;
+    return result;
+  }
+
+  BigInt _getLong([int bytes = 8]) {
     StringBuffer buf = StringBuffer();
     buf.write(_payload.getUint8(_index + 7).toRadixString(2).padLeft(8, '0'));
     buf.write(_payload.getUint8(_index + 6).toRadixString(2).padLeft(8, '0'));
@@ -73,74 +80,70 @@ class MAVLinkPayload {
     buf.write(_payload.getUint8(_index + 1).toRadixString(2).padLeft(8, '0'));
     buf.write(_payload.getUint8(_index + 0).toRadixString(2).padLeft(8, '0'));
     _index += 8;
-    BigInt ret = BigInt.parse(buf.toString(), radix: 2);
-    return ret.toSigned(64);
+    return BigInt.parse(buf.toString(), radix: 2);
   }
 
-  BigInt getUnsignedLong(){
-    StringBuffer buf = StringBuffer();
-    buf.write(_payload.getUint8(_index + 7).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 6).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 5).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 4).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 3).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 2).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 1).toRadixString(2).padLeft(8, '0'));
-    buf.write(_payload.getUint8(_index + 0).toRadixString(2).padLeft(8, '0'));
-    _index += 8;
-    BigInt ret = BigInt.parse(buf.toString(), radix: 2);
-    return ret.toUnsigned(64);
+  MAVInt64 getLong() {
+    return MAVInt64(_getLong().toSigned(64));
   }
 
-  double getFloat() {
-    double ret = _payload.getFloat32(_index, Endian.little);
-    _index += 4;
-    return ret;
+  MAVUint64 getUnsignedLong(){
+    return MAVUint64(_getLong().toUnsigned(64));
   }
 
-  double getDouble() {
-    double ret = _payload.getFloat64(_index, Endian.little);
-    _index += 8;
-    return ret;
+  MAVFloat getFloat() {
+    MAVFloat result = MAVFloat(_payload.getFloat32(_index, Endian.little));
+    _index += result.bytes;
+    return result;
   }
 
-  void putByte(int data) {
-    _payload.setInt8(_index, Int8.assertRange(data));
-    _index += 1;
-    _bytesWritten += 1;
+  MAVDouble getDouble() {
+    MAVDouble result = MAVDouble(_payload.getFloat64(_index, Endian.little));
+    _index += result.bytes;
+    return result;
   }
 
-  void putUnsignedByte(int data) {
-    _payload.setUint8(_index, Uint8.assertRange(data));
-    _index += 1;
-    _bytesWritten += 1;
+  void putByte(MAVInt8 data) {
+    _payload.setInt8(_index, data.value);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
   }
 
-  void putShort(int data) {
-    _payload.setInt16(_index, Int16.assertRange(data), Endian.little);
-    _index += 2;
-    _bytesWritten += 2;
+  void putUnsignedByte(MAVUint8 data) {
+    _payload.setUint8(_index, data.value);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
   }
 
-  void putUnsignedShort(int data) {
-    _payload.setUint16(_index, Uint16.assertRange(data), Endian.little);
-    _index += 2;
-    _bytesWritten += 2;
+  void putChar(MAVChar data) {
+    putUnsignedByte(MAVUint8(data.value));
   }
 
-  void putInt(int data) {
-    _payload.setInt32(_index, Int32.assertRange(data), Endian.little);
-    _index += 4;
-    _bytesWritten += 4;
+  void putShort(MAVInt16 data) {
+    _payload.setInt16(_index, data.value, Endian.little);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
   }
 
-  void putUnsignedInt(int data) {
-    _payload.setUint32(_index, Uint32.assertRange(data), Endian.little);
-    _index += 4;
-    _bytesWritten += 4;
+  void putUnsignedShort(MAVUint16 data) {
+    _payload.setUint16(_index, data.value, Endian.little);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
   }
 
-  void putLong(BigInt data) {
+  void putInt(MAVInt32 data) {
+    _payload.setInt32(_index, data.value, Endian.little);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
+  }
+
+  void putUnsignedInt(MAVUint32 data) {
+    _payload.setUint32(_index, data.value, Endian.little);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
+  }
+
+  void _putLong(BigInt data, [int bytes = 8]) {
     String longBits = data.toRadixString(2);
     if (longBits.startsWith(RegExp(r'-'))) {
       longBits = longBits.substring(1, longBits.length).padLeft(64, '0');
@@ -148,30 +151,35 @@ class MAVLinkPayload {
       longBits = longBits.padLeft(64, '0');
     }
     for (int i = longBits.length; i >= 8; i-=8) {
-      var sub = longBits.substring(i-8, i);
-      var byte = int.parse(sub, radix: 2);
-      putUnsignedByte(byte);
+      putUnsignedByte(
+        MAVUint8(
+          int.parse(
+            longBits.substring(i-8, i),
+          radix: 2)
+        )
+      );
     }
-    _index += 8;
-    _bytesWritten += 8;
+    _index += bytes;
+    _bytesWritten += bytes;
   }
 
-  void putUnsignedLong(BigInt data) {
-    if (data.sign == -1) {
-      throw ArgumentError("Provided signed value to putUnsignedLong()");
-    }
-    putLong(data);
+  void putLong(MAVInt64 data) {
+    _putLong(data.value);
   }
 
-  void putFloat(double data) {
-    _payload.setFloat32(_index, data, Endian.little);
-    _index += 4;
-    _bytesWritten += 4;
+  void putUnsignedLong(MAVUint64 data) {
+    _putLong(data.value);
   }
 
-  void putDouble(double data) {
-    _payload.setFloat64(_index, data, Endian.little);
-    _index += 8;
-    _bytesWritten += 8;
+  void putFloat(MAVFloat data) {
+    _payload.setFloat32(_index, data.value, Endian.little);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
+  }
+
+  void putDouble(MAVDouble data) {
+    _payload.setFloat64(_index, data.value, Endian.little);
+    _index += data.bytes;
+    _bytesWritten += data.bytes;
   }
 }

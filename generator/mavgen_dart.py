@@ -189,17 +189,17 @@ class MSG_${name} extends MAVLinkMessage {
     /**
     * ${description}
     */
-    static final String ${name}_description = "${description}";
-    static final String ${name}_units = "${units}";
+    static const String ${name}_description = "${description}";
+    static const String ${name}_units = "${units}";
 ''', item)
         if item.array_length == 0:
             if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                 t.write(f, '''
-    ${type} _${name} = BigInt.zero;
+    ${type} _${name} = ${type}(BigInt.zero);
 ''', item)
             else:
                 t.write(f, '''
-    ${type} _${name} = 0;
+    ${type} _${name} = ${type}(0);
 ''', item)
             if item.origType != "char":
                 t.write(f, '''
@@ -211,11 +211,13 @@ class MSG_${name} extends MAVLinkMessage {
         else:
             if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                 t.write(f, '''
-    final List<${type}> _${name} = List<${type}>.filled(${array_length}, BigInt.from(0), growable: false);
+    final List<${type}> _${name} = List<${type}>.filled(${array_length}, ${type}(BigInt.from(0)), growable: false);
+    static const int ${name}_max_length = ${array_length};
 ''', item)
             else:
                 t.write(f, '''
-    final List<${type}> _${name} = List<${type}>.filled(${array_length}, 0, growable: false);
+    final List<${type}> _${name} = List<${type}>.filled(${array_length}, ${type}(0), growable: false);
+    static const int ${name}_max_length = ${array_length};
 ''', item)
             if item.origType != "char":
                 t.write(f, '''
@@ -236,11 +238,11 @@ class MSG_${name} extends MAVLinkMessage {
 ''', item)
                 if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                     t.write(f, '''
-            _${name}[i] = BigInt.zero;
+            _${name}[i] = ${type}(BigInt.zero);
 ''', item)
                 else:
                     t.write(f, '''
-            _${name}[i] = 0;
+            _${name}[i] = ${type}(0);
 ''', item)
                 t.write(f, '''
           }
@@ -253,8 +255,8 @@ class MSG_${name} extends MAVLinkMessage {
      * @return
      */
     @override
-    MAVLinkPacket pack(int seq) {
-        MAVLinkPacket packet = MAVLinkPacket(len: MAVLINK_MSG_LENGTH, sysID: sysID, compID: compID, msgID: MAVLINK_MSG_ID_${name}, seq: seq, isMavlink2: isMavlink2);
+    MAVLinkPacket pack(int packetSeq) {
+        MAVLinkPacket packet = MAVLinkPacket(len: MAVLINK_MSG_LENGTH, sysID: sysID, compID: compID, msgID: MAVLINK_MSG_ID_${name}, seq: packetSeq, isMavlink2: isMavlink2);
 
         ${{base_fields:${packField}
         }}
@@ -506,7 +508,7 @@ class MAVLinkPacket {
         payload.resetIndex();
 
         for (int i = 0; i < payloadSize; i++) {
-            crc.update_checksum(payload.getByte());
+            crc.update_checksum(payload.getByte().value);
         }
         return crc.finish_checksum(msgID);
     }
@@ -646,7 +648,7 @@ def mavfmt(field, typeInfo=0):
     map = {
         'float'    : ('MAVFloat', 'Float'),
         'double'   : ('MAVDouble', 'Double'),
-        'char'     : ('MAVChar', 'UnsignedByte'),
+        'char'     : ('MAVChar', 'Char'),
         'int8_t'   : ('MAVInt8', 'Byte'),
         'uint8_t'  : ('MAVUint8', 'UnsignedByte'),
         'uint8_t_mavlink_version'  : ('MAVUint8', 'UnsignedByte'),
@@ -728,10 +730,7 @@ def generate_one(basename, xml):
     * Sets a character from a single-character-width String
     */
     void set %s(String str) {
-        if (str.length != 1) {
-          throw new ArgumentError("%s Not a single character");
-        }
-        _%s = str.codeUnitAt(0);
+        _%s = MAVChar.fromString(str);
     }
 
     /**
@@ -739,10 +738,10 @@ def generate_one(basename, xml):
     */
     String get %s {
         StringBuffer buf = new StringBuffer();
-        buf.writeCharCode(_%s);
+        buf.writeCharCode(_%s.value);
         return buf.toString();
     }
-''' % (f.name,f.name,f.name,f.name,f.name)
+''' % (f.name,f.name,f.name,f.name)
             f.getText = ''
             if f.array_length != 0:
                 f.array_suffix = '[] = %s(%u)' % (mavfmt(f),f.array_length)
@@ -790,11 +789,11 @@ def generate_one(basename, xml):
     void set %s(String str) {
         int len = min(str.length, %d);
         for (int i=0; i<len; i++) {
-            _%s[i] = str.codeUnitAt(i);
+            _%s[i] = MAVChar(str.codeUnitAt(i));
         }
 
         for (int i=len; i<%d; i++) {            // padding for the rest of the buffer
-            _%s[i] = 0;
+            _%s[i] = MAVChar(0);
         }
     }
 
@@ -805,7 +804,7 @@ def generate_one(basename, xml):
         StringBuffer buf = new StringBuffer();
         for (int i = 0; i < %d; i++) {
             if (_%s[i] != 0)
-                buf.writeCharCode(_%s[i]);
+                buf.writeCharCode(_%s[i].value);
             else
                 break;
         }
