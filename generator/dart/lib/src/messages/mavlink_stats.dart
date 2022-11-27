@@ -20,6 +20,9 @@ class MAVLinkStats {
   int _crcErrorCount = 0;
   int get crcErrorCount => _crcErrorCount;
 
+  int _signatureErrorCount = 0;
+  int get signatureErrorCount => _signatureErrorCount;
+
   int _lostPacketCount = 0; // total lost packet count for all sources
   int get lostPacketCount => _lostPacketCount;
 
@@ -52,8 +55,14 @@ class MAVLinkStats {
     _crcErrorCount++;
   }
 
+  /// Called when a Signature error happens on the parser
+  void signatureError() {
+    _signatureErrorCount++;
+  }
+
   void resetStats() {
     _crcErrorCount = 0;
+    _signatureErrorCount = 0;
     _lostPacketCount = 0;
     _receivedPacketCount = 0;
     _systemStats.clear();

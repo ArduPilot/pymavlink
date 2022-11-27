@@ -364,9 +364,50 @@ def generate_MAVLinkMessage(directory, xml_list):
  */
 
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 
 import 'package:mavlink/mavlink.dart';
 ${importString}
+
+abstract class MAVLinkIncompatFlags {
+  static const int SIGNED = 1;
+}
+
+class MAVPacketSignature {
+  int timestamp = 0;
+  int linkID = 0;
+  int signature = 0;
+  int secretKey = 0;
+  MAVLinkPacket _packet;
+
+  bool isValid() {
+    return !(timestamp.bitLength > 48) &&
+        !(linkID.bitLength > 8) &&
+        !(signature.bitLength > 48) &&
+        secretKey != 0 &&
+        signature == _generate();
+  }
+
+  int _generate() {
+    // Take the first 48 bits of the sha256 hash of (secret_key + _packet.payload.buffer.asUint8List() + CRC + linkID + timestamp)
+    var data = <int>[];
+    data.add(secretKey);
+    data.addAll(_packet.payload.getData());
+    data.add(_packet.crc.getMSB());
+    data.add(_packet.crc.getLSB());
+    data.add(linkID);
+    data.addAll([timestamp & 0xFF, (timestamp >> 8) & 0xFF, (timestamp >> 8*2) & 0xFF, (timestamp >> 8*3) & 0xFF, (timestamp >> 8*4) & 0xFF, (timestamp >> 8*5) & 0xFF]);
+
+    var sha = sha256.convert(data);
+    return sha.bytes[0] | (sha.bytes[1] << 8) | (sha.bytes[2] << 8*2) | (sha.bytes[3] << 8*3) | (sha.bytes[4] << 8*4) | (sha.bytes[5] << 8*5);
+  }
+
+  MAVPacketSignature(MAVLinkPacket packet): _packet = packet;
+  MAVPacketSignature.builder(MAVLinkPacket packet, {required this.timestamp, required this.linkID, required this.secretKey}): _packet = packet {
+    signature = _generate();
+  }
+  MAVPacketSignature.from(MAVLinkPacket packet, {required this.timestamp, required this.linkID, required this.signature, required this.secretKey}): _packet = packet;
+}
 
 /**
  * Common interface for all MAVLink Messages
@@ -479,16 +520,37 @@ class MAVLinkPacket {
     /**
      * Flags that must be understood
      */
-    int incompatFlags;
+    late int _incompatFlags;
+    int get incompatFlags => _incompatFlags;
+    void set incompatFlags(int flags) {
+        _incompatFlags = flags;
+        if (isSigned) {
+          signature = MAVPacketSignature(this);
+        }
+    }
 
     /**
      * Flags that can be ignored if not understood
      */
     int compatFlags;
 
-    MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, this.incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false});
+    bool get isSigned => isMavlink2 && (_incompatFlags & MAVLinkIncompatFlags.SIGNED) != 0;
 
-    MAVLinkPacket.MAVLink2({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, this.incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = true});
+    MAVPacketSignature? signature;
+
+    MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false}) {
+      _incompatFlags = incompatFlags;
+      if (isSigned) {
+        signature = MAVPacketSignature(this);
+      }
+    }
+
+    MAVLinkPacket.MAVLink2({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = true}) {
+      _incompatFlags = incompatFlags;
+      if (isSigned) {
+        signature = MAVPacketSignature(this);
+      }
+    }
 
     /**
      * Check if the size of the Payload is equal to the "len" byte

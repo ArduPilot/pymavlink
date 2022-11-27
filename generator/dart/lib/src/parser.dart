@@ -24,6 +24,18 @@ enum _MAV_states {
     MAVLINK_PARSE_STATE_GOT_CRC1,
     MAVLINK_PARSE_STATE_GOT_CRC2, // MAVLink 2
     MAVLINK_PARSE_STATE_GOT_PAYLOAD,
+    MAVLINK_PARSE_STATE_GOT_LINKID, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_TIMESTAMP, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_SIGNATURE_1, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_SIGNATURE_2, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_SIGNATURE_3, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_SIGNATURE_4, // MAVLink 2
+    MAVLINK_PARSE_STATE_GOT_SIGNATURE_5, // MAVLink 2
     MAVLINK_PARSE_STATE_GOT_SIGNATURE, // MAVLink 2
 }
 
@@ -33,7 +45,9 @@ enum _MAV_states {
 /// After creating an instance of this class, simply use the @{link #mavlink_parse_char} 
 /// method to parse a byte stream.
 class Parser {
-    Parser();
+    Parser([this.signatureKey = 0]);
+
+    int signatureKey;
 
     static const bool _V = false;
   
@@ -49,7 +63,7 @@ class Parser {
     MAVLinkPacket? _m;
     bool _isMavlink2 = false;
 
-    Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats) {
+    Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [this.signatureKey = 0]) {
       stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPacketStats);
     }
 
@@ -186,18 +200,74 @@ class Parser {
                         _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
                         return _m;
                     } else {
-                        _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                        // MAVLink 2 - signed
+                        _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
                     }
                 }
                 break;
-                
-              case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2:
-                // TODO: implement signature parsing and validation
-                _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                stats.crcError();
+
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2:
+                _m!.signature!.secretKey = signatureKey;
+                _m!.signature!.linkID = c;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_LINKID;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_LINKID:
+                // Timestamp starts
+                _m!.signature!.timestamp = c;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1:
+                _m!.signature!.timestamp |= c << 8*1;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2:
+                _m!.signature!.timestamp |= c << 8*2;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3:
+                _m!.signature!.timestamp |= c << 8*3;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4:
+                _m!.signature!.timestamp |= c << 8*4;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5:
+                _m!.signature!.timestamp |= c << 8*5;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP:
+                _m!.signature!.signature = c;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_1;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_1:
+                _m!.signature!.signature |= c << 8*1;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_2;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_2:
+                _m!.signature!.signature |= c << 8*2;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_3;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_3:
+                _m!.signature!.signature |= c << 8*3;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_4;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_4:
+                _m!.signature!.signature |= c << 8*4;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_5;
+                break;
+            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_5:
+                _m!.signature!.signature |= c << 8*5;
+                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE;
                 break;
             case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE:
-                break;
+                if(_m!.signature!.isValid()) {
+                  _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                  return _m;
+                } else {
+                  _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                  stats.signatureError();
+                }
         } // switch
         return null;
     }
