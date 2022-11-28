@@ -83,11 +83,90 @@ void main() {
     });
   });
 
+  group('MAVLink Types Tests', () {
+    test('MAVInt8 will reject bad integers', () {
+      expect(() => MAVInt8(-129), throwsA(isA<ArgumentError>()));
+      expect(() => MAVInt8(128), throwsA(isA<ArgumentError>()));
+    });
+    test('MAVUint8 will reject bad integers', () {
+      expect(() => MAVUint8(-1), throwsA(isA<ArgumentError>()));
+      expect(() => MAVUint8(256), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVInt16 will reject bad integers', () {
+      expect(() => MAVInt16(-32769), throwsA(isA<ArgumentError>()));
+      expect(() => MAVInt16(32768), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVUint16 will reject bad integers', () {
+      expect(() => MAVUint16(-1), throwsA(isA<ArgumentError>()));
+      expect(() => MAVUint16(65536), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVInt32 will reject bad integers', () {
+      expect(() => MAVInt32(-2147483649), throwsA(isA<ArgumentError>()));
+      expect(() => MAVInt32(2147483648), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVUint32 will reject bad integers', () {
+      expect(() => MAVUint32(-1), throwsA(isA<ArgumentError>()));
+      expect(() => MAVUint32(4294967296), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVInt64 will reject bad integers', () {
+      expect(() => MAVInt64(BigInt.parse("-9223372036854775809", radix: 10)), throwsA(isA<ArgumentError>()));
+      expect(() => MAVInt64(BigInt.parse("9223372036854775808", radix: 10)), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVUint64 will reject bad integers', () {
+      expect(() => MAVUint64(BigInt.parse("-1", radix: 10)), throwsA(isA<ArgumentError>()));
+      expect(() => MAVUint64(BigInt.parse("18446744073709551616", radix: 10)), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVUint64 will take both explicitly and implicitly unsigned numbers', () {
+      expect(MAVUint64(BigInt.parse("1", radix: 10)), isA<MAVUint64>());
+      expect(MAVUint64(BigInt.parse("1", radix: 10).toUnsigned(64)), isA<MAVUint64>());
+      expect(MAVUint64(BigInt.parse("18446744073709551615", radix: 10)), isA<MAVUint64>());
+      expect(MAVUint64(BigInt.parse("18446744073709551615", radix: 10).toUnsigned(64)), isA<MAVUint64>());
+    });
+
+    test('MAVInt64 will take both explicitly and implicitly signed numbers', () {
+      expect(MAVInt64(BigInt.parse("-9223372036854775808", radix: 10)), isA<MAVInt64>());
+      expect(MAVInt64(BigInt.parse("-9223372036854775808", radix: 10).toSigned(64)), isA<MAVInt64>());
+      expect(MAVInt64(BigInt.parse("9223372036854775807", radix: 10)), isA<MAVInt64>());
+      expect(MAVInt64(BigInt.parse("9223372036854775807", radix: 10).toSigned(64)), isA<MAVInt64>());
+    });
+
+    test('MAVFloat will reject bad floats', () {
+      expect(() => MAVFloat(double.nan), throwsA(isA<ArgumentError>()));
+      expect(() => MAVFloat(double.infinity), throwsA(isA<ArgumentError>()));
+      expect(() => MAVFloat(double.negativeInfinity), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVDouble will reject bad doubles', () {
+      expect(() => MAVDouble(double.nan), throwsA(isA<ArgumentError>()));
+      expect(() => MAVDouble(double.infinity), throwsA(isA<ArgumentError>()));
+      expect(() => MAVDouble(double.negativeInfinity), throwsA(isA<ArgumentError>()));
+    });
+
+    test('MAVChar will reject bad strings', () {
+      expect(() => MAVChar(-1), throwsA(isA<ArgumentError>()));
+      expect(() => MAVChar.fromString(''), throwsA(isA<ArgumentError>()));
+      expect(() => MAVChar.fromString('ab'), throwsA(isA<ArgumentError>()));
+      expect(MAVChar.fromString('a').toString(), 'a');
+      expect(MAVChar(97).toString(), 'a');
+    });
+  });
+
   group('MAVLink Message Tests', () {
+    final sysID = 1;
+    final compID = MAV_COMPONENT.MAV_COMP_ID_MISSIONPLANNER;
+    final packetSeq = 0;
+
     test('MAVLink1 message can be created', () {
       final message = MSG_AP_ADC(
-        compID: MAV_COMPONENT.MAV_COMP_ID_MISSIONPLANNER,
-        sysID: 1,
+        compID: compID,
+        sysID: sysID,
       );
       message.adc1 = MAVUint16(1);
       message.adc2 = MAVUint16(2);
@@ -95,20 +174,33 @@ void main() {
       message.adc4 = MAVUint16(4);
       message.adc5 = MAVUint16(5);
       message.adc6 = MAVUint16(6);
-      StringBuffer buf = StringBuffer("[");
-      message.pack(0).encodePacket().forEach((element) {
-        buf.write("0x");
-        buf.write(element.toRadixString(16).padLeft(2, "0").toUpperCase());
-        buf.write(",");
-      });
-      buf.write("]");
-      expect(buf.toString(), "ASDF");
+      var packet = message.pack(packetSeq);
+      var encoded = packet.encodePacket();
+
+      // Check STX
+      expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK1);
+      // Length matches actual payload length
+      expect(encoded[1], packet.payload.size());
+
+      // Check sequence number
+      expect(encoded[2], packetSeq);
+
+      // Check system ID
+      expect(encoded[3], sysID);
+
+      // Component ID
+      expect(encoded[4], compID);
+
+      // Message ID
+      expect(encoded[5], message.msgID);
+
+      // TODO: Check checksum
     });
 
     test('MAVLink2 message can be created', () {
       final message = MSG_TEST_TYPES.MAVLink2(
-        compID: MAV_COMPONENT.MAV_COMP_ID_MISSIONPLANNER,
-        sysID: 1,
+        compID: compID,
+        sysID: sysID,
       );
       message.u8 = MAVUint8(255);
       message.u8_array = List<MAVUint8>.filled(MSG_TEST_TYPES.u8_array_max_length, MAVUint8(255));
@@ -133,14 +225,37 @@ void main() {
       message.c = "A";
       message.s = "Test";
 
-      StringBuffer buf = StringBuffer("[");
-      message.pack(0).encodePacket().forEach((element) {
-        buf.write("0x");
-        buf.write(element.toRadixString(16).padLeft(2, "0").toUpperCase());
-        buf.write(",");
-      });
-      buf.write("]");
-      expect(buf.toString(), "ASDF");
+      var packet = message.pack(packetSeq);
+      var encoded = packet.encodePacket();
+
+      // Check STX
+      expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK2);
+      // Length matches actual payload length
+      expect(encoded[1], packet.payload.size());
+
+      // Check incompat flags
+      expect(encoded[2], packet.incompatFlags);
+
+      // Check compat flags
+      expect(encoded[3], packet.compatFlags);
+
+      // Check packet sequence
+      expect(encoded[4], packetSeq);
+
+      // Check system ID
+      expect(encoded[5], sysID);
+
+      // Component ID
+      expect(encoded[6], compID);
+
+      // Message ID
+      expect(encoded[7] | (encoded[8] << 8*1) | (encoded[9] << 8*2), message.msgID);
+
+      // TODO: Check checksum
+    });
+
+    test('MAVLink2 message can be signed', () {
+      // TODO: Check signature encoding
     });
   });
 }
