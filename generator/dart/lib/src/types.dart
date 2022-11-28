@@ -16,13 +16,29 @@ abstract class _MAVTypeNative<T> {
     }
   }
 
+  _MAVTypeNative._withoutValidation({required T value, required int this.bits}) : _nativeValue = value;
+
   bool validate<T extends num>() {
     return ((_nativeValue as num) >= (MIN_VALUE as num) && (_nativeValue as num) <= (MAX_VALUE as num));
   }
+
+  @override
+  bool operator ==(Object other) {
+    // Cast to _MAVTypeNative<T>
+    if (other is _MAVTypeNative<T>) {
+      return _nativeValue == other._nativeValue;
+    } else {
+      return false;
+    }
+  }
+
+  @override
+  int get hashCode => Object.hash(_nativeValue, bits, MAX_VALUE, MIN_VALUE);
 }
 
 abstract class _MAVTypeBigInt<T extends BigInt> extends _MAVTypeNative<T> {
   _MAVTypeBigInt({required T value, required int bits}) : super(value: value, bits: bits);
+  _MAVTypeBigInt._withoutValidation({required T value, required int bits}) : super._withoutValidation(value: value, bits: bits);
 
   @override
   bool validate<T extends num>() {
@@ -67,20 +83,17 @@ class MAVChar extends _MAVTypeNative<int> {
   @override
   final int MIN_VALUE = 0;
 
-  late final String _representation;
+  String get _representation => String.fromCharCode(_nativeValue);
 
   @override
   String toString() => _representation;
 
-  MAVChar(int value): super(value: value, bits: 8) {
-    _representation = String.fromCharCode(value);
-  }
+  MAVChar(int value): super(value: value, bits: 8);
 
   MAVChar.fromString(String value): super(value: value.codeUnitAt(0), bits: 8) {
     if (value.length != 1) {
       throw ArgumentError.value(value, 'value', 'String must be exactly 1 character long');
     }
-    _representation = value;
   }
 
   @override
@@ -146,7 +159,15 @@ class MAVUint64 extends _MAVTypeBigInt<BigInt> {
   @override
   final BigInt MIN_VALUE = BigInt.zero;
 
-  MAVUint64(BigInt value): super(value: value, bits: 64);
+  MAVUint64(BigInt value): super._withoutValidation(value: value, bits: 64) {
+    if (!validate()) {
+      if (value >= MAVInt64(BigInt.zero).MIN_VALUE && value <= MAVInt64(BigInt.zero).MAX_VALUE) {
+        throw ArgumentError.value(value, 'value', 'Value is out of range. Unsigned 64 bit integer provided, use "MAVInt64" or "BigInt.toUnsigned(64)"');
+      } else {
+        throw ArgumentError.value(value, 'value', 'Value is out of range');
+      }
+    }
+  }
 
   @override
   bool validate<T extends num>() {
@@ -159,7 +180,15 @@ class MAVInt64 extends _MAVTypeBigInt<BigInt> {
   final BigInt MAX_VALUE = BigInt.parse("9223372036854775807");
 
   @override
-  final BigInt MIN_VALUE = -BigInt.parse("9223372036854775808");
+  final BigInt MIN_VALUE = BigInt.parse("-9223372036854775808");
 
-  MAVInt64(BigInt value): super(value: value, bits: 64);
+  MAVInt64(BigInt value): super._withoutValidation(value: value, bits: 64) {
+    if (!validate()) {
+      if (value >= MAVUint64(BigInt.zero).MIN_VALUE && value <= MAVUint64(BigInt.zero).MAX_VALUE) {
+        throw ArgumentError.value(value, 'value', 'Value is out of range. Unsigned 64 bit integer provided, use "MAVUint64" or "BigInt.toSigned(64)"');
+      } else {
+        throw ArgumentError.value(value, 'value', 'Value is out of range');
+      }
+    }
+  }
 }
