@@ -36,9 +36,8 @@ abstract class _MAVTypeNative<T> {
   int get hashCode => Object.hash(_nativeValue, bits, MAX_VALUE, MIN_VALUE);
 }
 
-abstract class _MAVTypeBigInt<T extends BigInt> extends _MAVTypeNative<T> {
-  _MAVTypeBigInt({required T value, required int bits}) : super(value: value, bits: bits);
-  _MAVTypeBigInt._withoutValidation({required T value, required int bits}) : super._withoutValidation(value: value, bits: bits);
+abstract class _MAVTypeBigInt extends _MAVTypeNative<BigInt> {
+  _MAVTypeBigInt({required BigInt value, required int bits}) : super._withoutValidation(value: value, bits: bits);
 
   @override
   bool validate<T extends num>() {
@@ -152,14 +151,14 @@ class MAVInt32 extends _MAVTypeNative<int> {
   MAVInt32(int value): super(value: value, bits: 32);
 }
 
-class MAVUint64 extends _MAVTypeBigInt<BigInt> {
+class MAVUint64 extends _MAVTypeBigInt {
   @override
   final BigInt MAX_VALUE = BigInt.parse("18446744073709551615");
 
   @override
   final BigInt MIN_VALUE = BigInt.zero;
 
-  MAVUint64(BigInt value): super._withoutValidation(value: value, bits: 64) {
+  MAVUint64(BigInt value): super(value: value, bits: 64) {
     if (!validate()) {
       if (value >= MAVInt64(BigInt.zero).MIN_VALUE && value <= MAVInt64(BigInt.zero).MAX_VALUE) {
         throw ArgumentError.value(value, 'value', 'Value is out of range. Unsigned 64 bit integer provided, use "MAVInt64" or "BigInt.toUnsigned(64)"');
@@ -175,14 +174,14 @@ class MAVUint64 extends _MAVTypeBigInt<BigInt> {
   }
 }
 
-class MAVInt64 extends _MAVTypeBigInt<BigInt> {
+class MAVInt64 extends _MAVTypeBigInt {
   @override
   final BigInt MAX_VALUE = BigInt.parse("9223372036854775807");
 
   @override
   final BigInt MIN_VALUE = BigInt.parse("-9223372036854775808");
 
-  MAVInt64(BigInt value): super._withoutValidation(value: value, bits: 64) {
+  MAVInt64(BigInt value): super(value: value, bits: 64) {
     if (!validate()) {
       if (value >= MAVUint64(BigInt.zero).MIN_VALUE && value <= MAVUint64(BigInt.zero).MAX_VALUE) {
         throw ArgumentError.value(value, 'value', 'Value is out of range. Unsigned 64 bit integer provided, use "MAVUint64" or "BigInt.toSigned(64)"');
