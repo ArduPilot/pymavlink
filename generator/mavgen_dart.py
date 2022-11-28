@@ -694,7 +694,7 @@ def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
     hlist = ['lib/src/types.dart', 'lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart', 'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
-             'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md', 'pubspec.yaml', 'test/mavlink_test.dart']
+             'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md', 'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'dart')
     print("Copying fixed headers")
