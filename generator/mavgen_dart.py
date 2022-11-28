@@ -545,13 +545,6 @@ class MAVLinkPacket {
       }
     }
 
-    MAVLinkPacket.MAVLink2({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = true}) {
-      _incompatFlags = incompatFlags;
-      if (isSigned) {
-        signature = MAVPacketSignature(this);
-      }
-    }
-
     /**
      * Check if the size of the Payload is equal to the "len" byte
      */
