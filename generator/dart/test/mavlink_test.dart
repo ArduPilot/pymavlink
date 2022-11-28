@@ -162,6 +162,8 @@ void main() {
     final sysID = 1;
     final compID = MAV_COMPONENT.MAV_COMP_ID_MISSIONPLANNER;
     final packetSeq = 0;
+    final incompatFlags = 0;
+    final compatFlags = 0;
 
     test('MAVLink1 message can be created', () {
       final message = MSG_AP_ADC(
@@ -175,6 +177,7 @@ void main() {
       message.adc5 = MAVUint16(5);
       message.adc6 = MAVUint16(6);
       var packet = message.pack(packetSeq);
+      expect(packet.payloadIsFilled(), true);
       var encoded = packet.encodePacket();
 
       // Check STX
@@ -226,12 +229,15 @@ void main() {
       message.s = "Test";
 
       var packet = message.pack(packetSeq);
+      expect(packet.payloadIsFilled(), true);
+      packet.incompatFlags = incompatFlags;
+      packet.compatFlags = compatFlags;
       var encoded = packet.encodePacket();
 
       // Check STX
       expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK2);
       // Length matches actual payload length
-      expect(encoded[1], packet.payload.size());
+      expect(encoded[1], MAVLinkPacket.mavTrimPayload(packet.payload.getData()));
 
       // Check incompat flags
       expect(encoded[2], packet.incompatFlags);
