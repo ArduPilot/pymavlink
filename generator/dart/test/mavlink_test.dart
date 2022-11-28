@@ -124,8 +124,8 @@ void main() {
       message.s32_array = List<MAVInt32>.filled(MSG_TEST_TYPES.s32_array_max_length, MAVInt32(-2147483648));
       message.u64 = MAVUint64(BigInt.parse("18446744073709551615", radix: 10).toUnsigned(64));
       message.u64_array = List<MAVUint64>.filled(MSG_TEST_TYPES.u64_array_max_length, MAVUint64(BigInt.parse("18446744073709551615", radix: 10).toUnsigned(64)));
-      message.s64 = MAVInt64(BigInt.parse("-9223372036854775808", radix: 10).toUnsigned(64));
-      message.s64_array = List<MAVInt64>.filled(MSG_TEST_TYPES.s64_array_max_length, MAVInt64(BigInt.parse("-9223372036854775808", radix: 10).toUnsigned(64)));
+      message.s64 = MAVInt64(BigInt.parse("-9223372036854775808", radix: 10).toSigned(64));
+      message.s64_array = List<MAVInt64>.filled(MSG_TEST_TYPES.s64_array_max_length, MAVInt64(BigInt.parse("-9223372036854775808", radix: 10).toSigned(64)));
       message.d = MAVDouble(double.maxFinite);
       message.d_array = List<MAVDouble>.filled(MSG_TEST_TYPES.d_array_max_length, MAVDouble(double.maxFinite));
       message.f = MAVFloat(3.40282346638528859811704183484516925439e38);
