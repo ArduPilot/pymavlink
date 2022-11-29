@@ -363,6 +363,7 @@ def generate_MAVLinkMessage(directory, xml_list):
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
@@ -377,36 +378,54 @@ class MAVPacketSignature {
   int timestamp = 0;
   int linkID = 0;
   int signature = 0;
-  int secretKey = 0;
+
+  Uint8List _secretKey = Uint8List(32);
+  void set secretKey(Uint8List key) {
+    if (key.length != 32) {
+      throw ArgumentError.value(key, 'key', 'Secret key must be 32 bytes long');
+    }
+    _secretKey = key;
+  }
+
+  static int epoch = DateTime(2015, 1, 1, 0, 0, 0, 0, 0).microsecondsSinceEpoch ~/ 10;
   MAVLinkPacket _packet;
 
   bool isValid() {
     return !(timestamp.bitLength > 48) &&
         !(linkID.bitLength > 8) &&
         !(signature.bitLength > 48) &&
-        secretKey != 0 &&
+        _secretKey != 0 &&
         signature == _generate();
+  }
+
+  static Uint8List generateKey() {
+    return Uint8List.fromList(List.generate(32, (index) => Random().nextInt(256)));
   }
 
   int _generate() {
     // Take the first 48 bits of the sha256 hash of (secret_key + _packet.payload.buffer.asUint8List() + CRC + linkID + timestamp)
     var data = <int>[];
-    data.add(secretKey);
+    data.addAll(_secretKey);
     data.addAll(_packet.payload.getData());
+    _packet.generateCRC(_packet.payload.size);
     data.add(_packet.crc.getMSB());
     data.add(_packet.crc.getLSB());
     data.add(linkID);
-    data.addAll([timestamp & 0xFF, (timestamp >> 8) & 0xFF, (timestamp >> 8*2) & 0xFF, (timestamp >> 8*3) & 0xFF, (timestamp >> 8*4) & 0xFF, (timestamp >> 8*5) & 0xFF]);
+    data.addAll([timestamp & 0xFF, (timestamp >>> 8) & 0xFF, (timestamp >>> 8*2) & 0xFF, (timestamp >>> 8*3) & 0xFF, (timestamp >>> 8*4) & 0xFF, (timestamp >>> 8*5) & 0xFF]);
 
     var sha = sha256.convert(data);
     return sha.bytes[0] | (sha.bytes[1] << 8) | (sha.bytes[2] << 8*2) | (sha.bytes[3] << 8*3) | (sha.bytes[4] << 8*4) | (sha.bytes[5] << 8*5);
   }
 
   MAVPacketSignature(MAVLinkPacket packet): _packet = packet;
-  MAVPacketSignature.builder(MAVLinkPacket packet, {required this.timestamp, required this.linkID, required this.secretKey}): _packet = packet {
+  MAVPacketSignature.builder(MAVLinkPacket packet, Uint8List key, {required this.linkID}): _packet = packet {
+    secretKey = key;
+    timestamp = DateTime.now().microsecondsSinceEpoch ~/ 10 - MAVPacketSignature.epoch;
     signature = _generate();
   }
-  MAVPacketSignature.from(MAVLinkPacket packet, {required this.timestamp, required this.linkID, required this.signature, required this.secretKey}): _packet = packet;
+  MAVPacketSignature.from(MAVLinkPacket packet, Uint8List key, {required this.timestamp, required this.linkID, required this.signature}): _packet = packet {
+    secretKey = key;
+  }
 }
 
 /**
@@ -460,6 +479,7 @@ class MAVLinkPacket {
     static const int MAVLINK2_HEADER_LEN = 10;
     static const int MAVLINK1_NONPAYLOAD_LEN = MAVLINK1_HEADER_LEN + 2;
     static const int MAVLINK2_NONPAYLOAD_LEN = MAVLINK2_HEADER_LEN + 2;
+    static const int MAVLINK2_SIGNATURE_LEN = 13;
 
     static const bool _V = false;
 
@@ -549,7 +569,7 @@ class MAVLinkPacket {
      * Check if the size of the Payload is equal to the "len" byte
      */
     bool payloadIsFilled() {
-        return payload.size() >= len;
+        return payload.size >= len;
     }
 
     /**
@@ -610,9 +630,9 @@ class MAVLinkPacket {
 
         if (isMavlink2) {
             payloadSize = mavTrimPayload(payload.getData());
-            bufLen = MAVLINK2_HEADER_LEN + payloadSize + 2;
+            bufLen = MAVLINK2_HEADER_LEN + payloadSize + 2 + (isSigned ? MAVLINK2_SIGNATURE_LEN : 0);
         } else {
-            payloadSize = payload.size();
+            payloadSize = payload.size;
             bufLen = MAVLINK1_HEADER_LEN + payloadSize + 2;
 
         }
@@ -646,6 +666,20 @@ class MAVLinkPacket {
         generateCRC(payloadSize);
         buffer.setUint8(i++, crc.getLSB());
         buffer.setUint8(i++, crc.getMSB());
+
+        if (isSigned) {
+          buffer.setUint8(i++, signature!.linkID);
+
+          var strSub = signature!.timestamp.toRadixString(16).padLeft(12, '0');
+          for (int j = 12; j > 1; j-=2) {
+            buffer.setUint8(i++, int.parse(strSub.substring(j-2, j), radix: 16) & 0XFF);
+          }
+
+          strSub = signature!.signature.toRadixString(16).padLeft(12, '0');
+          for (int j = 12; j > 1; j-=2) {
+            buffer.setUint8(i++, int.parse(strSub.substring(j-2, j), radix: 16) & 0XFF);
+          }
+        }
 
         StringBuffer buf = StringBuffer("encode: ");
         buf.write("isMavlink2="); buf.write(isMavlink2.toString());

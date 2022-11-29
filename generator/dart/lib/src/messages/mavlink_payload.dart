@@ -13,13 +13,13 @@ class MAVLinkPayload {
   
   final _payload = ByteData(MAX_PAYLOAD_SIZE);
   int _index = 0;
-  int _bytesWritten = 0;
 
   Uint8List getData() {
-    return _payload.buffer.asUint8List();
+    return _payload.buffer.asUint8List(0, _bytesWritten);
   }
 
-  int size() {
+  int _bytesWritten = 0;
+  int get size {
     return _bytesWritten;
   }
 

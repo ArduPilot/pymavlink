@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:mavlink/mavlink.dart';
 import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/test.dart';
@@ -183,7 +186,7 @@ void main() {
       // Check STX
       expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK1);
       // Length matches actual payload length
-      expect(encoded[1], packet.payload.size());
+      expect(encoded[1], packet.payload.size);
 
       // Check sequence number
       expect(encoded[2], packetSeq);
@@ -261,7 +264,87 @@ void main() {
     });
 
     test('MAVLink2 message can be signed', () {
-      // TODO: Check signature encoding
+      final linkID = 1;
+      final secretKey = MAVPacketSignature.generateKey();
+      final message = MSG_AP_ADC.MAVLink2(
+        compID: compID,
+        sysID: sysID,
+      );
+      message.adc1 = MAVUint16(1);
+      message.adc2 = MAVUint16(2);
+      message.adc3 = MAVUint16(3);
+      message.adc4 = MAVUint16(4);
+      message.adc5 = MAVUint16(5);
+      message.adc6 = MAVUint16(6);
+      var packet = message.pack(packetSeq);
+      packet.incompatFlags = MAVLinkIncompatFlags.SIGNED;
+      packet.compatFlags = compatFlags;
+      packet.signature = MAVPacketSignature.builder(packet, secretKey, linkID: linkID);
+      var encoded = packet.encodePacket();
+
+      // Check STX
+      expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK2);
+      // Length matches actual payload length
+      expect(encoded[1], MAVLinkPacket.mavTrimPayload(packet.payload.getData()));
+
+      // Check incompat flags
+      expect(encoded[2], packet.incompatFlags);
+
+      // Check compat flags
+      expect(encoded[3], packet.compatFlags);
+
+      // Check packet sequence
+      expect(encoded[4], packetSeq);
+
+      // Check system ID
+      expect(encoded[5], sysID);
+
+      // Component ID
+      expect(encoded[6], compID);
+
+      // Message ID
+      expect(encoded[7] | (encoded[8] << 8*1) | (encoded[9] << 8*2), message.msgID);
+
+      // TODO: Check checksum
+
+      expect(encoded[encoded.length - 13], linkID);
+
+      var strBuf = StringBuffer();
+      for (int i = 7; i < 13; i++) {
+        strBuf.write(encoded[encoded.length - i].toRadixString(16).padLeft(2, '0'));
+      }
+      var rxTimestamp = int.parse(strBuf.toString(), radix: 16);
+      expect(rxTimestamp, packet.signature!.timestamp);
+
+      strBuf = StringBuffer();
+      for (int i = 1; i < 7; i++) {
+        strBuf.write(encoded[encoded.length - i].toRadixString(16).padLeft(2, '0'));
+      }
+      var signature = int.parse(strBuf.toString(), radix: 16);
+      expect(signature, packet.signature!.signature);
+
+      expect(MAVPacketSignature.from(packet, secretKey, timestamp: rxTimestamp, linkID: linkID, signature: signature).isValid(), true);
+    });
+
+    test('MAVLink2 signed message secret keys are rejected when not 32 bytes', () {
+      final linkID = 1;
+      final message = MSG_AP_ADC.MAVLink2(
+        compID: compID,
+        sysID: sysID,
+      );
+      message.adc1 = MAVUint16(1);
+      message.adc2 = MAVUint16(2);
+      message.adc3 = MAVUint16(3);
+      message.adc4 = MAVUint16(4);
+      message.adc5 = MAVUint16(5);
+      message.adc6 = MAVUint16(6);
+      var packet = message.pack(packetSeq);
+      packet.incompatFlags = MAVLinkIncompatFlags.SIGNED;
+      packet.compatFlags = compatFlags;
+
+      expect(() => MAVPacketSignature.builder(packet, Uint8List(4), linkID: linkID), throwsA(isA<ArgumentError>()));
+      expect(() => MAVPacketSignature.builder(packet, Uint8List(64), linkID: linkID), throwsA(isA<ArgumentError>()));
+      expect(MAVPacketSignature.builder(packet, Uint8List(32), linkID: linkID), isA<MAVPacketSignature>());
     });
   });
 }

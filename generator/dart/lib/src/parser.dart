@@ -4,6 +4,8 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
+import 'dart:typed_data';
+
 import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/mavlink.dart';
 
@@ -45,9 +47,19 @@ enum _MAV_states {
 /// After creating an instance of this class, simply use the @{link #mavlink_parse_char} 
 /// method to parse a byte stream.
 class Parser {
-    Parser([this.signatureKey = 0]);
+    Parser([signatureKey]) {
+      this.signatureKey = signatureKey;
+    }
 
-    int signatureKey;
+    Uint8List? _signatureKey;
+    void set signatureKey(Uint8List? key) {
+      if (key != null) {
+        if (key.length != 32) {
+          throw ArgumentError.value(key, 'key', 'Signature key must be 32 bytes long');
+        }
+        _signatureKey = key;
+      }
+    }
 
     static const bool _V = false;
   
@@ -63,8 +75,9 @@ class Parser {
     MAVLinkPacket? _m;
     bool _isMavlink2 = false;
 
-    Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [this.signatureKey = 0]) {
+    Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [signatureKey]) {
       stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPacketStats);
+      this.signatureKey = signatureKey;
     }
 
     /// This is a convenience function which handles the complete MAVLink
@@ -177,7 +190,7 @@ class Parser {
                 break;
 
             case _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD:
-                bool crcGen = _m!.generateCRC(_m!.payload.size());
+                bool crcGen = _m!.generateCRC(_m!.payload.size);
                 // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
                 if (c != _m!.crc.getLSB() || !crcGen) {
                     _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
@@ -207,7 +220,7 @@ class Parser {
                 break;
 
             case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2:
-                _m!.signature!.secretKey = signatureKey;
+                _m!.signature!.secretKey = _signatureKey!;
                 _m!.signature!.linkID = c;
                 _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_LINKID;
                 break;
