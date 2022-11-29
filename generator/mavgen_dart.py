@@ -678,9 +678,19 @@ class MAVLinkPacket {
 
     # sort msgs by id
     xml_msgs = []
+
+    xml_ids = []
+    idConflict = False
+    idConflicts = []
     for xml in xml_list:
         for msg in xml.message:
             xml_msgs.append(msg)
+            if msg.id in xml_ids:
+                idConflict = True
+                idConflicts.append(msg.id)
+            xml_ids.append(msg.id)
+    if idConflict:
+        print("WARNING: Message IDs are not unique: %s" % idConflicts)
     xml_msgs.sort(key=lambda msg: msg.id)
 
     for msg in xml_msgs:
