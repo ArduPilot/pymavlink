@@ -92,6 +92,7 @@ library mavlink;
 export 'src/%s/export.dart';
 ''' % basename)
 
+
 def generate_CRC(directory, xml):
     '''generate CRC definition and crc array per dialect'''
     xml.message_crcs_array = ''
@@ -106,7 +107,7 @@ def generate_CRC(directory, xml):
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
-import 'dart:collection';
+import 'package:mavlink/crc.dart';
 
 /**
  * CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
@@ -114,28 +115,10 @@ import 'dart:collection';
  * the message id.
  *
  */
-class ${basename}_CRC {
-    static const Map<int, int> MAVLINK_MESSAGE_CRCS = const {
+class ${basename}_CRC extends DialectCRC {
+    Map<int, int> MAVLINK_MESSAGE_CRCS = {
       ${message_crcs_array}
     };
-    static final int _CRC_INIT_VALUE = 0xffff;
-    int _crcValue = _CRC_INIT_VALUE;
-
-    /**
-     * Accumulate the CRC by adding one char at a time.
-     *
-     * The checksum function adds the hash of one char at a time to the 16 bit
-     * checksum (uint16_t).
-     *
-     * @param data new char to hash
-     **/
-    void update_checksum(int? data) {
-        if (data == null) return;
-        data = data & 0xff; //cast because we want an unsigned type
-        int tmp = data ^ (_crcValue & 0xff);
-        tmp ^= (tmp << 4) & 0xff;
-        _crcValue = ((_crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
-    }
 
     /**
      * Finish the CRC calculation of a message, by running the CRC with the
@@ -144,27 +127,13 @@ class ${basename}_CRC {
      * @param msgID The message id number
      * @return bool True if the checksum was successfully finished. Otherwise false
      */
-    bool finish_checksum(int msgID) {
+    @override
+    bool finish_checksum(int msgID, CRC crc) {
         if (MAVLINK_MESSAGE_CRCS.containsKey(msgID)) {
-            update_checksum(MAVLINK_MESSAGE_CRCS[msgID]);
+            crc.update_checksum(MAVLINK_MESSAGE_CRCS[msgID]);
             return true;
         }
         return false;
-    }
-
-    /**
-     * Initialize the buffer for the CRC16/MCRF4XX
-     */
-    void start_checksum() {
-        _crcValue = _CRC_INIT_VALUE;
-    }
-
-    int getMSB() {
-        return ((_crcValue >> 8) & 0xff);
-    }
-
-    int getLSB() {
-        return (_crcValue & 0xff);
     }
 }
 ''', xml)
@@ -189,6 +158,7 @@ def generate_message_h(directory, m):
 // MESSAGE ${name} PACKING
 import 'dart:math';
 
+import 'crc.dart';
 import 'package:mavlink/mavlink.dart';
 
 /**
@@ -273,7 +243,7 @@ class MSG_${name} extends MAVLinkMessage {
      */
     @override
     MAVLinkPacket pack(int packetSeq) {
-        MAVLinkPacket packet = MAVLinkPacket(len: MAVLINK_MSG_LENGTH, sysID: sysID, compID: compID, msgID: MAVLINK_MSG_ID_${name}, seq: packetSeq, isMavlink2: isMavlink2);
+        MAVLinkPacket packet = MAVLinkPacket(len: MAVLINK_MSG_LENGTH, sysID: sysID, compID: compID, msgID: MAVLINK_MSG_ID_${name}, seq: packetSeq, isMavlink2: isMavlink2, dialectCRC: ${xml_basename}_CRC());
 
         ${{base_fields:${packField}
         }}
@@ -368,6 +338,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 import 'package:mavlink/mavlink.dart';
+import 'package:mavlink/crc.dart';
 ${importString}
 
 abstract class MAVLinkIncompatFlags {
@@ -406,8 +377,11 @@ class MAVPacketSignature {
     // Take the first 48 bits of the sha256 hash of (secret_key + _packet.payload.buffer.asUint8List() + CRC + linkID + timestamp)
     var data = <int>[];
     data.addAll(_secretKey);
-    data.addAll(_packet.payload.getData());
-    _packet.generateCRC(_packet.payload.size);
+    var payloadSize = MAVLinkPacket.mavTrimPayload(_packet.payload.getData());
+    for (var i = 0; i < payloadSize; i++) {
+      data.add(_packet.payload.getData()[i]);
+    }
+    _packet.generateCRC(payloadSize);
     data.add(_packet.crc.getMSB());
     data.add(_packet.crc.getLSB());
     data.add(linkID);
@@ -528,7 +502,8 @@ class MAVLinkPacket {
     * message fields. Protects the packet from decoding a different version of
     * the same packet but with different variables).
     */
-    common_CRC crc = common_CRC();
+    CRC crc = CRC();
+    late DialectCRC dialectCRC;
 
     // MAVLink 2.0 fields
 
@@ -558,7 +533,8 @@ class MAVLinkPacket {
 
     MAVPacketSignature? signature;
 
-    MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false}) {
+    MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false, required DialectCRC dialectCRC}) {
+      this.dialectCRC = dialectCRC;
       _incompatFlags = incompatFlags;
       if (isSigned) {
         signature = MAVPacketSignature(this);
@@ -602,7 +578,7 @@ class MAVLinkPacket {
         for (int i = 0; i < payloadSize; i++) {
             crc.update_checksum(payload.getByte().value);
         }
-        return crc.finish_checksum(msgID);
+        return dialectCRC.finish_checksum(msgID, crc);
     }
 
     /**
@@ -728,7 +704,8 @@ def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
     hlist = ['lib/src/types.dart', 'lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart', 'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
-             'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md', 'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile']
+             'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md', 'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile',
+             'lib/crc.dart', 'lib/src/crc.dart']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'dart')
     print("Copying fixed headers")
@@ -988,6 +965,7 @@ def generate_one(basename, xml):
     generate_CRC(directory, xml)
 
     for m in xml.message:
+        m.xml_basename = xml.basename
         generate_message_h(directory, m)
 
     generate_platform_exports(os.path.join(basename, 'lib/src', xml.basename), xml.message)

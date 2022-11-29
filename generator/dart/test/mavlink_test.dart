@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:mavlink/mavlink.dart';
+import 'package:mavlink/crc.dart';
 import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/test.dart';
 
@@ -345,6 +346,76 @@ void main() {
       expect(() => MAVPacketSignature.builder(packet, Uint8List(4), linkID: linkID), throwsA(isA<ArgumentError>()));
       expect(() => MAVPacketSignature.builder(packet, Uint8List(64), linkID: linkID), throwsA(isA<ArgumentError>()));
       expect(MAVPacketSignature.builder(packet, Uint8List(32), linkID: linkID), isA<MAVPacketSignature>());
+    });
+  });
+
+  group('MAVLink Parser Tests', () {
+    final sysID = 1;
+    final compID = MAV_COMPONENT.MAV_COMP_ID_MISSIONPLANNER;
+    final packetSeq = 0;
+    final compatFlags = 0;
+    final linkID = 1;
+    final secretKey = MAVPacketSignature.generateKey();
+    final supportedDialects = <DialectCRC>[ardupilotmega_CRC()];
+    final mav2SignedMessage = MSG_AP_ADC.MAVLink2(
+      compID: compID,
+      sysID: sysID,
+    );
+    mav2SignedMessage.adc1 = MAVUint16(1);
+    mav2SignedMessage.adc2 = MAVUint16(2);
+    mav2SignedMessage.adc3 = MAVUint16(3);
+    mav2SignedMessage.adc4 = MAVUint16(4);
+    mav2SignedMessage.adc5 = MAVUint16(5);
+    mav2SignedMessage.adc6 = MAVUint16(6);
+    var mav2SignedPacket = mav2SignedMessage.pack(packetSeq);
+    mav2SignedPacket.incompatFlags = MAVLinkIncompatFlags.SIGNED;
+    mav2SignedPacket.compatFlags = compatFlags;
+    mav2SignedPacket.signature = MAVPacketSignature.builder(mav2SignedPacket, secretKey, linkID: linkID);
+
+    final mav2Message = MSG_AP_ADC.MAVLink2(
+      compID: compID,
+      sysID: sysID,
+    );
+    mav2Message.adc1 = MAVUint16(1);
+    mav2Message.adc2 = MAVUint16(2);
+    mav2Message.adc3 = MAVUint16(3);
+    mav2Message.adc4 = MAVUint16(4);
+    mav2Message.adc5 = MAVUint16(5);
+    mav2Message.adc6 = MAVUint16(6);
+    var mav2Packet = mav2Message.pack(packetSeq);
+    mav2Packet.incompatFlags = 0;
+    mav2Packet.compatFlags = compatFlags;
+
+    final mav1Message = MSG_AP_ADC(
+      compID: compID,
+      sysID: sysID,
+    );
+    mav1Message.adc1 = MAVUint16(1);
+    mav1Message.adc2 = MAVUint16(2);
+    mav1Message.adc3 = MAVUint16(3);
+    mav1Message.adc4 = MAVUint16(4);
+    mav1Message.adc5 = MAVUint16(5);
+    mav1Message.adc6 = MAVUint16(6);
+    var mav1Packet = mav1Message.pack(packetSeq);
+
+    var signedParser = Parser(supportedDialects, secretKey);
+    var parser = Parser(supportedDialects, secretKey);
+
+    test('MAVLink2 signed messages can be parsed', () {
+      MAVLinkPacket? packet = null;
+      for (var byte in mav2SignedPacket.encodePacket()) {
+        packet = signedParser.mavlink_parse_char(byte);
+        if (packet != null) {
+          expect(packet.compID, mav2SignedPacket.compID);
+        }
+      }
+      expect(packet, isNot(null));
+    });
+
+    test('MAVLink2 signed message secret keys are rejected when not 32 bytes in parser', () {
+      expect(() => Parser(supportedDialects, Uint8List(4)), throwsA(isA<ArgumentError>()));
+      expect(() => Parser(supportedDialects, Uint8List(64)), throwsA(isA<ArgumentError>()));
+      expect(Parser(supportedDialects, Uint8List(32)), isA<Parser>());
     });
   });
 }
