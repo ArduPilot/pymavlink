@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:mavlink/mavlink.dart';
 import 'package:mavlink/crc.dart';
 import 'package:mavlink/ardupilotmega.dart';
+import 'package:mavlink/avssuas.dart';
 import 'package:mavlink/test.dart';
 
 import 'package:test/test.dart';
@@ -412,10 +413,43 @@ void main() {
       expect(packet, isNot(null));
     });
 
+    test('MAVLink messages can be parsed', () {
+      MAVLinkPacket? packet = null;
+      for (var byte in mav1Packet.encodePacket()) {
+        packet = parser.mavlink_parse_char(byte);
+        if (packet != null) {
+          expect(packet.compID, mav1Packet.compID);
+        }
+      }
+      expect(packet, isNot(null));
+    });
+
+    test('MAVLink messages can be unpacked', () {
+      expect(mav1Packet.unpack(), isNot(null));
+      final lastMessage = MSG_AVSS_DRONE_OPERATION_MODE.MAVLink2(compID: compID, sysID: sysID);
+      lastMessage.M300_operation_mode = MAVUint8(1);
+      var lastPacket = lastMessage.pack(packetSeq);
+      expect(lastPacket.unpack(), isA<MSG_AVSS_DRONE_OPERATION_MODE>());
+    });
+
+    test('MAVLink2 unsigned messages can be parsed', () {
+      // MAVLinkPacket? packet = null;
+      // for (var byte in mav2Packet.encodePacket()) {
+      //   packet = parser.mavlink_parse_char(byte);
+      //   if (packet != null) {
+      //     expect(packet.compID, mav2Packet.compID);
+      //   }
+      // }
+      // expect(packet, isNot(null));
+    });
+
     test('MAVLink2 signed message secret keys are rejected when not 32 bytes in parser', () {
       expect(() => Parser(supportedDialects, Uint8List(4)), throwsA(isA<ArgumentError>()));
       expect(() => Parser(supportedDialects, Uint8List(64)), throwsA(isA<ArgumentError>()));
       expect(Parser(supportedDialects, Uint8List(32)), isA<Parser>());
+    });
+
+    test('MAVLink parser rejects unknown incompatFlags', () {
     });
   });
 }
