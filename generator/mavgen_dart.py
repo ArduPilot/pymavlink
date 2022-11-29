@@ -6,16 +6,14 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 from __future__ import print_function
-import array
 
-from builtins import range
 from builtins import object
-from operator import mod
 
 import os
 from . import mavparse, mavtemplate
 
 t = mavtemplate.MAVTemplate()
+
 
 def generate_enums(basename, xml):
     '''generate main header per XML file'''
@@ -77,6 +75,7 @@ export 'enums/export.dart';
         t.write(f, "export 'msg_%s.dart';\n" % m.name_lower)
 
     f.close()
+
 
 def generate_package_exports(directory, basename):
     with open(os.path.join(directory, basename + '.dart'), mode='w') as f:
@@ -243,7 +242,15 @@ class MSG_${name} extends MAVLinkMessage {
      */
     @override
     MAVLinkPacket pack(int packetSeq) {
-        MAVLinkPacket packet = MAVLinkPacket(len: MAVLINK_MSG_LENGTH, sysID: sysID, compID: compID, msgID: MAVLINK_MSG_ID_${name}, seq: packetSeq, isMavlink2: isMavlink2, dialectCRC: ${xml_basename}_CRC());
+        MAVLinkPacket packet = MAVLinkPacket(
+          len: MAVLINK_MSG_LENGTH,
+          sysID: sysID,
+          compID: compID,
+          msgID: MAVLINK_MSG_ID_${name},
+          seq: packetSeq,
+          isMavlink2: isMavlink2,
+          dialectCRC: ${xml_basename}_CRC()
+        );
 
         ${{base_fields:${packField}
         }}
@@ -710,12 +717,15 @@ class MAVLinkPacket {
 ''')
     f.close()
 
+
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
-    hlist = ['lib/src/types.dart', 'lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart', 'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
-             'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md', 'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile',
-             'lib/crc.dart', 'lib/src/crc.dart']
+    hlist = ['lib/src/types.dart', 'lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart',
+             'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
+             'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md',
+             'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile', 'lib/crc.dart', 'lib/src/crc.dart',
+             'analysis_options.yaml']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'dart')
     print("Copying fixed headers")
@@ -727,9 +737,10 @@ def copy_fixed_headers(directory, xml):
         destdir = os.path.realpath(os.path.dirname(os.path.join(directory, h)))
         try:
             os.makedirs(destdir)
-        except:
+        except Exception:
             pass
         shutil.copy(src, dest)
+
 
 class mav_include(object):
     def __init__(self, base):
@@ -739,21 +750,22 @@ class mav_include(object):
 def mavfmt(field, typeInfo=0):
     '''work out the struct format for a type'''
     map = {
-        'float'    : ('MAVFloat', 'Float'),
-        'double'   : ('MAVDouble', 'Double'),
-        'char'     : ('MAVChar', 'Char'),
-        'int8_t'   : ('MAVInt8', 'Byte'),
-        'uint8_t'  : ('MAVUint8', 'UnsignedByte'),
-        'uint8_t_mavlink_version'  : ('MAVUint8', 'UnsignedByte'),
-        'int16_t'  : ('MAVInt16', 'Short'),
-        'uint16_t' : ('MAVUint16', 'UnsignedShort'),
-        'int32_t'  : ('MAVInt32', 'Int'),
-        'uint32_t' : ('MAVUint32', 'UnsignedInt'),
-        'int64_t'  : ('MAVInt64', 'Long'),
-        'uint64_t' : ('MAVUint64', 'UnsignedLong'),
+        'float': ('MAVFloat', 'Float'),
+        'double': ('MAVDouble', 'Double'),
+        'char': ('MAVChar', 'Char'),
+        'int8_t': ('MAVInt8', 'Byte'),
+        'uint8_t': ('MAVUint8', 'UnsignedByte'),
+        'uint8_t_mavlink_version': ('MAVUint8', 'UnsignedByte'),
+        'int16_t': ('MAVInt16', 'Short'),
+        'uint16_t': ('MAVUint16', 'UnsignedShort'),
+        'int32_t': ('MAVInt32', 'Int'),
+        'uint32_t': ('MAVUint32', 'UnsignedInt'),
+        'int64_t': ('MAVInt64', 'Long'),
+        'uint64_t': ('MAVUint64', 'UnsignedLong'),
     }
 
     return map[field.type][typeInfo]
+
 
 def generate_one(basename, xml):
     '''generate headers for one XML file'''
@@ -789,8 +801,6 @@ def generate_one(basename, xml):
     for mlen in xml.message_lengths:
         xml.message_lengths_array += '%u, ' % mlen
     xml.message_lengths_array = xml.message_lengths_array[:-2]
-
-
 
     # form message info array
     xml.message_info_array = ''
@@ -834,10 +844,10 @@ def generate_one(basename, xml):
         buf.writeCharCode(_%s.value);
         return buf.toString();
     }
-''' % (f.name,f.name,f.name,f.name)
+''' % (f.name, f.name, f.name, f.name)
             f.getText = ''
             if f.array_length != 0:
-                f.array_suffix = '[] = %s(%u)' % (mavfmt(f),f.array_length)
+                f.array_suffix = '[] = %s(%u)' % (mavfmt(f), f.array_length)
                 f.array_suffix_empty = '[]'
                 f.list_prefix = 'List<'
                 f.list_suffix = '>'
@@ -853,7 +863,7 @@ def generate_one(basename, xml):
         for (int i = 0; i < %s.length; i++) {
             _%s[i] = mavPayload.get%s();
         }
-                ''' % (f.name, f.name, mavfmt(f, 1) )
+                ''' % (f.name, f.name, mavfmt(f, 1))
                     f.packField = '''
         for (int i = 0; i < %s.length; i++) {
             packet.payload.put%s(_%s[i]);
@@ -864,7 +874,7 @@ def generate_one(basename, xml):
         for (int i = 0; i < %s.length; i++) {
             %s[i] = mavPayload.get%s();
         }
-                ''' % (f.name, f.name, mavfmt(f, 1) )
+                ''' % (f.name, f.name, mavfmt(f, 1))
                     f.packField = '''
         for (int i = 0; i < %s.length; i++) {
             packet.payload.put%s(%s[i]);
@@ -903,7 +913,7 @@ def generate_one(basename, xml):
         }
         return buf.toString();
     }
-''' % (f.name,f.array_length,f.name,f.array_length,f.name,f.name,f.array_length,f.name,f.name)
+''' % (f.name, f.array_length, f.name, f.array_length, f.name, f.name, f.array_length, f.name, f.name)
                 else:
                     test_strings = []
                     for v in f.test_value:
@@ -919,14 +929,14 @@ def generate_one(basename, xml):
                 f.array_arg = ''
                 f.array_return_arg = ''
                 f.array_const = ''
-                f.decode_left =  '%s' % (f.name)
+                f.decode_left = '%s' % (f.name)
                 f.decode_right = ''
                 if f.type == 'char':
                     f.unpackField = '_%s = mavPayload.get%s();' % (f.name, mavfmt(f, 1))
-                    f.packField = 'packet.payload.put%s(_%s);' % (mavfmt(f, 1),f.name)
+                    f.packField = 'packet.payload.put%s(_%s);' % (mavfmt(f, 1), f.name)
                 else:
                     f.unpackField = '%s = mavPayload.get%s();' % (f.name, mavfmt(f, 1))
-                    f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1),f.name)
+                    f.packField = 'packet.payload.put%s(%s);' % (mavfmt(f, 1), f.name)
                 f.get_arg = ''
                 f.return_type = f.type
                 if f.type == 'char':
@@ -963,7 +973,7 @@ def generate_one(basename, xml):
             # remove brackets in units
             f.units = removeBrackets(f.units)
             # Escape quotes in description
-            f.description = cleanText(f.description);
+            f.description = cleanText(f.description)
 
     # separate base fields from MAVLink 2 extended fields
     for m in xml.message:
@@ -981,13 +991,16 @@ def generate_one(basename, xml):
     generate_platform_exports(os.path.join(basename, 'lib/src', xml.basename), xml.message)
     generate_package_exports(os.path.join(basename, 'lib'), xml.basename)
 
+
 def removeBrackets(text):
-    return text.replace("[","").replace("]","")
+    return text.replace("[", "").replace("]", "")
+
 
 def cleanText(text):
-    text = text.replace("\n"," ")
-    text = text.replace("\r"," ")
-    return text.replace("\"","'")
+    text = text.replace("\n", " ")
+    text = text.replace("\r", " ")
+    return text.replace("\"", "'")
+
 
 def generate(basename, xml_list):
     '''generate complete MAVLink Dart implemenation'''
