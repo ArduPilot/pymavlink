@@ -39,6 +39,11 @@ abstract class _MAVTypeNative<T> {
   }
 
   @override
+  String toString() {
+    return _nativeValue.toString();
+  }
+
+  @override
   int get hashCode => Object.hash(_nativeValue, bits, MAX_VALUE, MIN_VALUE);
 }
 
