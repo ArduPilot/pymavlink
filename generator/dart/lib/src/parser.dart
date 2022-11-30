@@ -49,11 +49,11 @@ enum _MAVParserStates {
 ///
 /// After creating an instance of this class, simply use the [mavlinkParseChar] 
 /// method to parse a byte stream.
-class Parser {
+class MAVLinkParser {
   static const bool _debug = false;
 
   late List<DialectCRC> _dialectCRCs;
-  Parser([List<DialectCRC>? dialectCRCs, signatureKey]) {
+  MAVLinkParser([List<DialectCRC>? dialectCRCs, Uint8List? signatureKey]) {
     if (dialectCRCs == null) {
       _dialectCRCs = [
         all_CRC(),
@@ -75,7 +75,7 @@ class Parser {
   }
 
   static void _logv(String str) {
-    StringBuffer buf = StringBuffer("Parser: ");
+    StringBuffer buf = StringBuffer("MAVLinkParser: ");
     buf.write(str);
     if(_debug) print(buf.toString());
   }
@@ -87,7 +87,7 @@ class Parser {
   bool _isMavlink2 = false;
   var _longString = StringBuffer();
 
-  Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [signatureKey]) {
+  MAVLinkParser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [Uint8List? signatureKey]) {
     stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPacketStats);
     this.signatureKey = signatureKey;
   }
@@ -225,7 +225,7 @@ class Parser {
         }
         bool crcGen = _m.generateCRC(_m.payload.size);
         // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
-        var lsb = _m.crc.getLSB();
+        var lsb = _m.crc.lsb;
         if (c != lsb || !crcGen) {
           _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
           stats.crcError();
@@ -236,7 +236,7 @@ class Parser {
 
       case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_CRC1:
         // Check second checksum byte
-        if (c != _m.crc.getMSB()) {
+        if (c != _m.crc.msb) {
           _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
           stats.crcError();
         } else { // crc is good

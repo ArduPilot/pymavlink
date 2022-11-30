@@ -4,6 +4,66 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
+/// This library is your main point of entry with MAVLink.
+/// It contains the [MAVLinkParser] class which is used to parse incoming
+/// messages, byte by byte, and the 
+///
+/// This library automatically pulls in the [minimal] dialect by default.
+/// To use a different dialect, import it alongside this library.
+///
+/// A typing system has been implemented to allow for type safety when
+/// working with MAVLink messages. These types are [MAVChar], [MAVUint8],
+/// [MAVInt8], [MAVUint16], [MAVInt16], [MAVUint32], [MAVInt32], [MAVUint64],
+/// [MAVInt64], [MAVFloat], and [MAVDouble].
+///
+/// To use these types, simply wrap the native value in the type constructor.
+/// For example, to create a [MAVUint8] with the value 5:
+/// ```dart
+/// MAVUint8(5)
+/// ```
+/// To get the value out of the type, use the `value` getter.
+/// For example, to get the value of the [MAVUint8] above:
+/// ```dart
+/// MAVUint8(5).value
+/// ```
+/// 
+/// 64-bit native types are not supported on web platforms, so instead of using
+/// an integer type for the 64-bit [MAVInt64] and [MAVUint64] types, pass
+/// in a [BigInt] instead.
+/// For example, to create a [MAVUint64] with the value 5:
+/// ```dart
+/// MAVUint64(BigInt.from(5))
+/// ```
+/// To get the value out of the type, use the `value` getter.
+/// For example, to get the value of the [MAVUint64] above:
+/// ```dart
+/// MAVUint64(BigInt.from(5)).value
+/// ```
+///
+/// To create a [MAVLinkMessage], use the specific message class for the
+/// desired message, providing the component ID in `compID` and system ID in `sysID`.
+/// For MAVLink2 messages, `isMavlink2` may also be passed to the constructor,
+/// or the dedicated `MAVLink2` constructor can be used.
+/// 
+/// Once you have a message, fields can be added to it by using the setters.
+/// After the message is populated, a [MAVLinkPacket] can be created by calling
+/// the [MAVLinkMessage.pack] method with the packet sequence number.
+/// 
+/// The resulting [MAVLinkPacket] can then be modified if necessary. For example,
+/// a signed MAVLink2 message can be signed by providing a [MAVPacketSignature] to the packet.
+/// ```dart
+/// var secretKey = MAVPacketSignature.generateKey();
+///
+/// MAVLinkPacket packet = message.pack(0);
+/// packet.signature = MAVPacketSignature.builder(packet, secretKey, linkID: linkID);
+/// ```
+/// 
+/// Once the packet is ready, it can be encoded with [MAVLinkPacket.encodePacket]. This
+/// results a [Uint8List] which can be sent over the wire. If the packet has a signature,
+/// and the correct incompatible flags are set, the packet will be signed at this point.
+/// 
+/// CRC Extra is automatically calculated for MAVLink2 messages and added to the packet
+/// without any user intervention needed.
 library mavlink;
 
 export 'minimal.dart';

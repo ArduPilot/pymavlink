@@ -50,7 +50,7 @@ def param_docstring(params, indent=2):
                 pass
             else:
                 newLines.append(' ' * indent + '/// | %d            | %s |\n' % (idx, line))
-        param.docstring_description = ''.join(newLines)
+        param.docstring_description = ''.join(newLines).replace("[", "\\[").replace("]", "\\]")
         newLines = []
     return params
 
@@ -63,11 +63,12 @@ def generate_enums(basename, xml):
 
     mavparse.mkdir_p(directory)
     for en in xml.enum:
+        en.xml_basename = xml.basename
         f = open(os.path.join(directory, en.name.lower()+".dart"), mode='w')
         imports.append("export '%s.dart';\n" % en.name.lower())
-        en.docstring_description = docstring(en.description, indent=0)
+        en.docstring_description = docstring(en.description, indent=0).replace("[", "\[").replace("]", "\]")
         for entry in en.entry:
-            entry.docstring_description = docstring(entry.description)
+            entry.docstring_description = docstring(entry.description).replace("[", "\[").replace("]", "\]")
             entry.param = param_docstring(entry.param)
         t.write(f, '''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
@@ -80,6 +81,8 @@ def generate_enums(basename, xml):
 // ignore_for_file: camel_case_types
 
 ${docstring_description}
+/// {@category Enums}
+/// {@category ${xml_basename}}
 class ${name} {
 ${{entry:${docstring_description}${{param:${docstring_description}}}\n  static const int ${name} = ${value};\n\n}}
 }
@@ -154,6 +157,8 @@ import 'package:mavlink/crc.dart';
 /// CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
 /// initialized, updated with which field of the message, and then finished with
 /// the message id.
+/// {@category CRC}
+/// {@category ${basename}}
 class ${basename}_CRC extends DialectCRC {
   @override
   // ignore: non_constant_identifier_names
@@ -186,7 +191,7 @@ def generate_message_h(directory, m):
     (path_head, path_tail) = os.path.split(directory)
     if path_tail == "":
         (path_head, path_tail) = os.path.split(path_head)
-    m.docstring_description = docstring(m.description, indent=0)
+    m.docstring_description = docstring(m.description, indent=0).replace("[", "\\[").replace("]", "\\]")
     t.write(f, '''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
  *
@@ -208,6 +213,8 @@ import 'crc.dart';
 import 'package:mavlink/mavlink.dart';
 
 ${docstring_description}
+/// {@category Messages}
+/// {@category ${xml_basename}}
 class MSG_${name} extends MAVLinkMessage {
 
   static const int MAVLINK_MSG_ID_${name} = ${id};
@@ -215,9 +222,10 @@ class MSG_${name} extends MAVLinkMessage {
 ''', m)
 
     for item in m.ordered_fields:
+        item.escaped_description = item.description.replace("[", "\\['").replace("]", "\\]'")
         t.write(f, '''
 
-  /// ${description}
+  /// ${escaped_description}
   static const String ${name}_description = "${description}";
   static const String ${name}_units = "${units}";
 ''', item)
@@ -413,8 +421,8 @@ class MAVPacketSignature {
       data.add(_packet.payload.getData()[i]);
     }
     _packet.generateCRC(payloadSize);
-    data.add(_packet.crc.getMSB());
-    data.add(_packet.crc.getLSB());
+    data.add(_packet.crc.msb);
+    data.add(_packet.crc.lsb);
     data.add(linkID);
     data.addAll([timestamp & 0xFF, (timestamp >>> 8) & 0xFF, (timestamp >>> 8*2) & 0xFF, (timestamp >>> 8*3) & 0xFF, (timestamp >>> 8*4) & 0xFF, (timestamp >>> 8*5) & 0xFF]);
 
@@ -543,7 +551,7 @@ class MAVLinkPacket {
 
     MAVPacketSignature? signature;
 
-    MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false, dialectCRC}) {
+    MAVLinkPacket({required this.len, required this.sysID, required this.compID, required this.msgID, required this.seq, int incompatFlags = 0, this.compatFlags = 0, this.isMavlink2 = false, DialectCRC? dialectCRC}) {
       if (dialectCRC != null) {
         this.dialectCRC = dialectCRC;
       }
@@ -646,8 +654,8 @@ class MAVLinkPacket {
         }
 
         generateCRC(payloadSize);
-        buffer.setUint8(i++, crc.getLSB());
-        buffer.setUint8(i++, crc.getMSB());
+        buffer.setUint8(i++, crc.lsb);
+        buffer.setUint8(i++, crc.msb);
 
         if (isSigned) {
           buffer.setUint8(i++, signature!.linkID);
@@ -715,14 +723,40 @@ class MAVLinkPacket {
     f.close()
 
 
+def generate_dartdoc(directory, xmls):
+    with open(os.path.join(directory, 'dartdoc_options.yaml'), 'w') as f:
+        f.write('''
+dartdoc:
+  categories:
+    "Messages":
+      name: Messages
+      markdown: doc/Messages.md
+    "Enums":
+      name: Enums
+      markdown: doc/Enums.md
+    "CRC":
+      name: CRC
+      markdown: doc/CRC.md''')
+        for xml in xmls:
+            f.write('''
+    "%s":
+      name: %s
+      markdown: doc/Dialects.md''' % (xml.basename, xml.basename))
+        f.write('''
+  errors:
+    - unresolved-doc-reference
+    - ambiguous-doc-reference
+''')
+
+
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
     hlist = ['lib/src/types.dart', 'lib/src/parser.dart', 'lib/src/messages/mavlink_message.dart',
-             'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart',
+             'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart', 'doc/Enums.md', 'doc/Messages.md',
              'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md',
              'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile', 'lib/crc.dart', 'lib/src/crc.dart',
-             'analysis_options.yaml']
+             'analysis_options.yaml', '.gitignore', 'doc/CRC.md', 'doc/Dialects.md']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'dart')
     print("Copying fixed headers")
@@ -1025,3 +1059,4 @@ def generate(basename, xml_list):
         generate_enums(basename, xml)
         generate_MAVLinkMessage(basename, xml_list)
     copy_fixed_headers(basename, xml_list[0])
+    generate_dartdoc(basename, xml_list)

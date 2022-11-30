@@ -1,6 +1,9 @@
-.PHONY: test coverage docs
+.PHONY: test coverage docs ci format
 
-test:
+format:
+	@dart format .
+
+test: format
 	@dart test --coverage=./coverage -p "chrome,vm" test/mavlink_test.dart
 
 NON_GENERATED_SOURCES := $(shell find lib/src/messages -name '*.dart')
@@ -13,5 +16,9 @@ coverage: test
 	@perl /c/ProgramData/chocolatey/lib/lcov/tools/bin/genhtml -o ./coverage/report coverage/test/mavlink_test.dart.lcov
 	@echo "Coverage report generated at $(PWD)/coverage/report/index.html"
 
-docs:
+docs: format
+	@dart pub get
 	@dart doc .
+
+ci: format coverage docs
+	@dart analyze

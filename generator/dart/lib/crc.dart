@@ -4,4 +4,17 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
+/// This library contains the CRC-16/MCRF4XX implementation for MAVLink.
+/// [CRC] is a class that can be used to calculate the CRC-16/MCRF4XX checksum.
+/// Start by calling [CRC.start], then call [CRC.update] for each byte in the
+/// message. [CRC.lsb] and [CRC.msb] can be used to get the checksum bytes.
+/// 
+/// [DialectCRC] is an abstract class used to refer to any of the dialect's
+/// CRC Extra bytes. Each dialect's CRC is a subclass of [DialectCRC] and 
+/// overrides [DialectCRC.MAVLINK_MESSAGE_CRCS] and [DialectCRC.finish].
+/// 
+/// To use the CRC extra bytes, call [DialectCRC.finish] with the message ID
+/// and the [CRC] object. If the message ID is not in the map, the function will return false.
+/// If the message ID is in the map, the function will return true and the CRC object will
+/// have the extra byte added to it.
 export 'src/crc.dart';

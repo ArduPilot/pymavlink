@@ -20,9 +20,10 @@ linter:
     - unused_import: false
 
 analyzer:
-  strict-casts: true
-  strict-inference: true
-  strict-raw-types: true
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
   # exclude:
   #   - path/to/excluded/files/**
 

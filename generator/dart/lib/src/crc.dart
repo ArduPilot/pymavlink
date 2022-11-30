@@ -29,13 +29,8 @@ class CRC {
       _crcValue = 0xffff;
     }
 
-    int getMSB() {
-      return ((_crcValue >> 8) & 0xff);
-    }
-
-    int getLSB() {
-      return (_crcValue & 0xff);
-    }
+    int get msb => ((_crcValue >> 8) & 0xff);
+    int get lsb => (_crcValue & 0xff);
 }
 
 abstract class DialectCRC {
