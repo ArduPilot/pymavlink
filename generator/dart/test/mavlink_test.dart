@@ -356,7 +356,6 @@ void main() {
     final compatFlags = 0;
     final linkID = 1;
     final secretKey = MAVPacketSignature.generateKey();
-    final supportedDialects = <DialectCRC>[ardupilotmega_CRC()];
     final mav2SignedMessage = MSG_AP_ADC.MAVLink2(
       compID: compID,
       sysID: sysID,
