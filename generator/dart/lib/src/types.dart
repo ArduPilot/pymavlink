@@ -24,7 +24,7 @@ abstract class _MAVTypeNative<T> {
 
   _MAVTypeNative._withoutValidation({required T value, required this.bits}) : _nativeValue = value;
 
-  bool validate<T extends num>() {
+  bool validate<U extends num>() {
     return ((_nativeValue as num) >= (MIN_VALUE as num) && (_nativeValue as num) <= (MAX_VALUE as num));
   }
 

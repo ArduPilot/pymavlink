@@ -126,7 +126,7 @@ def generate_package_exports(directory, basename):
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
-library mavlink;
+// ignore_for_file: file_names
 
 export 'src/%s/export.dart';
 ''' % basename)
@@ -202,7 +202,9 @@ def generate_message_h(directory, m):
 // ignore: unused_import
 import 'dart:math';
 
+// ignore: unnecessary_import
 import 'crc.dart';
+
 import 'package:mavlink/mavlink.dart';
 
 ${docstring_description}
@@ -222,18 +224,15 @@ class MSG_${name} extends MAVLinkMessage {
         if item.array_length == 0:
             if item.type == 'MAVUint64' or item.type == 'MAVInt64':
                 t.write(f, '''
-  ${type} _${name} = ${type}(BigInt.zero);
+  ${type} ${name} = ${type}(BigInt.zero);
 ''', item)
-            else:
+            elif item.type == 'MAVChar':
                 t.write(f, '''
   ${type} _${name} = ${type}(0);
 ''', item)
-            if item.origType != "char":
+            else:
                 t.write(f, '''
-  ${type} get ${name} => _${name};
-  set ${name}(${type} setterData) {
-    _${name} = setterData;
-  }
+  ${type} ${name} = ${type}(0);
 ''', item)
         else:
             if item.type == 'MAVUint64' or item.type == 'MAVInt64':
