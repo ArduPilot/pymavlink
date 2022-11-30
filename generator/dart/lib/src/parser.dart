@@ -8,7 +8,6 @@
 
 import 'dart:typed_data';
 
-import 'package:mavlink/common.dart';
 import 'package:mavlink/mavlink.dart';
 import 'package:mavlink/all.dart';
 import 'package:mavlink/crc.dart';
@@ -83,7 +82,7 @@ class MAVLinkParser {
   _MAVParserStates _state = _MAVParserStates.MAVLINK_PARSE_STATE_UNINIT;
 
   MAVLinkStats stats = MAVLinkStats();
-  final MAVLinkPacket _m = MAVLinkPacket(len: 0, sysID: 0, compID: 0, msgID: 0, seq: 0, dialectCRC: common_CRC());
+  MAVLinkPacket _m = MAVLinkPacket(len: 0, sysID: 0, compID: 0, msgID: 0, seq: 0, dialectCRC: all_CRC());
   bool _isMavlink2 = false;
   var _longString = StringBuffer();
 
@@ -105,21 +104,18 @@ class MAVLinkParser {
     switch (_state) {
       case _MAVParserStates.MAVLINK_PARSE_STATE_UNINIT:
       case _MAVParserStates.MAVLINK_PARSE_STATE_IDLE:
+        _m = MAVLinkPacket(len: 0, sysID: 0, compID: 0, msgID: 0, seq: 0, dialectCRC: all_CRC());
         // MAVLink 1 and 2
         if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK2) {
           _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_STX;
-          if (!_isMavlink2) {
-            _isMavlink2 = true;
-            _m.isMavlink2 = true;
-            _logv("Turning mavlink2 ON");
-          }
+          _isMavlink2 = true;
+          _m.isMavlink2 = true;
+          _logv("Turning mavlink2 ON");
         } else if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK1) {
           _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_STX;
-          if (_isMavlink2) {
-            _isMavlink2 = false;
-            _m.isMavlink2 = false;
-            _logv("Turning mavlink2 OFF");
-          }
+          _isMavlink2 = false;
+          _m.isMavlink2 = false;
+          _logv("Turning mavlink2 OFF");
         }
         break;
 
@@ -223,7 +219,7 @@ class MAVLinkParser {
           _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
           stats.crcError();
         }
-        bool crcGen = _m.generateCRC(_m.payload.size);
+        bool crcGen = _m.generateCRC(_m.len);
         // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
         var lsb = _m.crc.lsb;
         if (c != lsb || !crcGen) {

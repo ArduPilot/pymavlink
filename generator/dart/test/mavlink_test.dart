@@ -186,7 +186,7 @@ void main() {
       // Check STX
       expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK1);
       // Length matches actual payload length
-      expect(encoded[1], packet.payload.size);
+      expect(encoded[1], packet.payload.actualSize);
 
       // Check sequence number
       expect(encoded[2], packetSeq);
@@ -240,7 +240,7 @@ void main() {
       // Check STX
       expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK2);
       // Length matches actual payload length
-      expect(encoded[1], MAVLinkPacket.mavTrimPayload(packet.payload.getData()));
+      expect(encoded[1], packet.payload.mavlink2Size);
 
       // Check incompat flags
       expect(encoded[2], packet.incompatFlags);
@@ -285,7 +285,7 @@ void main() {
       // Check STX
       expect(encoded[0], MAVLinkPacket.MAVLINK_STX_MAVLINK2);
       // Length matches actual payload length
-      expect(encoded[1], MAVLinkPacket.mavTrimPayload(packet.payload.getData()));
+      expect(encoded[1], packet.payload.mavlink2Size);
 
       // Check incompat flags
       expect(encoded[2], packet.incompatFlags);

@@ -17,8 +17,16 @@ class MAVLinkPayload {
   }
 
   int _bytesWritten = 0;
-  int get size {
+  int get actualSize {
     return _bytesWritten;
+  }
+  int get mavlink2Size {
+    var payload = getData();
+    int length = payload.length;
+    while (length > 1 && payload[length - 1] == 0) {
+      length--;
+    }
+    return length;
   }
 
   void resetIndex() {

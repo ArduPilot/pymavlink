@@ -30,6 +30,6 @@ void main() {
   message.c = "A";
   message.s = "Test";
 
-  print(message.pack(seq).payload.size);
+  print(message.pack(seq).payload.actualSize);
   print(MSG_TEST_TYPES.MAVLINK_MSG_LENGTH);
 }

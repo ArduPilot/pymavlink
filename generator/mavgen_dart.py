@@ -416,7 +416,7 @@ class MAVPacketSignature {
     // Take the first 48 bits of the sha256 hash of (secret_key + _packet.payload.buffer.asUint8List() + CRC + linkID + timestamp)
     var data = <int>[];
     data.addAll(_secretKey);
-    var payloadSize = MAVLinkPacket.mavTrimPayload(_packet.payload.getData());
+    var payloadSize = _packet.payload.mavlink2Size;
     for (var i = 0; i < payloadSize; i++) {
       data.add(_packet.payload.getData()[i]);
     }
@@ -563,7 +563,7 @@ class MAVLinkPacket {
 
     /// Check if the size of the Payload is equal to the "len" byte
     bool payloadIsFilled() {
-        return payload.size >= len;
+        return payload.actualSize >= len;
     }
 
     /// Update CRC for this packet.
@@ -598,33 +598,17 @@ class MAVLinkPacket {
         return dialectCRC.finish(msgID, crc);
     }
 
-    /// Return length of actual data after trimming zeros at the end.
-    ///
-    /// @param payload
-    /// @return minimum length of valid data
-    static int mavTrimPayload(final Uint8List payload)
-    {
-        int length = payload.length;
-        while (length > 1 && payload[length-1] == 0) {
-            length--;
-        }
-        return length;
-    }
-
     /// Encode this packet for transmission.
     ///
     /// @return Array with bytes to be transmitted
     Uint8List encodePacket() {
         final int bufLen;
-        final int payloadSize;
+        final int payloadSize = isMavlink2 ? payload.mavlink2Size:payload.actualSize;
 
         if (isMavlink2) {
-            payloadSize = mavTrimPayload(payload.getData());
             bufLen = MAVLINK2_HEADER_LEN + payloadSize + 2 + (isSigned ? MAVLINK2_SIGNATURE_LEN : 0);
         } else {
-            payloadSize = payload.size;
             bufLen = MAVLINK1_HEADER_LEN + payloadSize + 2;
-
         }
         ByteData buffer = ByteData(bufLen);
 
