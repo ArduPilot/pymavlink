@@ -6,7 +6,21 @@
 
 /// This library is your main point of entry with MAVLink.
 /// It contains the [MAVLinkParser] class which is used to parse incoming
-/// messages, byte by byte, and the 
+/// messages, byte by byte. The constructor accepts a list of dialect CRCs
+/// to support decoding from. By default, this is [all_CRC], which contains all
+/// CRC extra bytes. The constructor also accepts a secret key of 32 bytes for 
+/// MAVLink2 signed packet parsing. The standard usage pattern looks something like this:
+/// ```dart
+/// var parser = MAVLinkParser(<DialectCRC>[ardupilotmega_CRC()], secretKey);
+/// 
+/// MAVLinkPacket? packet;
+/// for (var byte in packetBytes) {
+///   packet = parser.mavlinkParseChar(byte);
+///   if (packet != null) {
+///     // We have a packet and can obtain the message with packet.unpack()
+///   }
+/// }
+/// ```
 ///
 /// This library automatically pulls in the [minimal] dialect by default.
 /// To use a different dialect, import it alongside this library.
