@@ -114,7 +114,7 @@ class ComponentStat {
   int _newPacket(MAVLinkPacket packet) {
     int newLostPackets = 0;
     if (hasLostPackets(packet)) {
-        newLostPackets = _updateLostPacketCount(packet);
+      newLostPackets = _updateLostPacketCount(packet);
     }
     _lastPacketSeq = packet.seq;
     _advanceLastPacketSequence(packet.seq);
@@ -131,9 +131,9 @@ class ComponentStat {
   int _updateLostPacketCount(MAVLinkPacket packet) {
     int lostPackets;
     if (packet.seq - _lastPacketSeq < 0) {
-        lostPackets = (packet.seq - _lastPacketSeq) + 255;
+      lostPackets = (packet.seq - _lastPacketSeq) + 255;
     } else {
-        lostPackets = (packet.seq - _lastPacketSeq);
+      lostPackets = (packet.seq - _lastPacketSeq);
     }
     _lostPacketCount += lostPackets;
     return lostPackets;

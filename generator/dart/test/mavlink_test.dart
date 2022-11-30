@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:mavlink/mavlink.dart';
@@ -403,9 +402,9 @@ void main() {
     var parser = Parser(supportedDialects, secretKey);
 
     test('MAVLink2 signed messages can be parsed', () {
-      MAVLinkPacket? packet = null;
+      MAVLinkPacket? packet;
       for (var byte in mav2SignedPacket.encodePacket()) {
-        packet = signedParser.mavlink_parse_char(byte);
+        packet = signedParser.mavlinkParseChar(byte);
         if (packet != null) {
           expect(packet.compID, mav2SignedPacket.compID);
         }
@@ -414,9 +413,9 @@ void main() {
     });
 
     test('MAVLink messages can be parsed', () {
-      MAVLinkPacket? packet = null;
+      MAVLinkPacket? packet;
       for (var byte in mav1Packet.encodePacket()) {
-        packet = parser.mavlink_parse_char(byte);
+        packet = parser.mavlinkParseChar(byte);
         if (packet != null) {
           expect(packet.compID, mav1Packet.compID);
         }
@@ -435,7 +434,7 @@ void main() {
     test('MAVLink2 unsigned messages can be parsed', () {
       // MAVLinkPacket? packet = null;
       // for (var byte in mav2Packet.encodePacket()) {
-      //   packet = parser.mavlink_parse_char(byte);
+      //   packet = parser.mavlinkParseChar(byte);
       //   if (packet != null) {
       //     expect(packet.compID, mav2Packet.compID);
       //   }

@@ -9,9 +9,7 @@ import 'dart:typed_data';
 import 'package:mavlink/mavlink.dart';
 
 class MAVLinkPayload {
-  static const int MAX_PAYLOAD_SIZE = 255;
-  
-  final _payload = ByteData(MAX_PAYLOAD_SIZE);
+  final _payload = ByteData(255);
   int _index = 0;
 
   Uint8List getData() {
@@ -69,7 +67,7 @@ class MAVLinkPayload {
     return result;
   }
 
-  BigInt _getLong([int bytes = 8]) {
+  BigInt _getLong() {
     StringBuffer buf = StringBuffer();
     buf.write(_payload.getUint8(_index + 7).toRadixString(2).padLeft(8, '0'));
     buf.write(_payload.getUint8(_index + 6).toRadixString(2).padLeft(8, '0'));

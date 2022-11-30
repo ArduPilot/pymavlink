@@ -4,320 +4,327 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
+// ignore_for_file: constant_identifier_names
+
 import 'dart:typed_data';
 
 import 'package:mavlink/common.dart';
 import 'package:mavlink/mavlink.dart';
+import 'package:mavlink/all.dart';
 import 'package:mavlink/crc.dart';
 
 /// States from the parsing state machine
-enum _MAV_states {
-    MAVLINK_PARSE_STATE_UNINIT,
-    MAVLINK_PARSE_STATE_IDLE,
-    MAVLINK_PARSE_STATE_GOT_STX,
-    MAVLINK_PARSE_STATE_GOT_LENGTH,
-    MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_SEQ,
-    MAVLINK_PARSE_STATE_GOT_SYSID,
-    MAVLINK_PARSE_STATE_GOT_COMPID,
-    MAVLINK_PARSE_STATE_GOT_MSGID1,
-    MAVLINK_PARSE_STATE_GOT_MSGID2, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_MSGID3, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_CRC1,
-    MAVLINK_PARSE_STATE_GOT_CRC2, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_PAYLOAD,
-    MAVLINK_PARSE_STATE_GOT_LINKID, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_TIMESTAMP, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_SIGNATURE_1, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_SIGNATURE_2, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_SIGNATURE_3, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_SIGNATURE_4, // MAVLink 2
-    MAVLINK_PARSE_STATE_GOT_SIGNATURE_5, // MAVLink 2
+enum _MAVParserStates {
+  MAVLINK_PARSE_STATE_UNINIT,
+  MAVLINK_PARSE_STATE_IDLE,
+  MAVLINK_PARSE_STATE_GOT_STX,
+  MAVLINK_PARSE_STATE_GOT_LENGTH,
+  MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_SEQ,
+  MAVLINK_PARSE_STATE_GOT_SYSID,
+  MAVLINK_PARSE_STATE_GOT_COMPID,
+  MAVLINK_PARSE_STATE_GOT_MSGID1,
+  MAVLINK_PARSE_STATE_GOT_MSGID2, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_MSGID3, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_CRC1,
+  MAVLINK_PARSE_STATE_GOT_CRC2, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_PAYLOAD,
+  MAVLINK_PARSE_STATE_GOT_LINKID, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_TIMESTAMP, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_SIGNATURE_1, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_SIGNATURE_2, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_SIGNATURE_3, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_SIGNATURE_4, // MAVLink 2
+  MAVLINK_PARSE_STATE_GOT_SIGNATURE_5, // MAVLink 2
 }
 
 /// MAVLink parser that parses @{link MAVLinkPacket}s from a byte stream one byte
 /// at a time.
 ///
-/// After creating an instance of this class, simply use the @{link #mavlink_parse_char} 
+/// After creating an instance of this class, simply use the [mavlinkParseChar] 
 /// method to parse a byte stream.
 class Parser {
-    late List<DialectCRC> _dialectCRCs;
-    Parser(List<DialectCRC> dialectCRCs, [signatureKey]) {
-      this._dialectCRCs = dialectCRCs;
-      this.signatureKey = signatureKey;
-    }
+  static const bool _debug = false;
 
-    Uint8List? _signatureKey;
-    void set signatureKey(Uint8List? key) {
-      if (key != null) {
-        if (key.length != 32) {
-          throw ArgumentError.value(key, 'key', 'Signature key must be 32 bytes long');
-        }
-        _signatureKey = key;
+  late List<DialectCRC> _dialectCRCs;
+  Parser([List<DialectCRC>? dialectCRCs, signatureKey]) {
+    if (dialectCRCs == null) {
+      _dialectCRCs = [
+        all_CRC(),
+      ];
+    } else {
+      _dialectCRCs = dialectCRCs;
+    }
+    this.signatureKey = signatureKey;
+  }
+
+  Uint8List? _signatureKey;
+  set signatureKey(Uint8List? key) {
+    if (key != null) {
+      if (key.length != 32) {
+        throw ArgumentError.value(key, 'key', 'Signature key must be 32 bytes long');
       }
+      _signatureKey = key;
     }
+  }
 
-    static const bool _V = false;
-  
-    static void _logv(String str) {
-        StringBuffer buf = StringBuffer("Parser: ");
-        buf.write(str);
-        if(_V) print(buf.toString());
-    }
+  static void _logv(String str) {
+    StringBuffer buf = StringBuffer("Parser: ");
+    buf.write(str);
+    if(_debug) print(buf.toString());
+  }
 
-    _MAV_states _state = _MAV_states.MAVLINK_PARSE_STATE_UNINIT;
+  _MAVParserStates _state = _MAVParserStates.MAVLINK_PARSE_STATE_UNINIT;
 
-    MAVLinkStats stats = MAVLinkStats();
-    MAVLinkPacket _m = MAVLinkPacket(len: 0, sysID: 0, compID: 0, msgID: 0, seq: 0, dialectCRC: common_CRC());
-    bool _isMavlink2 = false;
-    var _longString = StringBuffer();
+  MAVLinkStats stats = MAVLinkStats();
+  final MAVLinkPacket _m = MAVLinkPacket(len: 0, sysID: 0, compID: 0, msgID: 0, seq: 0, dialectCRC: common_CRC());
+  bool _isMavlink2 = false;
+  var _longString = StringBuffer();
 
-    Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [signatureKey]) {
-      stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPacketStats);
-      this.signatureKey = signatureKey;
-    }
+  Parser.withIgnoreRadioPackets(bool ignoreRadioPacketStats, [signatureKey]) {
+    stats = MAVLinkStats.withIgnoreRadioPackets(ignoreRadioPacketStats);
+    this.signatureKey = signatureKey;
+  }
 
-    /// This is a convenience function which handles the complete MAVLink
-    /// parsing. the function will parse one byte at a time and return the
-    /// complete packet once it could be successfully decoded. Checksum and other
-    /// failures will be silently ignored.
-    /// 
-    /// @param c The char to parse
-    /// @return the complete @{link MAVLinkPacket} if successfully decoded, else null
-    MAVLinkPacket? mavlink_parse_char(int c) {
-        // force to 8 bits
-        c &= 0xFF;
-        switch (_state) {
-            case _MAV_states.MAVLINK_PARSE_STATE_UNINIT:
-            case _MAV_states.MAVLINK_PARSE_STATE_IDLE:
-                // MAVLink 1 and 2
-                if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK2) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
-                    if (!_isMavlink2) {
-                        _isMavlink2 = true;
-                        _m.isMavlink2 = true;
-                        _logv("Turning mavlink2 ON");
-                    }
-                } else if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK1) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_STX;
-                    if (_isMavlink2) {
-                        _isMavlink2 = false;
-                        _m.isMavlink2 = false;
-                        _logv("Turning mavlink2 OFF");
-                    }
-                }
-                break;
+  /// This is a convenience function which handles the complete MAVLink
+  /// parsing. the function will parse one byte at a time and return the
+  /// complete packet once it could be successfully decoded. Checksum and other
+  /// failures will be silently ignored.
+  /// 
+  /// @param c The char to parse
+  /// @return the complete @{link MAVLinkPacket} if successfully decoded, else null
+  MAVLinkPacket? mavlinkParseChar(int c) {
+    // force to 8 bits
+    c &= 0xFF;
+    switch (_state) {
+      case _MAVParserStates.MAVLINK_PARSE_STATE_UNINIT:
+      case _MAVParserStates.MAVLINK_PARSE_STATE_IDLE:
+        // MAVLink 1 and 2
+        if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK2) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_STX;
+          if (!_isMavlink2) {
+            _isMavlink2 = true;
+            _m.isMavlink2 = true;
+            _logv("Turning mavlink2 ON");
+          }
+        } else if (c == MAVLinkPacket.MAVLINK_STX_MAVLINK1) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_STX;
+          if (_isMavlink2) {
+            _isMavlink2 = false;
+            _m.isMavlink2 = false;
+            _logv("Turning mavlink2 OFF");
+          }
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_STX:
-                // MAVLink 1 and 2
-                _m.len = c;
-                if (_isMavlink2) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH;
-                } else {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
-                }
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_STX:
+        // MAVLink 1 and 2
+        _m.len = c;
+        if (_isMavlink2) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_LENGTH;
+        } else {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_LENGTH:
-                // MAVLink 1 and 2
-                _m.incompatFlags = c;
-                if (c != 0 && c != 1) {
-                    // message includes an incompatible feature flag
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                    break;
-                }
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS;
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_LENGTH:
+        // MAVLink 1 and 2
+        _m.incompatFlags = c;
+        if (c != 0 && c != 1) {
+          // message includes an incompatible feature flag
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          break;
+        }
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS;
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS:
-                // MAVLink 2 only
-                _m.compatFlags = c;
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_INCOMPAT_FLAGS:
+        // MAVLink 2 only
+        _m.compatFlags = c;
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS:
-                _m.seq = c;
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ;
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS:
+        _m.seq = c;
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SEQ;
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SEQ:
-                // back to MAVLink 1 and 2
-                _m.sysID = c;
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SYSID;
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SEQ:
+        // back to MAVLink 1 and 2
+        _m.sysID = c;
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SYSID;
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SYSID:
-                // MAVLink 1 and 2
-                _m.compID = c;
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPID;
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SYSID:
+        // MAVLink 1 and 2
+        _m.compID = c;
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_COMPID;
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_COMPID:
-                // MAVLink 1 and 2
-                _m.msgID = c;
-                if (_isMavlink2) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1;
-                } else if (_m.len > 0) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
-                } else {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
-                }
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_COMPID:
+        // MAVLink 1 and 2
+        _m.msgID = c;
+        if (_isMavlink2) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID1;
+        } else if (_m.len > 0) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID3;
+        } else {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID1:
-                // MAVLink 2 only
-                _m.msgID |= c << 8;
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2;
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID1:
+        // MAVLink 2 only
+        _m.msgID |= c << 8;
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID2;
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID2:
-                // MAVLink 2 only
-                _m.msgID |= c << 16;
-                if (_m.len > 0) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3;
-                } else {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
-                }
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID2:
+        // MAVLink 2 only
+        _m.msgID |= c << 16;
+        if (_m.len > 0) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID3;
+        } else {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_MSGID3:
-                // back to MAVLink 1 and 2
-                _m.payload.putUnsignedByte(MAVUint8(c));
-                if (_m.payloadIsFilled()) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
-                }
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_MSGID3:
+        // back to MAVLink 1 and 2
+        _m.payload.putUnsignedByte(MAVUint8(c));
+        if (_m.payloadIsFilled()) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_PAYLOAD;
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_PAYLOAD:
-                int foundDialects = 0;
-                var foundDialectsList = <DialectCRC>[];
-                for (var i = 0; i < _dialectCRCs.length; i++) {
-                    if (_dialectCRCs[i].MAVLINK_MESSAGE_CRCS.containsKey(_m.msgID)) {
-                        foundDialects++;
-                        foundDialectsList.add(_dialectCRCs[i]);
-                    }
-                }
-                if (foundDialects == 0) {
-                  _logv("Found no dialects for message ID ${_m.msgID}");
-                  _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                  stats.crcError();
-                } else if (foundDialects == 1) {
-                  _m.dialectCRC = _dialectCRCs[0];
-                } else {
-                  // TODO: handle CRC conflicts in multiple dialects
-                  _logv("Found multiple dialects for message ID ${_m.msgID}");
-                  _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                  stats.crcError();
-                }
-                bool crcGen = _m.generateCRC(_m.payload.size);
-                // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
-                var lsb = _m.crc.getLSB();
-                if (c != lsb || !crcGen) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                    stats.crcError();
-                } else {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1;
-                }
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_PAYLOAD:
+        int foundDialects = 0;
+        var foundDialectsList = <DialectCRC>[];
+        for (var i = 0; i < _dialectCRCs.length; i++) {
+          if (_dialectCRCs[i].MAVLINK_MESSAGE_CRCS.containsKey(_m.msgID)) {
+            foundDialects++;
+            foundDialectsList.add(_dialectCRCs[i]);
+          }
+        }
+        if (foundDialects == 0) {
+          _logv("Found no dialects for message ID ${_m.msgID}");
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          stats.crcError();
+        } else if (foundDialects == 1) {
+          _m.dialectCRC = _dialectCRCs[0];
+        } else {
+          _logv("Found multiple dialects for message ID ${_m.msgID}");
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          stats.crcError();
+        }
+        bool crcGen = _m.generateCRC(_m.payload.size);
+        // Check first checksum byte and verify the CRC was successfully generated (msg extra exists)
+        var lsb = _m.crc.getLSB();
+        if (c != lsb || !crcGen) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          stats.crcError();
+        } else {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_CRC1;
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC1:
-                // Check second checksum byte
-                if (c != _m.crc.getMSB()) {
-                    _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                    stats.crcError();
-                } else { // crc is good
-                    stats.newPacket(_m);
-                    
-                    if (!_isMavlink2 || (_m.incompatFlags != 0x01)) {
-                        // If no signature, then return the message.
-                        _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                        return _m;
-                    } else {
-                        // MAVLink 2 - signed
-                        _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2;
-                    }
-                }
-                break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_CRC1:
+        // Check second checksum byte
+        if (c != _m.crc.getMSB()) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          stats.crcError();
+        } else { // crc is good
+          stats.newPacket(_m);
+          if (!_isMavlink2 || (_m.incompatFlags != 0x01)) {
+            // If no signature, then return the message.
+            _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+            return _m;
+          } else {
+            // MAVLink 2 - signed
+            _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_CRC2;
+          }
+        }
+        break;
 
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_CRC2:
-                _m.signature!.secretKey = _signatureKey!;
-                _m.signature!.linkID = c;
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_LINKID;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_LINKID:
-                // Timestamp starts
-                _longString = StringBuffer(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                // Longstring is in little endian format with two-digit bytes - convert to big endian
-                var tmpStr = StringBuffer();
-                for (var i = _longString.length; i > 1; i-=2) {
-                    tmpStr.write(_longString.toString().substring(i-2, i));
-                }
-                _m.signature!.timestamp = int.parse(tmpStr.toString(), radix: 16);
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_TIMESTAMP:
-                _longString = StringBuffer(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_1;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_1:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_2;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_2:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_3;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_3:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_4;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_4:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                _state = _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_5;
-                break;
-            case _MAV_states.MAVLINK_PARSE_STATE_GOT_SIGNATURE_5:
-                _longString.write(c.toRadixString(16).padLeft(2, '0'));
-                // Longstring is in little endian format with two-digit bytes - convert to big endian
-                var tmpStr = StringBuffer();
-                for (var i = _longString.length; i > 1; i-=2) {
-                    tmpStr.write(_longString.toString().substring(i-2, i));
-                }
-                _m.signature!.signature = int.parse(tmpStr.toString(), radix: 16);
-                if(_m.signature!.isValid()) {
-                  _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                  return _m;
-                } else {
-                  _state = _MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                  stats.signatureError();
-                }
-                break;
-        } // switch
-        return null;
-    }
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_CRC2:
+        _m.signature!.secretKey = _signatureKey!;
+        _m.signature!.linkID = c;
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_LINKID;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_LINKID:
+        // Timestamp starts
+        _longString = StringBuffer(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_1:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_2:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_3:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_4:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP_5:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        // Longstring is in little endian format with two-digit bytes - convert to big endian
+        var tmpStr = StringBuffer();
+        for (var i = _longString.length; i > 1; i-=2) {
+          tmpStr.write(_longString.toString().substring(i-2, i));
+        }
+        _m.signature!.timestamp = int.parse(tmpStr.toString(), radix: 16);
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_TIMESTAMP:
+        _longString = StringBuffer(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_1;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_1:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_2;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_2:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_3;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_3:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_4;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_4:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        _state = _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_5;
+        break;
+      case _MAVParserStates.MAVLINK_PARSE_STATE_GOT_SIGNATURE_5:
+        _longString.write(c.toRadixString(16).padLeft(2, '0'));
+        // Longstring is in little endian format with two-digit bytes - convert to big endian
+        var tmpStr = StringBuffer();
+        for (var i = _longString.length; i > 1; i-=2) {
+          tmpStr.write(_longString.toString().substring(i-2, i));
+        }
+        _m.signature!.signature = int.parse(tmpStr.toString(), radix: 16);
+        if(_m.signature!.isValid()) {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          return _m;
+        } else {
+          _state = _MAVParserStates.MAVLINK_PARSE_STATE_IDLE;
+          stats.signatureError();
+        }
+        break;
+    } // switch
+    return null;
+  }
 }

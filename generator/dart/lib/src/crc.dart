@@ -4,49 +4,42 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
-/**
- * CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
- * initialized, updated with which field of the message, and then finished with
- * the message id.
- *
- */
+/// CRC-16/MCRF4XX calculation for MAVlink messages. The checksum must be
+/// initialized, updated with which field of the message, and then finished with
+/// the message id.
 class CRC {
-    static final int _CRC_INIT_VALUE = 0xffff;
-    int _crcValue = _CRC_INIT_VALUE;
+    int _crcValue = 0xffff;
 
-    /**
-     * Accumulate the CRC by adding one char at a time.
-     *
-     * The checksum function adds the hash of one char at a time to the 16 bit
-     * checksum (uint16_t).
-     *
-     * @param data new char to hash
-     **/
-    void update_checksum(int? data) {
-        if (data == null) return;
-        data = data & 0xff; //cast because we want an unsigned type
-        int tmp = data ^ (_crcValue & 0xff);
-        tmp ^= (tmp << 4) & 0xff;
-        _crcValue = ((_crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
+    /// Accumulate the CRC by adding one char at a time.
+    ///
+    /// The checksum function adds the hash of one char at a time to the 16 bit
+    /// checksum (uint16_t).
+    ///
+    /// @param data new char to hash
+    void update(int? data) {
+      if (data == null) return;
+      data = data & 0xff; //cast because we want an unsigned type
+      int tmp = data ^ (_crcValue & 0xff);
+      tmp ^= (tmp << 4) & 0xff;
+      _crcValue = ((_crcValue >> 8) & 0xff) ^ (tmp << 8) ^ (tmp << 3) ^ ((tmp >> 4) & 0xf);
     }
 
-    /**
-     * Initialize the buffer for the CRC16/MCRF4XX
-     */
-    void start_checksum() {
-        _crcValue = _CRC_INIT_VALUE;
+    /// Initialize the buffer for the CRC16/MCRF4XX
+    void start() {
+      _crcValue = 0xffff;
     }
 
     int getMSB() {
-        return ((_crcValue >> 8) & 0xff);
+      return ((_crcValue >> 8) & 0xff);
     }
 
     int getLSB() {
-        return (_crcValue & 0xff);
+      return (_crcValue & 0xff);
     }
 }
 
 abstract class DialectCRC {
+  // ignore: non_constant_identifier_names
   abstract Map<int, int> MAVLINK_MESSAGE_CRCS;
-  bool finish_checksum(int msgID, CRC crc);
+  bool finish(int msgID, CRC crc);
 }
