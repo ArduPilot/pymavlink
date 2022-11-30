@@ -756,7 +756,7 @@ def copy_fixed_headers(directory, xml):
              'lib/mavlink.dart', 'lib/src/messages/mavlink_payload.dart', 'doc/Enums.md', 'doc/Messages.md',
              'lib/src/messages/mavlink_stats.dart', 'example/mavlink_example.dart', 'README.md',
              'pubspec.yaml', 'test/mavlink_test.dart', 'Makefile', 'lib/crc.dart', 'lib/src/crc.dart',
-             'analysis_options.yaml', '.gitignore', 'doc/CRC.md', 'doc/Dialects.md']
+             'analysis_options.yaml', '.gitignore', 'doc/CRC.md', 'doc/Dialects.md', 'example/packets_per_second.dart']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'dart')
     print("Copying fixed headers")

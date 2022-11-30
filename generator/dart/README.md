@@ -7,6 +7,9 @@ A web-friendly SDK to encode and decode MAVLink1 and 2 packets.
 - MAVLink1 and MAVLink2 packet encoding and decoding
 - MAVLink2 signed packet support
 - Null safe
+- Around 150 microseconds to generate a packet on Windows (tested using `example/packets_per_second.dart`)
+- Around 800 microseconds to generate a packet on Firefox (tested using `example/packets_per_second.dart`)
+- Around 420 microseconds to generate a packet on Chrome (tested using `example/packets_per_second.dart`)
 
 ## Getting started
 

@@ -1,4 +1,4 @@
-.PHONY: test coverage docs ci format
+.PHONY: test coverage docs ci format pps-web pps
 
 format:
 	@dart format .
@@ -22,3 +22,9 @@ docs: format
 
 ci: format coverage docs
 	@dart analyze
+
+pps-web:
+	@dart compile js -o example/packets_per_second.dart.js example/packets_per_second.dart
+
+pps:
+	@dart run example/packets_per_second.dart
