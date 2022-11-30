@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:mavlink/mavlink.dart';
-import 'package:mavlink/crc.dart';
 import 'package:mavlink/ardupilotmega.dart';
 import 'package:mavlink/avssuas.dart';
 import 'package:mavlink/test.dart';
