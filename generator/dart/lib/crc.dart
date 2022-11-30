@@ -4,6 +4,4 @@
  * Dart mavlink generator tool. It should not be modified by hand.
  */
 
-library mavlink;
-
 export 'src/crc.dart';
