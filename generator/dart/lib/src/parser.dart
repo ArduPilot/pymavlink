@@ -53,7 +53,7 @@ class MAVLinkParser {
   static const bool _debug = false;
 
   late List<DialectCRC> _dialectCRCs;
-  MAVLinkParser([List<DialectCRC>? dialectCRCs, Uint8List? signatureKey]) {
+  MAVLinkParser({List<DialectCRC>? dialectCRCs, Uint8List? signatureKey}) {
     if (dialectCRCs == null) {
       _dialectCRCs = [
         all_CRC(),

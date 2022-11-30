@@ -398,8 +398,8 @@ void main() {
     mav1Message.adc6 = MAVUint16(6);
     var mav1Packet = mav1Message.pack(packetSeq);
 
-    var signedParser = MAVLinkParser(supportedDialects, secretKey);
-    var parser = MAVLinkParser(supportedDialects, secretKey);
+    var signedParser = MAVLinkParser(signatureKey: secretKey);
+    var parser = MAVLinkParser();
 
     test('MAVLink2 signed messages can be parsed', () {
       MAVLinkPacket? packet;
@@ -443,9 +443,9 @@ void main() {
     });
 
     test('MAVLink2 signed message secret keys are rejected when not 32 bytes in parser', () {
-      expect(() => MAVLinkParser(supportedDialects, Uint8List(4)), throwsA(isA<ArgumentError>()));
-      expect(() => MAVLinkParser(supportedDialects, Uint8List(64)), throwsA(isA<ArgumentError>()));
-      expect(MAVLinkParser(supportedDialects, Uint8List(32)), isA<MAVLinkParser>());
+      expect(() => MAVLinkParser(signatureKey: Uint8List(4)), throwsA(isA<ArgumentError>()));
+      expect(() => MAVLinkParser(signatureKey: Uint8List(64)), throwsA(isA<ArgumentError>()));
+      expect(MAVLinkParser(signatureKey: Uint8List(32)), isA<MAVLinkParser>());
     });
 
     test('MAVLink parser rejects unknown incompatFlags', () {
