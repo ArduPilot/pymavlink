@@ -920,7 +920,7 @@ class mavfile(object):
         self.mav.signing.timestamp = 0
 
 def set_close_on_exec(fd):
-    '''set the clone on exec flag on a file descriptor. Ignore exceptions'''
+    '''set the close on exec flag on a file descriptor. Ignore exceptions'''
     try:
         import fcntl
         flags = fcntl.fcntl(fd, fcntl.F_GETFD)
@@ -1321,6 +1321,8 @@ class mavtcpin(mavfile):
         self.port = None
 
     def close(self):
+        if self.port is not None:
+            self.port.close()
         self.listen.close()
 
     def recv(self,n=None):
