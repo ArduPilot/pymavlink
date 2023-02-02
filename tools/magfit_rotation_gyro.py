@@ -145,7 +145,7 @@ def magfit(logfile):
             elif m.get_type() == "IMU":
                 last_gyr = Vector3(m.GyrX,m.GyrY,m.GyrZ)
                 continue
-            elif last_gyr is not None:
+            elif m.I==0 and last_gyr is not None:
                 mag = Vector3(m.MagX,m.MagY,m.MagZ)
                 gyr = last_gyr
                 usec = m.TimeMS * 1000

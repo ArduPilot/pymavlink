@@ -61,7 +61,7 @@ def magfit(logfile):
         m = mlog.recv_match(condition=args.condition)
         if m is None:
             break
-        if m.get_type() == "MAG":
+        if m.get_type() == "MAG" and m.I==0:
             mag = Vector3(m.MagX, m.MagY, m.MagZ)
             data.append((mag, throttle))
         #if m.get_type() == "RCOU":
