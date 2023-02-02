@@ -141,7 +141,8 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 	mavlink_sha256_update(&ctx, msg->ck, 2);
 	mavlink_sha256_update(&ctx, psig, 1+6);
 	mavlink_sha256_final_48(&ctx, signature);
-	if (memcmp(signature, incoming_signature, 6) != 0) {
+        if (memcmp(signature, incoming_signature, 6) != 0) {
+                signing->last_status = MAVLINK_SIGNING_STATUS_BAD_SIGNATURE;
 		return false;
 	}
 
@@ -155,7 +156,8 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 	memcpy(tstamp.t8, psig+1, 6);
 
 	if (signing_streams == NULL) {
-		return false;
+                signing->last_status = MAVLINK_SIGNING_STATUS_NO_STREAMS;
+                return false;
 	}
 	
 	// find stream
@@ -169,11 +171,13 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 	if (i == signing_streams->num_signing_streams) {
 		if (signing_streams->num_signing_streams >= MAVLINK_MAX_SIGNING_STREAMS) {
 			// over max number of streams
-			return false;
+                        signing->last_status = MAVLINK_SIGNING_STATUS_TOO_MANY_STREAMS;
+                        return false;
 		}
 		// new stream. Only accept if timestamp is not more than 1 minute old
 		if (tstamp.t64 + 6000*1000UL < signing->timestamp) {
-			return false;
+                        signing->last_status = MAVLINK_SIGNING_STATUS_OLD_TIMESTAMP;
+                        return false;
 		}
 		// add new stream
 		signing_streams->stream[i].sysid = msg->sysid;
@@ -186,7 +190,8 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 		memcpy(last_tstamp.t8, signing_streams->stream[i].timestamp_bytes, 6);
 		if (tstamp.t64 <= last_tstamp.t64) {
 			// repeating old timestamp
-			return false;
+                        signing->last_status = MAVLINK_SIGNING_STATUS_REPLAY;
+                        return false;
 		}
 	}
 
@@ -197,7 +202,8 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 	if (tstamp.t64 > signing->timestamp) {
 		signing->timestamp = tstamp.t64;
 	}
-	return true;
+        signing->last_status = MAVLINK_SIGNING_STATUS_OK;
+        return true;
 }
 #endif
 

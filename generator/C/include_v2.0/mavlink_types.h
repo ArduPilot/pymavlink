@@ -242,6 +242,16 @@ typedef bool (*mavlink_accept_unsigned_t)(const mavlink_status_t *status, uint32
  */
 #define MAVLINK_SIGNING_FLAG_SIGN_OUTGOING 1    ///< Enable outgoing signing
 
+typedef enum {
+    MAVLINK_SIGNING_STATUS_NONE=0,
+    MAVLINK_SIGNING_STATUS_OK=1,
+    MAVLINK_SIGNING_STATUS_BAD_SIGNATURE=2,
+    MAVLINK_SIGNING_STATUS_NO_STREAMS=3,
+    MAVLINK_SIGNING_STATUS_TOO_MANY_STREAMS=4,
+    MAVLINK_SIGNING_STATUS_OLD_TIMESTAMP=5,
+    MAVLINK_SIGNING_STATUS_REPLAY=6,
+} mavlink_signing_status_t;
+    
 /*
   state of MAVLink signing for this channel
  */
@@ -251,6 +261,7 @@ typedef struct __mavlink_signing {
     uint64_t timestamp;                ///< Timestamp, in microseconds since UNIX epoch GMT
     uint8_t secret_key[32];
     mavlink_accept_unsigned_t accept_unsigned_callback;
+    mavlink_signing_status_t last_status;
 } mavlink_signing_t;
 
 /*
