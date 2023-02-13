@@ -8,6 +8,7 @@ Released under GNU GPL version 3 or later
 from __future__ import print_function
 
 import os
+import re
 from . import mavtemplate
 
 t = mavtemplate.MAVTemplate()
@@ -34,7 +35,7 @@ def generate_enums(dir, enums):
             f.write("export enum {} {{\n".format(camelcase(e.name)))
             for entry in e.entry:
                 f.write(
-                    "\t{} = {}, // {}\n".format(entry.name, entry.value, entry.description.rstrip("\r").rstrip("\n")))
+                    "\t{} = {}, /* {} */\n".format(entry.name, entry.value, entry.description.rstrip("\r").rstrip("\n")))
             f.write("}")
 
 
@@ -44,12 +45,13 @@ def generate_classes(dir, registry, msgs, xml):
     ts_types = {"uint8_t": "number", "uint16_t": "number", "uint32_t": "number", "uint64_t": "number",
                 "int8_t": "number", "int16_t": "number", "int32_t": "number", "int64_t": "number",
                 "float": "number", "double": "number", "char": "string"}
+    magic_number = 0
 
     if not os.path.isdir(dir):
         os.mkdir(dir)
 
     with open(registry, "w") as registry_f:
-        registry_f.write("import {MAVLinkMessage} from 'node-mavlink';\n")
+        registry_f.write("import {MavLinkData, MavLinkPacketRegistry} from 'node-mavlink';\n")
         for m in msgs:
             filename = m.name.replace('_', '-')
             filename = filename.lower()
@@ -62,8 +64,8 @@ def generate_classes(dir, registry, msgs, xml):
                 if xml.wire_protocol_version == '1.0':
                     raise Exception('WireProtocolException', 'Please use WireProtocol = 2.0 only.')
 
-                f.write("import {MAVLinkMessage} from 'node-mavlink';\n")
-                f.write("import {readInt64LE, readUInt64LE} from 'node-mavlink';\n")
+                f.write("import {MavLinkData, MavLinkPacketField} from 'node-mavlink';\n")
+                #f.write("import {readInt64LE, readUInt64LE} from 'node-mavlink';\n")
                 registry_f.write("import {{{}}} from './messages/{}';\n".format(camelcase(m.name), filename))
                 imported_enums = []
                 for enum in [field.enum for field in m.fields if field.enum != '']:
@@ -74,40 +76,55 @@ def generate_classes(dir, registry, msgs, xml):
 
                 f.write("/*\n{}\n*/\n".format(m.description.strip()))
                 for field in m.fields:
-                    f.write("// {} {} {}\n".format(field.name, field.description.strip(), field.type))
+                    f.write("/* {} {} {} */\n".format(field.name, field.description.strip(), field.type))
 
-                f.write("export class {} extends MAVLinkMessage {{\n".format(camelcase(m.name)))
+                f.write("export class {} extends MavLinkData {{\n".format(camelcase(m.name)))
 
                 for field in m.fields:
                     if field.enum:
                         f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum)))
                     else:
                         f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
-
-                f.write("\tpublic _message_id: number = {};\n".format(m.id))
-                f.write("\tpublic _message_name: string = '{}';\n".format(m.name))
-                f.write("\tpublic _crc_extra: number = {};\n".format(m.crc_extra))
+                f.write("\tstatic MSG_ID: number = {};\n".format(m.id))
+                f.write("\tstatic MSG_NAME: string = '{}';\n".format(m.name))
+                f.write("\tstatic _crc_extra: number = {};\n".format(m.crc_extra))
 
                 i = 0
-                f.write("\tpublic _message_fields: [string, string, boolean][] = [\n")
+                f.write("\tstatic FIELDS: MavLinkPacketField[] = [\n")
+                offset = 0
                 for fieldname in m.ordered_fieldnames:
                     field = next(field for field in m.fields if field.name == fieldname)
                     if m.extensions_start is not None and i >= m.extensions_start:
                         extension = 'true'
                     else:
                         extension = 'false'
-                    f.write("\t\t['{}', '{}', {}],\n".format(field.name, field.type, extension))
+                    """
+                    @param source original name of the field
+                    @param name name of the field
+                    @param offset field offset in the payload
+                    @param extension true if it is an extension field, false otherwise
+                    @param size size of either the field or the size of an element in the array if it is an array field
+                    @param type type of the field (ends with [] if it is an array field)
+                    @param units unit of the field
+                    @param length for array fields this is the length of the array
+                    """
+                    f.write("\t\t/* {} */\n".format(field.description.strip()))
+                    if field.array_length > 1:
+                        f.write("\t\tnew MavLinkPacketField('{}', '{}', {}, {}, {}, '{}', '{}',{}),\n".format(field.name, field.name, field.wire_offset, extension, field.type_length, field.type, field.units, field.array_length))
+                        offset += field.type_length * field.array_length
+                    else:
+                        f.write("\t\tnew MavLinkPacketField('{}', '{}', {}, {}, {}, '{}', '{}'),\n".format(field.name, field.name, field.wire_offset, extension, field.type_length, field.type, field.units))
+                        offset += field.type_length
                     i += 1
                 f.write("\t];\n".format("', '".join(m.ordered_fieldnames)))
-
+                f.write("\tstatic PAYLOAD_LENGTH: number = {};\n".format(offset))
                 f.write("}")
 
         registry_f.write(
-            "export const messageRegistry: Array<[number, new (system_id: number, component_id: number) "
-            "=> MAVLinkMessage]> = [\n")
+            "export const messageRegistry = new Map<number, new (system_id: number, component_id: number) => MavLinkData>([\n")
         for m in msgs:
             registry_f.write("\t[{}, {}],\n".format(m.id, camelcase(m.name)))
-        registry_f.write("];")
+        registry_f.write("]);")
 
 
 def generate_tsconfig(basename):
