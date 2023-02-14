@@ -110,7 +110,7 @@ def generate_classes(dir, registry, msgs, xml):
                     """
                     f.write("\t\t/* {} */\n".format(field.description.strip()))
                     if field.array_length > 1:
-                        f.write("\t\tnew MavLinkPacketField('{}', '{}', {}, {}, {}, '{}', '{}',{}),\n".format(field.name, field.name, field.wire_offset, extension, field.type_length, field.type, field.units, field.array_length))
+                        f.write("\t\tnew MavLinkPacketField('{}', '{}', {}, {}, {}, '{}', '{}',{}),\n".format(field.name, field.name, field.wire_offset, extension, field.type_length, field.type +"[]", field.units, field.array_length))
                         offset += field.type_length * field.array_length
                     else:
                         f.write("\t\tnew MavLinkPacketField('{}', '{}', {}, {}, {}, '{}', '{}'),\n".format(field.name, field.name, field.wire_offset, extension, field.type_length, field.type, field.units))
