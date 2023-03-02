@@ -2273,7 +2273,11 @@ def mode_mapping_bynumber(mav_type):
 def mode_string_v10(msg):
     '''mode string for 1.0 protocol, from heartbeat'''
     if msg.autopilot == mavlink.MAV_AUTOPILOT_PX4:
+        if msg.get_type() == "HIGH_LATENCY2":
+            return "Mode(%u)" % msg.custom_mode
+
         return interpret_px4_mode(msg.base_mode, msg.custom_mode)
+
     if msg.get_type() != 'HIGH_LATENCY2' and not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
         return "Mode(0x%08x)" % msg.base_mode
 
