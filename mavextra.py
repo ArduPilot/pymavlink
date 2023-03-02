@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 useful extra functions for use by mavlink clients
 

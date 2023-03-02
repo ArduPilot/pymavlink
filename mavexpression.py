@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 mavlink expression evaluation functions
 
