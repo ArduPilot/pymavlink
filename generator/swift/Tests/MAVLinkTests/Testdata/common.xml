@@ -920,7 +920,7 @@
         <param index="7">Empty</param>
       </entry>
       <entry value="182" name="MAV_CMD_DO_REPEAT_RELAY">
-        <description>Cycle a relay on and off for a desired number of cyles with a desired period.</description>
+        <description>Cycle a relay on and off for a desired number of cycles with a desired period.</description>
         <param index="1">Relay number</param>
         <param index="2">Cycle count</param>
         <param index="3">Cycle time (seconds, decimal)</param>
@@ -990,7 +990,7 @@
         <param index="7">Empty</param>
       </entry>
       <entry value="191" name="MAV_CMD_DO_GO_AROUND">
-        <description>Mission command to safely abort an autonmous landing.</description>
+        <description>Mission command to safely abort an autonomous landing.</description>
         <param index="1">Altitude (meters)</param>
         <param index="2">Empty</param>
         <param index="3">Empty</param>
