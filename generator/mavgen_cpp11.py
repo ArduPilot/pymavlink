@@ -10,7 +10,7 @@ Released under GNU GPL version 3 or later
 '''
 from __future__ import print_function
 
-import sys, textwrap, os, time
+import os
 from . import mavparse, mavtemplate
 import collections
 import struct

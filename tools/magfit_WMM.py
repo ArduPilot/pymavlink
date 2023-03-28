@@ -6,7 +6,7 @@ fit best estimate of magnetometer offsets, diagonals, off-diagonals, cmot and sc
 # to allow print to file with both python 2 and 3
 from __future__ import print_function
 
-import sys, time, os, math, copy
+import sys, math, copy
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -42,7 +42,6 @@ from pymavlink import mavextra
 from pymavlink.rotmat import Vector3
 from pymavlink.rotmat import Matrix3
 
-import matplotlib
 import matplotlib.pyplot as pyplot
 import numpy
 

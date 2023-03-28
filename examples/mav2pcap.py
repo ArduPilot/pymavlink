@@ -19,12 +19,10 @@ from future import standard_library
 standard_library.install_aliases()
 from builtins import object
 from builtins import open
-import sys
-import os
 
 from pymavlink import mavutil
 
-from construct import ULInt16, Struct, Byte, Bytes, Const
+from construct import ULInt16, Struct, Byte, Const
 from construct.core import FieldError
 from argparse import ArgumentParser, FileType
 
