@@ -513,17 +513,25 @@ def get_origin():
 
 def get_lat_lon_alt(MSG):
     '''gets lat and lon in radians and alt in meters from a position msg'''
-    if hasattr(MSG, 'Lat'):
+    if hasattr(MSG, 'Lat') and hasattr(MSG, 'Lng'):
         lat = radians(MSG.Lat)
         lon = radians(MSG.Lng)
+        alt = MSG.Alt
+    elif hasattr(MSG, 'Lat') and hasattr(MSG, 'Lon'):
+        lat = radians(MSG.Lat)
+        lon = radians(MSG.Lon)
         alt = MSG.Alt
     elif hasattr(MSG, 'cog'):
         lat = radians(MSG.lat)*1.0e-7
         lon = radians(MSG.lon)*1.0e-7
         alt = MSG.alt*0.001
-    elif hasattr(MSG,'lat'):
+    elif hasattr(MSG,'lat') and hasattr(MSG,'lon'):
         lat = radians(MSG.lat)
         lon = radians(MSG.lon)
+        alt = MSG.alt*0.001
+    elif hasattr(MSG,'lat') and hasattr(MSG,'lng'):
+        lat = radians(MSG.lat)
+        lon = radians(MSG.lng)
         alt = MSG.alt*0.001
     elif hasattr(MSG, 'PN'):
         # origin relative position from EKF
@@ -539,6 +547,7 @@ def get_lat_lon_alt(MSG):
     else:
         return None
     return (lat, lon, alt)
+
 
 def _distance_two(MSG1, MSG2, horizontal=True):
     '''distance between two points'''
