@@ -2273,7 +2273,11 @@ def mode_mapping_bynumber(mav_type):
 def mode_string_v10(msg):
     '''mode string for 1.0 protocol, from heartbeat'''
     if msg.autopilot == mavlink.MAV_AUTOPILOT_PX4:
+        if msg.get_type() == "HIGH_LATENCY2":
+            return "Mode(%u)" % msg.custom_mode
+
         return interpret_px4_mode(msg.base_mode, msg.custom_mode)
+
     if msg.get_type() != 'HIGH_LATENCY2' and not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
         return "Mode(0x%08x)" % msg.base_mode
 
@@ -2303,7 +2307,7 @@ class MavlinkSerialPort(object):
                 self.baudrate = 0
                 self.timeout = timeout
                 self._debug = debug
-                self.buf = ''
+                self.buf = bytearray()
                 self.port = devnum
                 self.debug("Connecting with MAVLink to %s ..." % portname)
                 self.mav = mavutil.mavlink_connection(portname, autoreconnect=True, baud=baudrate)
@@ -2321,12 +2325,11 @@ class MavlinkSerialPort(object):
         def write(self, b):
                 '''write some bytes'''
                 from . import mavutil
-                self.debug("sending '%s' (0x%02x) of len %u\n" % (b, ord(b[0]), len(b)), 2)
                 while len(b) > 0:
                         n = len(b)
                         if n > 70:
                                 n = 70
-                        buf = [ord(x) for x in b[:n]]
+                        buf = bytearray(b[:])
                         buf.extend([0]*(70-len(buf)))
                         self.mav.mav.serial_control_send(self.port,
                                                          mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
@@ -2360,7 +2363,7 @@ class MavlinkSerialPort(object):
                         if self._debug > 2:
                                 print(m)
                         data = m.data[:m.count]
-                        self.buf += ''.join(str(chr(x)) for x in data)
+                        self.buf.extend(data)
 
         def read(self, n):
                 '''read some bytes'''
@@ -2371,20 +2374,17 @@ class MavlinkSerialPort(object):
                                 n = len(self.buf)
                         ret = self.buf[:n]
                         self.buf = self.buf[n:]
-                        if self._debug >= 2:
-                            for b in ret:
-                                self.debug("read 0x%x" % ord(b), 2)
                         return ret
-                return ''
+                return bytearray()
 
         def flushInput(self):
                 '''flush any pending input'''
-                self.buf = ''
+                self.buf = bytearray()
                 saved_timeout = self.timeout
                 self.timeout = 0.5
                 self._recv()
                 self.timeout = saved_timeout
-                self.buf = ''
+                self.buf = bytearray()
                 self.debug("flushInput")
 
         def setBaudrate(self, baudrate):

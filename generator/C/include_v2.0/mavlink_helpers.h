@@ -368,12 +368,14 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint
 	ck[0] = (uint8_t)(checksum & 0xFF);
 	ck[1] = (uint8_t)(checksum >> 8);
 
+#ifndef MAVLINK_NO_SIGN_PACKET
 	if (signing) {
 		// possibly add a signature
 		signature_len = mavlink_sign_packet(status->signing, signature, buf, header_len+1,
 						    (const uint8_t *)packet, length, ck);
 	}
-	
+#endif
+
 	MAVLINK_START_UART_SEND(chan, header_len + 3 + (uint16_t)length + (uint16_t)signature_len);
 	_mavlink_send_uart(chan, (const char *)buf, header_len+1);
 	_mavlink_send_uart(chan, packet, length);

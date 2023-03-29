@@ -82,8 +82,12 @@ def generate_classes(dir, registry, msgs, xml):
                         f.write("\t/* {} {} */\n".format(field.type, field.description.strip()))
                         f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum)))
                     else:
-                        f.write("\t/* {} {} */\n".format(field.type, field.description.strip()))
-                        f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
+                        if field.array_length > 1 and field.type != "char":
+                            f.write("\t/* {}[] {} */\n".format(field.type, field.description.strip()))
+                            f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type] + "[]"))
+                        else:
+                            f.write("\t/* {} {} */\n".format(field.type, field.description.strip()))
+                            f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
                 f.write("\tstatic MSG_ID: number = {};\n".format(m.id))
                 f.write("\tstatic MSG_NAME: string = '{}';\n".format(m.name))
                 f.write("\tstatic MAGIC_NUMBER: number = {};\n".format(m.crc_extra))
