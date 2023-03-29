@@ -50,7 +50,7 @@ def generate_classes(dir, registry, msgs, xml):
         os.mkdir(dir)
 
     with open(registry, "w") as registry_f:
-        registry_f.write("import {MavLinkData, MavLinkPacketRegistry} from 'node-mavlink';\n")
+        registry_f.write("import {MavLinkData, MavLinkDataConstructor, MavLinkPacketRegistry} from 'node-mavlink';\n")
         for m in msgs:
             filename = m.name.replace('_', '-')
             filename = filename.lower()
@@ -74,15 +74,15 @@ def generate_classes(dir, registry, msgs, xml):
                         imported_enums.append(enum)
 
                 f.write("/*\n{}\n*/\n".format(m.description.strip()))
-                for field in m.fields:
-                    f.write("/* {} {} {} */\n".format(field.name, field.description.strip(), field.type))
 
                 f.write("export class {} extends MavLinkData {{\n".format(camelcase(m.name)))
 
                 for field in m.fields:
                     if field.enum:
+                        f.write("\t/* {} {} */\n".format(field.type, field.description.strip()))
                         f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum)))
                     else:
+                        f.write("\t/* {} {} */\n".format(field.type, field.description.strip()))
                         f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
                 f.write("\tstatic MSG_ID: number = {};\n".format(m.id))
                 f.write("\tstatic MSG_NAME: string = '{}';\n".format(m.name))
@@ -123,7 +123,15 @@ def generate_classes(dir, registry, msgs, xml):
             "export const messageRegistry = new Map<number, new (system_id: number, component_id: number) => MavLinkData>([\n")
         for m in msgs:
             registry_f.write("\t[{}, {}],\n".format(m.id, camelcase(m.name)))
-        registry_f.write("]);")
+        registry_f.write("]);\n\n")
+        registry_f.write("export function getCustomMagicNumbers() {\n")
+        registry_f.write("\tconst record: Record<string, number> = {};\n")
+        registry_f.write("\tArray.from(messageRegistry.entries())\n")
+        registry_f.write("\t\t.forEach(([msgId, constructor]) => {\n")
+        registry_f.write("\t\t\trecord[msgId.toString()] = (constructor as MavLinkDataConstructor<any>).MAGIC_NUMBER;\n")
+        registry_f.write("\t\t});\n")
+        registry_f.write("\treturn record;\n")
+        registry_f.write("}\n")
 
 
 def generate_tsconfig(basename):
