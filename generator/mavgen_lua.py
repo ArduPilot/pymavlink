@@ -35,7 +35,19 @@ def generate(basename, xml):
 
 
     print("Generating %s/mavlink_msgs.lua" % basename)
+    # create the output directory if needed
+    if not os.path.exists(basename):
+        os.makedirs(basename)
     outf = open("%s/mavlink_msgs.lua" % basename, "w")
+    if 'modules' not in basename:
+        print("ERROR: mavlink_msgs.lua must be generated in the modules directory or subdirectory")
+        return
+    # find the path relative to module directory
+    module_root_rel = basename.split('modules')[1]
+    module_root_rel = module_root_rel.strip('/')
+    if module_root_rel != '':
+        module_root_rel += '/'
+
     # dump the actual symbol table
     outf.write("local mavlink_msgs = {}\n")
     for m in msgs:
@@ -55,10 +67,10 @@ def generate(basename, xml):
         mavlink_msg_file.close()
     outf.write(
 """
-local mavlink_msgs = {}
+local mavlink_msgs = {{}}
 
 function mavlink_msgs.get_msgid(msgname)
-  local message_map = require("mavlink_msg_" .. msgname)
+  local message_map = require("{module_root_rel}mavlink_msg_" .. msgname)
   if not message_map then
     error("Unknown MAVLink message " .. msgname)
   end
@@ -67,7 +79,7 @@ end
 
 function mavlink_msgs.decode_header(message)
   -- build up a map of the result
-  local result = {}
+  local result = {{}}
 
   local read_marker = 3
 
@@ -97,7 +109,7 @@ end
 
 function mavlink_msgs.decode(message, msg_map)
   local result, offset = mavlink_msgs.decode_header(message)
-  local message_map = require("mavlink_msg_" .. msg_map[result.msgid])
+  local message_map = require("{module_root_rel}mavlink_msg_" .. msg_map[result.msgid])
   if not message_map then
     -- we don't know how to decode this message, bail on it
     return nil
@@ -106,7 +118,7 @@ function mavlink_msgs.decode(message, msg_map)
   -- map all the fields out
   for i,v in ipairs(message_map.fields) do
     if v[3] then
-      result[v[1]] = {}
+      result[v[1]] = {{}}
       for j=1,v[3] do
         result[v[1]][j], offset = string.unpack(v[2], message, offset)
       end
@@ -121,14 +133,14 @@ function mavlink_msgs.decode(message, msg_map)
 end
 
 function mavlink_msgs.encode(msgname, message)
-  local message_map = require("mavlink_msg_" .. msgname)
+  local message_map = require("{module_root_rel}mavlink_msg_" .. msgname)
   if not message_map then                 
     -- we don't know how to encode this message, bail on it
     error("Unknown MAVLink message " .. msgname)
   end
 
   local packString = "<"
-  local packedTable = {}                  
+  local packedTable = {{}}                  
   local packedIndex = 1
   for i,v in ipairs(message_map.fields) do
     if v[3] then
@@ -150,7 +162,7 @@ function mavlink_msgs.encode(msgname, message)
 end
 
 return mavlink_msgs
-""")
+""".format(module_root_rel=module_root_rel))
     outf.close()
     print("Generated %s OK" % basename)
 
