@@ -313,6 +313,8 @@ last_delta = {}
 
 def delta(var, key, tusec=None):
     '''calculate slope'''
+    if isnan(var):
+        return None
     global last_delta
     if tusec is not None:
         tnow = tusec * 1.0e-6
