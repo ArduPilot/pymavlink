@@ -36,6 +36,10 @@ package com.MAVLink.enums;
  * ${description}
  */
 public class ${name} {
+
+${{entry:   public static final int ${name} = ${value}; /* ${description} |${{param:${description}| }} */
+}}
+}
             ''', en)
         for entry in en.entry:
             if entry.value <= MAX_INT:
@@ -162,6 +166,8 @@ package com.MAVLink.%s;
 import com.MAVLink.MAVLinkPacket;
 import com.MAVLink.Messages.MAVLinkMessage;
 import com.MAVLink.Messages.MAVLinkPayload;
+import com.MAVLink.Messages.Units;
+import com.MAVLink.Messages.Description;
 
 /**
  * ${description}
@@ -176,6 +182,8 @@ public class msg_${name_lower} extends MAVLinkMessage {
     /**
      * ${description}
      */
+    @Description("${description}")
+    @Units("${units}")
     public ${type} ${name}${array_suffix};
     }}
 
@@ -584,7 +592,8 @@ public class MAVLinkPacket implements Serializable {
 def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil
-    hlist = [ 'Parser.java', 'Messages/MAVLinkMessage.java', 'Messages/MAVLinkPayload.java', 'Messages/MAVLinkStats.java' ]
+    hlist = [ 'Parser.java', 'Messages/MAVLinkMessage.java', 'Messages/MAVLinkPayload.java', 'Messages/MAVLinkStats.java',
+              'Messages/Description.java', 'Messages/Units.java', 'Messages/UnitsEnum.java']
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'java/lib')
     print("Copying fixed headers")
@@ -788,10 +797,14 @@ def generate_one(basename, xml):
             else:
                 f.putname = f.const_value
 
-    # fix types to java
     for m in xml.message:
         for f in m.ordered_fields:
+            # fix types to java
             f.type = mavfmt(f)
+            # remove brackets in units
+            f.units = removeBrackets(f.units)
+            # Escape quotes in description
+            f.description = cleanText(f.description);
 
     # separate base fields from MAVLink 2 extended fields
     for m in xml.message:
@@ -805,6 +818,13 @@ def generate_one(basename, xml):
     for m in xml.message:
         generate_message_h(directory, m)
 
+def removeBrackets(text):
+    return text.replace("[","").replace("]","")
+
+def cleanText(text):
+    text = text.replace("\n"," ")
+    text = text.replace("\r"," ")
+    return text.replace("\"","'")
 
 def generate(basename, xml_list):
     '''generate complete MAVLink Java implemenation'''

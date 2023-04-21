@@ -11,17 +11,24 @@ from builtins import object
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 import copy
+import json
 import re
 from pymavlink import mavexpression
 
+# We want to re-export x25crc here
+from pymavlink.generator.mavcrc import x25crc as x25crc
+
 is_py3 = sys.version_info >= (3,0)
+supports_type_annotations = sys.version_info >= (3,6)
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
 try:
-    import json
-    from pymavlink.dialects.v10 import ardupilotmega
+    if supports_type_annotations:
+        from pymavlink.dialects.v10 import ardupilotmega
+    else:
+        from pymavlink.dialects.v10.python2 import ardupilotmega
 except Exception:
     pass
 
@@ -75,9 +82,9 @@ def u_ord(c):
 class location(object):
     '''represent a GPS coordinate'''
     def __init__(self, lat, lng, alt=0, heading=0):
-        self.lat = lat
-        self.lng = lng
-        self.alt = alt
+        self.lat = lat  # in degrees
+        self.lng = lng  # in degrees
+        self.alt = alt  # in metres
         self.heading = heading
 
     def __str__(self):
@@ -102,28 +109,33 @@ def add_message(messages, mtype, msg):
     messages[mtype]._instances = prev_instances
     messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
 
-def set_dialect(dialect):
+def set_dialect(dialect, with_type_annotations=None):
     '''set the MAVLink dialect to work with.
     For example, set_dialect("ardupilotmega")
     '''
     global mavlink, current_dialect
     from .generator import mavparse
+
+    if with_type_annotations is None:
+        with_type_annotations = supports_type_annotations
+
+    legacy_python_module = "python2." if not with_type_annotations else ""
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
-        modname = "pymavlink.dialects.v20." + dialect
+        modname = "pymavlink.dialects.v20." + legacy_python_module + dialect
     elif mavlink is None or mavlink.WIRE_PROTOCOL_VERSION == "1.0" or not 'MAVLINK09' in os.environ:
         wire_protocol = mavparse.PROTOCOL_1_0
-        modname = "pymavlink.dialects.v10." + dialect
+        modname = "pymavlink.dialects.v10." + legacy_python_module + dialect
     else:
         wire_protocol = mavparse.PROTOCOL_0_9
-        modname = "pymavlink.dialects.v09." + dialect
+        modname = "pymavlink.dialects.v09." + legacy_python_module + dialect
 
     try:
         mod = __import__(modname)
     except Exception:
         # auto-generate the dialect module
         from .generator.mavgen import mavgen_python_dialect
-        mavgen_python_dialect(dialect, wire_protocol)
+        mavgen_python_dialect(dialect, wire_protocol, with_type_annotations=with_type_annotations)
         mod = __import__(modname)
     components = modname.split('.')
     for comp in components[1:]:
@@ -343,6 +355,10 @@ class mavfile(object):
                         mavlink.MAV_TYPE_GIMBAL,
                         mavlink.MAV_TYPE_ADSB,
                         mavlink.MAV_TYPE_ONBOARD_CONTROLLER):
+            return False
+        if msg.autopilot in frozenset([
+                mavlink.MAV_AUTOPILOT_INVALID
+                ]):
             return False
         return True
 
@@ -779,16 +795,20 @@ class mavfile(object):
             MAV_ACTION_CALIBRATE_PRESSURE = 20
             self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_CALIBRATE_PRESSURE)
 
-    def reboot_autopilot(self, hold_in_bootloader=False):
+    def reboot_autopilot(self, hold_in_bootloader=False, force=False):
         '''reboot the autopilot'''
         if self.mavlink10():
             if hold_in_bootloader:
                 param1 = 3
             else:
                 param1 = 1
+            if force:
+                param6 = 20190226
+            else:
+                param6 = 0
             self.mav.command_long_send(self.target_system, self.target_component,
                                        mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
-                                       param1, 0, 0, 0, 0, 0, 0)
+                                       param1, 0, 0, 0, 0, param6, 0)
 
     def wait_gps_fix(self):
         self.recv_match(type='VFR_HUD', blocking=True)
@@ -908,7 +928,7 @@ class mavfile(object):
         self.mav.signing.timestamp = 0
 
 def set_close_on_exec(fd):
-    '''set the clone on exec flag on a file descriptor. Ignore exceptions'''
+    '''set the close on exec flag on a file descriptor. Ignore exceptions'''
     try:
         import fcntl
         flags = fcntl.fcntl(fd, fcntl.F_GETFD)
@@ -1309,6 +1329,8 @@ class mavtcpin(mavfile):
         self.port = None
 
     def close(self):
+        if self.port is not None:
+            self.port.close()
         self.listen.close()
 
     def recv(self,n=None):
@@ -1493,6 +1515,7 @@ class mavmmaplog(mavlogfile):
         self.id_to_name = {}
 
         self.instance_offsets = {}
+        self.instance_lengths = {}
 
         self.type_nums = None
 
@@ -1530,13 +1553,19 @@ class mavmmaplog(mavlogfile):
                 self.offsets[mtype] = []
                 self.counts[mtype] = 0
                 msg = mavlink.mavlink_map[mtype]
-                self.name_to_id[msg.name] = mtype
-                self.id_to_name[mtype] = msg.name
+                self.name_to_id[msg.msgname] = mtype
+                self.id_to_name[mtype] = msg.msgname
                 self.f.seek(ofs)
                 m = self.recv_msg()
-                add_message(self.messages, msg.name, m)
+                add_message(self.messages, msg.msgname, m)
                 if m._instance_field is not None:
+                    instance_idx = m.ordered_fieldnames.index(m._instance_field)
                     self.instance_offsets[mtype] = m._instance_offset
+                    alen = m.array_lengths[instance_idx]
+                    if alen > 0:
+                        self.instance_lengths[mtype] = alen
+                    else:
+                        self.instance_lengths[mtype] = 1
 
             if mtype in self.instance_offsets:
                 # populate the messages array with a new instance. This assumes we can get the instance
@@ -1546,11 +1575,29 @@ class mavmmaplog(mavlogfile):
                     # truncated log
                     break
                 self.f.seek(instance_field_ofs)
-                b = self.f.read(1)
-                instance, = struct.unpack('b', b)
+                ilen = self.instance_lengths[mtype]
+                ipad = 0
+                if ilen + (instance_field_ofs - ofs) > mlen-2:
+                    # message is MAVLink2.0 zero truncated
+                    ipad = ilen + (instance_field_ofs - ofs) - (mlen-2)
+                    ilen -= ipad
+                if ilen > 0:
+                    b = self.f.read(ilen)
+                else:
+                    b = bytes([0]*ilen)
+                if ipad > 0:
+                    b += bytes([0]*ipad)
+                if ilen+ipad > 1:
+                    # assume string
+                    while len(b) > 0 and b[-1] == 0:
+                        b = b[:-1]
+                    instance = b.decode('ASCII',errors='ignore').rstrip()
+                else:
+                    instance, = struct.unpack('b', b[:1])
                 mname = self.id_to_name[mtype]
                 if mname in self.messages:
-                    self.messages["%s[%s]" % (mname, str(instance))] = self.messages[mname]
+                    iname = "%s[%s]" % (mname, str(instance))
+                    self.messages[iname] = self.messages[mname]
 
             self.offsets[mtype].append(ofs)
             self.counts[mtype] += 1
@@ -2011,6 +2058,7 @@ mode_mapping_rover = {
     5 : 'LOITER',
     6 : 'FOLLOW',
     7 : 'SIMPLE',
+    8 : 'DOCK',
     10 : 'AUTO',
     11 : 'RTL',
     12 : 'SMART_RTL',
@@ -2225,7 +2273,11 @@ def mode_mapping_bynumber(mav_type):
 def mode_string_v10(msg):
     '''mode string for 1.0 protocol, from heartbeat'''
     if msg.autopilot == mavlink.MAV_AUTOPILOT_PX4:
+        if msg.get_type() == "HIGH_LATENCY2":
+            return "Mode(%u)" % msg.custom_mode
+
         return interpret_px4_mode(msg.base_mode, msg.custom_mode)
+
     if msg.get_type() != 'HIGH_LATENCY2' and not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
         return "Mode(0x%08x)" % msg.base_mode
 
@@ -2246,27 +2298,6 @@ def mode_string_acm(mode_number):
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
 
-class x25crc(object):
-    '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
-    def __init__(self, buf=''):
-        self.crc = 0xffff
-        self.accumulate(buf)
-
-    def accumulate(self, buf):
-        '''add in some more bytes'''
-        byte_buf = array.array('B')
-        if isinstance(buf, array.array):
-            byte_buf.extend(buf)
-        else:
-            byte_buf.fromstring(buf)
-        accum = self.crc
-        for b in byte_buf:
-            tmp = b ^ (accum & 0xff)
-            tmp = (tmp ^ (tmp<<4)) & 0xFF
-            accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
-            accum = accum & 0xFFFF
-        self.crc = accum
-
 class MavlinkSerialPort(object):
         '''an object that looks like a serial port, but
         transmits using mavlink SERIAL_CONTROL packets'''
@@ -2276,7 +2307,7 @@ class MavlinkSerialPort(object):
                 self.baudrate = 0
                 self.timeout = timeout
                 self._debug = debug
-                self.buf = ''
+                self.buf = bytearray()
                 self.port = devnum
                 self.debug("Connecting with MAVLink to %s ..." % portname)
                 self.mav = mavutil.mavlink_connection(portname, autoreconnect=True, baud=baudrate)
@@ -2294,12 +2325,11 @@ class MavlinkSerialPort(object):
         def write(self, b):
                 '''write some bytes'''
                 from . import mavutil
-                self.debug("sending '%s' (0x%02x) of len %u\n" % (b, ord(b[0]), len(b)), 2)
                 while len(b) > 0:
                         n = len(b)
                         if n > 70:
                                 n = 70
-                        buf = [ord(x) for x in b[:n]]
+                        buf = bytearray(b[:])
                         buf.extend([0]*(70-len(buf)))
                         self.mav.mav.serial_control_send(self.port,
                                                          mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
@@ -2333,7 +2363,7 @@ class MavlinkSerialPort(object):
                         if self._debug > 2:
                                 print(m)
                         data = m.data[:m.count]
-                        self.buf += ''.join(str(chr(x)) for x in data)
+                        self.buf.extend(data)
 
         def read(self, n):
                 '''read some bytes'''
@@ -2344,20 +2374,17 @@ class MavlinkSerialPort(object):
                                 n = len(self.buf)
                         ret = self.buf[:n]
                         self.buf = self.buf[n:]
-                        if self._debug >= 2:
-                            for b in ret:
-                                self.debug("read 0x%x" % ord(b), 2)
                         return ret
-                return ''
+                return bytearray()
 
         def flushInput(self):
                 '''flush any pending input'''
-                self.buf = ''
+                self.buf = bytearray()
                 saved_timeout = self.timeout
                 self.timeout = 0.5
                 self._recv()
                 self.timeout = saved_timeout
-                self.buf = ''
+                self.buf = bytearray()
                 self.debug("flushInput")
 
         def setBaudrate(self, baudrate):

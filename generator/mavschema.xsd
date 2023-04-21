@@ -86,6 +86,7 @@
     <xs:enumeration value="cs"/>       <!-- centiseconds -->
     <xs:enumeration value="ms"/>       <!-- milliseconds -->
     <xs:enumeration value="us"/>       <!-- microseconds -->
+    <xs:enumeration value="ns"/>       <!-- nanoseconds -->
     <xs:enumeration value="Hz"/>       <!-- Herz -->
     <xs:enumeration value="MHz"/>      <!-- Mega-Herz -->
     <!-- distance -->
@@ -127,6 +128,7 @@
     <xs:enumeration value="cA"/>       <!-- centi-Ampere -->
     <xs:enumeration value="mA"/>       <!-- milli-Ampere -->
     <xs:enumeration value="mAh"/>      <!-- milli-Ampere hour -->
+    <xs:enumeration value="Ah"/>       <!-- Ampere hour -->
     <!-- magnetism -->
     <xs:enumeration value="mT"/>       <!-- milli-Tesla -->
     <xs:enumeration value="gauss"/>    <!-- Gauss -->
@@ -166,6 +168,7 @@
     <xs:enumeration value="cm^3/min"/> <!-- cubic centimetres/minute -->
     <!-- volume -->
     <xs:enumeration value="cm^3"/>     <!-- cubic centimetres -->
+    <xs:enumeration value="l"/>        <!-- litres -->
   </xs:restriction>
 </xs:simpleType>
 

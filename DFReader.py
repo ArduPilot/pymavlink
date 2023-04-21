@@ -127,7 +127,7 @@ class DFFormat(object):
     def set_mult_ids(self, mult_ids):
         '''set mult IDs string from FMTU'''
         self.mult_ids = mult_ids
-            
+
     def __str__(self):
         return ("DFFormat(%s,%s,%s,%s)" %
                 (self.type, self.name, self.format, self.columns))
@@ -135,37 +135,21 @@ class DFFormat(object):
 # Swiped into mavgen_python.py
 def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
-    try:
-        return s.decode("utf-8")
-    except Exception as e:
-        pass
-    try:
-        s2 = s.encode('utf-8', 'ignore')
-        x = u"%s" % s2
-        return s2
-    except Exception:
-        pass
-    # so it's a nasty one. Let's grab as many characters as we can
-    r = ''
-    while s != '':
-        try:
-            r2 = r + s[0]
-            s = s[1:]
-            r2 = r2.encode('ascii', 'ignore')
-            x = u"%s" % r2
-            r = r2
-        except Exception:
-            break
-    return r + '_XXX'
-    
-def null_term(str):
+    if isinstance(s, str):
+        return s
+    if sys.version_info[0] == 2:
+        # In python2 we want to return unicode for passed in unicode
+        return s
+    return s.decode(errors="backslashreplace")
+
+def null_term(string):
     '''null terminate a string'''
-    if isinstance(str, bytes):
-        str = to_string(str)
-    idx = str.find("\0")
+    if isinstance(string, bytes):
+        string = to_string(string)
+    idx = string.find("\0")
     if idx != -1:
-        str = str[:idx]
-    return str
+        string = string[:idx]
+    return string
 
 
 class DFMessage(object):
@@ -238,7 +222,14 @@ class DFMessage(object):
                     noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
                 if struct.pack(">d", val) != noisy_nan:
                     val = "qnan"
-            ret += "%s : %s, " % (c, val)
+
+            if is_py3:
+                ret += "%s : %s, " % (c, val)
+            else:
+                try:
+                    ret += "%s : %s, " % (c, val)
+                except UnicodeDecodeError:
+                    ret += "%s : %s, " % (c, to_string(val))
             col_count += 1
         if col_count != 0:
             ret = ret[:-2]
@@ -666,6 +657,10 @@ class DFReader(object):
             self.flightmode = mavutil.mode_string_px4(m.MainState)
         if type == 'PARM' and getattr(m, 'Name', None) is not None:
             self.params[m.Name] = m.Value
+            if hasattr(m,'Default') and not math.isnan(m.Default):
+                if not hasattr(self,'param_defaults'):
+                    self.param_defaults = {}
+                self.param_defaults[m.Name] = m.Default
         self._set_time(m)
 
     def recv_match(self, condition=None, type=None, blocking=False):
@@ -901,7 +896,7 @@ class DFReader_binary(DFReader):
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
-            type.update(set(['MODE','MSG','PARM','STAT']))
+            type.update(set(['MODE','MSG','PARM','STAT','ORGN']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1119,7 +1114,7 @@ class DFReader_text(DFReader):
             if mtype == "FMTU":
                 self.offset = ofs
                 self._parse_next()
-                
+
             ofs = self.data_map.find(b"\n", ofs)
             if ofs == -1:
                 break
@@ -1139,7 +1134,7 @@ class DFReader_text(DFReader):
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
             self.type_list = type.copy()
-            self.type_list.update(set(['MODE','MSG','PARM','STAT']))
+            self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN']))
             self.type_list = list(self.type_list)
             self.indexes = []
             self.type_nums = []

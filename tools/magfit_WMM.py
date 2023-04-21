@@ -24,12 +24,14 @@ parser.add_argument("--max-cmot", type=float, default=10.0, help="max compassmot
 parser.add_argument("--no-offset-change", action='store_true', help="don't change offsets")
 parser.add_argument("--no-cmot-change", action='store_true', help="don't change cmot")
 parser.add_argument("--elliptical", action='store_true', help="fit elliptical corrections")
-parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections")
+parser.add_argument("--cmot", action='store_true', help="fit compassmot corrections using current")
+parser.add_argument("--cmot-throttle", action='store_true', help="fit compassmot corrections using throttle")
 parser.add_argument("--lat", type=float, default=0, help="latitude")
 parser.add_argument("--lon", type=float, default=0, help="longitude")
 parser.add_argument("--att-source", default=None, help="attitude source message")
 parser.add_argument("--save-plot", action='store_true', default=False, help="save plot to .png file")
 parser.add_argument("--save-params", action='store_true', default=False, help="save params to .param file")
+parser.add_argument("--iter", type=int, default=100, help="max optimization iterations")
 
 parser.add_argument("log", metavar="LOG")
 
@@ -47,12 +49,22 @@ import numpy
 earth_field = None
 declination = None
 
+# CMOT modes matching COMPASS_MOTCT parameter
+CMOT_MODE_NONE = 0
+CMOT_MODE_THROTTLE = 1
+CMOT_MODE_CURRENT = 2
+
+if args.cmot and args.cmot_throttle:
+    print("Cannot fit cmot and cmot-throttle")
+    sys.exit(1)
+
 class Correction:
     def __init__(self):
         self.offsets = Vector3(0.0, 0.0, 0.0)
         self.diag = Vector3(1.0, 1.0, 1.0)
         self.offdiag = Vector3(0.0, 0.0, 0.0)
         self.cmot = Vector3(0.0, 0.0, 0.0)
+        self.cmot_mode = CMOT_MODE_NONE
         self.scaling = 1.0
 
     def show_parms(self, param_file=None):
@@ -69,10 +81,9 @@ class Correction:
         print("%s_Y %.3f" % (param_name("MOT", args.mag), self.cmot.y), file=param_file)
         print("%s_Z %.3f" % (param_name("MOT", args.mag), self.cmot.z), file=param_file)
         print("%s %.2f" % (param_name("SCALE", args.mag), self.scaling), file=param_file)
-        if args.cmot:
-            print("COMPASS_MOTCT 2", file=param_file)
+        print("COMPASS_MOTCT %d" % self.cmot_mode,  file=param_file)
 
-def correct(MAG, BAT, c):
+def correct(MAG, BAT, CTUN, c):
     '''correct a mag sample, returning a Vector3'''
     mag = Vector3(MAG.MagX, MAG.MagY, MAG.MagZ)
 
@@ -91,15 +102,18 @@ def correct(MAG, BAT, c):
     mag = mat * mag
 
     # apply compassmot corrections
-    if BAT is not None and hasattr(BAT, 'Curr') and not math.isnan(BAT.Curr):
+    if (c.cmot_mode == CMOT_MODE_THROTTLE) and CTUN is not None and hasattr(CTUN,'ThO') and not math.isnan(CTUN.ThO):
+        mag += c.cmot * CTUN.ThO
+
+    if (c.cmot_mode == CMOT_MODE_CURRENT) and BAT is not None and hasattr(BAT,'Curr') and not math.isnan(BAT.Curr):
         mag += c.cmot * BAT.Curr
 
     return mag
 
-def get_yaw(ATT,MAG,BAT,c):
+def get_yaw(ATT,MAG,BAT,CTUN,c):
     '''calculate heading from raw magnetometer and new offsets'''
 
-    mag = correct(MAG, BAT, c)
+    mag = correct(MAG, BAT, CTUN, c)
 
     # go via a DCM matrix to match the APM calculation
     dcm_matrix = mavextra.rotation_df(ATT)
@@ -135,6 +149,7 @@ def wmm_error(p):
     '''world magnetic model error with correction fit'''
     p = list(p)
     c = copy.copy(old_corrections)
+    c.cmot_mode = CMOT_MODE_NONE
 
     c.offsets = Vector3(p.pop(0), p.pop(0), p.pop(0))
     c.scaling = p.pop(0)
@@ -145,15 +160,19 @@ def wmm_error(p):
         c.diag = Vector3(1.0, 1.0, 1.0)
         c.offdiag = Vector3(0.0, 0.0, 0.0)
 
-    if args.cmot:
+    if args.cmot or args.cmot_throttle:
         c.cmot = Vector3(p.pop(0), p.pop(0), p.pop(0))
+        if args.cmot:
+            c.cmot_mode = CMOT_MODE_CURRENT
+        else:
+            c.cmot_mode = CMOT_MODE_THROTTLE
 
     ret = 0
 
-    for (MAG,ATT,BAT) in data:
-        yaw = get_yaw(ATT,MAG,BAT,c)
+    for (MAG,ATT,BAT,CTUN) in data:
+        yaw = get_yaw(ATT,MAG,BAT,CTUN,c)
         expected = expected_field(ATT, yaw)
-        observed = correct(MAG,BAT,c)
+        observed = correct(MAG,BAT,CTUN,c)
 
         error = (expected - observed).length()
         ret += error
@@ -162,15 +181,23 @@ def wmm_error(p):
 
     return ret
 
+def printProgress(x):
+    print("offsets:", x[0:3], " scale:", x[3])
+
 def fit_WWW():
     from scipy import optimize
 
     c = copy.copy(old_corrections)
+    c.cmot_mode = CMOT_MODE_NONE
     p = [c.offsets.x, c.offsets.y, c.offsets.z, c.scaling]
     if args.elliptical:
         p.extend([c.diag.x, c.diag.y, c.diag.z, c.offdiag.x, c.offdiag.y, c.offdiag.z])
-    if args.cmot:
+    if args.cmot or args.cmot_throttle:
         p.extend([c.cmot.x, c.cmot.y, c.cmot.z])
+        if args.cmot:
+            c.cmot_mode = CMOT_MODE_CURRENT
+        else:
+            c.cmot_mode = CMOT_MODE_THROTTLE
 
     ofs = args.max_offset
     min_scale_delta = 0.00001
@@ -186,7 +213,7 @@ def fit_WWW():
         for i in range(3):
             bounds.append((args.min_offdiag,args.max_offdiag))
 
-    if args.cmot:
+    if c.cmot_mode != CMOT_MODE_NONE:
         if args.no_cmot_change:
             bounds.append((c.cmot.x, c.cmot.x))
             bounds.append((c.cmot.y, c.cmot.y))
@@ -195,7 +222,7 @@ def fit_WWW():
             for i in range(3):
                 bounds.append((-args.max_cmot,args.max_cmot))
 
-    (p,err,iterations,imode,smode) = optimize.fmin_slsqp(wmm_error, p, bounds=bounds, full_output=True)
+    (p,err,iterations,imode,smode) = optimize.fmin_slsqp(wmm_error, p, bounds=bounds, full_output=True, iter=args.iter, callback=printProgress)
     if imode != 0:
         print("Fit failed: %s" % smode)
         sys.exit(1)
@@ -211,13 +238,13 @@ def fit_WWW():
         c.diag = Vector3(1.0, 1.0, 1.0)
         c.offdiag = Vector3(0.0, 0.0, 0.0)
 
-    if args.cmot:
+    if c.cmot_mode != CMOT_MODE_NONE:
         c.cmot = Vector3(p.pop(0), p.pop(0), p.pop(0))
     else:
         c.cmot = Vector3(0.0, 0.0, 0.0)
     return c
 
-def remove_offsets(MAG, BAT, c):
+def remove_offsets(MAG, BAT, CTUN, c):
     '''remove all corrections to get raw sensor data'''
     correction_matrix = Matrix3(Vector3(c.diag.x,    c.offdiag.x, c.offdiag.y),
                                 Vector3(c.offdiag.x, c.diag.y,    c.offdiag.z),
@@ -228,8 +255,13 @@ def remove_offsets(MAG, BAT, c):
         return False
 
     field = Vector3(MAG.MagX, MAG.MagY, MAG.MagZ)
-    if BAT is not None and hasattr(BAT,'Curr') and not math.isnan(BAT.Curr):
+
+    if (c.cmot_mode == CMOT_MODE_THROTTLE) and CTUN is not None and hasattr(CTUN,'ThO') and not math.isnan(CTUN.ThO):
+        field -= c.cmot * CTUN.ThO
+
+    if (c.cmot_mode == CMOT_MODE_CURRENT) and BAT is not None and hasattr(BAT,'Curr') and not math.isnan(BAT.Curr):
         field -= c.cmot * BAT.Curr
+
     field = correction_matrix * field
     field *= 1.0 / c.scaling
     field -= Vector3(MAG.OfsX, MAG.OfsY, MAG.OfsZ)
@@ -262,6 +294,7 @@ def magfit(logfile):
 
     ATT = None
     BAT = None
+    CTUN = None
 
     if args.mag == 1:
         mag_msg = 'MAG'
@@ -312,9 +345,11 @@ def magfit(logfile):
             ATT.Yaw   = ATT.Yaw   + math.degrees(parameters['AHRS_TRIM_Z'])
         if msg.get_type() == 'BAT':
             BAT = msg
+        if msg.get_type() == 'CTUN':
+            CTUN = msg
         if msg.get_type() == mag_msg and ATT is not None:
             if count % args.reduce == 0:
-                data.append((msg,ATT,BAT))
+                data.append((msg,ATT,BAT,CTUN))
             count += 1
 
     # use COMPASS 1 offsets as test for param scheme
@@ -337,11 +372,12 @@ def magfit(logfile):
     old_corrections.offdiag = Vector3(parameters.get(param_name('ODI', args.mag) + '_X',0.0),
                                       parameters.get(param_name('ODI', args.mag) + '_Y',0.0),
                                       parameters.get(param_name('ODI', args.mag) + '_Z',0.0))
-    if parameters.get('COMPASS_MOTCT',0) == 2:
-        # only support current based corrections for now
-        old_corrections.cmot = Vector3(parameters.get(param_name('MOT', args.mag) + '_X',0.0),
-                                       parameters.get(param_name('MOT', args.mag) + '_Y',0.0),
-                                       parameters.get(param_name('MOT', args.mag) + '_Z',0.0))
+
+    old_corrections.cmot_mode = parameters.get('COMPASS_MOTCT', CMOT_MODE_NONE)
+    old_corrections.cmot = Vector3(parameters.get(param_name('MOT', args.mag) + '_X',0.0),
+                                   parameters.get(param_name('MOT', args.mag) + '_Y',0.0),
+                                   parameters.get(param_name('MOT', args.mag) + '_Z',0.0))
+
     old_corrections.scaling = parameters.get(param_name('SCALE', args.mag), None)
     if old_corrections.scaling is None or old_corrections.scaling < 0.1:
         force_scale = False
@@ -351,14 +387,14 @@ def magfit(logfile):
 
     # remove existing corrections
     data2 = []
-    for (MAG,ATT,BAT) in data:
-        if remove_offsets(MAG, BAT, old_corrections):
-            data2.append((MAG,ATT,BAT))
+    for (MAG,ATT,BAT,CTUN) in data:
+        if remove_offsets(MAG, BAT, CTUN, old_corrections):
+            data2.append((MAG,ATT,BAT,CTUN))
     data = data2
 
     print("Extracted %u points" % len(data))
-    print("Current: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
-        old_corrections.offsets, old_corrections.diag, old_corrections.offdiag, old_corrections.cmot, old_corrections.scaling))
+    print("Current: %s diag: %s offdiag: %s cmot_mode: %s cmot: %s scale: %.2f" % (
+        old_corrections.offsets, old_corrections.diag, old_corrections.offdiag, old_corrections.cmot_mode, old_corrections.cmot, old_corrections.scaling))
     if len(data) == 0:
         return
 
@@ -378,8 +414,8 @@ def magfit(logfile):
         c.diag *= 1.0/scale_change
         c.offdiag *= 1.0/scale_change
 
-    print("New: %s diag: %s offdiag: %s cmot: %s scale: %.2f" % (
-        c.offsets, c.diag, c.offdiag, c.cmot, c.scaling))
+    print("New: %s diag: %s offdiag: %s cmot_mode: %s cmot: %s scale: %.2f" % (
+        c.offsets, c.diag, c.offdiag, c.cmot_mode, c.cmot, c.scaling))
 
     x = []
 
@@ -392,16 +428,16 @@ def magfit(logfile):
     yaw_change1 = []
     yaw_change2 = []
     for i in range(len(data)):
-        (MAG,ATT,BAT) = data[i]
-        yaw1 = get_yaw(ATT,MAG,BAT,c)
+        (MAG,ATT,BAT,CTUN) = data[i]
+        yaw1 = get_yaw(ATT,MAG,BAT,CTUN,c)
         corrected['Yaw'].append(yaw1)
         ef1 = expected_field(ATT, yaw1)
-        cf = correct(MAG, BAT, c)
+        cf = correct(MAG, BAT, CTUN, c)
 
-        yaw2 = get_yaw(ATT,MAG,BAT,old_corrections)
+        yaw2 = get_yaw(ATT,MAG,BAT,CTUN,old_corrections)
         ef2 = expected_field(ATT, yaw2)
         uncorrected['Yaw'].append(yaw2)
-        uf = correct(MAG, BAT, old_corrections)
+        uf = correct(MAG, BAT, CTUN, old_corrections)
 
         yaw_change1.append(mavextra.wrap_180(yaw1 - yaw2))
         yaw_change2.append(mavextra.wrap_180(yaw1 - ATT.Yaw))

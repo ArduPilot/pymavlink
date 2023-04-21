@@ -41,10 +41,12 @@ class Transfer(object):
 def param_decode(data):
     '''decode param packed data'''
     magic = 0x671b
+    magic_def = 0x671c
     magic2,num_params,total_params = struct.unpack("<HHH", data[0:6])
-    if magic != magic2:
+    if magic != magic2 and magic_def != magic2:
         print("paramftp: bad magic 0x%x expected 0x%x" % (magic2, magic))
         return
+    with_defaults = magic2 == magic_def
     data = data[6:]
 
     # mapping of data type to type length and format
@@ -84,12 +86,17 @@ def param_decode(data):
 
         (type_len, type_format) = data_types[ptype]
 
+        if flags & 1:
+            default_len = type_len
+        else:
+            default_len = 0
+
         name_len = ((plen>>4) & 0x0F) + 1
         common_len = (plen & 0x0F)
         name = last_name[0:common_len] + data[2:2+name_len]
         vdata = data[2+name_len:2+name_len+type_len]
         last_name = name
-        data = data[2+name_len+type_len:]
+        data = data[2+name_len+type_len+default_len:]
         v, = struct.unpack("<" + type_format, vdata)
         ret.append((name, v, ptype))
         count += 1
@@ -144,7 +151,7 @@ for filename in args.logs:
 for session in ftp_transfers:
     f = ftp_transfers[session]
     print('# %s' % f.filename.decode())
-    if f.filename.decode() == '@PARAM/param.pck':
+    if f.filename.decode().startswith('@PARAM/param.pck'):
         plist = param_decode(f.extract())
         for p in plist:
             print(p[0].decode(), p[1])

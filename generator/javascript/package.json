@@ -8,7 +8,7 @@
     "glob": "^7.1.6",
     "jspack": "file:local_modules/jspack",
     "long": "file:local_modules/long",
-    "mocha": "^8.2.0",
+    "mocha": "^10.2.0",
     "should": "^13.2.3",
     "underscore": "1.12.1",
     "winston": "3.2.1"
@@ -22,7 +22,7 @@
   "scripts": {
     "preinstall": "rm -rf implementations",
     "install": "cd .. && ./gen_js.sh",
-    "pretest": "cd ../.. && ./test_gen_js.sh && npm install",
+    "XpretestX": "cd ../.. && ./test_gen_js.sh",
     "test": "cd test ; python3 make_tests.py > made_tests.js ; cd .. ; mocha test",
     "lint": "./node_modules/.bin/eslint ./implementations/mavlink_common_v1.0/mavlink.js ./implementations/mavlink_common_v2.0/mavlink.js"
   }
