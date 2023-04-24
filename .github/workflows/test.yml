@@ -30,10 +30,10 @@ jobs:
           then
             pip install mypy
           fi
-          if [[ ${{ matrix.python-version }} == "2.7" ]] || [[ ${{ matrix.python-version }} == "3.5" ]] || [[ ${{ matrix.python-version }} == "3.6" ]]; then
-            SKIP_PRECOMMIT=1
-          else
+          if [[ ${{ matrix.python-version }} == "3.9" ]] || [[ ${{ matrix.python-version }} == "3.10" ]]; then
             SKIP_PRECOMMIT=0
+          else
+            SKIP_PRECOMMIT=1
           fi
           echo "SKIP_PRECOMMIT=${SKIP_PRECOMMIT}" >> $GITHUB_OUTPUT
 

@@ -146,7 +146,7 @@ Notes:
   - This feature _updates_ the default definitions. You can use it to change the name-to-number mapping for a mode, but you completely can't remove an existing mapping.
 
 # Test suite
-Pymavlink implements a number of tests and some CI (Continus Integration) rules to ensure the codebase remains usable and stable over contributions.
+Pymavlink implements a number of tests and some CI (Continuous Integration) rules to ensure the codebase remains usable and stable over contributions.
 As for July 2022, we start using pre-commit (https://pre-commit.com) as a central tools for developpement and CI tests.
 
 ## Test suite tools installation
@@ -161,7 +161,7 @@ sudo python -m pip install --upgrade flake8 pytest pytest-mock numpy types-PyYAM
 ### Static tests and code styles
 From pymavlink root directory :
 ```bash
-pre-commit run --all-files
+./test_local_changes.sh
 ```
 
 This run all pre-commit hooks against all the files. That is what is done in CI.
