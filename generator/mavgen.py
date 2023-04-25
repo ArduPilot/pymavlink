@@ -117,7 +117,10 @@ def mavgen(opts, args):
                 break
 
         if mavparse.check_duplicates(xml):
-            sys.exit(1)
+            return False
+        if mavparse.check_missing_enum(xml):
+            return False
+        return True
 
     def update_includes():
         """Update dialects with crcs etc of included files.  Included files
@@ -237,7 +240,8 @@ def mavgen(opts, args):
         xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
 
     # expand includes
-    expand_includes()
+    if not expand_includes():
+        return False
     update_includes()
 
     print("Found %u MAVLink message types in %u XML files" % (
