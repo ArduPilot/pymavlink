@@ -352,6 +352,8 @@ def mavgen_python_dialect(dialect, wire_protocol, with_type_annotations):
     try:
         xml = os.path.relpath(xml)
         if not mavgen(opts, [xml]):
+            sys.stdout.seek(0)
+            stdout_saved.write(sys.stdout.getvalue())
             sys.stdout = stdout_saved
             return False
     except Exception:
