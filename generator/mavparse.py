@@ -368,8 +368,6 @@ class MAVXML(object):
             for m in self.message:
                 if m.id <= 255:
                     m2.append(m)
-                else:
-                    print("Ignoring MAVLink2 message %s" % m.name)
             self.message = m2
 
         for m in self.message:
