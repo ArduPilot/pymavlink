@@ -118,7 +118,7 @@ def mavgen(opts, args):
 
         if mavparse.check_duplicates(xml):
             return False
-        if mavparse.check_missing_enum(xml):
+        if opts.validate and mavparse.check_missing_enum(xml):
             return False
         return True
 
