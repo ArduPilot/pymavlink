@@ -81,7 +81,7 @@ static void print_field(mavlink_message_t *msg, const mavlink_field_info_t *f)
 		if (f->type == MAVLINK_TYPE_CHAR) {
 			printf("'%.*s'", f->array_length,
 			       f->wire_offset+(const char *)_MAV_PAYLOAD(msg));
-			
+
 		} else {
 			printf("[ ");
 			for (i=0; i<f->array_length; i++) {
@@ -117,16 +117,16 @@ static void comm_send_ch(mavlink_channel_t chan, uint8_t c)
 		/* channel 0 gets 3 messages per message, because of
 		   the channel defaults for _pack() and _encode() */
 		if (chan == MAVLINK_COMM_0 && status.current_rx_seq != (uint8_t)(chan_counts[chan]*3)) {
-			printf("Channel 0 sequence mismatch error at packet %u (rx_seq=%u)\n", 
+			printf("Channel 0 sequence mismatch error at packet %u (rx_seq=%u)\n",
 			       chan_counts[chan], status.current_rx_seq);
 			error_count++;
 		} else if (chan > MAVLINK_COMM_0 && status.current_rx_seq != (uint8_t)chan_counts[chan]) {
-			printf("Channel %u sequence mismatch error at packet %u (rx_seq=%u)\n", 
+			printf("Channel %u sequence mismatch error at packet %u (rx_seq=%u)\n",
 			       (unsigned)chan, chan_counts[chan], status.current_rx_seq);
 			error_count++;
 		}
 		if (message_lengths[last_msg.msgid] != last_msg.len) {
-			printf("Incorrect message length %u for message %u - expected %u\n", 
+			printf("Incorrect message length %u for message %u - expected %u\n",
 			       (unsigned)last_msg.len, (unsigned)last_msg.msgid, message_lengths[last_msg.msgid]);
 			error_count++;
 		}
@@ -136,13 +136,13 @@ static void comm_send_ch(mavlink_channel_t chan, uint8_t c)
 		error_count++;
 	}
 }
-	
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	int chan;
 	mavlink_test_all(11, 10, &last_msg);
 	for (chan=MAVLINK_COMM_0; chan<=MAVLINK_COMM_1; chan++) {
-		printf("Received %u messages on channel %u OK\n", 
+		printf("Received %u messages on channel %u OK\n",
 		       chan_counts[chan], (unsigned)chan);
 	}
 	if (error_count != 0) {

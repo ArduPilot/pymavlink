@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 parse a MAVLink protocol XML file and generate a C# implementation
 
@@ -27,7 +26,7 @@ map = {
         'int64_t'  : 'long',
         'uint64_t' : 'ulong',
     }
-    
+
 def generate_message_header(f, xml_list):
     dedupe = {}
     for xml in xml_list:
@@ -84,7 +83,7 @@ def generate_message_header(f, xml_list):
                 length = xml.message_lengths.get(msgid, None)
                 if name is not None and name not in dedupe:
                     dedupe[name] = 1
-                    xml_list[0].message_infos_array += '        new message_info(%u, "%s", %u, %u, %u, typeof( mavlink_%s_t )), // none 24 bit\n' % (msgid, 
+                    xml_list[0].message_infos_array += '        new message_info(%u, "%s", %u, %u, %u, typeof( mavlink_%s_t )), // none 24 bit\n' % (msgid,
                                                                         name,
                                                                         crc,
                                                                         length,
@@ -96,7 +95,7 @@ def generate_message_header(f, xml_list):
         for m in xml.enum:
             for fe in m.entry[:]:
                 fe.name = fe.name.replace("NAV_","")
-           
+
     t.write(f, '''
 using System;
 using System.Collections.Generic;
@@ -130,11 +129,11 @@ public partial class MAVLink
     public const bool MAVLINK_ALIGNED_FIELDS = (${aligned_fields_define} == 1);
 
     public const byte MAVLINK_CRC_EXTRA = ${crc_extra_define};
-    
+
     public const byte MAVLINK_COMMAND_24BIT = ${command_24bit_define};
-        
+
     public const bool MAVLINK_NEED_BYTE_SWAP = (MAVLINK_ENDIAN == MAVLINK_LITTLE_ENDIAN);
-        
+
     // msgid, name, crc, minlength, length, type
     public static message_info[] MAVLINK_MESSAGE_INFOS = new message_info[] {
 ${message_infos_array}
@@ -168,13 +167,13 @@ ${message_infos_array}
         {
             return String.Format("{0} - {1}",name,msgid);
         }
-    }   
+    }
 
-    public enum MAVLINK_MSG_ID 
+    public enum MAVLINK_MSG_ID
     {
 ${message_names_enum}
     }
-    
+
 ''', xml_list[0])
 
 
@@ -193,7 +192,7 @@ def cleanText(text):
     text = text.replace("\r"," ")
     return text.replace("\"","'")
 
-def generate_message_enums(f, xml): 
+def generate_message_enums(f, xml):
     print("generate_message_enums: " + xml.filename)
     # add some extra field attributes for convenience with arrays
     for m in xml.enum:
@@ -216,7 +215,7 @@ def generate_message_enums(f, xml):
         %s''' % fe.name
             for p in fe.param:
                 p.description = cleanText(p.description)
-            
+
     t.write(f, '''
     ${{enum:
     ///<summary> ${description} </summary>
@@ -224,7 +223,7 @@ def generate_message_enums(f, xml):
     {
         ${{entry:///<summary> ${description} |${{param:${description}| }} </summary>
         [Description("${description}")]
-        ${name}=${value}, 
+        ${name}=${value},
         }}
     };
     }}
@@ -236,11 +235,11 @@ def generate_message_footer(f, xml):
 }
 ''', xml)
     f.close()
-             
+
 
 def generate_message_h(f, directory, m):
     '''generate per-message header for a XML file'''
-    
+
     m.obsolete = ""
     if hasattr(m, "deprecated") and m.deprecated is True:
         m.obsolete = "[Obsolete]"
@@ -252,7 +251,7 @@ def generate_message_h(f, directory, m):
     ///<summary> ${description} </summary>
     public struct mavlink_${name_lower}_t
     {
-        public mavlink_${name_lower}_t(${{ordered_fields:${type} ${name},}}) 
+        public mavlink_${name_lower}_t(${{ordered_fields:${type} ${name},}})
         {
             ${{ordered_fields:  this.${name} = ${name};
             }}
@@ -273,7 +272,7 @@ class mav_include(object):
 
 def generate_one(fh, basename, xml):
     '''generate headers for one XML file'''
-    
+
     directory = os.path.join(basename, xml.basename)
 
     print("Generating CSharp implementation for %s" % xml.basename)
@@ -312,7 +311,7 @@ def generate_one(fh, basename, xml):
                 if f.type == 'byte':
                     f.array_tag = 'getByte'
                 if f.name == 'fixed':   # this is a keyword
-                    f.name = '@fixed' 
+                    f.name = '@fixed'
                 f.array_arg = ''
                 f.array_return_arg = ''
                 f.array_const = ''
@@ -338,7 +337,7 @@ def generate_one(fh, basename, xml):
                 f.putname = f.name
             else:
                 f.putname = f.const_value
-    
+
     for m in xml.message:
         generate_message_h(fh, directory, m)
 
@@ -363,11 +362,11 @@ def copy_fixed_headers(directory, xml):
 def generate(basename, xml_list):
     '''generate complete MAVLink CSharp implemenation'''
     print("generate for protocol %s to %s" % (xml_list[0].wire_protocol_version, basename))
-    
+
     directory = basename
 
-    if not os.path.exists(directory): 
-        os.makedirs(directory) 
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
     f = open(os.path.join(directory, "mavlink.cs"), mode='w')
 
@@ -378,10 +377,10 @@ def generate(basename, xml_list):
 
     for xml2 in xml_list:
         generate_message_enums(f, xml2)
-        
+
     for xml3 in xml_list:
         generate_one(f, basename, xml3)
-    
+
     generate_message_footer(f,xml_list[0])
 
     copy_fixed_headers(basename, xml_list[0])
