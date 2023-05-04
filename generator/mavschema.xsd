@@ -65,14 +65,14 @@
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
-<xs:attribute name="since"> <!-- used in deprecated elements -->
+<xs:attribute name="since"> <!-- used in elements: wip, superseded, deprecated -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
-      <xs:pattern value="(20)\d{2}-(0[1-9]|1[012])"/>  <!-- restrict dates to 20YY-MM format -->
+      <xs:pattern value="(20)\d{2}-(0[1-9]|1[012])"/> <!-- restrict dates to 20YY-MM format -->
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
-<xs:attribute name="replaced_by" type="xs:string"/> <!-- used in deprecated elements -->
+<xs:attribute name="replaced_by" type="xs:string"/> <!-- used in elements: superseded, deprecated -->
 
 <!-- mavlink message IDs are unsigned 24-bit values. -->
 <xs:simpleType name="mavlinkMsgId" id="mavlinkMsgId">
@@ -217,7 +217,16 @@
     </xs:complexType>
 </xs:element>
 
-<xs:element name="deprecated">
+<xs:element name="wip">
+    <xs:complexType mixed="true">
+        <xs:sequence>
+            <xs:element ref="description" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute ref="since" />
+    </xs:complexType>
+</xs:element>
+
+<xs:element name="superseded">
     <xs:complexType mixed="true">
         <xs:sequence>
             <xs:element ref="description" minOccurs="0"/>
@@ -227,12 +236,13 @@
     </xs:complexType>
 </xs:element>
 
-<xs:element name="wip">
+<xs:element name="deprecated">
     <xs:complexType mixed="true">
         <xs:sequence>
             <xs:element ref="description" minOccurs="0"/>
         </xs:sequence>
-        <xs:attribute ref="since" />
+        <xs:attribute ref="since" use="required"/>
+        <xs:attribute ref="replaced_by" use="required"/>
     </xs:complexType>
 </xs:element>
 
@@ -264,8 +274,9 @@
     <xs:complexType>
         <xs:sequence>
             <xs:choice minOccurs="0" maxOccurs="1">
-                <xs:element ref="deprecated"/>
                 <xs:element ref="wip"/>
+                <xs:element ref="superseded"/>
+                <xs:element ref="deprecated"/>
             </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
             <xs:element ref="param" minOccurs="0" maxOccurs="unbounded" />
@@ -285,8 +296,9 @@
     <xs:complexType>
         <xs:sequence>
             <xs:choice minOccurs="0" maxOccurs="1">
-                <xs:element ref="deprecated"/>
                 <xs:element ref="wip"/>
+                <xs:element ref="superseded"/>
+                <xs:element ref="deprecated"/>
             </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
             <xs:element ref="entry" maxOccurs="unbounded"/>
@@ -301,8 +313,9 @@
         <xs:sequence>
             <xs:sequence minOccurs="1" maxOccurs="1">
                 <xs:choice minOccurs="0" maxOccurs="1">
-                    <xs:element ref="deprecated"/>
-                    <xs:element ref="wip"/>
+                <xs:element ref="wip"/>
+                <xs:element ref="superseded"/>
+                <xs:element ref="deprecated"/>
                 </xs:choice>
                 <xs:element ref="description" minOccurs="1" maxOccurs="1"/>
                 <xs:element ref="field" minOccurs="1" maxOccurs="unbounded"/>
