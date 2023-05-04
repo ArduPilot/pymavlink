@@ -233,6 +233,9 @@
         <xs:attribute ref="enum" />
         <xs:attribute ref="display" />
         <xs:attribute ref="units" />
+        <xs:attribute ref="increment"/>
+        <xs:attribute ref="minValue"/>
+        <xs:attribute ref="maxValue"/>        
         <xs:attribute ref="default" />
         <xs:attribute ref="instance" />
         <xs:attribute ref="invalid" />
