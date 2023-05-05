@@ -18,11 +18,17 @@ tools/mavgen.py --lang C $MDEF/v1.0/all.xml -o generator/C/include_v2.0 --wire-p
 tools/mavgen.py --lang C++11 $MDEF/v1.0/all.xml -o generator/CPP11/include_v2.0 --wire-protocol=2.0
 
 pushd generator/C/test/posix
-make clean testmav1.0_ardupilotmega testmav2.0_ardupilotmega
 
+make ENDIANESS=MAVLINK_LITTLE_ENDIAN clean testmav1.0_ardupilotmega testmav2.0_ardupilotmega
 # these test tools emit the test packet as hexadecimal and human-readable, other tools consume it as a cross-reference, we ignore the hex here.
 ./testmav1.0_ardupilotmega | egrep -v '(^fe|^fd)'
 ./testmav2.0_ardupilotmega | egrep -v '(^fe|^fd)'
+
+make ENDIANESS=MAVLINK_BIG_ENDIAN clean testmav1.0_ardupilotmega testmav2.0_ardupilotmega
+# these test tools emit the test packet as hexadecimal and human-readable, other tools consume it as a cross-reference, we ignore the hex here.
+./testmav1.0_ardupilotmega | egrep -v '(^fe|^fd)'
+./testmav2.0_ardupilotmega | egrep -v '(^fe|^fd)'
+
 popd
 
 pushd generator/CPP11/test/posix
