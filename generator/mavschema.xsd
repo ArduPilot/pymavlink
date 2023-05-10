@@ -249,7 +249,7 @@
                 <xs:element ref="wip"/>
             </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
-            <xs:element ref="param" minOccurs="0" maxOccurs="unbounded" />
+            <xs:element ref="param" minOccurs="0" maxOccurs="7" />
         </xs:sequence>
         <xs:attribute ref="value" />
         <xs:attribute ref="name" use="required"/>
