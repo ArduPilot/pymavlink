@@ -1,0 +1,390 @@
+# serializer version: 1
+# name: test_wlua[common.xml-command_long_over_tcp.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, 
+      MAVLink Protocol (45)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 33
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 246
+              System id: 0xfa
+              Component id: 0xfa
+              Message id: COMMAND_LONG (76)
+          Payload: COMMAND_LONG (76)
+              target_system (uint8_t): 1
+              target_component (uint8_t): 1
+              command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
+              confirmation (uint8_t): 1
+              param1: Mode (MAV_MODE): Unknown (1)
+              param2: Custom Mode (float): 5
+              param3: Custom Submode (float): 0
+              param4 (float): 0
+              param5 (float): 0
+              param6 (float): 0
+              param7 (float): 0
+          Message CRC: 0xdb93
+      
+      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, 
+      MAVLink Protocol (82)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 10
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 218
+              System id: 0x01
+              Component id: 0x01
+              Message id: COMMAND_ACK (77)
+          Payload: COMMAND_ACK (77)
+              command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
+              result (MAV_RESULT): MAV_RESULT_FAILED (4)
+          Message CRC: 0x7692
+      MAVLink Protocol (82)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 48
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 219
+              System id: 0x01
+              Component id: 0x01
+              Message id: STATUSTEXT (253)
+          Payload: STATUSTEXT (253)
+              severity (MAV_SEVERITY): MAV_SEVERITY_WARNING (4)
+              text (char): Mode change to LOITER failed: requires position
+          Message CRC: 0x647a
+      
+      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706
+      MAVLink Protocol (45)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 33
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 11
+              System id: 0xfa
+              Component id: 0xfa
+              Message id: COMMAND_LONG (76)
+          Payload: COMMAND_LONG (76)
+              target_system (uint8_t): 1
+              target_component (uint8_t): 1
+              command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
+              confirmation (uint8_t): 1
+              param1: Arm (float): 0
+              param2: Force (float): 0
+              param3 (float): 0
+              param4 (float): 0
+              param5 (float): 0
+              param6 (float): 0
+              param7 (float): 0
+          Message CRC: 0xf9df
+      
+      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 126
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 10
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 71
+              System id: 0x01
+              Component id: 0x01
+              Message id: COMMAND_ACK (77)
+          Payload: COMMAND_ACK (77)
+              command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
+              result (MAV_RESULT): MAV_RESULT_ACCEPTED (0)
+          Message CRC: 0x1878
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 17
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 72
+              System id: 0x01
+              Component id: 0x01
+              Message id: STATUSTEXT (253)
+          Payload: STATUSTEXT (253)
+              severity (MAV_SEVERITY): MAV_SEVERITY_INFO (6)
+              text (char): Disarming motors
+          Message CRC: 0x570a
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 25
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 73
+              System id: 0x01
+              Component id: 0x01
+              Message id: PARAM_VALUE (22)
+          Payload: PARAM_VALUE (22)
+              param_id (char): MOT_THST_HOVER
+              param_value (float): 0.39
+              param_type (MAV_PARAM_TYPE): MAV_PARAM_TYPE_REAL32 (9)
+              param_count (uint16_t): 1305
+              param_index (uint16_t): 65535
+          Message CRC: 0xf478
+      
+  
+    ''',
+  })
+# ---
+# name: test_wlua[common.xml-common.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, 
+      MAVLink Protocol (45)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 33
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 246
+              System id: 0xfa
+              Component id: 0xfa
+              Message id: COMMAND_LONG (76)
+          Payload: COMMAND_LONG (76)
+              target_system (uint8_t): 1
+              target_component (uint8_t): 1
+              command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
+              confirmation (uint8_t): 1
+              param1: Mode (MAV_MODE): Unknown (1)
+              param2: Custom Mode (float): 5
+              param3: Custom Submode (float): 0
+              param4 (float): 0
+              param5 (float): 0
+              param6 (float): 0
+              param7 (float): 0
+          Message CRC: 0xdb93
+      
+      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, 
+      MAVLink Protocol (82)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 10
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 218
+              System id: 0x01
+              Component id: 0x01
+              Message id: COMMAND_ACK (77)
+          Payload: COMMAND_ACK (77)
+              command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
+              result (MAV_RESULT): MAV_RESULT_FAILED (4)
+          Message CRC: 0x7692
+      MAVLink Protocol (82)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 48
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 219
+              System id: 0x01
+              Component id: 0x01
+              Message id: STATUSTEXT (253)
+          Payload: STATUSTEXT (253)
+              severity (MAV_SEVERITY): MAV_SEVERITY_WARNING (4)
+              text (char): Mode change to LOITER failed: requires position
+          Message CRC: 0x647a
+      
+      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706
+      MAVLink Protocol (45)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 33
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 11
+              System id: 0xfa
+              Component id: 0xfa
+              Message id: COMMAND_LONG (76)
+          Payload: COMMAND_LONG (76)
+              target_system (uint8_t): 1
+              target_component (uint8_t): 1
+              command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
+              confirmation (uint8_t): 1
+              param1: Arm (float): 0
+              param2: Force (float): 0
+              param3 (float): 0
+              param4 (float): 0
+              param5 (float): 0
+              param6 (float): 0
+              param7 (float): 0
+          Message CRC: 0xf9df
+      
+      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 126
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 10
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 71
+              System id: 0x01
+              Component id: 0x01
+              Message id: COMMAND_ACK (77)
+          Payload: COMMAND_ACK (77)
+              command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
+              result (MAV_RESULT): MAV_RESULT_ACCEPTED (0)
+          Message CRC: 0x1878
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 17
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 72
+              System id: 0x01
+              Component id: 0x01
+              Message id: STATUSTEXT (253)
+          Payload: STATUSTEXT (253)
+              severity (MAV_SEVERITY): MAV_SEVERITY_INFO (6)
+              text (char): Disarming motors
+          Message CRC: 0x570a
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 25
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 73
+              System id: 0x01
+              Component id: 0x01
+              Message id: PARAM_VALUE (22)
+          Payload: PARAM_VALUE (22)
+              param_id (char): MOT_THST_HOVER
+              param_value (float): 0.39
+              param_type (MAV_PARAM_TYPE): MAV_PARAM_TYPE_REAL32 (9)
+              param_count (uint16_t): 1305
+              param_index (uint16_t): 65535
+          Message CRC: 0xf478
+      
+  
+    ''',
+  })
+# ---
+# name: test_wlua[minimal.xml-common.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, 
+      MAVLink Protocol (45)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 33
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 246
+              System id: 0xfa
+              Component id: 0xfa
+              Message id: Unknown (76)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: 0000803f0000a04000000000000000000000000000000000
+          Message CRC: 0xdb93
+      
+      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, 
+      MAVLink Protocol (82)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 10
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 218
+              System id: 0x01
+              Component id: 0x01
+              Message id: Unknown (77)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: b000040000000000fafa9276fd300000db0101fd0000044d
+          Message CRC: 0x647a
+      
+      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706
+      MAVLink Protocol (45)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 33
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 11
+              System id: 0xfa
+              Component id: 0xfa
+              Message id: Unknown (76)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: 000000000000000000000000000000000000000000000000
+          Message CRC: 0xf9df
+      
+      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 126
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 10
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 71
+              System id: 0x01
+              Component id: 0x01
+              Message id: Unknown (77)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: 9001000000000000fafa7818fd110000480101fd00000644
+          Message CRC: 0xf478
+      
+  
+    ''',
+  })
+# ---

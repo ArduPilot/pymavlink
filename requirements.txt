@@ -1,3 +1,7 @@
 lxml>=3.6.0
 future>=0.15.2
 wheel>=0.37.1
+
+# dev dependencies:
+pytest
+syrupy; python_version>='3.6'
