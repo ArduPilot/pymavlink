@@ -31,6 +31,10 @@ import re
 import sys
 from . import mavparse
 
+
+## Debug - remove pprint
+from pprint import pprint
+
 # XSD schema file
 schemaFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mavschema.xsd")
 
@@ -58,26 +62,35 @@ def mavgen(opts, args):
     all_files = set()
 
     # Enable validation by default, disabling it if explicitly requested
+    # Enable validation by default, disabling it if explicitly requested
     if opts.validate:
         try:
-            from lxml import etree
-            with open(schemaFile, 'r') as f:
-                xmlschema_root = etree.parse(f)
-                if not opts.strict_units:
-                    # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
-                    for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
-                        elem.set("type", "xs:string")
-                xmlschema = etree.XMLSchema(xmlschema_root)
-        except ImportError:
-            print("WARNING: Failed to import lxml module etree. Are lxml, libxml2 and libxslt installed? XML validation will not be performed", file=sys.stderr)
+            import xmlschema
+            xmlschema = xmlschema.XMLSchema11(schemaFile)
+            #xmlschema = xmlschema.XMLSchema(schemaFile)
+            if not opts.strict_units:
+                print("INF0: Option to disable --strict-units not yet implemented")
+                # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
+                # code not yet working. See https://github.com/sissaschool/xmlschema/issues/346
+
+
+                # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
+                #for elem in xmlschema_root.iterfind('xs:attribute[@name="units"]', xmlschema_root.getroot().nsmap):
+                #     elem.set("type", "xs:string")
+                # xmlschema.validate() = etree.XMLSchema(xmlschema_root)
+
+
+        except ModuleNotFoundError:
+            print("WARNING: Failed to import xmlschema library (is it installed)? XML validation will not be performed", file=sys.stderr)
             opts.validate = False
-        except etree.XMLSyntaxError as err:
-            print("WARNING: XML Syntax Errors detected in %s XML schema file. XML validation will not be performed" % schemaFile, file=sys.stderr)
-            print(str(err.error_log), file=sys.stderr)
+        except xmlschema.validators.exceptions.XMLSchemaParseError as e:
+            print(f"WARNING: XML schema file has syntax errors ({schemaFile}). XML validation will not be performed", file=sys.stderr)
+            print(f"  Exception is: {e}")
+            #pprint("Exception:", e)
             opts.validate = False
         except Exception as e:
-            print("Exception:", e)
-            print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
+            print("WARNING: Unexpected error. XML validation will not be performed", file=sys.stderr)
+            print(f"  Exception is: {e}")
             opts.validate = False
 
     def expand_includes():
@@ -196,30 +209,66 @@ def mavgen(opts, args):
                 break
 
     def mavgen_validate(xmlfile):
-        """Uses lxml to validate an XML file. We define mavgen_validate
+        """Uses xmlschema to validate an XML file. We define mavgen_validate
            here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
         xmlvalid = True
+
         try:
-            with open(xmlfile, 'r') as f:
-                xmldocument = etree.parse(f)
-                xmlschema.assertValid(xmldocument)
-                forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
+            xmlschema.validate(xmlfile)
+
+            #xs_dict = xmlschema.to_dict(xmlfile);
+
+            forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
                                     export$|extends$|finally$|for$|function$|if$|import$|in$|instanceof$|let$|new$|\
                                     return$|super$|switch$|this$|throw$|try$|typeof$|var$|void$|while$|with$|yield$|\
                                     enum$|await$|implements$|package$|protected$|static$|interface$|private$|public$|\
                                     abstract$|boolean$|byte$|char$|double$|final$|float$|goto$|int$|long$|native$|\
                                     short$|synchronized$|transient$|volatile$).*", re.IGNORECASE)
-                for element in xmldocument.iter('enum', 'entry', 'message', 'field'):
-                    if forbidden_names_re.search(element.get('name')):
-                        print("Validation error:", file=sys.stderr)
-                        print("Element : %s at line : %s contains forbidden word" % (element.tag, element.sourceline), file=sys.stderr)
+            
+
+            # Loop over each type and check for forbidden names ('enum', 'entry', 'message', 'field'):
+            # Note can't be done in XSD (easily) as pattern match does not support negative lookahead assertions.
+            from xml.etree import ElementTree
+            xt = ElementTree.parse(xmlfile)
+            root = xt.getroot()
+
+            for enumItem in xt.iter('enum'): #
+                if forbidden_names_re.search(enumItem.get('name')):
+                    xmlvalid = False
+                    raise Exception(f"Validation Error: an ENUM has @name that contains forbidden word: '{enumItem.get('name')}'")
+                for entryItem in enumItem.iter('entry'): #
+                    if forbidden_names_re.search(entryItem.get('name')):
                         xmlvalid = False
+                        raise Exception(f"Validation Error: Entry {entryItem.get('value')} in enum : {enumItem.get('name')} has @name that contains forbidden word: '{entryItem.get('name')}'")              
+
+            for messageItem in xt.iter('message'): #
+                #print(messageItem.get('name'))
+                if forbidden_names_re.search(messageItem.get('name')):
+                    xmlvalid = False
+                    raise Exception(f"Validation Error: MESSAGE {messageItem.get('id')} has @name that contains forbidden word: '{messageItem.get('name')}'")
+                for fieldItem in messageItem.iter('field'): #
+                    if forbidden_names_re.search(fieldItem.get('name')):
+                        xmlvalid = False
+                        #print(f"messageItem value: {entryItem.get('value')}")
+                        #print(f"messageItem name: {entryItem.get('name')}")
+                        #print(f"Fielditem name: {fieldItem.attrib}")
+                        #print(f"Fielditem name: {fieldItem.text}")
+                        #print(f"Entry name: {fieldItem.tostring(root, encoding='utf8').decode('utf8')}")
+                        #TODO: Print out the whole field?
+                        raise Exception(
+                            "Validation Error: Message : "
+                            f"{messageItem.get('name')} ({messageItem.get('id')}) "
+                            "has a field with a name that is a forbidden word "
+                            f"({fieldItem.get('name')}). The field has attributes "
+                            f"'{fieldItem.attrib}' and text '{fieldItem.text}'"
+                        )
 
             return xmlvalid
-        except etree.XMLSchemaError:
-            return False
-        except etree.DocumentInvalid as err:
-            sys.exit('ERROR: %s' % str(err.error_log))
+        except Exception as e:
+            print("Exception:", e)
+            #pprint("Exception:", e)
+            print("WARNING: XML validation will not be performed", file=sys.stderr)
+            opts.validate = False
         return True
 
     # Process all XML files, validating them as necessary.
