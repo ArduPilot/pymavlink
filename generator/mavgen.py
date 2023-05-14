@@ -249,12 +249,6 @@ def mavgen(opts, args):
                 for fieldItem in messageItem.iter('field'): #
                     if forbidden_names_re.search(fieldItem.get('name')):
                         xmlvalid = False
-                        #print(f"messageItem value: {entryItem.get('value')}")
-                        #print(f"messageItem name: {entryItem.get('name')}")
-                        #print(f"Fielditem name: {fieldItem.attrib}")
-                        #print(f"Fielditem name: {fieldItem.text}")
-                        #print(f"Entry name: {fieldItem.tostring(root, encoding='utf8').decode('utf8')}")
-                        #TODO: Print out the whole field?
                         raise Exception(
                             "Validation Error: Message : "
                             f"{messageItem.get('name')} ({messageItem.get('id')}) "
