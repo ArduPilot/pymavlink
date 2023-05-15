@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''
-parse a MAVLink protocol XML file and generate a Wireshark LUA dissector
+parse a MAVLink protocol XML file and generate a Ardupilot LUA mavlink module
 '''
 from __future__ import print_function
 
