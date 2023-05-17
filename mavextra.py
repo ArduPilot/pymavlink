@@ -431,7 +431,10 @@ def pitch_estimate(RAW_IMU, GPS_RAW_INT=None,ATTITUDE=None, SENSOR_OFFSETS=None,
 def rotation(ATTITUDE):
     '''return the current DCM rotation matrix'''
     r = Matrix3()
-    r.from_euler(ATTITUDE.roll, ATTITUDE.pitch, ATTITUDE.yaw)
+    if hasattr(ATTITUDE, 'roll'):
+        r.from_euler(ATTITUDE.roll, ATTITUDE.pitch, ATTITUDE.yaw)
+    else:
+        r.from_euler(radians(ATTITUDE.Roll), radians(ATTITUDE.Pitch), radians(ATTITUDE.Yaw))
     return r
 
 def mag_rotation(RAW_IMU, inclination, declination):
@@ -754,17 +757,23 @@ def gps_velocity_body(GPS_RAW_INT, ATTITUDE):
                                     GPS_RAW_INT.vel*0.01*sin(radians(GPS_RAW_INT.cog*0.01)),
                                     -tan(ATTITUDE.pitch)*GPS_RAW_INT.vel*0.01)
 
-def earth_accel(RAW_IMU,ATTITUDE):
+def earth_accel(IMU,ATT):
     '''return earth frame acceleration vector'''
-    r = rotation(ATTITUDE)
-    accel = Vector3(RAW_IMU.xacc, RAW_IMU.yacc, RAW_IMU.zacc) * 9.81 * 0.001
+    r = rotation(ATT)
+    if hasattr(IMU, 'xacc'):
+        accel = Vector3(IMU.xacc, IMU.yacc, IMU.zacc) * 9.81 * 0.001
+    else:
+        accel = Vector3(IMU.AccX, IMU.AccY, IMU.AccZ)
     return r * accel
 
-def earth_gyro(RAW_IMU,ATTITUDE):
+def earth_gyro(IMU,ATT):
     '''return earth frame gyro vector'''
-    r = rotation(ATTITUDE)
-    accel = Vector3(degrees(RAW_IMU.xgyro), degrees(RAW_IMU.ygyro), degrees(RAW_IMU.zgyro)) * 0.001
-    return r * accel
+    r = rotation(ATT)
+    if hasattr(IMU, 'xgyro'):
+        gyro = Vector3(IMU.xgyro, IMU.ygyro, IMU.zgyro) * degrees(0.001)
+    else:
+        gyro = Vector3(IMU.GyrX, IMU.GyrY, IMU.GyrZ)
+    return r * gyro
 
 def airspeed_energy_error(NAV_CONTROLLER_OUTPUT, VFR_HUD):
     '''return airspeed energy error matching APM internals
