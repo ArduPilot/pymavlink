@@ -184,6 +184,7 @@
 <!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
 <xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- entry has lat/lon/alt location -->
 <xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- entry is a destination -->
+<xs:attribute name="missionOnly" type="xs:boolean" default="true"/>  <!-- entry only makes sense in missions, not commands -->
 
 <!-- definition of complex elements -->
 <xs:element name="param">
@@ -255,6 +256,7 @@
         <xs:attribute ref="name" use="required"/>
         <xs:attribute ref="hasLocation"/>
         <xs:attribute ref="isDestination"/>
+        <xs:attribute ref="missionOnly"/>
     </xs:complexType>
 </xs:element>
 
