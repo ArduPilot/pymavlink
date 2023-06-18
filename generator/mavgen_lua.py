@@ -49,9 +49,7 @@ def generate(basename, xml):
         module_root_rel += '/'
 
     # dump the actual symbol table
-    outf.write("local mavlink_msgs = {}\n")
     for m in msgs:
-        # outf.write("mavlink_msg.msgs[%u] = \"%s\"\n" % (m.id, m.name))
         mavlink_msg_file = open("%s/mavlink_msg_%s.lua" % (basename, m.name), "w")
         mavlink_msg_file.write("local %s = {}\n" % m.name)
         mavlink_msg_file.write("%s.id = %u\n" % (m.name, m.id))
@@ -66,7 +64,7 @@ def generate(basename, xml):
         mavlink_msg_file.write("return %s\n" % m.name)
         mavlink_msg_file.close()
     outf.write(
-"""
+"""-- Auto generated MAVLink parsing script
 local mavlink_msgs = {{}}
 
 function mavlink_msgs.get_msgid(msgname)
@@ -93,7 +91,7 @@ function mavlink_msgs.decode_header(message)
     error("Invalid magic byte")
   end
 
-  local payload_len, read_marker = string.unpack("<B", message, read_marker) -- payload is always the second byte
+  _, read_marker = string.unpack("<B", message, read_marker) -- payload is always the second byte
 
   -- strip the incompat/compat flags
   result.incompat_flags, result.compat_flags, read_marker = string.unpack("<BB", message, read_marker)
@@ -116,7 +114,7 @@ function mavlink_msgs.decode(message, msg_map)
   end
 
   -- map all the fields out
-  for i,v in ipairs(message_map.fields) do
+  for _,v in ipairs(message_map.fields) do
     if v[3] then
       result[v[1]] = {{}}
       for j=1,v[3] do
@@ -134,13 +132,13 @@ end
 
 function mavlink_msgs.encode(msgname, message)
   local message_map = require("{module_root_rel}mavlink_msg_" .. msgname)
-  if not message_map then                 
+  if not message_map then
     -- we don't know how to encode this message, bail on it
     error("Unknown MAVLink message " .. msgname)
   end
 
   local packString = "<"
-  local packedTable = {{}}                  
+  local packedTable = {{}}
   local packedIndex = 1
   for i,v in ipairs(message_map.fields) do
     if v[3] then
