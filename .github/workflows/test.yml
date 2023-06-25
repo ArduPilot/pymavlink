@@ -69,6 +69,7 @@ jobs:
             flake8 --ignore='W503,E203,E501,E741' --statistics dialects/
             mypy --config-file ./.github/workflows/mypy-generated.ini dialects/v10/*.py dialects/v20/*.py
           fi
+
       - name: Generate messages
         run: |
           ./test_generate_all.sh
