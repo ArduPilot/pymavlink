@@ -12,7 +12,7 @@ from . import mavtemplate
 t = mavtemplate.MAVTemplate()
 
 
-def extend_with_type_info(extended, enable_type_annotations):
+def extend_with_type_info(extended):
     types = {
         "int": ("int", 0),
         "bool": ("bool", False),
@@ -57,46 +57,23 @@ def extend_with_type_info(extended, enable_type_annotations):
     }
 
     res = extended
-    if enable_type_annotations:
-        res[
-            "typing_imports"
-        ] = """from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast"""
-        for type_name, type_info in types.items():
-            res["type_" + type_name] = ": " + type_info[0]
-            res["type_" + type_name + "_ret"] = " -> " + type_info[0]
-            res["type_" + type_name + "_cast"] = type_info[0]
-            if type_info[1] is not None:
-                res["type_" + type_name + "_default"] = (
-                    ": " + type_info[0] + " = " + repr(type_info[1])
-                )
-            res["type_optional_" + type_name] = ": Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_ret"] = " -> Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_cast"] = "Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_default"] = (
-                ": Optional[" + type_info[0] + "] = None"
+    res[
+        "typing_imports"
+    ] = """from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast"""
+    for type_name, type_info in types.items():
+        res["type_" + type_name] = ": " + type_info[0]
+        res["type_" + type_name + "_ret"] = " -> " + type_info[0]
+        res["type_" + type_name + "_cast"] = type_info[0]
+        if type_info[1] is not None:
+            res["type_" + type_name + "_default"] = (
+                ": " + type_info[0] + " = " + repr(type_info[1])
             )
-
-    else:
-        res[
-            "typing_imports"
-        ] = '''
-
-def cast(type_str, arg):
-    """
-    No-op for Python2 used instead of typing.cast()
-    """
-    return arg
-'''
-        for type_name, type_info in types.items():
-            res["type_" + type_name] = ""
-            res["type_" + type_name + "_ret"] = ""
-            res["type_" + type_name + "_cast"] = '"' + type_info[0] + '"'
-            if type_info[1] is not None:
-                res["type_" + type_name + "_default"] = "=" + repr(type_info[1])
-            res["type_optional_" + type_name] = ""
-            res["type_optional_" + type_name + "_ret"] = ""
-            res["type_optional_" + type_name + "_cast"] = '"Optional[' + type_info[0] + ']"'
-            res["type_optional_" + type_name + "_default"] = "=None"
+        res["type_optional_" + type_name] = ": Optional[" + type_info[0] + "]"
+        res["type_optional_" + type_name + "_ret"] = " -> Optional[" + type_info[0] + "]"
+        res["type_optional_" + type_name + "_cast"] = "Optional[" + type_info[0] + "]"
+        res["type_optional_" + type_name + "_default"] = (
+            ": Optional[" + type_info[0] + "] = None"
+        )
 
     return res
 
@@ -421,10 +398,10 @@ msg_name =  msg.msgname if hasattr(msg, "msgname") else msg.name"""
     )
 
 
-def generate_enums(outf, enums, enable_type_annotations):
+def generate_enums(outf, enums):
     print("Generating enums")
 
-    type_info = extend_with_type_info({}, enable_type_annotations)
+    type_info = extend_with_type_info({})
 
     t.write(
         outf,
@@ -502,7 +479,7 @@ def byname_hash_from_field_attribute(m, attribute):
     return ", ".join(strings)
 
 
-def generate_classes(outf, msgs, enable_type_annotations):
+def generate_classes(outf, msgs):
     print("Generating class definitions")
     wrapper = textwrap.TextWrapper(initial_indent="    ", subsequent_indent="    ")
     for m in msgs:
@@ -526,15 +503,10 @@ def generate_classes(outf, msgs, enable_type_annotations):
             fname = m.fieldnames[i]
             if m.extensions_start is not None and i >= m.extensions_start:
                 fdefault = m.fielddefaults[i]
-                if enable_type_annotations:
-                    arg_fields.append("%s: %s = %s" % (fname, mavpytype(m.fields[i]), fdefault))
-                else:
-                    arg_fields.append("%s=%s" % (fname, fdefault))
+                arg_fields.append("%s: %s = %s" % (fname, mavpytype(m.fields[i]), fdefault))
+
             else:
-                if enable_type_annotations:
-                    arg_fields.append("%s: %s" % (fname, mavpytype(m.fields[i])))
-                else:
-                    arg_fields.append(fname)
+                arg_fields.append("%s: %s" % (fname, mavpytype(m.fields[i])))
 
         init_fields = []
         for f in m.fields:
@@ -619,7 +591,6 @@ setattr(${classname}, "name", mavlink_msg_deprecated_name_property())
                     "init_fields": "\n        ".join(init_fields),
                     "pack_fields": ", ".join(pack_fields),
                 },
-                enable_type_annotations,
             ),
         )
 
@@ -1129,7 +1100,7 @@ class MAVLink:
     )
 
 
-def generate_methods(outf, msgs, enable_type_annotations):
+def generate_methods(outf, msgs):
     print("Generating methods")
 
     def field_descriptions(fields):
@@ -1157,27 +1128,16 @@ def generate_methods(outf, msgs, enable_type_annotations):
         field_names = []
         for i in range(len(m.fields)):
             f = m.fields[i]
-            if enable_type_annotations:
-                python_type = mavpytype(f)
-                if f.omit_arg:
-                    field_names.append("%s: %s = %s" % (f.name, python_type, f.const_value))
-                elif m.extensions_start is not None and i >= m.extensions_start:
-                    fdefault = m.fielddefaults[i]
-                    field_names.append("%s: %s = %s" % (f.name, python_type, fdefault))
-                else:
-                    field_names.append("%s: %s" % (f.name, python_type))
+            python_type = mavpytype(f)
+            if f.omit_arg:
+                field_names.append("%s: %s = %s" % (f.name, python_type, f.const_value))
+            elif m.extensions_start is not None and i >= m.extensions_start:
+                fdefault = m.fielddefaults[i]
+                field_names.append("%s: %s = %s" % (f.name, python_type, fdefault))
             else:
-                if f.omit_arg:
-                    field_names.append("%s=%s" % (f.name, f.const_value))
-                elif m.extensions_start is not None and i >= m.extensions_start:
-                    fdefault = m.fielddefaults[i]
-                    field_names.append("%s=%s" % (f.name, fdefault))
-                else:
-                    field_names.append("%s" % f.name)
+                field_names.append("%s: %s" % (f.name, python_type))
 
-        self_ret_type = ""
-        if enable_type_annotations:
-            self_ret_type = " -> MAVLink_" + m.name.lower() + "_message"
+        self_ret_type = " -> MAVLink_" + m.name.lower() + "_message"
 
         t.write(
             outf,
@@ -1203,12 +1163,11 @@ def generate_methods(outf, msgs, enable_type_annotations):
                     "FIELDNAMES": ", ".join(m.fieldnames),
                     "self_ret_type": self_ret_type,
                 },
-                enable_type_annotations,
             ),
         )
 
 
-def generate(basename, xml, enable_type_annotations=False):
+def generate(basename, xml):
     """generate complete python implementation"""
     if basename.endswith(".py"):
         filename = basename
@@ -1249,12 +1208,12 @@ def generate(basename, xml, enable_type_annotations=False):
 
     print("Generating %s" % filename)
     outf = open(filename, "w")
-    xml = extend_with_type_info(xml[0].__dict__, enable_type_annotations)
+    xml = extend_with_type_info(xml[0].__dict__)
     generate_preamble(outf, msgs, basename, filelist, xml)
-    generate_enums(outf, enums, enable_type_annotations)
+    generate_enums(outf, enums)
     generate_message_ids(outf, msgs)
-    generate_classes(outf, msgs, enable_type_annotations)
+    generate_classes(outf, msgs)
     generate_mavlink_class(outf, msgs, xml)
-    generate_methods(outf, msgs, enable_type_annotations)
+    generate_methods(outf, msgs)
     outf.close()
     print("Generated %s OK" % filename)

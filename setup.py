@@ -61,11 +61,8 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 1.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=True):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
                 print("Building failed %s for protocol 1.0" % xml)
-                sys.exit(1)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=False):
-                print("Building failed %s (without type annotations) for protocol 1.0" % xml)
                 sys.exit(1)
 
         for xml in v20_dialects:
@@ -74,11 +71,8 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 2.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=True):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
                 print("Building failed %s for protocol 2.0" % xml)
-                sys.exit(1)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=False):
-                print("Building failed %s (Python3.5) for protocol 2.0" % xml)
                 sys.exit(1)
 
 
@@ -103,7 +97,6 @@ setup (name = 'pymavlink',
                     'Intended Audience :: Science/Research',
                     'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
                     'Operating System :: OS Independent',
-                    'Programming Language :: Python :: 2.7',
                     'Programming Language :: Python :: 3.6',
                     'Programming Language :: Python :: 3.7',
                     'Programming Language :: Python :: 3.8',
@@ -130,9 +123,7 @@ setup (name = 'pymavlink',
                    'pymavlink.generator',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
-                   'pymavlink.dialects.v10.python2',
-                   'pymavlink.dialects.v20',
-                   'pymavlink.dialects.v20.python2'],
+                   'pymavlink.dialects.v20'],
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
                    'tools/mavtogpx.py', 'tools/magfit_gps.py',
