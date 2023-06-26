@@ -303,7 +303,7 @@ def mavgen(opts, args):
 
 
 # build all the dialects in the dialects subpackage
-class Opts(object):
+class Opts:
     def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
         self.wire_protocol = wire_protocol
         self.error_limit = error_limit

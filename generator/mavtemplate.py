@@ -7,7 +7,7 @@ Released under GNU GPL version 3 or later
 '''
 from .mavparse import MAVParseError
 
-class MAVTemplate(object):
+class MAVTemplate:
     '''simple templating system'''
     def __init__(self,
                  start_var_token="${", 

@@ -42,7 +42,7 @@ def LoadImage(filename):
     return tkinter.PhotoImage(file=path)
 
 
-class App(object):
+class App:
     def __init__(self, filename):
         self.root = tkinter.Tk()
 

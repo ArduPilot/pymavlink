@@ -10,7 +10,7 @@ import struct
 from pymavlink import mavutil
 
 
-class MAVMerge(object):
+class MAVMerge:
     def __init__(self, log1, log2, output_filepath=None, quiet=False):
         self.filename1 = log1
         self.filename2 = log2

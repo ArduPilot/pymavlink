@@ -19,7 +19,7 @@ from pymavlink import mavutil
 from pymavlink.mavextra import distance_two
 
 
-class Totals(object):
+class Totals:
     def __init__(self):
         self.time = 0
         self.distance = 0

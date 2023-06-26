@@ -29,7 +29,7 @@ MAVLINK_MESSAGE_CRCS  = (50, 124, 137, 0, 237, 217, 104, 119, 0, 0, 0, 89, 0, 0,
 import struct
 
 # Helper class for writing pcap files
-class pcap(object):
+class pcap:
     """
        Used under the terms of GNU GPL v3.
        Original author: Neale Pickett

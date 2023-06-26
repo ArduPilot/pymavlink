@@ -42,7 +42,7 @@ FORMAT_TO_STRUCT = {
     "Q": ("Q", None, int),
     }
 
-class DFFormat(object):
+class DFFormat:
     def __init__(self, type, name, flen, format, columns, oldfmt=None):
         self.type = type
         self.name = null_term(name)
@@ -138,7 +138,7 @@ def null_term(string):
     return string
 
 
-class DFMessage(object):
+class DFMessage:
     def __init__(self, fmt, elements, apply_multiplier, parent):
         self.fmt = fmt
         self._elements = elements
@@ -251,7 +251,7 @@ class DFMessage(object):
         return self._parent.messages[k]
 
 
-class DFReaderClock(object):
+class DFReaderClock:
     '''base class for all the different ways we count time in logs'''
 
     def __init__(self):
@@ -433,7 +433,7 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
         m._timestamp = self.timebase + count/rate
 
 
-class DFReader(object):
+class DFReader:
     '''parse a generic dataflash file'''
     def __init__(self):
         # read the whole file into memory for simplicity

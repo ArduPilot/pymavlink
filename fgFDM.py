@@ -12,14 +12,14 @@ class fgFDMError(Exception):
         Exception.__init__(self, msg)
         self.message = 'fgFDMError: ' + msg
 
-class fgFDMVariable(object):
+class fgFDMVariable:
     '''represent a single fgFDM variable'''
     def __init__(self, index, arraylength, units):
         self.index   = index
         self.arraylength = arraylength
         self.units = units
 
-class fgFDMVariableList(object):
+class fgFDMVariableList:
     '''represent a list of fgFDM variable'''
     def __init__(self):
         self.vars = {}
@@ -29,7 +29,7 @@ class fgFDMVariableList(object):
         self.vars[varname] = fgFDMVariable(self._nextidx, arraylength, units=units)
         self._nextidx += arraylength
 
-class fgFDM(object):
+class fgFDM:
     '''a flightgear native FDM parser/generator'''
     def __init__(self):
         '''init a fgFDM object'''

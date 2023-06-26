@@ -13,7 +13,7 @@ from argparse import ArgumentParser
 import scipy.signal as signal
 from pymavlink import mavutil
 
-class PlotData(object):
+class PlotData:
     '''object to store data about a single FFT plot'''
     def __init__(self, ffth):
         self.seqno = -1

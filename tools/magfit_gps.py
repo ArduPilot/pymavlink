@@ -16,7 +16,7 @@ args = parser.parse_args()
 from pymavlink import mavutil
 
 
-class vec3(object):
+class vec3:
     def __init__(self, x, y, z):
         self.x = x
         self.y = y

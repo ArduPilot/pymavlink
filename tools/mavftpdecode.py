@@ -16,13 +16,13 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 
-class Block(object):
+class Block:
     def __init__(self, offset, size, data):
         self.offset = offset
         self.size = size
         self.data = data
 
-class Transfer(object):
+class Transfer:
     def __init__(self, filename):
         self.filename = filename
         self.blocks = []

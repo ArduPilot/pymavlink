@@ -159,7 +159,7 @@ MAVLINK_TYPE_FLOAT = 9
 MAVLINK_TYPE_DOUBLE = 10
 
 
-class x25crc(object):
+class x25crc:
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
 
     def __init__(self, buf${type_optional_intseq_default})${type_none_ret}:
@@ -178,7 +178,7 @@ class x25crc(object):
         self.crc = accum
 
 
-class MAVLink_header(object):
+class MAVLink_header:
     """MAVLink message header"""
 
     def __init__(self, msgId${type_int}, incompat_flags${type_int_default}, compat_flags${type_int_default}, mlen${type_int_default}, seq${type_int_default}, srcSystem${type_int_default}, srcComponent${type_int_default})${type_none_ret}:
@@ -215,7 +215,7 @@ class MAVLink_header(object):
         )
 
 
-class MAVLink_message(object):
+class MAVLink_message:
     """base MAVLink message class"""
 
     id = 0
@@ -395,7 +395,7 @@ class MAVLink_message(object):
         return self._instances[key]
 
 
-class mavlink_msg_deprecated_name_property(object):
+class mavlink_msg_deprecated_name_property:
     """
     This handles the class variable name change from name to msgname for
     subclasses of MAVLink_message during a transition period.
@@ -433,7 +433,7 @@ def generate_enums(outf, enums, enable_type_annotations):
 # enums
 
 
-class EnumEntry(object):
+class EnumEntry:
     def __init__(self, name${type_str}, description${type_str})${type_none_ret}:
         self.name = name
         self.description = description
@@ -768,7 +768,7 @@ class MAVLink_unknown(MAVLink_message):
         return "%s {data:%s}" % (self._type, hexstr)
 
 
-class MAVLinkSigning(object):
+class MAVLinkSigning:
     """MAVLink signing state class"""
 
     def __init__(self)${type_none_ret}:
@@ -785,7 +785,7 @@ class MAVLinkSigning(object):
         self.reject_count = 0
 
 
-class MAVLink(object):
+class MAVLink:
     """MAVLink protocol handling class"""
 
     def __init__(self, file${type_any}, srcSystem${type_int_default}, srcComponent${type_int_default}, use_native${type_bool_default})${type_none_ret}:

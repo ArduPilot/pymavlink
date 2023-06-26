@@ -381,7 +381,7 @@ ${MAVHEAD}.messages.bad_data = function(data, reason) {
 ${MAVHEAD}.messages.bad_data.prototype = new ${MAVHEAD}.message;
 
 //  MAVLink signing state class
-MAVLinkSigning = function MAVLinkSigning(object){ 
+MAVLinkSigning = function MAVLinkSigning{ 
         this.secret_key = new Buffer.from([]) ; //new Buffer.from([ 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 ]) // secret key must be a Buffer obj of 32 length 
         this.timestamp = 1 
         this.link_id = 0 

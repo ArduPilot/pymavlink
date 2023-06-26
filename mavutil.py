@@ -70,7 +70,7 @@ def evaluate_condition(condition, vars):
         return False
     return v
 
-class location(object):
+class location:
     '''represent a GPS coordinate'''
     def __init__(self, lat, lng, alt=0, heading=0):
         self.lat = lat  # in degrees
@@ -137,7 +137,7 @@ def set_dialect(dialect, with_type_annotations=None):
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
-class mavfile_state(object):
+class mavfile_state:
     '''state for a particular system id'''
     def __init__(self):
         self.messages = { 'MAV' : self }
@@ -154,12 +154,12 @@ class mavfile_state(object):
         else:
             self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
 
-class param_state(object):
+class param_state:
     '''state for a particular system id/component id pair'''
     def __init__(self):
         self.params = {}
 
-class mavfile(object):
+class mavfile:
     '''a generic mavlink port'''
     def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True, use_native=default_native):
         global mavfile_global
@@ -1808,7 +1808,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                      use_native=use_native,
                      force_connected=force_connected)
 
-class periodic_event(object):
+class periodic_event:
     '''a class for fixed frequency events'''
     def __init__(self, frequency):
         self.frequency = float(frequency)
@@ -1856,7 +1856,7 @@ def all_printable(buf):
             return False
     return True
 
-class SerialPort(object):
+class SerialPort:
     '''auto-detected serial port'''
     def __init__(self, device, description=None, hwid=None):
         self.device = device
@@ -2283,7 +2283,7 @@ def mode_string_acm(mode_number):
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
 
-class MavlinkSerialPort(object):
+class MavlinkSerialPort:
         '''an object that looks like a serial port, but
         transmits using mavlink SERIAL_CONTROL packets'''
         def __init__(self, portname, baudrate, devnum=0, devbaud=0, timeout=3, debug=0):
@@ -2410,7 +2410,7 @@ def decode_bitmask(messagetype, field, value):
     except KeyError as e:
         raise AttributeError("Did not find specified enumeration (%s)" % enum_name)
 
-    class EnumBitInfo(object):
+    class EnumBitInfo:
         def __init__(self, offset, value, name):
             self.offset = offset
             self.value = value

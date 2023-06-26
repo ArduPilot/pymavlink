@@ -22,7 +22,7 @@ def mavfft_fttd(logfile):
     '''display fft for raw ACC data in logfile'''
 
     '''object to store data about a single FFT plot'''
-    class PlotData(object):
+    class PlotData:
         def __init__(self, ffth):
             self.seqno = -1
             self.fftnum = ffth.N

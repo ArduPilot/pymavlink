@@ -589,7 +589,7 @@ def copy_fixed_headers(directory, xml):
             print("Not re-creating Messages directory")
         shutil.copy(src, dest)
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 

@@ -17,7 +17,7 @@ from pymavlink.rotmat import Vector3, Matrix3
 from math import radians, degrees, sin, cos, atan2
 
 
-class Rotation(object):
+class Rotation:
     def __init__(self, roll, pitch, yaw, r):
         self.roll = roll
         self.pitch = pitch

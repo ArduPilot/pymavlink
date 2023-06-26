@@ -22,7 +22,7 @@ class MAVWPError(Exception):
         self.message = msg
 
 
-class MAVWPLoader(object):
+class MAVWPLoader:
     '''MAVLink waypoint loader'''
     def __init__(self, target_system=0, target_component=0):
         self.wpoints = []
@@ -433,7 +433,7 @@ class MAVRallyError(Exception):
         Exception.__init__(self, msg)
         self.message = msg
 
-class MAVRallyLoader(object):
+class MAVRallyLoader:
     '''MAVLink Rally points and Rally Land points loader'''
     def __init__(self, target_system=0, target_component=0):
         self.rally_points = []
@@ -538,7 +538,7 @@ class MAVFenceError(Exception):
             Exception.__init__(self, msg)
             self.message = msg
 
-class MAVFenceLoader(object):
+class MAVFenceLoader:
     '''MAVLink geo-fence loader'''
     def __init__(self, target_system=0, target_component=0):
         self.points = []

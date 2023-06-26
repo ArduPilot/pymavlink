@@ -6,7 +6,7 @@ Released under GNU LGPL version 3 or later
 '''
 
 
-class x25crc(object):
+class x25crc:
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
 
     def __init__(self, buf=None):

@@ -17,7 +17,7 @@ from math import degrees
 
 GRAVITY_MSS = 9.80665
 
-class Estimator(object):
+class Estimator:
     '''state estimator'''
     def __init__(self):
         self.r = Matrix3()

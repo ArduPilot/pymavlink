@@ -13,7 +13,7 @@ __license__ = "GNU Lesser General Public License v3"
 __email__ = "thomasgubler@gmail.com"
 
 
-class QuaternionBase(object):
+class QuaternionBase:
 
     """
     Quaternion class, this is the version which supports numpy arrays
