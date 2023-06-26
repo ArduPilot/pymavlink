@@ -7,7 +7,6 @@ decode FTP file transfers from tlog
 
 import time
 import struct
-import sys
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -60,12 +59,8 @@ def param_decode(data):
     count = 0
     params = []
 
-    if sys.version_info.major < 3:
-        pad_byte = chr(0)
-        last_name = ''
-    else:
-        pad_byte = 0
-        last_name = bytes()
+    pad_byte = 0
+    last_name = bytes()
     ret = []
 
     while True:

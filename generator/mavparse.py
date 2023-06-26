@@ -5,10 +5,6 @@ mavlink python parse functions
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 import errno
 import operator
 import os
@@ -242,7 +238,6 @@ class MAVXML(object):
         def start_element(name, attrs):
             in_element_list.append(name)
             in_element = '.'.join(in_element_list)
-            #print in_element
             if in_element == "mavlink.messages.message":
                 check_attrs(attrs, ['name', 'id'], 'message')
                 self.message.append(MAVType(attrs['name'], attrs['id'], p.CurrentLineNumber))
@@ -458,14 +453,14 @@ def message_checksum(msg):
        can detect incompatible XML changes'''
     from .mavcrc import x25crc
     crc = x25crc()
-    crc.accumulate_str(msg.name + ' ')
+    crc.accumulate(msg.name + ' ')
     # in order to allow for extensions the crc does not include
     # any field extensions
     crc_end = msg.base_fields()
     for i in range(crc_end):
         f = msg.ordered_fields[i]
-        crc.accumulate_str(f.type + ' ')
-        crc.accumulate_str(f.name + ' ')
+        crc.accumulate(f.type + ' ')
+        crc.accumulate(f.name + ' ')
         if f.array_length:
             crc.accumulate([f.array_length])
     return (crc.crc&0xFF) ^ (crc.crc>>8)

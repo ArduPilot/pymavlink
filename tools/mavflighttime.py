@@ -3,8 +3,6 @@
 '''
 work out total flight time for a mavlink log
 '''
-from __future__ import print_function
-
 import time
 import glob
 

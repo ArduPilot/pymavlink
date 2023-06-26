@@ -7,9 +7,6 @@ Released under GNU GPL version 3 or later
 
 Partly based on SDLog2Parser by Anton Babushkin
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
 
 import array
 import math
@@ -21,11 +18,6 @@ import platform
 import struct
 import sys
 from . import mavutil
-
-try:
-    long        # Python 2 has long
-except NameError:
-    long = int  # But Python 3 does not
 
 FORMAT_TO_STRUCT = {
     "a": ("64s", None, str),
@@ -46,12 +38,9 @@ FORMAT_TO_STRUCT = {
     "L": ("i", 1.0e-7, float),
     "d": ("d", None, float),
     "M": ("b", None, int),
-    "q": ("q", None, long),  # Backward compat
-    "Q": ("Q", None, long),  # Backward compat
+    "q": ("q", None, int),
+    "Q": ("Q", None, int),
     }
-
-def u_ord(c):
-	return ord(c) if sys.version_info.major < 3 else c
 
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns, oldfmt=None):
@@ -72,7 +61,7 @@ class DFFormat(object):
         msg_types = []
         msg_fmts = []
         for c in format:
-            if u_ord(c) == 0:
+            if ord(c) == 0:
                 break
             try:
                 msg_fmts.append(c)
@@ -136,9 +125,6 @@ class DFFormat(object):
 def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
     if isinstance(s, str):
-        return s
-    if sys.version_info[0] == 2:
-        # In python2 we want to return unicode for passed in unicode
         return s
     return s.decode(errors="backslashreplace")
 
@@ -209,27 +195,17 @@ class DFMessage(object):
         return self.fmt.name
 
     def __str__(self):
-        is_py3 = sys.version_info >= (3,0)
         ret = "%s {" % self.fmt.name
         col_count = 0
         for c in self.fmt.columns:
             val = self.__getattr__(c)
             if isinstance(val, float) and math.isnan(val):
                 # quiet nans have more non-zero values:
-                if is_py3:
-                    noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-                else:
-                    noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
+                noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
                 if struct.pack(">d", val) != noisy_nan:
                     val = "qnan"
 
-            if is_py3:
-                ret += "%s : %s, " % (c, val)
-            else:
-                try:
-                    ret += "%s : %s, " % (c, val)
-                except UnicodeDecodeError:
-                    ret += "%s : %s, " % (c, to_string(val))
+            ret += "%s : %s, " % (c, val)
             col_count += 1
         if col_count != 0:
             ret = ret[:-2]
@@ -238,7 +214,6 @@ class DFMessage(object):
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
         values = []
-        is_py2 = sys.version_info < (3,0)
         for i in range(len(self.fmt.columns)):
             if i >= len(self.fmt.msg_mults):
                 continue
@@ -247,19 +222,10 @@ class DFMessage(object):
             if name == 'Mode' and 'ModeNum' in self.fmt.columns:
                 name = 'ModeNum'
             v = self.__getattr__(name)
-            if is_py2:
-                if isinstance(v,unicode): # NOQA
-                    v = str(v)
-                elif isinstance(v, array.array):
-                    v = v.tostring()
-            else:
-                if isinstance(v,str):
-                    try:
-                        v = bytes(v,'ascii')
-                    except UnicodeEncodeError:
-                        v = v.encode()
-                elif isinstance(v, array.array):
-                    v = v.tobytes()
+            if isinstance(v,str):
+                v = bytes(v,'utf-8')
+            elif isinstance(v, array.array):
+                v = v.tobytes()
             if mul is not None:
                 v /= mul
                 v = int(round(v))
@@ -738,9 +704,6 @@ class DFReader_binary(DFReader):
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
         self.unpackers = {}
-        if sys.version_info.major < 3:
-            self.HEAD1 = chr(self.HEAD1)
-            self.HEAD2 = chr(self.HEAD2)
         self.formats = {
             0x80: DFFormat(0x80,
                            'FMT',
@@ -793,10 +756,10 @@ class DFReader_binary(DFReader):
                 # but it needs to be at least 249 bytes which is the block based logging page size (256) less a 6 byte header and
                 # one byte of data. Block based logs are sized in pages which means they can have up to 249 bytes of trailing space.
                 if self.data_len - ofs >= 528 or self.data_len < 528:
-                    print("bad header 0x%02x 0x%02x at %d" % (u_ord(hdr[0]), u_ord(hdr[1]), ofs), file=sys.stderr)
+                    print("bad header 0x%02x 0x%02x at %d" % (ord(hdr[0]), ord(hdr[1]), ofs), file=sys.stderr)
                 ofs += 1
                 continue
-            mtype = u_ord(hdr[2])
+            mtype = ord(hdr[2])
             self.offsets[mtype].append(ofs)
 
             if lengths[mtype] == -1:
@@ -943,7 +906,7 @@ class DFReader_binary(DFReader):
                           file=sys.stderr)
                     skip_type = None
                 # check we recognise this message type:
-                msg_type = u_ord(hdr[2])
+                msg_type = ord(hdr[2])
                 if msg_type in self.formats:
                     # recognised message found
                     self.prev_type = msg_type
@@ -953,7 +916,7 @@ class DFReader_binary(DFReader):
                 # are easily recognisable in the "Skipped bytes"
                 # message.
             if skip_type is None:
-                skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
+                skip_type = (ord(hdr[0]), ord(hdr[1]), ord(hdr[2]))
                 skip_start = self.offset
             self.offset += 1
             self.remaining -= 1
@@ -1198,8 +1161,7 @@ class DFReader_text(DFReader):
                 if endline < self.offset:
                     break
             s = self.data_map[self.offset:endline].rstrip()
-            if sys.version_info.major >= 3:
-                s = s.decode('utf-8')
+            s = s.decode('utf-8')
             elements = s.split(self.delimiter)
             self.offset = endline+1
             if len(elements) >= 2:

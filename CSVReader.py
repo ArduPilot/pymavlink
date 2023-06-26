@@ -20,10 +20,6 @@ MAV> graph CSV.GYRO_X
 in this case the GPS time was in seconds-since-week-start, so a conversion to ms is required
 
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 import csv
 import struct
 import os

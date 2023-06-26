@@ -5,9 +5,6 @@ mavlink python utility functions
 Copyright Andrew Tridgell 2011-2019
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import object
-
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 import copy
@@ -18,7 +15,6 @@ from pymavlink import mavexpression
 # We want to re-export x25crc here
 from pymavlink.generator.mavcrc import x25crc as x25crc
 
-is_py3 = sys.version_info >= (3,0)
 supports_type_annotations = sys.version_info >= (3,6)
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
@@ -73,11 +69,6 @@ def evaluate_condition(condition, vars):
     if v is None:
         return False
     return v
-
-def u_ord(c):
-    if is_py3:
-        return c
-    return ord(c)
 
 class location(object):
     '''represent a GPS coordinate'''
@@ -477,10 +468,7 @@ class mavfile(object):
 
             if numnew != 0:
                 if self.logfile_raw:
-                    if is_py3:
-                        self.logfile_raw.write(s)
-                    else:
-                        self.logfile_raw.write(str(s))
+                    self.logfile_raw.write(s)
                 if self.first_byte:
                     self.auto_mavlink_version(s)
 
@@ -490,10 +478,7 @@ class mavfile(object):
             if msg:
                 if self.logfile and  msg.get_type() != 'BAD_DATA' :
                     usec = int(time.time() * 1.0e6) & ~3
-                    if is_py3:
-                        self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
-                    else:
-                        self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
+                    self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
                 self.post_message(msg)
                 return msg
             else:
@@ -570,7 +555,7 @@ class mavfile(object):
             idx = int(name)
             self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
         except Exception:
-            if sys.version_info.major >= 3 and not isinstance(name, bytes):
+            if not isinstance(name, bytes):
                 name = bytes(name,'ascii')
             self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
 
@@ -1526,19 +1511,19 @@ class mavmmaplog(mavlogfile):
         MARKER_V2 = 0xFD
         
         while ofs+8+6 < self.data_len:
-            marker = u_ord(self.data_map[ofs+8])
-            mlen = u_ord(self.data_map[ofs+9]) + 8
+            marker = ord(self.data_map[ofs + 8])
+            mlen = ord(self.data_map[ofs + 9]) + 8
             if marker == MARKER_V1:
-                mtype = u_ord(self.data_map[ofs+13])
+                mtype = ord(self.data_map[ofs + 13])
                 mlen += 8
                 data_ofs = 14
             elif marker == MARKER_V2:
                 if ofs+8+10 > self.data_len:
                     break
-                mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
+                mtype = ord(self.data_map[ofs + 15]) | (ord(self.data_map[ofs + 16]) << 8) | (ord(self.data_map[ofs + 17]) << 16)
                 mlen += 12
                 data_ofs = 18
-                incompat_flags = u_ord(self.data_map[ofs+10])
+                incompat_flags = ord(self.data_map[ofs + 10])
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
             else:

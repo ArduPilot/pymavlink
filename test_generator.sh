@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# This requires the python future library
-# On MS windows, cygwin usually does not provide that.
-# The workaround is then to issue on a cygwin prompt:
-#   easy_install-2.7 pip
-#   pip install future
-
 set -e
 set -x
 

@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-
-from __future__ import print_function
-
 from pymavlink import mavutil
 
 import argparse

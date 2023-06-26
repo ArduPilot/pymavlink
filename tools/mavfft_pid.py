@@ -3,8 +3,6 @@
 '''
 fit estimate of PID oscillations
 '''
-from __future__ import print_function
-
 import numpy
 import pylab
 

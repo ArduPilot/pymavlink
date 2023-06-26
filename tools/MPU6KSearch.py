@@ -3,10 +3,6 @@
 '''
 search a set of log files for signs of inconsistent IMU data
 '''
-from __future__ import print_function
-from builtins import input
-from builtins import range
-
 import sys, time, os
 import zipfile
 

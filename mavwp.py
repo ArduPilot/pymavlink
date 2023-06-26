@@ -4,10 +4,6 @@ module for loading/saving waypoints
 Copyright the ArduPilot Project
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 import time, copy
 import logging
 from . import mavutil
@@ -218,7 +214,7 @@ class MAVWPLoader(object):
         if not HAVE_PROTOBUF:
             raise MAVWPError(
                 'Cannot read mission file in protobuf format without protobuf '
-                'library. Try "easy_install protobuf".')
+                'library. Try "pip install protobuf".')
         explicit_seq = False
         warned_seq = False
         mission = mission_pb2.Mission()

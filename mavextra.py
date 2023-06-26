@@ -5,12 +5,8 @@ useful extra functions for use by mavlink clients
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import object
-from builtins import sum as builtin_sum
-
 from math import *
+builtin_sum = sum
 
 try:
     # in case numpy isn't installed

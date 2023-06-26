@@ -5,12 +5,7 @@ parse a MAVLink protocol XML file and generate a python implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
-
-from builtins import range
-
 import os
-import sys
 import textwrap
 from . import mavtemplate
 
@@ -130,7 +125,6 @@ import os
 import struct
 import sys
 import time
-from builtins import object, range
 ${typing_imports}
 
 WIRE_PROTOCOL_VERSION = "${wire_protocol_version}"
@@ -144,9 +138,6 @@ HEADER_LEN_V2 = 10
 MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 MAVLINK_IFLAG_SIGNED = 0x01
-
-if sys.version_info[0] == 2:
-    logging.basicConfig()
 
 logger = logging.getLogger(__name__)
 
@@ -178,9 +169,7 @@ class x25crc(object):
 
     def accumulate(self, buf${type_intseq})${type_none_ret}:
         """add in some more bytes (it also accepts python2 strings)"""
-        if sys.version_info[0] == 2 and type(buf) is str:
-            buf = bytearray(buf)
-
+        
         accum = self.crc
         for b in buf:
             tmp = b ^ (accum & 0xFF)
@@ -262,8 +251,6 @@ class MAVLink_message(object):
         """override field getter"""
         raw_attr = cast(${type_mavlink_message_attr_cast}, getattr(self, field))
         if isinstance(raw_attr, bytes):
-            if sys.version_info[0] == 2:
-                return raw_attr.rstrip(b"\\x00")
             return raw_attr.decode(errors="backslashreplace").rstrip("\\x00")
         return raw_attr
 
@@ -368,10 +355,7 @@ class MAVLink_message(object):
         if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
             # variable length arrays and smaller packets
-            if sys.version_info[0] == 2:
-                nullbyte = chr(0)
-            else:
-                nullbyte = 0
+            nullbyte = 0
             while plen > 1 and payload[plen - 1] == nullbyte:
                 plen -= 1
         self._payload = payload[:plen]
@@ -762,10 +746,7 @@ class MAVLink_bad_data(MAVLink_message):
 
     def __str__(self)${type_str_ret}:
         """Override the __str__ function from MAVLink_messages because non-printable characters are common in to be the reason for this message to exist."""
-        if sys.version_info[0] == 2:
-            hexstr = ["{:x}".format(ord(i)) for i in self.data]
-        else:
-            hexstr = ["{:x}".format(i) for i in self.data]
+        hexstr = ["{:x}".format(i) for i in self.data]
         return "%s {%s, data:%s}" % (self._type, self.reason, hexstr)
 
 
@@ -783,10 +764,7 @@ class MAVLink_unknown(MAVLink_message):
 
     def __str__(self)${type_str_ret}:
         """Override the __str__ function from MAVLink_messages because non-printable characters are common."""
-        if sys.version_info[0] == 2:
-            hexstr = ["{:x}".format(ord(i)) for i in self.data]
-        else:
-            hexstr = ["{:x}".format(i) for i in self.data]
+        hexstr = ["{:x}".format(i) for i in self.data]
         return "%s {data:%s}" % (self._type, hexstr)
 
 

@@ -21,11 +21,6 @@ General process:
     - each iteration is intended to include the crcs and other information from includes into the xml document doing the include
 
 '''
-
-from __future__ import print_function
-from future import standard_library
-standard_library.install_aliases()
-from builtins import object
 import os
 import re
 import sys
