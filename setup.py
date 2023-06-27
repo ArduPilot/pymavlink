@@ -104,7 +104,6 @@ setup (name = 'pymavlink',
                     'Intended Audience :: Science/Research',
                     'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
                     'Operating System :: OS Independent',
-                    'Programming Language :: Python :: 2.7',
                     'Programming Language :: Python :: 3.6',
                     'Programming Language :: Python :: 3.7',
                     'Programming Language :: Python :: 3.8',
@@ -160,4 +159,5 @@ setup (name = 'pymavlink',
             'lxml',
        ],
        cmdclass={'build_py': custom_build_py},
+       python_requires=">=3.6"
        )

@@ -11,7 +11,7 @@ set -x
 
 test -z "$MDEF" && MDEF="../message_definitions"
 
-# MAVLINK_DIALECT=ardupilotmega python setup.py clean build install --user
+# MAVLINK_DIALECT=ardupilotmega python -m pip install --user .
 
 tools/mavgen.py --lang C $MDEF/v1.0/all.xml -o generator/C/include_v1.0 --wire-protocol=1.0
 tools/mavgen.py --lang C $MDEF/v1.0/all.xml -o generator/C/include_v2.0 --wire-protocol=2.0
