@@ -29,7 +29,7 @@ jobs:
           allow-prereleases: true
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          python -m ensurepip --upgrade
           pip install flake8 pytest pytest-mock numpy
           if [ "${{ matrix.python-version }}" != "2.7" ] && [ "${{ matrix.python-version }}" != "3.5" ]
           then
