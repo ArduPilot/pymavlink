@@ -12,8 +12,13 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
+        python-version: ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+        experimental: [false]
+        include: 
+          - python-version: '3.12'
+            experimental: true
 
+    continue-on-error: ${{ matrix.experimental }}
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
