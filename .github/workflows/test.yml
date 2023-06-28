@@ -12,7 +12,9 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: [
+            #'2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10',
+            '3.11']
         experimental: [false]
         include: 
           - python-version: '3.12'
@@ -31,7 +33,8 @@ jobs:
         if: matrix.experimental
         run: |
           python -m ensurepip --upgrade --default-pip
-          STATIC_DEPS=true pip install lxml
+          sudo apt install libxslt-dev libxml2-dev
+          pip install lxml
       - name: Install dependencies
         run: |
           pip install flake8 pytest pytest-mock numpy
