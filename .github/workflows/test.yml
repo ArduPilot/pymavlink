@@ -27,9 +27,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+      - name: Dev dependencies
+        if: matrix.experimental
+        run: |
+          python -m ensurepip --upgrade --default-pip
+          STATIC_DEPS=true pip install lxml
       - name: Install dependencies
         run: |
-          python -m ensurepip --upgrade
           pip install flake8 pytest pytest-mock numpy
           if [ "${{ matrix.python-version }}" != "2.7" ] && [ "${{ matrix.python-version }}" != "3.5" ]
           then
