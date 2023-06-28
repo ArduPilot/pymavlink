@@ -33,8 +33,7 @@ jobs:
         if: matrix.experimental
         run: |
           python -m ensurepip --upgrade --default-pip
-          sudo apt install libxslt-dev libxml2-dev
-          pip install lxml
+          STATIC_DEPS=true pip install lxml
       - name: Install dependencies
         run: |
           pip install flake8 pytest pytest-mock numpy
