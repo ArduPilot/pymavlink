@@ -15,7 +15,7 @@ Examples can be found [in the repository](examples/) or in the [ArduSub book](ht
 
 # Installation 
 
-Pymavlink supports Python 3.
+Pymavlink only supports Python 3.
 
 The following instructions assume you are using Python 3 and a Debian-based (like Ubuntu) installation.
 
