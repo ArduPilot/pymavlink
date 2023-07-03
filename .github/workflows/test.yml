@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
 
     steps:
       - uses: actions/checkout@v3
@@ -25,7 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest pytest-mock numpy
-          if [ "${{ matrix.python-version }}" != "2.7" ] && [ "${{ matrix.python-version }}" != "3.5" ]
+          if [ "${{ matrix.python-version }}" != "3.5" ]
           then
             pip install mypy
           fi
@@ -62,7 +62,7 @@ jobs:
 
       - name: Lint generated python code
         run: |
-          if [ "${{ matrix.python-version }}" = "2.7" ] || [ "${{ matrix.python-version }}" = "3.5" ]
+          if [ "${{ matrix.python-version }}" = "3.5" ]
           then
             flake8 --ignore='W503,E203,E501,E741' --statistics dialects/v10/python2/*.py dialects/v20/python2/*.py
           else
