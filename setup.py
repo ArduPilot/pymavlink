@@ -11,7 +11,7 @@ except LookupError:
     func = lambda name, enc=ascii: {True: enc}.get(name=='mbcs')
     codecs.register(func)
 
-from setuptools import setup
+from setuptools import setup, find_packages
 import glob, os, shutil, fnmatch, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -112,6 +112,7 @@ setup (name = 'pymavlink',
                     'Topic :: Scientific/Engineering',
                     ],
        license='LGPLv3',
+       packages = find_packages(),
        package_dir = { 'pymavlink' : '.' },
        package_data = { 'pymavlink.dialects.v10' : ['*.xml'],
                         'pymavlink.dialects.v20' : ['*.xml'],
