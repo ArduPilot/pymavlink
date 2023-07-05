@@ -8,9 +8,12 @@ Released under GNU GPL version 3 or later
 
 '''
 if __name__ == "__main__" and __package__ is None:
-    from importlib.machinery import SourceFileLoader
+    import importlib.util
+    import sys
     from os import path
-    SourceFileLoader("pymavlink", path.join(__file__, '../../__init__.py')).load_module()
+
+    spec = importlib.util.spec_from_file_location("pymavlink", path.join(__file__, '../../__init__.py'))
+    sys.modules["pymavlink"] = importlib.util.module_from_spec(spec)
 
 from pymavlink.generator import mavgen, mavparse
 
