@@ -7,14 +7,13 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 
 '''
-
-# allow running mavgen from within the tree without installing
 if __name__ == "__main__" and __package__ is None:
-    from os import sys, path
-    sys.path.insert(0, path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+    from importlib.machinery import SourceFileLoader
+    from os import path
+    SourceFileLoader("pymavlink", path.join(__file__, '../../__init__.py')).load_module()
+    __package__ = 'pymavlink.tools'
 
-from pymavlink.generator import mavgen
-from pymavlink.generator import mavparse
+from ..generator import mavgen, mavparse
 
 from argparse import ArgumentParser
 
