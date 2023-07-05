@@ -11,9 +11,8 @@ if __name__ == "__main__" and __package__ is None:
     from importlib.machinery import SourceFileLoader
     from os import path
     SourceFileLoader("pymavlink", path.join(__file__, '../../__init__.py')).load_module()
-    __package__ = 'pymavlink.tools'
 
-from ..generator import mavgen, mavparse
+from pymavlink.generator import mavgen, mavparse
 
 from argparse import ArgumentParser
 
