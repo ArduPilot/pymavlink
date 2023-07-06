@@ -25,7 +25,8 @@ jobs:
           allow-prereleases: true
       - if: matrix.experimental
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          python -m ensurepip --default-pip
+          python -m pip install --upgrade setuptools wheel
           sudo apt-get install -y libxml2 libxslt-dev
       - name: Install dependencies
         run: |
