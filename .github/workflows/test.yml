@@ -28,6 +28,7 @@ jobs:
         run: |
           python -m ensurepip --default-pip
           sudo apt-get install -y libxml2 libxslt-dev
+          pip install git+https://github.com/numpy/numpy.git
       - name: Install dependencies
         run: |
           pip install flake8 pytest pytest-mock numpy
