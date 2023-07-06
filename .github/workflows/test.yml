@@ -12,7 +12,8 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+        # todo: readd this before merge
+        # python-version: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
         include:
           - python-version: '3.12-dev'
             experimental: true
@@ -26,7 +27,6 @@ jobs:
       - if: matrix.experimental
         run: |
           python -m ensurepip --default-pip
-          python -m pip install --upgrade setuptools wheel
           sudo apt-get install -y libxml2 libxslt-dev
       - name: Install dependencies
         run: |
