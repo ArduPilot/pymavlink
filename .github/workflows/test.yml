@@ -34,8 +34,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U setuptools wheel pip
-          pip install flake8 pytest pytest-mock numpy \
-             "numpy @ git+https://github.com/numpy/numpy.git ; python_version >= '3.12'"
+          pip install flake8 pytest pytest-mock \
+             "numpy;python_version < '3.12'" \
+             "numpy@git+https://github.com/numpy/numpy.git;python_version >= '3.12'"
           if [ "${{ matrix.python-version }}" != "2.7" ] && [ "${{ matrix.python-version }}" != "3.5" ]
           then
             pip install mypy
