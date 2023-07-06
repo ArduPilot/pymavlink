@@ -13,15 +13,18 @@ jobs:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
         python-version: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
-
+        include:
+          - python-version: '3.12-dev'
+            experimental: true
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
-
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+      - if: matrix.experimental
+        run: sudo apt-get install -y libxml2 libxslt-dev
       - name: Install dependencies
         run: |
           pip install flake8 pytest pytest-mock numpy
