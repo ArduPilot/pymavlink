@@ -15,7 +15,7 @@ jobs:
         # todo: readd this before merge
         # python-version: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
         include:
-          - python-version: '3.12-dev'
+          - python-version: '3.12'
             experimental: true
     steps:
       - uses: actions/checkout@v3
@@ -24,13 +24,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+      - name: Install build dependencies
+        run: pip install --upgrade pip setuptools wheel
       - if: matrix.experimental
         run: |
-          python -m ensurepip --default-pip
           sudo apt-get install -y libxml2 libxslt-dev
+          # note this satisfies the below numpy dependency.
+          # the version currently on PyPI fails to build on python 3.12
           pip install git+https://github.com/numpy/numpy.git
       - name: Install dependencies
         run: |
+          python -m pip install -U setuptools wheel build
           pip install flake8 pytest pytest-mock numpy
           if [ "${{ matrix.python-version }}" != "2.7" ] && [ "${{ matrix.python-version }}" != "3.5" ]
           then
