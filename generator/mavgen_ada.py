@@ -158,7 +158,7 @@ package Mavlink.Messages is
 
     s = """   CRC_Extras : constant array (Interfaces.Unsigned_8'Range) of
      Interfaces.Unsigned_8 := \n     (""";
-    
+
     item_len = 0
     l = 6
     for m in msgs:
@@ -253,7 +253,7 @@ def repr_enum(enum, size):
         else:
             l = 1
         s += "%s => %i" % (normalize_entry_name(i.name).title().ljust(max_len), i.value)
-            
+
     s += ");\n"
 
     return s

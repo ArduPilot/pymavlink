@@ -26,7 +26,7 @@ def generate_enums(dir, enums):
 
     if not os.path.isdir(dir):
         os.mkdir(dir)
-        
+
     for e in enums:
         filename = e.name.replace('_', '-')
         filename = filename.lower()

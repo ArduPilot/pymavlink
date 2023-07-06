@@ -59,7 +59,7 @@ class MAVWPLoader(object):
                 mavutil.mavlink.MAV_CMD_NAV_LOITER_TO_ALT]
 
         if (self.wpoints[i].command in loiter_cmds):
-            return True    
+            return True
 
         return False
 
@@ -459,7 +459,7 @@ class MAVRallyLoader(object):
             self.rally_points[i].count = self.rally_count()
             self.rally_points[i].idx = i
         self.last_change = time.time()
-            
+
     def append_rally_point(self, p):
         '''add rallypoint to end of list'''
         if (self.rally_count() > 9):

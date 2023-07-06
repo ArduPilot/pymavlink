@@ -348,7 +348,7 @@ def generate_shared(basename, xml_list):
     # Sort messages by ID
     template_dict['message'] = sorted(template_dict['message'], key = lambda message : message.id)
 
-    # Add name_camel_case to each message object 
+    # Add name_camel_case to each message object
     for message in template_dict['message']:
         message.name_camel_case = camel_case_from_underscores(message.name_lower)
 
@@ -423,7 +423,7 @@ def generate_message_definitions(basename, xml):
         for f in m.fields:
             if not f.omit_arg:
                 m.arg_fields.append(f)
- 
+
     generate_message_definitions_h(directory, xml)
     for m in xml.message:
         generate_message(directory, m)

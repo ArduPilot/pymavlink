@@ -1138,13 +1138,13 @@ def qroll(MSG):
     q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
     return degrees(q.euler[0])
 
-    
+
 def qpitch(MSG):
     '''return quaternion pitch in degrees'''
     q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
     return degrees(q.euler[1])
 
-    
+
 def qyaw(MSG):
     '''return quaternion yaw in degrees'''
     q = Quaternion([MSG.Q1,MSG.Q2,MSG.Q3,MSG.Q4])
@@ -1642,7 +1642,7 @@ def radio_margin(TERR,lat,lon,antenna_height):
             low = test
             high = test
     return -high
-    
+
 def mm_curr(RCOU,BAT,PWM_MIN,PWM_MAX,Mfirst,Mlast):
     '''
     motor model to predict current draw given PWM to VTOL motors

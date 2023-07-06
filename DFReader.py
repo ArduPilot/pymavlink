@@ -1063,7 +1063,7 @@ class DFReader_binary(DFReader):
                                                  fmt.format.encode('ascii'),
                                                  ','.join(fmt.columns).encode('ascii')])
         return ret
-    
+
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''

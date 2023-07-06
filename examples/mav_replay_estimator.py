@@ -135,7 +135,7 @@ def estimate(filename):
         if t == 'RBRI' and m.I == 0:
             # first baro sample
             est.update_BARO(m.Alt)
-            
+
         if t == 'RISI' and m.I == 0:
             # update on IMU0
             dvel = Vector3(m.DVX, m.DVY, m.DVZ)

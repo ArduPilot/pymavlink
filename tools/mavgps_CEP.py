@@ -91,7 +91,7 @@ def calc_cep(data, pct):
     hep = abs(d2.alt - median_alt)
 
     return (cep, hep)
-    
+
 def process_CEP(sysid, gps_id, data):
     rtk5 = []
     rtk6 = []

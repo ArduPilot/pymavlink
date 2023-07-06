@@ -291,11 +291,11 @@ class MAVXML(object):
             elif in_element == "mavlink.enums.enum.entry.param":
                 check_attrs(attrs, ['index'], 'enum param')
                 self.enum[-1].entry[-1].param.append(
-                                                MAVEnumParam(attrs['index'], 
-                                                        label=attrs.get('label', ''), units=attrs.get('units', ''), 
-                                                        enum=attrs.get('enum', ''), increment=attrs.get('increment', ''), 
-                                                        minValue=attrs.get('minValue', ''), 
-                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'), 
+                                                MAVEnumParam(attrs['index'],
+                                                        label=attrs.get('label', ''), units=attrs.get('units', ''),
+                                                        enum=attrs.get('enum', ''), increment=attrs.get('increment', ''),
+                                                        minValue=attrs.get('minValue', ''),
+                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'),
                                                         reserved=attrs.get('reserved', False) ))
 
         def is_target_system_field(m, f):
@@ -333,7 +333,7 @@ class MAVXML(object):
         p.CharacterDataHandler = char_data
         p.ParseFile(f)
         f.close()
-   
+
 
         #Post process to add reserved params (for docs)
         for current_enum in self.enum:
@@ -344,13 +344,13 @@ class MAVXML(object):
                     continue
                 params_dict=dict()
                 for param_index in range (1,8):
-                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='', 
+                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
                                                         minValue='', maxValue='', default='0', reserved='True')
 
                 for a_param in enum_entry.param:
                     params_dict[int(a_param.index)] = a_param
                 enum_entry.param=params_dict.values()
-                
+
 
 
         self.message_lengths = {}
@@ -385,7 +385,7 @@ class MAVXML(object):
             m.target_system_ofs = 0
             m.target_component_ofs = 0
             m.field_offsets = {}
-            
+
             if self.sort_fields:
                 # when we have extensions we only sort up to the first extended field
                 sort_end = m.base_fields()

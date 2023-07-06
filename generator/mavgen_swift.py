@@ -51,7 +51,7 @@ def generate_header(outf, filelist, xml_list, filename):
 //  ${FILENAME}
 //  MAVLink Protocol Swift Library
 //
-//  Generated from ${FILELIST} on ${PARSE_TIME} by mavgen_swift.py 
+//  Generated from ${FILELIST} on ${PARSE_TIME} by mavgen_swift.py
 //  https://github.com/modnovolyk/MAVLinkSwift
 //
 
@@ -170,12 +170,12 @@ def append_static_code(filename, outf):
 
     basepath = os.path.dirname(os.path.realpath(__file__))
     filepath = os.path.join(basepath, 'swift/%s' % filename)
-    
+
     print("Appending content of %s" % filename)
-    
+
     with open(filepath) as inf:
         for line in inf:
-            outf.write(line) 
+            outf.write(line)
 
 def generate_message_mappings_array(outf, msgs):
     """Create array for mapping message Ids to proper structs"""
@@ -320,7 +320,7 @@ def generate_messages_type_info(msgs, enums):
             field.init_accessor = field.swift_name if field.swift_name != "data" else "self.%s" % field.swift_name
             field.pack_accessor = field.swift_name if field.swift_name != "payload" else "self.%s" % field.swift_name
             field.return_type = swift_types[field.type][0]
-            
+
             # configure fields initializers
             if field.enum:
                 # handle enums
@@ -351,7 +351,7 @@ def generate_messages_type_info(msgs, enums):
             if field.description:
                 field.description = " ".join(field.description.split())
                 field.formatted_description = "\n\t/// " + field.description + "\n"
-         
+
         fields_info = ['("%s", %u, "%s", %u, "%s")' % (field.swift_name, field.wire_offset, field.return_type, field.array_length, field.description.replace('"','\\"')) for field in msg.fields]
         msg.fields_info = ", ".join(fields_info)
 
@@ -371,7 +371,7 @@ def generate(basename, xml_list):
         msgs.extend(xml.message)
         enums.extend(xml.enum)
         filelist.append(os.path.basename(xml.filename))
-    
+
     generate_enums_type_info(enums, msgs)
     generate_messages_type_info(msgs, enums)
 

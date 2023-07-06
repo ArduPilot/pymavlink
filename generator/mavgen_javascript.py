@@ -64,10 +64,10 @@ ${MAVHEAD}.x25Crc = function(buffer, crcIN) {
 }
 
 ${MAVHEAD}.WIRE_PROTOCOL_VERSION = "${WIRE_PROTOCOL_VERSION}";
-${MAVHEAD}.PROTOCOL_MARKER_V1 = 0xFE 
-${MAVHEAD}.PROTOCOL_MARKER_V2 = 0xFD 
-${MAVHEAD}.HEADER_LEN_V1 = 6 
-${MAVHEAD}.HEADER_LEN_V2 = 10 
+${MAVHEAD}.PROTOCOL_MARKER_V1 = 0xFE
+${MAVHEAD}.PROTOCOL_MARKER_V2 = 0xFD
+${MAVHEAD}.HEADER_LEN_V1 = 6
+${MAVHEAD}.HEADER_LEN_V2 = 10
 ${MAVHEAD}.HEADER_LEN = ${HEADERLEN};
 
 ${MAVHEAD}.MAVLINK_TYPE_CHAR     = 0
@@ -85,7 +85,7 @@ ${MAVHEAD}.MAVLINK_TYPE_DOUBLE   = 10
 ${MAVHEAD}.MAVLINK_IFLAG_SIGNED = 0x01
 ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
-// Mavlink headers incorporate sequence, source system (platform) and source component. 
+// Mavlink headers incorporate sequence, source system (platform) and source component.
 ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0,) {
 
     this.mlen = ( typeof mlen === 'undefined' ) ? 0 : mlen;
@@ -151,12 +151,12 @@ ${MAVHEAD}.message.prototype.sign_packet = function( mav) {
 
     //mav.signing.timestamp is a 48bit number, or 6 bytes.
 
-        // due to js not being able to shift numbers  more than 32, we'll use this instead.. 
-        // js stores all its numbers as a 64bit float with 53 bits of mantissa, so have room for 48 ok. 
+        // due to js not being able to shift numbers  more than 32, we'll use this instead..
+        // js stores all its numbers as a 64bit float with 53 bits of mantissa, so have room for 48 ok.
         // positive shifts left, negative shifts right
-        function shift(number, shift) { 
-            return number * Math.pow(2, shift); 
-        } 
+        function shift(number, shift) {
+            return number * Math.pow(2, shift);
+        }
 
     var thigh = shift(mav.signing.timestamp,-32) // 2 bytes from the top, shifted right by 32 bits
     var tlow  = (mav.signing.timestamp & 0xfffffff )  // 4 bytes from the bottom
@@ -164,15 +164,15 @@ ${MAVHEAD}.message.prototype.sign_packet = function( mav) {
     // I means unsigned 4bytes, H means unsigned 2 bytes
     // first add the linkid(1 byte) and timestamp(6 bytes) that start the signature
     this._msgbuf = this._msgbuf.concat(jspack.Pack('<BIH', [mav.signing.link_id, tlow, thigh  ] ) );
- 
+
     h.update(mav.signing.secret_key); // secret is already a Buffer
     h.update(new Buffer.from(this._msgbuf));
     var hashDigest = h.digest();
     sig = hashDigest.slice(0,6)
-    this._msgbuf  = this._msgbuf.concat( ... sig ); 
+    this._msgbuf  = this._msgbuf.concat( ... sig );
 
     mav.signing.timestamp += 1
-} 
+}
 
 
 // This pack function builds the header and produces a complete MAVLink message,
@@ -195,29 +195,29 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
     """)
 
     t.write(outf, """
-// signing is our first incompat flag. 
-    var incompat_flags = 0; 
-    if (mav.signing.sign_outgoing){ 
-            incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_SIGNED 
-    } 
-    // header 
+// signing is our first incompat flag.
+    var incompat_flags = 0;
+    if (mav.signing.sign_outgoing){
+            incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_SIGNED
+    }
+    // header
     this._header = new ${MAVHEAD}.header(this._id, this._payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);
-    // payload     
+    // payload
     this._msgbuf = this._header.pack().concat(this._payload);
-    // crc -  for now, assume always using crc_extra = True.  TODO: check/fix this. 
+    // crc -  for now, assume always using crc_extra = True.  TODO: check/fix this.
     var crc = ${MAVHEAD}.x25Crc(this._msgbuf.slice(1));
     crc = ${MAVHEAD}.x25Crc([crc_extra], crc);
     this._msgbuf = this._msgbuf.concat(jspack.Pack('<H', [crc] ) );
 
-    // signing 
-    this._signed     = false 
-    this._link_id    = undefined 
+    // signing
+    this._signed     = false
+    this._link_id    = undefined
 
-    //console.log(mav.signing); 
-    //optionally add signing 
-    if (mav.signing.sign_outgoing){ 
-                this.sign_packet(mav) 
-    } 
+    //console.log(mav.signing);
+    //optionally add signing
+    if (mav.signing.sign_outgoing){
+                this.sign_packet(mav)
+    }
     return this._msgbuf;
 
 }
@@ -280,7 +280,7 @@ def generate_classes(outf, msgs, xml):
 
         # start with the comment block
         outf.write("""
-/* 
+/*
 %s
 */
 """ % (comment))
@@ -291,7 +291,7 @@ def generate_classes(outf, msgs, xml):
         # passing the dynamic args into the correct attributes, we can call the constructor with or without the 'moreargs'
         outf.write("     [ this.%s ] = moreargs;\n" % " , this.".join(m.fieldnames))
 
-        # body: set message type properties    
+        # body: set message type properties
         outf.write("""
 
     this._format = '%s';
@@ -306,18 +306,18 @@ def generate_classes(outf, msgs, xml):
     this._instance_offset = %d;
 
 """     % (
-        m.fmtstr, 
-        get_mavhead(xml), 
-        m.name.upper(), 
-        m.order_map, 
-        m.len_map,  
-        m.array_len_map, 
-        m.crc_extra, 
+        m.fmtstr,
+        get_mavhead(xml),
+        m.name.upper(),
+        m.order_map,
+        m.len_map,
+        m.array_len_map,
+        m.crc_extra,
         m.name.upper(),
         instance_field,
         instance_offset
         ))
-        
+
         # body: set own properties
         if len(m.fieldnames) != 0:
                 outf.write("    this.fieldnames = ['%s'];\n" % "', '".join(m.fieldnames))
@@ -338,7 +338,7 @@ ${MAVHEAD}.messages.${MNAME}.prototype.pack = function(mav) {
     if (j === false ) throw new Error("jspack unable to handle this packet");
     return ${MAVHEAD}.message.prototype.pack.call(this, mav, this.crc_extra, j );\n}\n\n""", {'MORDERED': orderedfields, 'MAVHEAD': get_mavhead(xml), 'MNAME': m.name.lower()})
 
-  
+
 
 def mavfmt(field):
     '''work out the struct format for a type'''
@@ -372,7 +372,7 @@ def generate_mavlink_class(outf, msgs, xml):
         outf.write("        %s: { format: '%s', type: %s.messages.%s, order_map: %s, crc_extra: %u },\n" % (
             m.id, m.fmtstr, get_mavhead(xml), m.name.lower(), m.order_map, m.crc_extra))
     outf.write("}\n\n")
-    
+
     t.write(outf, """
 
 // Special mavlink message to capture malformed data packets for debugging
@@ -385,19 +385,19 @@ ${MAVHEAD}.messages.bad_data = function(data, reason) {
 ${MAVHEAD}.messages.bad_data.prototype = new ${MAVHEAD}.message;
 
 //  MAVLink signing state class
-MAVLinkSigning = function MAVLinkSigning(object){ 
-        this.secret_key = new Buffer.from([]) ; //new Buffer.from([ 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 ]) // secret key must be a Buffer obj of 32 length 
-        this.timestamp = 1 
-        this.link_id = 0 
-        this.sign_outgoing = false // todo false this 
-        this.allow_unsigned_callback = undefined 
-        this.stream_timestamps = {} 
-        this.sig_count = 0 
-        this.badsig_count = 0 
-        this.goodsig_count = 0 
-        this.unsigned_count = 0 
-        this.reject_count = 0 
-} 
+MAVLinkSigning = function MAVLinkSigning(object){
+        this.secret_key = new Buffer.from([]) ; //new Buffer.from([ 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 ]) // secret key must be a Buffer obj of 32 length
+        this.timestamp = 1
+        this.link_id = 0
+        this.sign_outgoing = false // todo false this
+        this.allow_unsigned_callback = undefined
+        this.stream_timestamps = {}
+        this.sig_count = 0
+        this.badsig_count = 0
+        this.goodsig_count = 0
+        this.unsigned_count = 0
+        this.reject_count = 0
+}
 
 /* MAVLink protocol handling class */
 ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
@@ -407,14 +407,14 @@ ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
     this.seq = 0;
     this.buf = new Buffer.from([]);
     this.bufInError = new Buffer.from([]);
-   
+
     this.srcSystem = (typeof srcSystem === 'undefined') ? 0 : srcSystem;
     this.srcComponent =  (typeof srcComponent === 'undefined') ? 0 : srcComponent;
 
     this.have_prefix_error = false;
 
     // The first packet we expect is a valid header, 6 bytes.
-    this.protocol_marker = ${PROTOCOL_MARKER};   
+    this.protocol_marker = ${PROTOCOL_MARKER};
     this.expected_length = ${MAVHEAD}.HEADER_LEN;
     this.little_endian = true;
 
@@ -427,7 +427,7 @@ ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
     this.total_receive_errors = 0;
     this.startup_time = Date.now();
 
-    // optional , but when used we store signing state in this object: 
+    // optional , but when used we store signing state in this object:
     this.signing = new MAVLinkSigning();
 }
 
@@ -465,7 +465,7 @@ ${MAVPROCESSOR}.prototype.bytes_needed = function() {
 // add data to the local buffer
 ${MAVPROCESSOR}.prototype.pushBuffer = function(data) {
     if(data) {
-        this.buf = Buffer.concat([this.buf, data]);   // python calls this self.buf.extend(c) 
+        this.buf = Buffer.concat([this.buf, data]);   // python calls this self.buf.extend(c)
         this.total_bytes_received += data.length;
     }
 }
@@ -480,7 +480,7 @@ ${MAVPROCESSOR}.prototype.parsePrefix = function() {
         var badPrefix = this.buf[0];
         this.bufInError = this.buf.slice(0,1);
         this.buf = this.buf.slice(1);
-        this.expected_length = ${MAVHEAD}.HEADER_LEN; //initially we 'expect' at least the length of the header, later parseLength corrects for this. 
+        this.expected_length = ${MAVHEAD}.HEADER_LEN; //initially we 'expect' at least the length of the header, later parseLength corrects for this.
         throw new Error("Bad prefix ("+badPrefix+")");
     }
 
@@ -491,21 +491,21 @@ ${MAVPROCESSOR}.prototype.parsePrefix = function() {
 //  us know if we have signing enabled, which affects the real-world length by the signature-block length of 13 bytes.
 // once successful, 'this.expected_length' is correctly set for the whole packet.
 ${MAVPROCESSOR}.prototype.parseLength = function() {
-    
-    if( this.buf.length >= 3 ) { 
-        var unpacked = jspack.Unpack('BBB', this.buf.slice(0, 3)); 
-        var magic = unpacked[0]; // stx ie fd or fe etc 
-        this.expected_length = unpacked[1] + ${MAVHEAD}.HEADER_LEN + 2 // length of message + header + CRC (ie non-signed length) 
-        this.incompat_flags = unpacked[2];  
-        // mavlink2 only..  in mavlink1, incompat_flags var above is actually the 'seq', but for this test its ok. 
-        if ((magic == ${MAVHEAD}.PROTOCOL_MARKER_V2 ) && ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED )){ 
-            this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN; 
-        } 
+
+    if( this.buf.length >= 3 ) {
+        var unpacked = jspack.Unpack('BBB', this.buf.slice(0, 3));
+        var magic = unpacked[0]; // stx ie fd or fe etc
+        this.expected_length = unpacked[1] + ${MAVHEAD}.HEADER_LEN + 2 // length of message + header + CRC (ie non-signed length)
+        this.incompat_flags = unpacked[2];
+        // mavlink2 only..  in mavlink1, incompat_flags var above is actually the 'seq', but for this test its ok.
+        if ((magic == ${MAVHEAD}.PROTOCOL_MARKER_V2 ) && ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED )){
+            this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
+        }
     }
 
 }
 
-// input some data bytes, possibly returning a new message - python equiv function is called parse_char / __parse_char_legacy 
+// input some data bytes, possibly returning a new message - python equiv function is called parse_char / __parse_char_legacy
 ${MAVPROCESSOR}.prototype.parseChar = function(c) {
 
     var m = null;
@@ -523,7 +523,7 @@ ${MAVPROCESSOR}.prototype.parseChar = function(c) {
         this.total_receive_errors += 1;
         m = new ${MAVHEAD}.messages.bad_data(this.bufInError, e.message);
         this.bufInError = new Buffer.from([]);
-        
+
     }
 
     // emit a packet-specific message as well as a generic message, user/s can choose to use either or both of these.
@@ -536,26 +536,26 @@ ${MAVPROCESSOR}.prototype.parseChar = function(c) {
 
 }
 
-// continuation of python's  __parse_char_legacy 
+// continuation of python's  __parse_char_legacy
 ${MAVPROCESSOR}.prototype.parsePayload = function() {
 
     var m = null;
 
-    // tip: this.expected_length and this.incompat_flags both already set correctly by parseLength(..) above 
+    // tip: this.expected_length and this.incompat_flags both already set correctly by parseLength(..) above
 
-    // If we have enough bytes to try and read it, read it.  
-    //  shortest packet is header+checksum(2) with no payload, so we need at least that many 
-    //  but once we have a longer 'expected length' we have to read all of it. 
-    if(( this.expected_length >= ${MAVHEAD}.HEADER_LEN+2) && (this.buf.length >= this.expected_length) ) { 
+    // If we have enough bytes to try and read it, read it.
+    //  shortest packet is header+checksum(2) with no payload, so we need at least that many
+    //  but once we have a longer 'expected length' we have to read all of it.
+    if(( this.expected_length >= ${MAVHEAD}.HEADER_LEN+2) && (this.buf.length >= this.expected_length) ) {
 
         // Slice off the expected packet length, reset expectation to be to find a header.
         var mbuf = this.buf.slice(0, this.expected_length);
 
         // TODO: slicing off the buffer should depend on the error produced by the decode() function
-        // - if we find a well formed message, cut-off the expected_length 
+        // - if we find a well formed message, cut-off the expected_length
         // - if the message is not well formed (correct prefix by accident), cut-off 1 char only
         this.buf = this.buf.slice(this.expected_length);
-        this.expected_length = ${MAVHEAD}.HEADER_LEN; // after attempting a parse, we'll next expect to find just a header. 
+        this.expected_length = ${MAVHEAD}.HEADER_LEN; // after attempting a parse, we'll next expect to find just a header.
 
         try {
             m = this.decode(mbuf);
@@ -574,7 +574,7 @@ ${MAVPROCESSOR}.prototype.parsePayload = function() {
 
 // input some data bytes, possibly returning an array of new messages
 ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
-    
+
     // Get a message, if one is available in the stream.
     var m = this.parseChar(s);
 
@@ -582,7 +582,7 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
     if ( null === m ) {
         return null;
     }
-    
+
     // While more valid messages can be read from the existing buffer, add
     // them to the array of new messages and return them.
     var ret = [m];
@@ -597,118 +597,118 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
 
 }
 
-// from Buffer to ArrayBuffer 
-function toArrayBuffer(buf) { 
-    var ab = new ArrayBuffer(buf.length); 
-    var view = new Uint8Array(ab); 
-    for (var i = 0; i < buf.length; ++i) { 
-        view[i] = buf[i]; 
-    } 
-    return ab; 
-} 
-// and back 
-function toBuffer(ab) { 
-    var buf = Buffer.alloc(ab.byteLength); 
-    var view = new Uint8Array(ab); 
-    for (var i = 0; i < buf.length; ++i) { 
-        buf[i] = view[i]; 
-    } 
-    return buf; 
-} 
- 
-//check signature on incoming message , many of the comments in this file come from the python impl
-${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcComponent) { 
+// from Buffer to ArrayBuffer
+function toArrayBuffer(buf) {
+    var ab = new ArrayBuffer(buf.length);
+    var view = new Uint8Array(ab);
+    for (var i = 0; i < buf.length; ++i) {
+        view[i] = buf[i];
+    }
+    return ab;
+}
+// and back
+function toBuffer(ab) {
+    var buf = Buffer.alloc(ab.byteLength);
+    var view = new Uint8Array(ab);
+    for (var i = 0; i < buf.length; ++i) {
+        buf[i] = view[i];
+    }
+    return buf;
+}
 
-        //if (isinstance(msgbuf, array.array)){ 
-        //    msgbuf = msgbuf.tostring() 
-        //} 
-        if ( Buffer.isBuffer(msgbuf) ) { 
-            msgbuf = toArrayBuffer(msgbuf); 
-        } 
- 
-        //timestamp_buf = msgbuf[-12:-6] 
-        var timestamp_buf= msgbuf.slice(-12,-6);  
- 
-        //link_id = msgbuf[-13] 
-        var link_id= new Buffer.from(msgbuf.slice(-13,-12)); // just a single byte really, but returned as a buffer 
+//check signature on incoming message , many of the comments in this file come from the python impl
+${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcComponent) {
+
+        //if (isinstance(msgbuf, array.array)){
+        //    msgbuf = msgbuf.tostring()
+        //}
+        if ( Buffer.isBuffer(msgbuf) ) {
+            msgbuf = toArrayBuffer(msgbuf);
+        }
+
+        //timestamp_buf = msgbuf[-12:-6]
+        var timestamp_buf= msgbuf.slice(-12,-6);
+
+        //link_id = msgbuf[-13]
+        var link_id= new Buffer.from(msgbuf.slice(-13,-12)); // just a single byte really, but returned as a buffer
         link_id = link_id[0]; // get the first byte.
- 
-        //self.mav_sign_unpacker = jspack.Unpack('<IH') 
-        // (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf) 
+
+        //self.mav_sign_unpacker = jspack.Unpack('<IH')
+        // (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf)
 
         // I means unsigned 4bytes, H means unsigned 2 bytes
-        var t = jspack.Unpack('<IH',new Buffer.from(timestamp_buf))  
-        const [tlow, thigh]  = t; 
- 
-        // due to js not being able to shift numbers  more than 32, we'll use this instead.. 
-        // js stores all its numbers as a 64bit float with 53 bits of mantissa, so have room for 48 ok. 
-        function shift(number, shift) { 
-            return number * Math.pow(2, shift); 
-        } 
-        var thigh_shifted = shift(thigh,32);  
-        var timestamp = tlow + thigh_shifted 
- 
-        // see if the timestamp is acceptable 
- 
-         // we'll use a STRING containing these three things in it as a unique key eg: '0,1,1' 
-        stream_key = new Array(link_id,srcSystem,srcComponent).toString(); 
- 
-        if (stream_key in this.signing.stream_timestamps){ 
-            if (timestamp <= this.signing.stream_timestamps[stream_key]){ 
-                //# reject old timestamp 
-                //console.log('old timestamp')  
-                return false 
-            } 
-        }else{ 
-            //# a new stream has appeared. Accept the timestamp if it is at most 
-            //# one minute behind our current timestamp 
-            if (timestamp + 6000*1000 < this.signing.timestamp){ 
-                //console.log('bad new stream ', timestamp/(100.0*1000*60*60*24*365), this.signing.timestamp/(100.0*1000*60*60*24*365))  
-                return false 
-            } 
-            this.signing.stream_timestamps[stream_key] = timestamp; 
-            //console.log('new stream',this.signing.stream_timestamps)  
-        } 
- 
-         //   h = hashlib.new('sha256') 
-         //   h.update(this.signing.secret_key) 
-         //   h.update(msgbuf[:-6]) 
-        var crypto= require('crypto'); 
-        var h =  crypto.createHash('sha256'); 
- 
-        // just the last 6 of 13 available are the actual sig . ie excluding the linkid(1) and timestamp(6) 
-        var sigpart = msgbuf.slice(-6); 
-        sigpart = new Buffer.from(sigpart); 
-        // not sig part 0- end-minus-6 
-        var notsigpart = msgbuf.slice(0,-6);  
-        notsigpart = new Buffer.from(notsigpart); 
+        var t = jspack.Unpack('<IH',new Buffer.from(timestamp_buf))
+        const [tlow, thigh]  = t;
 
-        h.update(this.signing.secret_key); // secret is already a Buffer 
-        //var tmp = h.copy().digest(); 
-        h.update(notsigpart);  
-        //var tmp2 = h.copy().digest() 
-        var hashDigest = h.digest(); 
-        sig1 = hashDigest.slice(0,6) 
- 
-        //sig1 = str(h.digest())[:6] 
-        //sig2 = str(msgbuf)[-6:] 
+        // due to js not being able to shift numbers  more than 32, we'll use this instead..
+        // js stores all its numbers as a 64bit float with 53 bits of mantissa, so have room for 48 ok.
+        function shift(number, shift) {
+            return number * Math.pow(2, shift);
+        }
+        var thigh_shifted = shift(thigh,32);
+        var timestamp = tlow + thigh_shifted
 
-        // can't just compare sigs, need a full buffer compare like this... 
-        //if (sig1 != sigpart){  
-        if (Buffer.compare(sig1,sigpart)){  
-            //console.log('sig mismatch',sig1,sigpart)  
-            return false 
-        } 
-        //# the timestamp we next send with is the max of the received timestamp and 
-        //# our current timestamp 
-        this.signing.timestamp = Math.max(this.signing.timestamp, timestamp) 
+        // see if the timestamp is acceptable
+
+         // we'll use a STRING containing these three things in it as a unique key eg: '0,1,1'
+        stream_key = new Array(link_id,srcSystem,srcComponent).toString();
+
+        if (stream_key in this.signing.stream_timestamps){
+            if (timestamp <= this.signing.stream_timestamps[stream_key]){
+                //# reject old timestamp
+                //console.log('old timestamp')
+                return false
+            }
+        }else{
+            //# a new stream has appeared. Accept the timestamp if it is at most
+            //# one minute behind our current timestamp
+            if (timestamp + 6000*1000 < this.signing.timestamp){
+                //console.log('bad new stream ', timestamp/(100.0*1000*60*60*24*365), this.signing.timestamp/(100.0*1000*60*60*24*365))
+                return false
+            }
+            this.signing.stream_timestamps[stream_key] = timestamp;
+            //console.log('new stream',this.signing.stream_timestamps)
+        }
+
+         //   h = hashlib.new('sha256')
+         //   h.update(this.signing.secret_key)
+         //   h.update(msgbuf[:-6])
+        var crypto= require('crypto');
+        var h =  crypto.createHash('sha256');
+
+        // just the last 6 of 13 available are the actual sig . ie excluding the linkid(1) and timestamp(6)
+        var sigpart = msgbuf.slice(-6);
+        sigpart = new Buffer.from(sigpart);
+        // not sig part 0- end-minus-6
+        var notsigpart = msgbuf.slice(0,-6);
+        notsigpart = new Buffer.from(notsigpart);
+
+        h.update(this.signing.secret_key); // secret is already a Buffer
+        //var tmp = h.copy().digest();
+        h.update(notsigpart);
+        //var tmp2 = h.copy().digest()
+        var hashDigest = h.digest();
+        sig1 = hashDigest.slice(0,6)
+
+        //sig1 = str(h.digest())[:6]
+        //sig2 = str(msgbuf)[-6:]
+
+        // can't just compare sigs, need a full buffer compare like this...
+        //if (sig1 != sigpart){
+        if (Buffer.compare(sig1,sigpart)){
+            //console.log('sig mismatch',sig1,sigpart)
+            return false
+        }
+        //# the timestamp we next send with is the max of the received timestamp and
+        //# our current timestamp
+        this.signing.timestamp = Math.max(this.signing.timestamp, timestamp)
         return true
-} 
+}
 
 /* decode a buffer as a MAVLink message */
 ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
 
-    var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId, signature_len; 
+    var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId, signature_len;
 
     // decode the header
     try {
@@ -718,7 +718,7 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
     # Mavlink2 only
     if (xml.protocol_marker == 253):
         t.write(outf, """
-unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1 
+unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1
         magic = unpacked[0];
         mlen = unpacked[1];
         incompat_flags = unpacked[2];
@@ -726,9 +726,9 @@ unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));  // the H in here ca
         seq = unpacked[4];
         srcSystem = unpacked[5];
         srcComponent = unpacked[6];
-        var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF); // first-two msgid bytes 
-        var msgIDhigh = unpacked[8];   // the 3rd msgid byte 
-        msgId = msgIDlow | (msgIDhigh<<16);  // combined result. 0 - 16777215  24bit number 
+        var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF); // first-two msgid bytes
+        var msgIDhigh = unpacked[8];   // the 3rd msgid byte
+        msgId = msgIDlow | (msgIDhigh<<16);  // combined result. 0 - 16777215  24bit number
         """, {'MAVHEAD': get_mavhead(xml)})
     # Mavlink1
     else:
@@ -748,139 +748,139 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         throw new Error('Unable to unpack MAVLink header: ' + e.message);
     }
 
-    //  TODO allow full parsing of 1.0 inside the 2.0 parser, this is just a start 
-    if (magic == ${MAVHEAD}.PROTOCOL_MARKER_V1){ 
-            //headerlen = 6; 
-             
-            // these two are in the same place in both v1 and v2 so no change needed: 
-            //magic = magic; 
-            //mlen = mlen; 
- 
-            // grab mavlink-v1 header position info from v2 unpacked position 
-            seq1 = incompat_flags; 
-            srcSystem1 = compat_flags; 
-            srcComponent1 = seq; 
-            msgId1 = srcSystem; 
-            // override the v1 vs v2 offsets so we get the correct data either way... 
-            seq = seq1; 
-            srcSystem = srcSystem1; 
-            srcComponent = srcComponent1; 
-            msgId = msgId1;  
-            // don't exist in mavlink1, so zero-them 
-            incompat_flags = 0; 
-            compat_flags = 0; 
-            signature_len = 0; 
-            // todo add more v1 here and don't just return 
-            return; 
-    } 
+    //  TODO allow full parsing of 1.0 inside the 2.0 parser, this is just a start
+    if (magic == ${MAVHEAD}.PROTOCOL_MARKER_V1){
+            //headerlen = 6;
+
+            // these two are in the same place in both v1 and v2 so no change needed:
+            //magic = magic;
+            //mlen = mlen;
+
+            // grab mavlink-v1 header position info from v2 unpacked position
+            seq1 = incompat_flags;
+            srcSystem1 = compat_flags;
+            srcComponent1 = seq;
+            msgId1 = srcSystem;
+            // override the v1 vs v2 offsets so we get the correct data either way...
+            seq = seq1;
+            srcSystem = srcSystem1;
+            srcComponent = srcComponent1;
+            msgId = msgId1;
+            // don't exist in mavlink1, so zero-them
+            incompat_flags = 0;
+            compat_flags = 0;
+            signature_len = 0;
+            // todo add more v1 here and don't just return
+            return;
+    }
 
     if (magic.charCodeAt(0) != this.protocol_marker) {
         throw new Error("Invalid MAVLink prefix ("+magic.charCodeAt(0)+")");
     }
 
-    // is packet supposed to be signed? 
-    if ( incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED ){  
-        signature_len = ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN; 
-    } else { 
-        signature_len = 0; 
-    } 
- 
-    // header's declared len compared to packets actual len 
-    var actual_len = (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2 + signature_len)); 
-    var actual_len_nosign = (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2 )); 
- 
-    if ((mlen == actual_len) && (signature_len > 0)){ 
-        var len_if_signed = mlen+signature_len; 
-        //console.log("Packet appears signed && labeled as signed, OK. msgId=" + msgId);     
- 
-    } else  if ((mlen == actual_len_nosign) && (signature_len > 0)){ 
- 
-        var len_if_signed = mlen+signature_len; 
-        throw new Error("Packet appears unsigned when labeled as signed. Got actual_len "+actual_len_nosign+" expected " + len_if_signed + ", msgId=" + msgId);     
- 
-    } else if( mlen != actual_len) {  
-          throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) + " expected " + mlen + ", msgId=" + msgId); 
+    // is packet supposed to be signed?
+    if ( incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED ){
+        signature_len = ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
+    } else {
+        signature_len = 0;
+    }
 
-    }  
- 
+    // header's declared len compared to packets actual len
+    var actual_len = (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2 + signature_len));
+    var actual_len_nosign = (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2 ));
+
+    if ((mlen == actual_len) && (signature_len > 0)){
+        var len_if_signed = mlen+signature_len;
+        //console.log("Packet appears signed && labeled as signed, OK. msgId=" + msgId);
+
+    } else  if ((mlen == actual_len_nosign) && (signature_len > 0)){
+
+        var len_if_signed = mlen+signature_len;
+        throw new Error("Packet appears unsigned when labeled as signed. Got actual_len "+actual_len_nosign+" expected " + len_if_signed + ", msgId=" + msgId);
+
+    } else if( mlen != actual_len) {
+          throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) + " expected " + mlen + ", msgId=" + msgId);
+
+    }
+
     if( false === _.has(${MAVHEAD}.map, msgId) ) {
         throw new Error("Unknown MAVLink message ID (" + msgId + ")");
     }
 
-    // here's the common chunks of packet we want to work with below.. 
-    var headerBuf= msgbuf.slice(${MAVHEAD}.HEADER_LEN); // first10 
-    var sigBuf = msgbuf.slice(-signature_len); // last 13 or nothing 
-    var crcBuf1 = msgbuf.slice(-2); // either last-2 or last-2-prior-to-signature 
-    var crcBuf2 = msgbuf.slice(-15,-13); // either last-2 or last-2-prior-to-signature 
-    var payloadBuf = msgbuf.slice(${MAVHEAD}.HEADER_LEN, -(signature_len+2)); // the remaining bit between the header and the crc 
-    var crcCheckBuf = msgbuf.slice(1, -(signature_len+2)); // the part uses to calculate the crc - ie between the magic and signature, 
+    // here's the common chunks of packet we want to work with below..
+    var headerBuf= msgbuf.slice(${MAVHEAD}.HEADER_LEN); // first10
+    var sigBuf = msgbuf.slice(-signature_len); // last 13 or nothing
+    var crcBuf1 = msgbuf.slice(-2); // either last-2 or last-2-prior-to-signature
+    var crcBuf2 = msgbuf.slice(-15,-13); // either last-2 or last-2-prior-to-signature
+    var payloadBuf = msgbuf.slice(${MAVHEAD}.HEADER_LEN, -(signature_len+2)); // the remaining bit between the header and the crc
+    var crcCheckBuf = msgbuf.slice(1, -(signature_len+2)); // the part uses to calculate the crc - ie between the magic and signature,
 
     // decode the payload
     // refs: (fmt, type, order_map, crc_extra) = ${MAVHEAD}.map[msgId]
     var decoder = ${MAVHEAD}.map[msgId];
 
     // decode the checksum
-    var receivedChecksum = undefined; 
-    if ( signature_len == 0 ) { // unsigned 
-        try { 
-            receivedChecksum = jspack.Unpack('<H', crcBuf1); 
-        } catch (e) { 
-            throw new Error("Unable to unpack MAVLink unsigned CRC: " + e.message); 
-        } 
-    } else { // signed 
-        try { 
-            receivedChecksum = jspack.Unpack('<H', crcBuf2); 
-        } catch (e) { 
-            throw new Error("Unable to unpack MAVLink signed CRC: " + e.message); 
-        } 
+    var receivedChecksum = undefined;
+    if ( signature_len == 0 ) { // unsigned
+        try {
+            receivedChecksum = jspack.Unpack('<H', crcBuf1);
+        } catch (e) {
+            throw new Error("Unable to unpack MAVLink unsigned CRC: " + e.message);
+        }
+    } else { // signed
+        try {
+            receivedChecksum = jspack.Unpack('<H', crcBuf2);
+        } catch (e) {
+            throw new Error("Unable to unpack MAVLink signed CRC: " + e.message);
+        }
     }
-    receivedChecksum = receivedChecksum[0]; 
+    receivedChecksum = receivedChecksum[0];
 
-    // make our own chksum of the relevant part of the packet... 
-    var messageChecksum = ${MAVHEAD}.x25Crc(crcCheckBuf);  
-    var messageChecksum2 = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum); 
- 
-    if ( receivedChecksum != messageChecksum2 ) { 
-        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum2 ); 
+    // make our own chksum of the relevant part of the packet...
+    var messageChecksum = ${MAVHEAD}.x25Crc(crcCheckBuf);
+    var messageChecksum2 = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum);
+
+    if ( receivedChecksum != messageChecksum2 ) {
+        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum2 );
     }
- 
-    // now check the signature... 
-    var sig_ok = false 
-    if (signature_len == ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN){ 
-        this.signing.sig_count += 1  
-    } 
 
-    // it's a Buffer, zero-length means unused 
-    if (this.signing.secret_key.length != 0 ){ 
-        var accept_signature = false; 
-        if (signature_len == ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN){  
-            sig_ok = this.check_signature(msgbuf, srcSystem, srcComponent); 
-            accept_signature = sig_ok; 
-            if (sig_ok){ 
-                this.signing.goodsig_count += 1 
-            }else{ 
-                this.signing.badsig_count += 1 
-            } 
-            if ( (! accept_signature) && (this.signing.allow_unsigned_callback != undefined) ){ 
-                accept_signature = this.signing.allow_unsigned_callback(this, msgId); 
-                if (accept_signature){ 
-                    this.signing.unsigned_count += 1 
-                }else{ 
-                    this.signing.reject_count += 1 
-                } 
-            } 
-        }else if (this.signing.allow_unsigned_callback != undefined){ 
-            accept_signature = this.signing.allow_unsigned_callback(this, msgId); 
-            if (accept_signature){ 
-                this.signing.unsigned_count += 1 
-            }else{ 
-                this.signing.reject_count += 1 
-            } 
-        } 
-        if (!accept_signature) throw new Error('Invalid signature'); 
-    } 
+    // now check the signature...
+    var sig_ok = false
+    if (signature_len == ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN){
+        this.signing.sig_count += 1
+    }
 
-    // now look at the specifics of the payload... 
+    // it's a Buffer, zero-length means unused
+    if (this.signing.secret_key.length != 0 ){
+        var accept_signature = false;
+        if (signature_len == ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN){
+            sig_ok = this.check_signature(msgbuf, srcSystem, srcComponent);
+            accept_signature = sig_ok;
+            if (sig_ok){
+                this.signing.goodsig_count += 1
+            }else{
+                this.signing.badsig_count += 1
+            }
+            if ( (! accept_signature) && (this.signing.allow_unsigned_callback != undefined) ){
+                accept_signature = this.signing.allow_unsigned_callback(this, msgId);
+                if (accept_signature){
+                    this.signing.unsigned_count += 1
+                }else{
+                    this.signing.reject_count += 1
+                }
+            }
+        }else if (this.signing.allow_unsigned_callback != undefined){
+            accept_signature = this.signing.allow_unsigned_callback(this, msgId);
+            if (accept_signature){
+                this.signing.unsigned_count += 1
+            }else{
+                this.signing.reject_count += 1
+            }
+        }
+        if (!accept_signature) throw new Error('Invalid signature');
+    }
+
+    // now look at the specifics of the payload...
     var paylen = jspack.CalcLength(decoder.format);
 
     """, {'MAVPROCESSOR': get_mavprocessor(xml),
@@ -889,7 +889,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     # Mavlink2 only
     if (xml.protocol_marker == 253):
         t.write(outf, """
-//put any truncated 0's back in (ie zero-pad ) 
+//put any truncated 0's back in (ie zero-pad )
     if (paylen > payloadBuf.length) {
         payloadBuf =  Buffer.concat([payloadBuf, Buffer.alloc(paylen - payloadBuf.length)]);
     }
@@ -898,10 +898,10 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     t.write(outf, """
     // Decode the payload and reorder the fields to match the order map.
     try {
-        var t = jspack.Unpack(decoder.format, payloadBuf); 
+        var t = jspack.Unpack(decoder.format, payloadBuf);
     }
     catch (e) {
-        throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payloadBuf +': '+ e.message); 
+        throw new Error('Unable to unpack MAVLink payload type='+decoder.type+' format='+decoder.format+' payloadLength='+ payloadBuf +': '+ e.message);
     }
 
     // Need to check if the message contains arrays
@@ -921,7 +921,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         var memberIndex = 0;
         var tempArgs = {};
 
-        // Walk through the fields 
+        // Walk through the fields
         for(var i = 0, size = decoder.format.length-1; i <= size; ++i) {
             var order = decoder.order_map[orderIndex];
             var currentType =  decoder.format[typeIndex];
@@ -960,7 +960,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         });
     }
 
-    
+
 
     // construct the message object
     try {
@@ -972,11 +972,11 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         throw new Error('Unable to instantiate MAVLink message of type '+decoder.type+' : ' + e.message);
     }
 
-    m._signed = sig_ok; 
-    if (m._signed) { m._link_id = msgbuf[-13]; } 
- 
+    m._signed = sig_ok;
+    if (m._signed) { m._link_id = msgbuf[-13]; }
+
     m._msgbuf = msgbuf;
-    m._payload = payloadBuf 
+    m._payload = payloadBuf
     m.crc = receivedChecksum;
     m._header = new ${MAVHEAD}.header(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags, compat_flags);
     this.log(m);
@@ -1065,11 +1065,11 @@ def generate_tests_mavlink_class(outf, msgs, xml):
         outf.write("   if ( verbose == 2 ) console.log('test creating and packing:%s'); \n" % (  m.name.lower() ) )
         outf.write("   if ( verbose == 1) { process.stdout.write('test creating and packing:"+m.name.lower()+"          \\r'); }\n")
         outf.write("   var test_%s = new %s.messages.%s(); \n" % (  m.name.lower(),get_mavhead(xml), m.name.lower()))
- 
+
         idx = 0; # test data is in same order as ordered_fieldnames
         for f in m.ordered_fieldnames:
             tdata = m.test_data[idx] # test data
-            #tdatatype = m.test_data_types[idx] # type of test data 
+            #tdatatype = m.test_data_types[idx] # type of test data
             fieldtype = m.ordered_fieldtypes[idx] # type of base field
             # wrap things non-number-like as strings, isnumeric() can't handle negatives, but conveniently none of the test suite uses negatives
 
@@ -1078,7 +1078,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
             #print('fieldtype:'+fieldtype);
             #if tdatatype != fieldtype:
             #    sys.exit()
-            
+
             _isnum = str(tdata).isdigit()
             _isarray = (tdata[0] == '[')
             _isfloat = isfloat(tdata)
@@ -1097,7 +1097,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
                 tdata = m.test_data[idx];
             # array of other things
             elif _isarray:
-                tdata = 'new Buffer.from('+m.test_data[idx]+') // generic buffer error?';  
+                tdata = 'new Buffer.from('+m.test_data[idx]+') // generic buffer error?';
 
             # https://github.com/birchroad/node-jspack/pull/4/commits/9828de064af42ab370009d3eeec7fc11be36b918
             elif fieldtype == 'uint64_t': # unsigned
@@ -1109,16 +1109,16 @@ def generate_tests_mavlink_class(outf, msgs, xml):
                 tdata =  '(new Int8Array(['+m.test_data[idx]+']))[0]';  # basically a cast from unsigned int to signed int without sign bit loss
             # special signed handling, to properly
             elif fieldtype == 'int16_t': # signed fields, we sometimes push raw value/s that exceed the min/max range of signed instead of using the correct sign
-                tdata =  '(new Int16Array(['+m.test_data[idx]+']))[0]';  # basically a cast from unsigned int to signed int without sign bit loss 
-            # special signed handling, to properly 
+                tdata =  '(new Int16Array(['+m.test_data[idx]+']))[0]';  # basically a cast from unsigned int to signed int without sign bit loss
+            # special signed handling, to properly
             elif fieldtype == 'int32_t': # signed fields, we sometimes push raw value/s that exceed the min/max range of signed instead of using the correct sign
                 tdata =  '(new Int32Array(['+m.test_data[idx]+']))[0]';  # basically a cast from unsigned int to signed int without sign bit loss
 
             elif _isfloat:
                     tdata = m.test_data[idx];
             elif _isnum:
-                     tdata = m.test_data[idx];   
-            else:      
+                     tdata = m.test_data[idx];
+            else:
                  #string
                  tdata = '"'+m.test_data[idx]+'"';
 
@@ -1135,7 +1135,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
         outf.write("};\n");
         outf.write("exports.test_%s = test_%s; // expose in module\n"% (  m.name.lower() ,m.name.lower() ) );
         outf.write("\n");
-    
+
 
     outf.write(get_mavhead(xml)+"""Tests = function(){ \n""")
 
@@ -1143,7 +1143,7 @@ def generate_tests_mavlink_class(outf, msgs, xml):
         outf.write("test_%s();\n"% (  m.name.lower()));
 
     outf.write("};\n");
-   
+
 def generate_tests_footer(outf, xml):
     t.write(outf, """
 
@@ -1151,7 +1151,7 @@ def generate_tests_footer(outf, xml):
 if (require.main === module) {
    verbose=2;  // 0 is not verbose, 1 is a bit, 2 is more.
    ${MAVHEAD}Tests();
-} 
+}
 
 
 /* TESTs for MAVLink protocol handling class */
@@ -1193,7 +1193,7 @@ def generate(basename, xml):
             m.fmtstr += mavfmt(f)
             if f.instance:
                 m.instance_field = f.name
-                
+
         m.order_map = [0] * len(m.fieldnames)
         m.len_map = [0] * len(m.fieldnames)
         m.array_len_map = [0] * len(m.fieldnames)
@@ -1206,7 +1206,7 @@ def generate(basename, xml):
             m.test_data[i] = str(m.ordered_fields[i].test_value)
             m.test_data_types[i] = str(m.ordered_fields[i].type)
             m.array_len_map[i] = m.ordered_fields[i].array_length
-            
+
         for i in range(0, len(m.fieldnames)):
             n = m.order_map[i]
             m.len_map[n] = m.fieldlengths[i]

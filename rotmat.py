@@ -282,7 +282,7 @@ class Matrix3(object):
 
     def __ne__(self, m):
         return not self == m
-        
+
     def __mul__(self, other):
         if isinstance(other, Vector3):
             v = other
