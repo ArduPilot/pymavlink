@@ -720,6 +720,11 @@ class DFReader(object):
 
         self._rewind()
         return self._flightmodes
+    
+    def close(self):
+        '''close the log file'''
+        self.filehandle.close()
+    
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
