@@ -3,9 +3,6 @@
 '''
 fit best estimate of magnetometer offsets, trying to take into account motor interference
 '''
-from __future__ import print_function
-from builtins import range
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps",dest="notimestamps", action='store_true', help="Log doesn't have timestamps")

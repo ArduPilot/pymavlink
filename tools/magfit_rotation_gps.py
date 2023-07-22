@@ -3,10 +3,6 @@
 '''
 fit best estimate of magnetometer rotation to GPS data
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps",dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
@@ -21,7 +17,7 @@ from pymavlink.rotmat import Vector3, Matrix3
 from math import radians, degrees, sin, cos, atan2
 
 
-class Rotation(object):
+class Rotation:
     def __init__(self, roll, pitch, yaw, r):
         self.roll = roll
         self.pitch = pitch

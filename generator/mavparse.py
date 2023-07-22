@@ -5,10 +5,6 @@ mavlink python parse functions
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 import errno
 import operator
 import os
@@ -32,7 +28,7 @@ class MAVParseError(Exception):
     def __str__(self):
         return self.message
 
-class MAVField(object):
+class MAVField:
     def __init__(self, name, type, print_format, xml, description='', enum='', display='', units='', instance=False):
         self.name = name
         self.name_upper = name.upper()
@@ -122,7 +118,7 @@ class MAVField(object):
             self.test_value = v[:-1]
 
 
-class MAVType(object):
+class MAVType:
     def __init__(self, name, id, linenumber, description=''):
         self.name = name
         self.name_lower = name.lower()
@@ -140,7 +136,7 @@ class MAVType(object):
             return len(self.fields)
         return len(self.fields[:self.extensions_start])
 
-class MAVEnumParam(object):
+class MAVEnumParam:
     def __init__(self, index, description='', label='', units='', enum='', increment='', minValue='', maxValue='', reserved=False, default=''):
         self.index = index
         self.description = description
@@ -162,7 +158,7 @@ class MAVEnumParam(object):
         else:
             self.description = description
 
-class MAVEnumEntry(object):
+class MAVEnumEntry:
     def __init__(self, name, value, description='', end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False):
         self.name = name
         self.value = value
@@ -174,7 +170,7 @@ class MAVEnumEntry(object):
         self.origin_line = origin_line
         self.has_location = has_location
 
-class MAVEnum(object):
+class MAVEnum:
     def __init__(self, name, linenumber, description='', bitmask=False):
         self.name = name
         self.description = description
@@ -184,7 +180,7 @@ class MAVEnum(object):
         self.linenumber = linenumber
         self.bitmask = bitmask
 
-class MAVXML(object):
+class MAVXML:
     '''parse a mavlink XML file'''
     def __init__(self, filename, wire_protocol_version=PROTOCOL_0_9):
         self.filename = filename
@@ -242,7 +238,6 @@ class MAVXML(object):
         def start_element(name, attrs):
             in_element_list.append(name)
             in_element = '.'.join(in_element_list)
-            #print in_element
             if in_element == "mavlink.messages.message":
                 check_attrs(attrs, ['name', 'id'], 'message')
                 self.message.append(MAVType(attrs['name'], attrs['id'], p.CurrentLineNumber))
@@ -458,14 +453,14 @@ def message_checksum(msg):
        can detect incompatible XML changes'''
     from .mavcrc import x25crc
     crc = x25crc()
-    crc.accumulate_str(msg.name + ' ')
+    crc.accumulate(msg.name + ' ')
     # in order to allow for extensions the crc does not include
     # any field extensions
     crc_end = msg.base_fields()
     for i in range(crc_end):
         f = msg.ordered_fields[i]
-        crc.accumulate_str(f.type + ' ')
-        crc.accumulate_str(f.name + ' ')
+        crc.accumulate(f.type + ' ')
+        crc.accumulate(f.name + ' ')
         if f.array_length:
             crc.accumulate([f.array_length])
     return (crc.crc&0xFF) ^ (crc.crc>>8)

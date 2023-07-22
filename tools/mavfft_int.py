@@ -3,8 +3,6 @@
 '''
 interactively select accel and gyro data for FFT analysis
 '''
-from __future__ import print_function
-
 import numpy
 import pylab
 import matplotlib
@@ -18,11 +16,6 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 args = parser.parse_args()
 
 from pymavlink import mavutil
-
-try:
-    raw_input          # Python 2
-except NameError:
-    raw_input = input  # Python 3
 
 def plot_input(data, msg, prefix, start, end):
     preview = pylab.figure()
@@ -213,7 +206,7 @@ def fft(logfile):
             fftwin.savefig(msg + '_fft.png')
         
         try:
-            selection = raw_input('q to proceed to next file, anything else to select a new range: ')
+            selection = input('q to proceed to next file, anything else to select a new range: ')
             print(selection)
         except:
             continue

@@ -4,10 +4,6 @@ module for loading/saving waypoints
 Copyright the ArduPilot Project
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 import time, copy
 import logging
 from . import mavutil
@@ -26,7 +22,7 @@ class MAVWPError(Exception):
         self.message = msg
 
 
-class MAVWPLoader(object):
+class MAVWPLoader:
     '''MAVLink waypoint loader'''
     def __init__(self, target_system=0, target_component=0):
         self.wpoints = []
@@ -218,7 +214,7 @@ class MAVWPLoader(object):
         if not HAVE_PROTOBUF:
             raise MAVWPError(
                 'Cannot read mission file in protobuf format without protobuf '
-                'library. Try "easy_install protobuf".')
+                'library. Try "pip install protobuf".')
         explicit_seq = False
         warned_seq = False
         mission = mission_pb2.Mission()
@@ -437,7 +433,7 @@ class MAVRallyError(Exception):
         Exception.__init__(self, msg)
         self.message = msg
 
-class MAVRallyLoader(object):
+class MAVRallyLoader:
     '''MAVLink Rally points and Rally Land points loader'''
     def __init__(self, target_system=0, target_component=0):
         self.rally_points = []
@@ -542,7 +538,7 @@ class MAVFenceError(Exception):
             Exception.__init__(self, msg)
             self.message = msg
 
-class MAVFenceLoader(object):
+class MAVFenceLoader:
     '''MAVLink geo-fence loader'''
     def __init__(self, target_system=0, target_component=0):
         self.points = []

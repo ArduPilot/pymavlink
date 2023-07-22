@@ -5,9 +5,6 @@ mavlink python utility functions
 Copyright Andrew Tridgell 2011-2019
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import object
-
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
 import copy
@@ -18,17 +15,11 @@ from pymavlink import mavexpression
 # We want to re-export x25crc here
 from pymavlink.generator.mavcrc import x25crc as x25crc
 
-is_py3 = sys.version_info >= (3,0)
-supports_type_annotations = sys.version_info >= (3,6)
-
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
 try:
-    if supports_type_annotations:
-        from pymavlink.dialects.v10 import ardupilotmega
-    else:
-        from pymavlink.dialects.v10.python2 import ardupilotmega
+    from pymavlink.dialects.v10 import ardupilotmega
 except Exception:
     pass
 
@@ -74,12 +65,7 @@ def evaluate_condition(condition, vars):
         return False
     return v
 
-def u_ord(c):
-    if is_py3:
-        return c
-    return ord(c)
-
-class location(object):
+class location:
     '''represent a GPS coordinate'''
     def __init__(self, lat, lng, alt=0, heading=0):
         self.lat = lat  # in degrees
@@ -109,33 +95,29 @@ def add_message(messages, mtype, msg):
     messages[mtype]._instances = prev_instances
     messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
 
-def set_dialect(dialect, with_type_annotations=None):
+def set_dialect(dialect):
     '''set the MAVLink dialect to work with.
     For example, set_dialect("ardupilotmega")
     '''
     global mavlink, current_dialect
     from .generator import mavparse
 
-    if with_type_annotations is None:
-        with_type_annotations = supports_type_annotations
-
-    legacy_python_module = "python2." if not with_type_annotations else ""
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
-        modname = "pymavlink.dialects.v20." + legacy_python_module + dialect
+        modname = "pymavlink.dialects.v20." + dialect
     elif mavlink is None or mavlink.WIRE_PROTOCOL_VERSION == "1.0" or not 'MAVLINK09' in os.environ:
         wire_protocol = mavparse.PROTOCOL_1_0
-        modname = "pymavlink.dialects.v10." + legacy_python_module + dialect
+        modname = "pymavlink.dialects.v10." + dialect
     else:
         wire_protocol = mavparse.PROTOCOL_0_9
-        modname = "pymavlink.dialects.v09." + legacy_python_module + dialect
+        modname = "pymavlink.dialects.v09." + dialect
 
     try:
         mod = __import__(modname)
     except Exception:
         # auto-generate the dialect module
         from .generator.mavgen import mavgen_python_dialect
-        mavgen_python_dialect(dialect, wire_protocol, with_type_annotations=with_type_annotations)
+        mavgen_python_dialect(dialect, wire_protocol)
         mod = __import__(modname)
     components = modname.split('.')
     for comp in components[1:]:
@@ -146,7 +128,7 @@ def set_dialect(dialect, with_type_annotations=None):
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
-class mavfile_state(object):
+class mavfile_state:
     '''state for a particular system id'''
     def __init__(self):
         self.messages = { 'MAV' : self }
@@ -163,12 +145,12 @@ class mavfile_state(object):
         else:
             self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
 
-class param_state(object):
+class param_state:
     '''state for a particular system id/component id pair'''
     def __init__(self):
         self.params = {}
 
-class mavfile(object):
+class mavfile:
     '''a generic mavlink port'''
     def __init__(self, fd, address, source_system=255, source_component=0, notimestamps=False, input=True, use_native=default_native):
         global mavfile_global
@@ -477,10 +459,7 @@ class mavfile(object):
 
             if numnew != 0:
                 if self.logfile_raw:
-                    if is_py3:
-                        self.logfile_raw.write(s)
-                    else:
-                        self.logfile_raw.write(str(s))
+                    self.logfile_raw.write(s)
                 if self.first_byte:
                     self.auto_mavlink_version(s)
 
@@ -490,10 +469,7 @@ class mavfile(object):
             if msg:
                 if self.logfile and  msg.get_type() != 'BAD_DATA' :
                     usec = int(time.time() * 1.0e6) & ~3
-                    if is_py3:
-                        self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
-                    else:
-                        self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
+                    self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
                 self.post_message(msg)
                 return msg
             else:
@@ -570,7 +546,7 @@ class mavfile(object):
             idx = int(name)
             self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
         except Exception:
-            if sys.version_info.major >= 3 and not isinstance(name, bytes):
+            if not isinstance(name, bytes):
                 name = bytes(name,'ascii')
             self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
 
@@ -1526,19 +1502,19 @@ class mavmmaplog(mavlogfile):
         MARKER_V2 = 0xFD
         
         while ofs+8+6 < self.data_len:
-            marker = u_ord(self.data_map[ofs+8])
-            mlen = u_ord(self.data_map[ofs+9]) + 8
+            marker = ord(self.data_map[ofs + 8])
+            mlen = ord(self.data_map[ofs + 9]) + 8
             if marker == MARKER_V1:
-                mtype = u_ord(self.data_map[ofs+13])
+                mtype = ord(self.data_map[ofs + 13])
                 mlen += 8
                 data_ofs = 14
             elif marker == MARKER_V2:
                 if ofs+8+10 > self.data_len:
                     break
-                mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
+                mtype = ord(self.data_map[ofs + 15]) | (ord(self.data_map[ofs + 16]) << 8) | (ord(self.data_map[ofs + 17]) << 16)
                 mlen += 12
                 data_ofs = 18
-                incompat_flags = u_ord(self.data_map[ofs+10])
+                incompat_flags = ord(self.data_map[ofs + 10])
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
             else:
@@ -1823,7 +1799,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                      use_native=use_native,
                      force_connected=force_connected)
 
-class periodic_event(object):
+class periodic_event:
     '''a class for fixed frequency events'''
     def __init__(self, frequency):
         self.frequency = float(frequency)
@@ -1871,7 +1847,7 @@ def all_printable(buf):
             return False
     return True
 
-class SerialPort(object):
+class SerialPort:
     '''auto-detected serial port'''
     def __init__(self, device, description=None, hwid=None):
         self.device = device
@@ -2301,7 +2277,7 @@ def mode_string_acm(mode_number):
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
 
-class MavlinkSerialPort(object):
+class MavlinkSerialPort:
         '''an object that looks like a serial port, but
         transmits using mavlink SERIAL_CONTROL packets'''
         def __init__(self, portname, baudrate, devnum=0, devbaud=0, timeout=3, debug=0):
@@ -2428,7 +2404,7 @@ def decode_bitmask(messagetype, field, value):
     except KeyError as e:
         raise AttributeError("Did not find specified enumeration (%s)" % enum_name)
 
-    class EnumBitInfo(object):
+    class EnumBitInfo:
         def __init__(self, offset, value, name):
             self.offset = offset
             self.value = value

@@ -3,9 +3,6 @@
 '''
 Summarize MAVLink logs. Useful for identifying which log is of interest in a large set.
 '''
-from __future__ import print_function
-from builtins import object
-
 import glob
 import time
 
@@ -22,7 +19,7 @@ from pymavlink import mavutil
 from pymavlink.mavextra import distance_two
 
 
-class Totals(object):
+class Totals:
     def __init__(self):
         self.time = 0
         self.distance = 0

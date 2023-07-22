@@ -5,8 +5,6 @@ Parse a MAVLink protocol XML file and generate Swift implementation
 Copyright Max Odnovolyk 2015
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
-
 import os
 from . import mavparse, mavtemplate
 

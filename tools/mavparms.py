@@ -3,9 +3,6 @@
 '''
 extract mavlink parameter values
 '''
-from __future__ import print_function
-
-
 import time
 
 from argparse import ArgumentParser

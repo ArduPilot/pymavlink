@@ -5,19 +5,14 @@ parse a MAVLink protocol XML file and generate a python implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
-
-from builtins import range
-
 import os
-import sys
 import textwrap
 from . import mavtemplate
 
 t = mavtemplate.MAVTemplate()
 
 
-def extend_with_type_info(extended, enable_type_annotations):
+def extend_with_type_info(extended):
     types = {
         "int": ("int", 0),
         "bool": ("bool", False),
@@ -62,46 +57,23 @@ def extend_with_type_info(extended, enable_type_annotations):
     }
 
     res = extended
-    if enable_type_annotations:
-        res[
-            "typing_imports"
-        ] = """from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast"""
-        for type_name, type_info in types.items():
-            res["type_" + type_name] = ": " + type_info[0]
-            res["type_" + type_name + "_ret"] = " -> " + type_info[0]
-            res["type_" + type_name + "_cast"] = type_info[0]
-            if type_info[1] is not None:
-                res["type_" + type_name + "_default"] = (
-                    ": " + type_info[0] + " = " + repr(type_info[1])
-                )
-            res["type_optional_" + type_name] = ": Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_ret"] = " -> Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_cast"] = "Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_default"] = (
-                ": Optional[" + type_info[0] + "] = None"
+    res[
+        "typing_imports"
+    ] = """from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast"""
+    for type_name, type_info in types.items():
+        res["type_" + type_name] = ": " + type_info[0]
+        res["type_" + type_name + "_ret"] = " -> " + type_info[0]
+        res["type_" + type_name + "_cast"] = type_info[0]
+        if type_info[1] is not None:
+            res["type_" + type_name + "_default"] = (
+                ": " + type_info[0] + " = " + repr(type_info[1])
             )
-
-    else:
-        res[
-            "typing_imports"
-        ] = '''
-
-def cast(type_str, arg):
-    """
-    No-op for Python2 used instead of typing.cast()
-    """
-    return arg
-'''
-        for type_name, type_info in types.items():
-            res["type_" + type_name] = ""
-            res["type_" + type_name + "_ret"] = ""
-            res["type_" + type_name + "_cast"] = '"' + type_info[0] + '"'
-            if type_info[1] is not None:
-                res["type_" + type_name + "_default"] = "=" + repr(type_info[1])
-            res["type_optional_" + type_name] = ""
-            res["type_optional_" + type_name + "_ret"] = ""
-            res["type_optional_" + type_name + "_cast"] = '"Optional[' + type_info[0] + ']"'
-            res["type_optional_" + type_name + "_default"] = "=None"
+        res["type_optional_" + type_name] = ": Optional[" + type_info[0] + "]"
+        res["type_optional_" + type_name + "_ret"] = " -> Optional[" + type_info[0] + "]"
+        res["type_optional_" + type_name + "_cast"] = "Optional[" + type_info[0] + "]"
+        res["type_optional_" + type_name + "_default"] = (
+            ": Optional[" + type_info[0] + "] = None"
+        )
 
     return res
 
@@ -130,7 +102,6 @@ import os
 import struct
 import sys
 import time
-from builtins import object, range
 ${typing_imports}
 
 WIRE_PROTOCOL_VERSION = "${wire_protocol_version}"
@@ -144,9 +115,6 @@ HEADER_LEN_V2 = 10
 MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 MAVLINK_IFLAG_SIGNED = 0x01
-
-if sys.version_info[0] == 2:
-    logging.basicConfig()
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +136,7 @@ MAVLINK_TYPE_FLOAT = 9
 MAVLINK_TYPE_DOUBLE = 10
 
 
-class x25crc(object):
+class x25crc:
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
 
     def __init__(self, buf${type_optional_intseq_default})${type_none_ret}:
@@ -178,9 +146,7 @@ class x25crc(object):
 
     def accumulate(self, buf${type_intseq})${type_none_ret}:
         """add in some more bytes (it also accepts python2 strings)"""
-        if sys.version_info[0] == 2 and type(buf) is str:
-            buf = bytearray(buf)
-
+        
         accum = self.crc
         for b in buf:
             tmp = b ^ (accum & 0xFF)
@@ -189,7 +155,7 @@ class x25crc(object):
         self.crc = accum
 
 
-class MAVLink_header(object):
+class MAVLink_header:
     """MAVLink message header"""
 
     def __init__(self, msgId${type_int}, incompat_flags${type_int_default}, compat_flags${type_int_default}, mlen${type_int_default}, seq${type_int_default}, srcSystem${type_int_default}, srcComponent${type_int_default})${type_none_ret}:
@@ -226,7 +192,7 @@ class MAVLink_header(object):
         )
 
 
-class MAVLink_message(object):
+class MAVLink_message:
     """base MAVLink message class"""
 
     id = 0
@@ -262,8 +228,6 @@ class MAVLink_message(object):
         """override field getter"""
         raw_attr = cast(${type_mavlink_message_attr_cast}, getattr(self, field))
         if isinstance(raw_attr, bytes):
-            if sys.version_info[0] == 2:
-                return raw_attr.rstrip(b"\\x00")
             return raw_attr.decode(errors="backslashreplace").rstrip("\\x00")
         return raw_attr
 
@@ -368,10 +332,7 @@ class MAVLink_message(object):
         if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
             # variable length arrays and smaller packets
-            if sys.version_info[0] == 2:
-                nullbyte = chr(0)
-            else:
-                nullbyte = 0
+            nullbyte = 0
             while plen > 1 and payload[plen - 1] == nullbyte:
                 plen -= 1
         self._payload = payload[:plen]
@@ -411,7 +372,7 @@ class MAVLink_message(object):
         return self._instances[key]
 
 
-class mavlink_msg_deprecated_name_property(object):
+class mavlink_msg_deprecated_name_property:
     """
     This handles the class variable name change from name to msgname for
     subclasses of MAVLink_message during a transition period.
@@ -437,10 +398,10 @@ msg_name =  msg.msgname if hasattr(msg, "msgname") else msg.name"""
     )
 
 
-def generate_enums(outf, enums, enable_type_annotations):
+def generate_enums(outf, enums):
     print("Generating enums")
 
-    type_info = extend_with_type_info({}, enable_type_annotations)
+    type_info = extend_with_type_info({})
 
     t.write(
         outf,
@@ -449,7 +410,7 @@ def generate_enums(outf, enums, enable_type_annotations):
 # enums
 
 
-class EnumEntry(object):
+class EnumEntry:
     def __init__(self, name${type_str}, description${type_str})${type_none_ret}:
         self.name = name
         self.description = description
@@ -518,7 +479,7 @@ def byname_hash_from_field_attribute(m, attribute):
     return ", ".join(strings)
 
 
-def generate_classes(outf, msgs, enable_type_annotations):
+def generate_classes(outf, msgs):
     print("Generating class definitions")
     wrapper = textwrap.TextWrapper(initial_indent="    ", subsequent_indent="    ")
     for m in msgs:
@@ -542,15 +503,10 @@ def generate_classes(outf, msgs, enable_type_annotations):
             fname = m.fieldnames[i]
             if m.extensions_start is not None and i >= m.extensions_start:
                 fdefault = m.fielddefaults[i]
-                if enable_type_annotations:
-                    arg_fields.append("%s: %s = %s" % (fname, mavpytype(m.fields[i]), fdefault))
-                else:
-                    arg_fields.append("%s=%s" % (fname, fdefault))
+                arg_fields.append("%s: %s = %s" % (fname, mavpytype(m.fields[i]), fdefault))
+
             else:
-                if enable_type_annotations:
-                    arg_fields.append("%s: %s" % (fname, mavpytype(m.fields[i])))
-                else:
-                    arg_fields.append(fname)
+                arg_fields.append("%s: %s" % (fname, mavpytype(m.fields[i])))
 
         init_fields = []
         for f in m.fields:
@@ -635,7 +591,6 @@ setattr(${classname}, "name", mavlink_msg_deprecated_name_property())
                     "init_fields": "\n        ".join(init_fields),
                     "pack_fields": ", ".join(pack_fields),
                 },
-                enable_type_annotations,
             ),
         )
 
@@ -762,10 +717,7 @@ class MAVLink_bad_data(MAVLink_message):
 
     def __str__(self)${type_str_ret}:
         """Override the __str__ function from MAVLink_messages because non-printable characters are common in to be the reason for this message to exist."""
-        if sys.version_info[0] == 2:
-            hexstr = ["{:x}".format(ord(i)) for i in self.data]
-        else:
-            hexstr = ["{:x}".format(i) for i in self.data]
+        hexstr = ["{:x}".format(i) for i in self.data]
         return "%s {%s, data:%s}" % (self._type, self.reason, hexstr)
 
 
@@ -783,14 +735,11 @@ class MAVLink_unknown(MAVLink_message):
 
     def __str__(self)${type_str_ret}:
         """Override the __str__ function from MAVLink_messages because non-printable characters are common."""
-        if sys.version_info[0] == 2:
-            hexstr = ["{:x}".format(ord(i)) for i in self.data]
-        else:
-            hexstr = ["{:x}".format(i) for i in self.data]
+        hexstr = ["{:x}".format(i) for i in self.data]
         return "%s {data:%s}" % (self._type, hexstr)
 
 
-class MAVLinkSigning(object):
+class MAVLinkSigning:
     """MAVLink signing state class"""
 
     def __init__(self)${type_none_ret}:
@@ -807,7 +756,7 @@ class MAVLinkSigning(object):
         self.reject_count = 0
 
 
-class MAVLink(object):
+class MAVLink:
     """MAVLink protocol handling class"""
 
     def __init__(self, file${type_any}, srcSystem${type_int_default}, srcComponent${type_int_default}, use_native${type_bool_default})${type_none_ret}:
@@ -1151,7 +1100,7 @@ class MAVLink(object):
     )
 
 
-def generate_methods(outf, msgs, enable_type_annotations):
+def generate_methods(outf, msgs):
     print("Generating methods")
 
     def field_descriptions(fields):
@@ -1179,27 +1128,16 @@ def generate_methods(outf, msgs, enable_type_annotations):
         field_names = []
         for i in range(len(m.fields)):
             f = m.fields[i]
-            if enable_type_annotations:
-                python_type = mavpytype(f)
-                if f.omit_arg:
-                    field_names.append("%s: %s = %s" % (f.name, python_type, f.const_value))
-                elif m.extensions_start is not None and i >= m.extensions_start:
-                    fdefault = m.fielddefaults[i]
-                    field_names.append("%s: %s = %s" % (f.name, python_type, fdefault))
-                else:
-                    field_names.append("%s: %s" % (f.name, python_type))
+            python_type = mavpytype(f)
+            if f.omit_arg:
+                field_names.append("%s: %s = %s" % (f.name, python_type, f.const_value))
+            elif m.extensions_start is not None and i >= m.extensions_start:
+                fdefault = m.fielddefaults[i]
+                field_names.append("%s: %s = %s" % (f.name, python_type, fdefault))
             else:
-                if f.omit_arg:
-                    field_names.append("%s=%s" % (f.name, f.const_value))
-                elif m.extensions_start is not None and i >= m.extensions_start:
-                    fdefault = m.fielddefaults[i]
-                    field_names.append("%s=%s" % (f.name, fdefault))
-                else:
-                    field_names.append("%s" % f.name)
+                field_names.append("%s: %s" % (f.name, python_type))
 
-        self_ret_type = ""
-        if enable_type_annotations:
-            self_ret_type = " -> MAVLink_" + m.name.lower() + "_message"
+        self_ret_type = " -> MAVLink_" + m.name.lower() + "_message"
 
         t.write(
             outf,
@@ -1225,12 +1163,11 @@ def generate_methods(outf, msgs, enable_type_annotations):
                     "FIELDNAMES": ", ".join(m.fieldnames),
                     "self_ret_type": self_ret_type,
                 },
-                enable_type_annotations,
             ),
         )
 
 
-def generate(basename, xml, enable_type_annotations=False):
+def generate(basename, xml):
     """generate complete python implementation"""
     if basename.endswith(".py"):
         filename = basename
@@ -1271,12 +1208,12 @@ def generate(basename, xml, enable_type_annotations=False):
 
     print("Generating %s" % filename)
     outf = open(filename, "w")
-    xml = extend_with_type_info(xml[0].__dict__, enable_type_annotations)
+    xml = extend_with_type_info(xml[0].__dict__)
     generate_preamble(outf, msgs, basename, filelist, xml)
-    generate_enums(outf, enums, enable_type_annotations)
+    generate_enums(outf, enums)
     generate_message_ids(outf, msgs)
-    generate_classes(outf, msgs, enable_type_annotations)
+    generate_classes(outf, msgs)
     generate_mavlink_class(outf, msgs, xml)
-    generate_methods(outf, msgs, enable_type_annotations)
+    generate_methods(outf, msgs)
     outf.close()
     print("Generated %s OK" % filename)

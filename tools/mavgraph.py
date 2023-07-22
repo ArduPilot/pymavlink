@@ -3,10 +3,6 @@
 graph a MAVLink log file
 Andrew Tridgell August 2011
 '''
-from __future__ import print_function
-from builtins import input
-from builtins import range
-
 import datetime
 import matplotlib
 import os
@@ -19,17 +15,6 @@ try:
     from pymavlink.mavextra import *
 except:
     print("WARNING: Numpy missing, mathematical notation will not be supported.")
-
-if sys.version_info[0] >= 3:
-    text_types = frozenset([str,])
-else:
-    text_types = frozenset([unicode, str])
-
-# cope with rename of raw_input in python3
-try:
-    input = raw_input
-except NameError:
-    pass
 
 colourmap = {
     'ardupilot' : {
@@ -139,7 +124,7 @@ def plotit(x, y, fields, colors=[]):
                 linestyle = args.linestyle
             else:
                 linestyle = '-'
-            if len(y[i]) > 0 and type(y[i][0]) in text_types:
+            if len(y[i]) > 0 and isinstance(y[i][0], str):
                 # assume this is a piece of text to be rendered at a point in time
                 last_text_time = -1
                 last_text = None

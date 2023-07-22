@@ -9,10 +9,6 @@ Copyright IAV GmbH 2017
 Released under GNU GPL version 3 or later
 '''
 
-from future import standard_library
-standard_library.install_aliases()
-from builtins import str
-
 ## Generate window for calculating the datasize
 from tkinter import Tk, Text, TOP, BOTH, X, Y, N, LEFT,RIGHT, CENTER, RIDGE, VERTICAL, END, IntVar, IntVar, Scrollbar
 from tkinter.ttk import Frame, Label, Entry, Combobox, Checkbutton

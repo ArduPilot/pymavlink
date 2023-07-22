@@ -15,7 +15,7 @@ import fcntl
 
 from pymavlink import mavutil
 
-class SerialControlToShell(object):
+class SerialControlToShell:
     '''reads SERIAL_CONTROL packets and passes them to a shell, returning textual  results'''
 
     def __init__(self, connection_string, system_id=1, component_id=10):

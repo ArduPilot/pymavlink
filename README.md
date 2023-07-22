@@ -15,7 +15,7 @@ Examples can be found [in the repository](examples/) or in the [ArduSub book](ht
 
 # Installation 
 
-Pymavlink supports both Python 2 and Python 3.
+Pymavlink supports Python version 3.6 and newer.
 
 The following instructions assume you are using Python 3 and a Debian-based (like Ubuntu) installation.
 
@@ -27,7 +27,6 @@ The following instructions assume you are using Python 3 and a Debian-based (lik
 
 Pymavlink has several dependencies :
 
-    - [future](http://python-future.org/) : for Python 2 and Python 3 interoperability
     - [lxml](http://lxml.de/installation.html) : for checking and parsing xml file 
 
 Optional :
@@ -38,10 +37,6 @@ Optional :
 ### On Linux
 
 lxml has some additional dependencies that can be installed with your package manager (here with `apt-get`) :
-
-.. note::
-
-   If you continue to use Python 2 you may need to change package names here (e.g. python3-numpy => python-numpy)
 
 ```bash
 sudo apt-get install libxml2-dev libxslt-dev
@@ -56,12 +51,11 @@ sudo apt-get install python3-numpy python3-pytest
 Using pip you can install the required dependencies for pymavlink :
 
 ```bash
-sudo python -m pip install --upgrade future lxml
+sudo python -m pip install --upgrade lxml
 ```
 
 ### On Windows
 
-Use pip to install future as for Linux.
 Lxml can be installed with a Windows installer from here : https://pypi.org/project/lxml
 
 

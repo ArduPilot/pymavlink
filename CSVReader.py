@@ -20,10 +20,6 @@ MAV> graph CSV.GYRO_X
 in this case the GPS time was in seconds-since-week-start, so a conversion to ms is required
 
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
-
 import csv
 import struct
 import os
@@ -32,7 +28,7 @@ from . import mavutil
 from . import mavextra
 from . import mavexpression
 
-class CSVMessage(object):
+class CSVMessage:
     def __init__(self, message_type, fmt, line):
         self.fmt = fmt
         self.message_type = message_type
@@ -66,7 +62,7 @@ class CSVMessage(object):
             return int(self.line[0])
         return self.line[self.fmt.field_offset[field]]
 
-class CSVFormat(object):
+class CSVFormat:
     def __init__(self, headings, messages, timestamp_expression=None):
         self.headings = headings
         self.messages = messages
@@ -79,7 +75,7 @@ class CSVFormat(object):
             self.field_offset[heading] = count
             count += 1
 
-class CSVReader(object):
+class CSVReader:
     '''parse a CSV file'''
     def __init__(self,
                  filename,

@@ -5,11 +5,6 @@ Parse a MAVLink protocol XML file and generate a Java implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
-from builtins import range
-from builtins import object
-
 import os
 from . import mavparse, mavtemplate
 
@@ -594,7 +589,7 @@ def copy_fixed_headers(directory, xml):
             print("Not re-creating Messages directory")
         shutil.copy(src, dest)
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 

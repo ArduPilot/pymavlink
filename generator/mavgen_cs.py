@@ -267,7 +267,7 @@ ${{ordered_fields:        /// <summary>${description} ${enum} ${units} ${display
 ''', m)
 
 
-class mav_include(object):
+class mav_include:
     def __init__(self, base):
         self.base = base
 

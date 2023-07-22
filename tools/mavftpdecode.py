@@ -7,7 +7,6 @@ decode FTP file transfers from tlog
 
 import time
 import struct
-import sys
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -17,13 +16,13 @@ args = parser.parse_args()
 
 from pymavlink import mavutil
 
-class Block(object):
+class Block:
     def __init__(self, offset, size, data):
         self.offset = offset
         self.size = size
         self.data = data
 
-class Transfer(object):
+class Transfer:
     def __init__(self, filename):
         self.filename = filename
         self.blocks = []
@@ -60,12 +59,8 @@ def param_decode(data):
     count = 0
     params = []
 
-    if sys.version_info.major < 3:
-        pad_byte = chr(0)
-        last_name = ''
-    else:
-        pad_byte = 0
-        last_name = bytes()
+    pad_byte = 0
+    last_name = bytes()
     ret = []
 
     while True:

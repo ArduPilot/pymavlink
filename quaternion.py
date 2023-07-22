@@ -4,10 +4,6 @@
 """
 Quaternion implementation for use in pymavlink
 """
-
-from __future__ import absolute_import, division, print_function
-
-from builtins import object
 import numpy as np
 from .rotmat import Vector3, Matrix3
 
@@ -17,7 +13,7 @@ __license__ = "GNU Lesser General Public License v3"
 __email__ = "thomasgubler@gmail.com"
 
 
-class QuaternionBase(object):
+class QuaternionBase:
 
     """
     Quaternion class, this is the version which supports numpy arrays

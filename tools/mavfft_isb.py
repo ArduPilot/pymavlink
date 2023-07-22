@@ -3,8 +3,6 @@
 '''
 extract ISBH and ISBD messages from AP_Logging files and produce FFT plots
 '''
-from __future__ import print_function
-
 import numpy
 import os
 import pylab
@@ -15,7 +13,7 @@ from argparse import ArgumentParser
 import scipy.signal as signal
 from pymavlink import mavutil
 
-class PlotData(object):
+class PlotData:
     '''object to store data about a single FFT plot'''
     def __init__(self, ffth):
         self.seqno = -1

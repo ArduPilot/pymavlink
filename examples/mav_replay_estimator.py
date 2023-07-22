@@ -3,11 +3,6 @@
 '''
 estimate attitude from an ArduPilot replay log using a python state estimator
 '''
-from __future__ import print_function
-from builtins import range
-
-import os
-
 from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument("log", metavar="LOG")
@@ -22,7 +17,7 @@ from math import degrees
 
 GRAVITY_MSS = 9.80665
 
-class Estimator(object):
+class Estimator:
     '''state estimator'''
     def __init__(self):
         self.r = Matrix3()

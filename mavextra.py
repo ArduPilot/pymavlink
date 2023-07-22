@@ -5,12 +5,8 @@ useful extra functions for use by mavlink clients
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import object
-from builtins import sum as builtin_sum
-
 from math import *
+builtin_sum = sum
 
 try:
     # in case numpy isn't installed
@@ -893,7 +889,7 @@ def wrap_360(angle):
         angle += 360.0
     return angle
 
-class DCM_State(object):
+class DCM_State:
     '''DCM state object'''
     def __init__(self, roll, pitch, yaw):
         self.dcm = Matrix3()
@@ -952,7 +948,7 @@ def DCM_update(IMU, ATT, MAG, GPS):
     dcm_state.update(gyro, accel, mag, GPS)
     return dcm_state
 
-class PX4_State(object):
+class PX4_State:
     '''PX4 DCM state object'''
     def __init__(self, roll, pitch, yaw, timestamp):
         self.dcm = Matrix3()
