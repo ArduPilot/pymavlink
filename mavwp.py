@@ -446,6 +446,9 @@ class MAVWPLoader(MissionItemProtocol):
             if not w.command in cmdmap:
                 raise MAVWPError("Unknown v100 waypoint action %u" % w.command)
 
+            if self.mav_mission_type() != mavutil.mavlink.MAV_MISSION_TYPE_MISSION:
+                w.mission_type = self.mav_mission_type()
+
             w.command = cmdmap[w.command]
             self.add(w, comment)
             comment = ''
