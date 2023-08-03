@@ -163,7 +163,7 @@ class MAVEnumParam(object):
             self.description = description
 
 class MAVEnumEntry(object):
-    def __init__(self, name, value, description='', end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False, wip=False):
+    def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False):
         self.name = name
         self.value = value
         self.description = description
