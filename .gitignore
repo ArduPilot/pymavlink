@@ -23,3 +23,4 @@ include/mavlink/v1.0
 *.pyc
 /bin/
 /.vscode
+.idea/

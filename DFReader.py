@@ -720,6 +720,11 @@ class DFReader(object):
 
         self._rewind()
         return self._flightmodes
+    
+    def close(self):
+        '''close the log file'''
+        self.filehandle.close()
+    
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
@@ -1032,6 +1037,38 @@ class DFReader_binary(DFReader):
 
         return m
 
+    def find_unused_format(self):
+        '''find an unused format code'''
+        for i in range(254, 1, -1):
+            if not i in self.formats:
+                return i
+        return None
+
+    def add_format(self, fmt):
+        '''add a new format'''
+        new_type = self.find_unused_format()
+        if new_type is None:
+            return None
+        fmt.type = new_type
+        self.formats[new_type] = fmt
+        return fmt
+
+    def make_msgbuf(self, fmt, values):
+        '''make a message buffer from a list of values'''
+        ret = struct.pack("BBB", 0xA3, 0x95, fmt.type)
+        ret += struct.pack(fmt.msg_struct, *values)
+        return ret
+
+    def make_format_msgbuf(self, fmt):
+        '''make a message buffer for a FMT message'''
+        fmt_fmt = self.formats[0x80]
+        ret = struct.pack("BBB", 0xA3, 0x95, 0x80)
+        ret += struct.pack(fmt_fmt.msg_struct, *[fmt.type,struct.calcsize(fmt.msg_struct)+3,
+                                                 fmt.name.encode('ascii'),
+                                                 fmt.format.encode('ascii'),
+                                                 ','.join(fmt.columns).encode('ascii')])
+        return ret
+    
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
