@@ -2092,6 +2092,7 @@ mode_mapping_blimp = {
     1 : 'MANUAL',
     2 : 'VELOCITY',
     3 : 'LOITER',
+    4 : 'RTL',
 }
 
 AP_MAV_TYPE_MODE_MAP_DEFAULT = {
