@@ -15,6 +15,7 @@
 #ifdef MAVLINK_USE_CXX_NAMESPACE
 namespace mavlink {
 #endif
+MAVLINK_HELPER uint8_t mavlink_get_crc_extra(const mavlink_message_t *msg);
 
 /*
  * Internal function to give access to the channel status for each channel
@@ -478,8 +479,17 @@ MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buf, const mavlink_m
 		ck = buf + header_len + 1 + (uint16_t)length;
 		signature_len = (msg->incompat_flags & MAVLINK_IFLAG_SIGNED)?MAVLINK_SIGNATURE_BLOCK_LEN:0;
 	}
-	ck[0] = (uint8_t)(msg->checksum & 0xFF);
-	ck[1] = (uint8_t)(msg->checksum >> 8);
+	if (length != msg->len) {
+		uint8_t crc_extra = mavlink_get_crc_extra(msg);
+		uint16_t checksum = crc_calculate((const uint8_t*)&buf[1], header_len);
+		crc_accumulate_buffer(&checksum, _MAV_PAYLOAD(msg), length);
+		crc_accumulate(crc_extra, &checksum);
+		ck[0] = (uint8_t)(checksum & 0xFF);
+		ck[1] = (uint8_t)(checksum >> 8);
+	} else {
+		ck[0] = (uint8_t)(msg->checksum & 0xFF);
+		ck[1] = (uint8_t)(msg->checksum >> 8);
+	}
 	if (signature_len > 0) {
 		memcpy(&ck[2], msg->signature, signature_len);
 	}
