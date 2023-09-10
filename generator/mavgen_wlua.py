@@ -162,10 +162,11 @@ def generate_field_or_param(outf, field_or_param, name, label, physical_type, fi
             field_type = "ftypes.UINT32"
     else:
         display_type = physical_type
+    unitstr = " " + field_or_param.units if field_or_param.units else ""
     t.write(outf,
 """
-f.${fname} = ProtoField.new("${flabel} (${ftypename})", "mavlink_proto.${fname}", ${ftype}, ${fvalues})
-""", {'fname': name, 'flabel': label, 'ftypename': display_type, 'ftype': field_type, 'fvalues': values})
+f.${fname} = ProtoField.new("${flabel} (${ftypename})${unitname}", "mavlink_proto.${fname}", ${ftype}, ${fvalues})
+""", {'fname': name, 'flabel': label, 'ftypename': display_type, 'ftype': field_type, 'fvalues': values, 'unitname': unitstr})
 
     # generate flag enum subfields
     if enum_obj and enum_obj.bitmask:
