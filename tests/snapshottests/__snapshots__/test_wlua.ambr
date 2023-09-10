@@ -388,3 +388,79 @@
     ''',
   })
 # ---
+# name: test_wlua[common.xml-autopilot_version.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 131 bytes on wire (1048 bits), 131 bytes captured (1048 bits) o
+      Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      User Datagram Protocol, Src Port: 34942, Dst Port: 18570
+      MAVLink Protocol (89)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 77
+              Incompatibility flag: 0
+              Compatibility flag: 0
+              Packet sequence: 219
+              System id: 0x01
+              Component id: 0x01
+              Message id: AUTOPILOT_VERSION (148)
+          Payload: AUTOPILOT_VERSION (148)
+              capabilities (MAV_PROTOCOL_CAPABILITY): 62319
+                  .... .... .... .... .1 = MAV_PROTOCOL_CAPABILITY_MISSION_FLO
+                  .... .... .... .... 1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT
+                  .... .... .... ...1 .. = MAV_PROTOCOL_CAPABILITY_MISSION_INT
+                  .... .... .... ..1. .. = MAV_PROTOCOL_CAPABILITY_COMMAND_INT
+                  .... .... .... .0.. .. = MAV_PROTOCOL_CAPABILITY_PARAM_ENCOD
+                  .... .... .... 1... .. = MAV_PROTOCOL_CAPABILITY_FTP: True
+                  .... .... ...1 .... .. = MAV_PROTOCOL_CAPABILITY_SET_ATTITUD
+                  .... .... ..0. .... .. = MAV_PROTOCOL_CAPABILITY_SET_POSITIO
+                  .... .... .1.. .... .. = MAV_PROTOCOL_CAPABILITY_SET_POSITIO
+                  .... .... 1... .... .. = MAV_PROTOCOL_CAPABILITY_TERRAIN: Tr
+                  .... ...0 .... .... .. = MAV_PROTOCOL_CAPABILITY_SET_ACTUATO
+                  .... ..0. .... .... .. = MAV_PROTOCOL_CAPABILITY_FLIGHT_TERM
+                  .... .1.. .... .... .. = MAV_PROTOCOL_CAPABILITY_COMPASS_CAL
+                  .... 1... .... .... .. = MAV_PROTOCOL_CAPABILITY_MAVLINK2: T
+                  ...1 .... .... .... .. = MAV_PROTOCOL_CAPABILITY_MISSION_FEN
+                  ..1. .... .... .... .. = MAV_PROTOCOL_CAPABILITY_MISSION_RAL
+                  .0.. .... .... .... .. = MAV_PROTOCOL_CAPABILITY_RESERVED2: 
+                  0... .... .... .... .. = MAV_PROTOCOL_CAPABILITY_PARAM_ENCOD
+              flight_sw_version (uint32_t): 67307007
+              middleware_sw_version (uint32_t): 0
+              os_sw_version (uint32_t): 0
+              board_version (uint32_t): 0
+              flight_custom_version[0] (uint8_t): 51
+              flight_custom_version[1] (uint8_t): 98
+              flight_custom_version[2] (uint8_t): 102
+              flight_custom_version[3] (uint8_t): 54
+              flight_custom_version[4] (uint8_t): 100
+              flight_custom_version[5] (uint8_t): 55
+              flight_custom_version[6] (uint8_t): 97
+              flight_custom_version[7] (uint8_t): 99
+              middleware_custom_version[0] (uint8_t): 0
+              middleware_custom_version[1] (uint8_t): 0
+              middleware_custom_version[2] (uint8_t): 0
+              middleware_custom_version[3] (uint8_t): 0
+              middleware_custom_version[4] (uint8_t): 0
+              middleware_custom_version[5] (uint8_t): 0
+              middleware_custom_version[6] (uint8_t): 0
+              middleware_custom_version[7] (uint8_t): 0
+              os_custom_version[0] (uint8_t): 0
+              os_custom_version[1] (uint8_t): 0
+              os_custom_version[2] (uint8_t): 0
+              os_custom_version[3] (uint8_t): 0
+              os_custom_version[4] (uint8_t): 0
+              os_custom_version[5] (uint8_t): 0
+              os_custom_version[6] (uint8_t): 0
+              os_custom_version[7] (uint8_t): 0
+              vendor_id (uint16_t): 0
+              product_id (uint16_t): 0
+              uid (uint64_t): 0
+          Message CRC: 0xfcfc
+      
+  
+    ''',
+  })
+# ---

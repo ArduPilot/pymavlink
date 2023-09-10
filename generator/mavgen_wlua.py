@@ -271,10 +271,11 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         if enum_obj and enum_obj.bitmask:
+            valuemethod = ":tonumber()" if tvb_func == "le_uint64" else ""
             t.write(outf,
 """
-    dissect_flags_${enumname}(subtree, "${fvar}", tvbrange, value)
-""", {'enumname': enum_name, 'fvar': field_var})
+    dissect_flags_${enumname}(subtree, "${fvar}", tvbrange, value${vmeth})
+""", {'enumname': enum_name, 'fvar': field_var, 'vmeth': valuemethod})
 
 
 def generate_payload_dissector(outf, msg, cmds, enums, cmd=None):

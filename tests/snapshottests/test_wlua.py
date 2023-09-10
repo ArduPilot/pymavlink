@@ -42,6 +42,8 @@ except ImportError:
         ("common.xml", "command_long_over_tcp.pcapng"),
         # test that output is okay when we encounter messages not defined in the xml
         ("minimal.xml", "common.pcapng"),
+        # test that 64-bit bitfield in AUTOPILOT_VERSION is correctly handled
+        ("common.xml", "autopilot_version.pcapng"),
     ],
 )
 def test_wlua(request, tmp_path, snapshot, mdef, pcap):
