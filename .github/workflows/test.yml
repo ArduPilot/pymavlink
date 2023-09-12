@@ -31,7 +31,7 @@ jobs:
           fi
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           sudo apt update
-          sudo apt install -y libgtest-dev g++
+          sudo apt install -y libgtest-dev g++ tshark
 
       - uses: actions/setup-node@v3
         with:
