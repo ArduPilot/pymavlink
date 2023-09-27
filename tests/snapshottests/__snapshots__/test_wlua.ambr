@@ -12,11 +12,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 33
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 246
-              System id: 0xfa
-              Component id: 0xfa
+              System id: 250
+              Component id: MAV_COMP_ID_SYSTEM_CONTROL (250)
               Message id: COMMAND_LONG (76)
           Payload: COMMAND_LONG (76)
               target_system (uint8_t): 1
@@ -40,11 +40,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 10
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 218
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: COMMAND_ACK (77)
           Payload: COMMAND_ACK (77)
               command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
@@ -54,11 +54,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 48
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 219
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: STATUSTEXT (253)
           Payload: STATUSTEXT (253)
               severity (MAV_SEVERITY): MAV_SEVERITY_WARNING (4)
@@ -73,11 +73,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 33
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 11
-              System id: 0xfa
-              Component id: 0xfa
+              System id: 250
+              Component id: MAV_COMP_ID_SYSTEM_CONTROL (250)
               Message id: COMMAND_LONG (76)
           Payload: COMMAND_LONG (76)
               target_system (uint8_t): 1
@@ -101,11 +101,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 10
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 71
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: COMMAND_ACK (77)
           Payload: COMMAND_ACK (77)
               command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
@@ -115,11 +115,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 17
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 72
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: STATUSTEXT (253)
           Payload: STATUSTEXT (253)
               severity (MAV_SEVERITY): MAV_SEVERITY_INFO (6)
@@ -129,11 +129,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 25
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 73
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: PARAM_VALUE (22)
           Payload: PARAM_VALUE (22)
               param_id (char): MOT_THST_HOVER
@@ -160,11 +160,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 33
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 246
-              System id: 0xfa
-              Component id: 0xfa
+              System id: 250
+              Component id: MAV_COMP_ID_SYSTEM_CONTROL (250)
               Message id: COMMAND_LONG (76)
           Payload: COMMAND_LONG (76)
               target_system (uint8_t): 1
@@ -188,11 +188,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 10
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 218
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: COMMAND_ACK (77)
           Payload: COMMAND_ACK (77)
               command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
@@ -202,11 +202,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 48
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 219
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: STATUSTEXT (253)
           Payload: STATUSTEXT (253)
               severity (MAV_SEVERITY): MAV_SEVERITY_WARNING (4)
@@ -221,11 +221,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 33
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 11
-              System id: 0xfa
-              Component id: 0xfa
+              System id: 250
+              Component id: MAV_COMP_ID_SYSTEM_CONTROL (250)
               Message id: COMMAND_LONG (76)
           Payload: COMMAND_LONG (76)
               target_system (uint8_t): 1
@@ -249,11 +249,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 10
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 71
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: COMMAND_ACK (77)
           Payload: COMMAND_ACK (77)
               command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
@@ -263,11 +263,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 17
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 72
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: STATUSTEXT (253)
           Payload: STATUSTEXT (253)
               severity (MAV_SEVERITY): MAV_SEVERITY_INFO (6)
@@ -277,11 +277,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 25
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 73
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: PARAM_VALUE (22)
           Payload: PARAM_VALUE (22)
               param_id (char): MOT_THST_HOVER
@@ -308,11 +308,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 33
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 246
-              System id: 0xfa
-              Component id: 0xfa
+              System id: 250
+              Component id: MAV_COMP_ID_SYSTEM_CONTROL (250)
               Message id: Unknown (76)
           [Expert Info (Error/Malformed): Unknown message type]
               [Unknown message type]
@@ -329,11 +329,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 10
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 218
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: Unknown (77)
           [Expert Info (Error/Malformed): Unknown message type]
               [Unknown message type]
@@ -350,11 +350,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 33
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 11
-              System id: 0xfa
-              Component id: 0xfa
+              System id: 250
+              Component id: MAV_COMP_ID_SYSTEM_CONTROL (250)
               Message id: Unknown (76)
           [Expert Info (Error/Malformed): Unknown message type]
               [Unknown message type]
@@ -371,11 +371,11 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 10
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 71
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: Unknown (77)
           [Expert Info (Error/Malformed): Unknown message type]
               [Unknown message type]
@@ -401,32 +401,32 @@
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
               Payload length: 77
-              Incompatibility flag: 0
-              Compatibility flag: 0
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
               Packet sequence: 219
-              System id: 0x01
-              Component id: 0x01
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: AUTOPILOT_VERSION (148)
           Payload: AUTOPILOT_VERSION (148)
-              capabilities (MAV_PROTOCOL_CAPABILITY): 62319
-                  .... .... .... .... .1 = MAV_PROTOCOL_CAPABILITY_MISSION_FLO
-                  .... .... .... .... 1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT
-                  .... .... .... ...1 .. = MAV_PROTOCOL_CAPABILITY_MISSION_INT
-                  .... .... .... ..1. .. = MAV_PROTOCOL_CAPABILITY_COMMAND_INT
-                  .... .... .... .0.. .. = MAV_PROTOCOL_CAPABILITY_PARAM_ENCOD
-                  .... .... .... 1... .. = MAV_PROTOCOL_CAPABILITY_FTP: True
-                  .... .... ...1 .... .. = MAV_PROTOCOL_CAPABILITY_SET_ATTITUD
-                  .... .... ..0. .... .. = MAV_PROTOCOL_CAPABILITY_SET_POSITIO
-                  .... .... .1.. .... .. = MAV_PROTOCOL_CAPABILITY_SET_POSITIO
-                  .... .... 1... .... .. = MAV_PROTOCOL_CAPABILITY_TERRAIN: Tr
-                  .... ...0 .... .... .. = MAV_PROTOCOL_CAPABILITY_SET_ACTUATO
-                  .... ..0. .... .... .. = MAV_PROTOCOL_CAPABILITY_FLIGHT_TERM
-                  .... .1.. .... .... .. = MAV_PROTOCOL_CAPABILITY_COMPASS_CAL
-                  .... 1... .... .... .. = MAV_PROTOCOL_CAPABILITY_MAVLINK2: T
-                  ...1 .... .... .... .. = MAV_PROTOCOL_CAPABILITY_MISSION_FEN
-                  ..1. .... .... .... .. = MAV_PROTOCOL_CAPABILITY_MISSION_RAL
-                  .0.. .... .... .... .. = MAV_PROTOCOL_CAPABILITY_RESERVED2: 
-                  0... .... .... .... .. = MAV_PROTOCOL_CAPABILITY_PARAM_ENCOD
+              capabilities (MAV_PROTOCOL_CAPABILITY): 0x000000000000f36f (6231
+                  .... .... .... .... ...1 = MAV_PROTOCOL_CAPABILITY_MISSION_F
+                  .... .... .... .... ..1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLO
+                  .... .... .... .... .1.. = MAV_PROTOCOL_CAPABILITY_MISSION_I
+                  .... .... .... .... 1... = MAV_PROTOCOL_CAPABILITY_COMMAND_I
+                  .... .... .... ...0 .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENC
+                  .... .... .... ..1. .... = MAV_PROTOCOL_CAPABILITY_FTP: True
+                  .... .... .... .1.. .... = MAV_PROTOCOL_CAPABILITY_SET_ATTIT
+                  .... .... .... 0... .... = MAV_PROTOCOL_CAPABILITY_SET_POSIT
+                  .... .... ...1 .... .... = MAV_PROTOCOL_CAPABILITY_SET_POSIT
+                  .... .... ..1. .... .... = MAV_PROTOCOL_CAPABILITY_TERRAIN: 
+                  .... .... .0.. .... .... = MAV_PROTOCOL_CAPABILITY_SET_ACTUA
+                  .... .... 0... .... .... = MAV_PROTOCOL_CAPABILITY_FLIGHT_TE
+                  .... ...1 .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPASS_C
+                  .... ..1. .... .... .... = MAV_PROTOCOL_CAPABILITY_MAVLINK2:
+                  .... .1.. .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_F
+                  .... 1... .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_R
+                  ...0 .... .... .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED2
+                  ..0. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENC
               flight_sw_version (uint32_t): 67307007
               middleware_sw_version (uint32_t): 0
               os_sw_version (uint32_t): 0
@@ -459,6 +459,75 @@
               product_id (uint16_t): 0
               uid (uint64_t): 0
           Message CRC: 0xfcfc
+      
+  
+    ''',
+  })
+# ---
+# name: test_wlua[common.xml-gps_global_origin.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 70 bytes on wire (560 bits), 70 bytes captured (560 bits) on in
+      Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      User Datagram Protocol, Src Port: 57304, Dst Port: 14550
+      MAVLink Protocol (28)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 16
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 110
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: GPS_GLOBAL_ORIGIN (49)
+          Payload: GPS_GLOBAL_ORIGIN (49)
+              latitude (int32_t) [degE7]: 517015586 (51.7015586 deg)
+              longitude (int32_t) [degE7]: -3332886 (-0.3332886 deg)
+              altitude (int32_t) [mm]: 56990
+          Message CRC: 0xffcc
+      
+  
+    ''',
+  })
+# ---
+# name: test_wlua[common.xml-mission_item_int.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 115 bytes on wire (920 bits), 115 bytes captured (920 bits) on 
+      Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      Transmission Control Protocol, Src Port: 54026, Dst Port: 5760, Seq: 1, 
+      MAVLink Protocol (49)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 37
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 153
+              System id: 255
+              Component id: Unknown (230)
+              Message id: MISSION_ITEM_INT (73)
+          Payload: MISSION_ITEM_INT (73)
+              target_system (uint8_t): 1
+              target_component (uint8_t): 1
+              seq (uint16_t): 7
+              frame (MAV_FRAME): MAV_FRAME_GLOBAL_RELATIVE_ALT (3)
+              command (MAV_CMD): MAV_CMD_NAV_VTOL_LAND (85)
+              current (uint8_t): 0
+              autocontinue (uint8_t): 1
+              param1: Land Options (NAV_VTOL_LAND_OPTIONS): NAV_VTOL_LAND_OPTI
+              param2 (float): 0
+              param3: Approach Altitude (float) m: 0
+              param4: Yaw (float) deg: 0
+              x: Latitude (int32_t): 514775152
+              y: Longitude (int32_t): -25939161
+              z: Ground Altitude (float) m: 0
+          Message CRC: 0x4bdc
       
   
     ''',

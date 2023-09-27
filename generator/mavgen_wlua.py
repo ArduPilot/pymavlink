@@ -22,6 +22,7 @@ from __future__ import print_function
 from builtins import range
 
 import os
+from math import ceil
 from . import mavparse, mavtemplate
 
 t = mavtemplate.MAVTemplate()
@@ -66,6 +67,25 @@ local function get_timezone()
 end
 local signature_time_ref = get_timezone() + os.time{year=2015, month=1, day=1, hour=0}
 
+-- threshold to decide if time is absolute or relative (some time in 2005)
+time_usec_threshold = UInt64.new(0,0x40000)
+-- function to append human-readable time onto unix_time_us fields
+local function time_usec_decode(value)
+    if value > time_usec_threshold then
+        d = os.date("%Y-%m-%d %H:%M:%S",value:tonumber() / 1000000.0)
+        us = value % 1000000
+        us = string.format("%06d",us:tonumber())
+        tz = os.date(" %Z",value:tonumber() / 1000000.0)
+        return " (" .. d .. "." .. us .. tz .. ")"
+    elseif value < 1000000 then
+        return ""
+    elseif type(value) == "number" then
+        return string.format(" (%.6f s)",value / 1000000.0)
+    else
+        return string.format(" (%.6f s)",value:tonumber() / 1000000.0)
+    end
+end
+
 payload_fns = {}
 
 protocolVersions = {
@@ -82,11 +102,11 @@ def generate_body_fields(outf):
 """
 f.magic = ProtoField.uint8("mavlink_proto.magic", "Magic value / version", base.HEX, protocolVersions)
 f.length = ProtoField.uint8("mavlink_proto.length", "Payload length")
-f.incompatibility_flag = ProtoField.uint8("mavlink_proto.incompatibility_flag", "Incompatibility flag")
-f.compatibility_flag = ProtoField.uint8("mavlink_proto.compatibility_flag", "Compatibility flag")
+f.incompatibility_flag = ProtoField.uint8("mavlink_proto.incompatibility_flag", "Incompatibility flag", base.HEX_DEC)
+f.compatibility_flag = ProtoField.uint8("mavlink_proto.compatibility_flag", "Compatibility flag", base.HEX_DEC)
 f.sequence = ProtoField.uint8("mavlink_proto.sequence", "Packet sequence")
-f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.HEX)
-f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.HEX)
+f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.DEC)
+f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.DEC, enumEntryName.MAV_COMPONENT)
 f.msgid = ProtoField.uint24("mavlink_proto.msgid", "Message id", base.DEC, messageName)
 f.payload = ProtoField.uint8("mavlink_proto.payload", "Payload", base.DEC, messageName)
 f.crc = ProtoField.uint16("mavlink_proto.crc", "Message CRC", base.HEX)
@@ -157,11 +177,15 @@ def generate_field_or_param(outf, field_or_param, name, label, physical_type, fi
         # show enum values for non-flags enums
         if not enum_obj.bitmask:
             values = "enumEntryName." + field_or_param.enum
+        else:
+            values = values + ", base.HEX_DEC"
         # force display type of enums to uint32 so we can show the names
-        if field_type in ("ftypes.FLOAT", "ftypes.DOUBLE"):
+        if field_type in ("ftypes.FLOAT", "ftypes.DOUBLE", "ftypes.INT32"):
             field_type = "ftypes.UINT32"
     else:
         display_type = physical_type
+        if isinstance(field_or_param, mavparse.MAVField) and field_or_param.display == "bitmask":
+            values = values + ", base.HEX_DEC"
     unitstr = " " + field_or_param.units if field_or_param.units else ""
     t.write(outf,
 """
@@ -171,8 +195,9 @@ f.${fname} = ProtoField.new("${flabel} (${ftypename})${unitname}", "mavlink_prot
     # generate flag enum subfields
     if enum_obj and enum_obj.bitmask:
         physical_bits = max(entry.value.bit_length() for entry in enum_obj.entry)
+        physical_bits = ceil(physical_bits/4)*4
         for entry in enum_obj.entry:
-            if not is_power_of_2(entry.value):
+            if not is_power_of_2(entry.value) or entry.name.endswith("_ENUM_END"):
                 # omit flag enums have values like "0: None"
                 continue
 
@@ -213,6 +238,17 @@ def generate_cmd_params(outf, cmd, enums):
             name = t.substitute("cmd_${pcname}_param${pindex}", {'pcname': cmd.name, 'pindex': p.index})
             label = t.substitute("param${pindex}: ${pname}", {'pindex': p.index, 'pname': p.label})
             generate_field_or_param(outf, p, name, label, "float", "ftypes.FLOAT", enums)
+            pindex = int(p.index)
+            if pindex >= 5:
+                # On COMMAND_INT and MISSION_ITEM_INT, params 5,6,7 are named x,y,z ...
+                intname = chr(pindex+115)
+                name = t.substitute("cmd_${pcname}_${intname}", {'pcname': cmd.name, 'intname': intname})
+                label = t.substitute("${intname}: ${pname}", {'intname': intname, 'pname': p.label})
+                # ... and the x and y fields are integers
+                if pindex == 5 or pindex == 6:
+                    generate_field_or_param(outf, p, name, label, "int32_t", "ftypes.INT32", enums)
+                else:
+                    generate_field_or_param(outf, p, name, label, "float", "ftypes.FLOAT", enums)
 
     t.write(outf, '\n\n')
 
@@ -225,10 +261,9 @@ def generate_flag_enum_dissector(outf, enum):
 function dissect_flags_${enumname}(tree, name, tvbrange, value)
 """, {'enumname': enum.name})
 
-    real_entries = [entry for entry in enum.entry if is_power_of_2(entry.value)]
-
-    for entry in real_entries:
-        t.write(outf,
+    for entry in enum.entry:
+        if is_power_of_2(entry.value) and not entry.name.endswith("_ENUM_END"):
+            t.write(outf,
 """
     tree:add_le(f[name .. "_flag${entryname}"], tvbrange, value)
 """, {'entryname': entry.name})
@@ -238,6 +273,12 @@ function dissect_flags_${enumname}(tree, name, tvbrange, value)
 end
 """)
 
+unit_decoder_mapping = {
+    'degE7': 'string.format(\" (%.7f deg)\",value/1E7)',
+    'us': 'time_usec_decode(value)',
+    'rad': 'string.format(\" (%g deg)\",value*180/math.pi)',
+    'rad/s': 'string.format(\" (%g deg/s)\",value*180/math.pi)'
+}
 
 def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=None):
     # field is the PHYSICAL type
@@ -246,7 +287,7 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
     assert cmd is None or isinstance(cmd, mavparse.MAVEnumEntry)
     assert param is None or isinstance(param, mavparse.MAVEnumParam)
 
-    _, _, tvb_func, size, count = get_field_info(field)
+    mavlink_type, _, tvb_func, size, count = get_field_info(field)
 
     enum_name = param.enum if param else field.enum
     enum_obj = enum_name and next((e for e in enums if e.name == enum_name), None)
@@ -260,7 +301,10 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
             index_text = ''
 
         if param is not None:
-            field_var = t.substitute("cmd_${cname}_param${pindex}", {'cname': cmd.name, 'pindex': param.index})
+            if msg.name.endswith("_INT") and int(param.index) >= 5:
+                field_var = t.substitute("cmd_${cname}_${intname}", {'cname': cmd.name, 'intname': chr(int(param.index)+115)})
+            else:
+                field_var = t.substitute("cmd_${cname}_param${pindex}", {'cname': cmd.name, 'pindex': param.index})
         else:
             field_var = t.substitute("${fmsg}_${fname}${findex}", {'fmsg': msg.name, 'fname': field.name, 'findex': index_text})
 
@@ -270,6 +314,11 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
     value = tvbrange:${ftvbfunc}()
     subtree = tree:add_le(f.${fvar}, tvbrange, value)
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
+
+        unit = field.units.replace("[","").replace("]","")
+        global unit_decoder_mapping
+        if unit in unit_decoder_mapping:
+            t.write(outf,"    subtree:append_text(" + unit_decoder_mapping[unit] + ")\n")
 
         if enum_obj and enum_obj.bitmask:
             valuemethod = ":tonumber()" if tvb_func == "le_uint64" else ""
@@ -281,8 +330,8 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
 
 def generate_payload_dissector(outf, msg, cmds, enums, cmd=None):
     # detect command messages (but not in already command-specific dissectors)
-    has_commands = cmds and msg.name in ("COMMAND_INT", "COMMAND_LONG", "COMMAND_ACK", "COMMAND_CANCEL") and "command" in msg.field_offsets
-    has_args = has_commands and msg.name in ("COMMAND_INT", "COMMAND_LONG")
+    has_commands = cmds and msg.name in ("COMMAND_INT", "COMMAND_LONG", "COMMAND_ACK", "COMMAND_CANCEL","MISSION_ITEM","MISSION_ITEM_INT") and "command" in msg.field_offsets
+    has_args = has_commands and msg.name in ("COMMAND_INT", "COMMAND_LONG","MISSION_ITEM","MISSION_ITEM_INT")
 
     # for command messages with args, generate command-specific dissectors
     if has_args:
