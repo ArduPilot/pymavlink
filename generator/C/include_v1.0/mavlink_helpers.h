@@ -65,6 +65,46 @@ MAVLINK_HELPER void mavlink_reset_channel_status(uint8_t chan)
  * @param length Message length
  */
 #if MAVLINK_CRC_EXTRA
+MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+                                                        mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra)
+#else
+MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+                                                        mavlink_status_t* status, uint8_t length)
+#endif
+{
+	// This is only used for the v2 protocol and we silence it here
+	(void)min_length;
+	// This code part is the same for all messages;
+	msg->magic = MAVLINK_STX;
+	msg->len = length;
+	msg->sysid = system_id;
+	msg->compid = component_id;
+    msg->seq = status->current_tx_seq;
+    status->current_tx_seq = status->current_tx_seq+1;
+	msg->checksum = crc_calculate(((const uint8_t*)(msg)) + 3, MAVLINK_CORE_HEADER_LEN);
+	crc_accumulate_buffer(&msg->checksum, _MAV_PAYLOAD(msg), msg->len);
+#if MAVLINK_CRC_EXTRA
+	crc_accumulate(crc_extra, &msg->checksum);
+#endif
+	mavlink_ck_a(msg) = (uint8_t)(msg->checksum & 0xFF);
+	mavlink_ck_b(msg) = (uint8_t)(msg->checksum >> 8);
+
+	return length + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+}
+
+/**
+ * @brief Finalize a MAVLink message with channel assignment
+ *
+ * This function calculates the checksum and sets length and aircraft id correctly.
+ * It assumes that the message id and the payload are already correctly set. This function
+ * can also be used if the message header has already been written before (as in mavlink_msg_xxx_pack
+ * instead of mavlink_msg_xxx_pack_headerless), it just introduces little extra overhead.
+ *
+ * @param msg Message to finalize
+ * @param system_id Id of the sending (this) system, 1-127
+ * @param length Message length
+ */
+#if MAVLINK_CRC_EXTRA
 MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id, 
 						      uint8_t chan, uint8_t min_length, uint8_t length, uint8_t crc_extra)
 #else
@@ -72,7 +112,7 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, ui
 						      uint8_t chan, uint8_t length)
 #endif
 {
-	// This is only used for the v2 protocol and we silence it here
+    // This is only used for the v2 protocol and we silence it here
 	(void)min_length;
 	// This code part is the same for all messages;
 	msg->magic = MAVLINK_STX;
