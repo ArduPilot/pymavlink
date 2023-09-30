@@ -1657,3 +1657,8 @@ def mm_curr(RCOU,BAT,PWM_MIN,PWM_MAX,Mfirst,Mlast):
         command = voltage*max(pwm - PWM_MIN,0)/(PWM_MAX-PWM_MIN)
         total_curr += command**2
     return total_curr
+
+def RotateMag(MAG,rotation):
+    '''rotate a MAG message by rotation enumeration'''
+    v = Vector3(MAG.MagX,MAG.MagY,MAG.MagZ)
+    return v.rotate_by_id(rotation)
