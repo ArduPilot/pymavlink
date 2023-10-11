@@ -642,6 +642,18 @@ class DFReader(object):
                 self.mav_type = mavutil.mavlink.MAV_TYPE_SUBMARINE
             elif m.Message.find("Blimp") != -1:
                 self.mav_type = mavutil.mavlink.MAV_TYPE_AIRSHIP
+        if type == 'VER' and hasattr(m,'BU'):
+            build_types = { 1: mavutil.mavlink.MAV_TYPE_GROUND_ROVER,
+                            2: mavutil.mavlink.MAV_TYPE_QUADROTOR,
+                            3: mavutil.mavlink.MAV_TYPE_FIXED_WING,
+                            4: mavutil.mavlink.MAV_TYPE_ANTENNA_TRACKER,
+                            7: mavutil.mavlink.MAV_TYPE_SUBMARINE,
+                            13: mavutil.mavlink.MAV_TYPE_HELICOPTER,
+                            12: mavutil.mavlink.MAV_TYPE_AIRSHIP,
+                            }
+            mavtype = build_types.get(m.BU,None)
+            if mavtype is not None:
+                self.mav_type = mavtype
         if type == 'MODE':
             if hasattr(m,'Mode') and isinstance(m.Mode, str):
                 self.flightmode = m.Mode.upper()
@@ -901,7 +913,7 @@ class DFReader_binary(DFReader):
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
-            type.update(set(['MODE','MSG','PARM','STAT','ORGN']))
+            type.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1171,7 +1183,7 @@ class DFReader_text(DFReader):
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
             self.type_list = type.copy()
-            self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN']))
+            self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.type_list = list(self.type_list)
             self.indexes = []
             self.type_nums = []
