@@ -56,7 +56,10 @@ def generate(basename, xml):
         mavlink_msg_file.write("%s.fields = {\n" % m.name)
         for i in range(0, len(m.ordered_fields)):
             field = m.ordered_fields[i]
-            if (field.array_length > 0):
+            if ((field.type == 'char') and (field.array_length > 0)):
+                # Convert char array to lua string
+                mavlink_msg_file.write("             { \"%s\", \"<c%s\" },\n" % (field.name, field.array_length))
+            elif (field.array_length > 0):
                 mavlink_msg_file.write("             { \"%s\", \"<%s\", %s },\n" % (field.name, unpack_types.get(field.type), field.array_length))
             else:
                 mavlink_msg_file.write("             { \"%s\", \"<%s\" },\n" % (field.name, unpack_types.get(field.type)))
@@ -122,6 +125,11 @@ function mavlink_msgs.decode(message, msg_map)
       end
     else
       result[v[1]], offset = string.unpack(v[2], message, offset)
+      if string.sub(v[2],2,2) == 'c' then
+        -- Got string, unpack includes 0 values to the set length
+        -- this is annoying, so remove them
+        result[v[1]] = string.gsub(result[v[1]], "\0", "")
+      end
     end
   end
 
