@@ -338,6 +338,51 @@ class Matrix3(object):
         self.b += temp_matrix.b
         self.c += temp_matrix.c
 
+    def rotate_yaw(self, yrad):
+        '''rotate the matrix by a given amount in-place on yaw axis'''
+        m2 = Matrix3()
+        m2.from_euler(0,0,yrad)
+        m2 = self * m2
+        self.a = m2.a
+        self.b = m2.b
+        self.c = m2.c
+
+    def rotate_pitch(self, prad):
+        '''rotate the matrix by a given amount in-place on pitch axis'''
+        m2 = Matrix3()
+        m2.from_euler(0,prad,0)
+        m2 = self * m2
+        self.a = m2.a
+        self.b = m2.b
+        self.c = m2.c
+
+    def rotate_roll(self, rrad):
+        '''rotate the matrix by a given amount in-place on roll axis'''
+        m2 = Matrix3()
+        m2.from_euler(rrad,0,0)
+        m2 = self * m2
+        self.a = m2.a
+        self.b = m2.b
+        self.c = m2.c
+
+    def rotate_321(self, ryad, prad, yrad):
+        '''rotate the matrix by a given amount in-place on 3 axes with 321 ordering'''
+        m2 = Matrix3()
+        m2.from_euler(ryad,prad,yrad)
+        m2 = self * m2
+        self.a = m2.a
+        self.b = m2.b
+        self.c = m2.c
+
+    def rotate_312(self, ryad, prad, yrad):
+        '''rotate the matrix by a given amount in-place on 3 axes with 312 ordering'''
+        m2 = Matrix3()
+        m2.from_euler312(ryad,prad,yrad)
+        m2 = self * m2
+        self.a = m2.a
+        self.b = m2.b
+        self.c = m2.c
+
     def normalize(self):
         '''re-normalise a rotation matrix'''
         error = self.a * self.b
