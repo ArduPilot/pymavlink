@@ -97,6 +97,32 @@ class MatrixTest(unittest.TestCase):
                     v2 = Vector3(degrees(r2), degrees(p2), degrees(y2))
                     diff = v1 - v2
                     assert diff.length() < 1.0e-12
+                    # construct the rotation using 321 ordering
+                    m2 = Matrix3()
+                    m2.rotate_yaw(radians(y))
+                    m2.rotate_pitch(radians(p))
+                    m2.rotate_roll(radians(r))
+                    (r2, p2, y2) = m2.to_euler()
+                    v2 = Vector3(degrees(r2), degrees(p2), degrees(y2))
+                    diff = v1 - v2
+                    assert diff.length() < 1.0e-12
+        # test rotate_321()
+        (r1,p1,y1) = radians(17),radians(-35),radians(126)
+        (r2,p2,y2) = radians(-39),radians(63),radians(-18)
+        m.from_euler(r1,p1,y1)
+        m2 = m.copy()
+        m2.rotate_yaw(y2)
+        m2.rotate_pitch(p2)
+        m2.rotate_roll(r2)
+        (r3,p3,y3) = m2.to_euler()
+        v1 = Vector3(degrees(r3),degrees(p3),degrees(y3))
+        m3 = m.copy()
+        m3.rotate_321(r2,p2,y2)
+        (r3,p3,y3) = m3.to_euler()
+        v2 = Vector3(degrees(r3),degrees(p3),degrees(y3))
+        diff = v1 - v2
+        assert diff.length() < 1.0e-12
+
 
     def test_euler312(self):
         '''check that from_euler312() and to_euler312() are consistent'''
@@ -110,6 +136,32 @@ class MatrixTest(unittest.TestCase):
                     v2 = Vector3(degrees(r2), degrees(p2), degrees(y2))
                     diff = v1 - v2
                     assert diff.length() < 1.0e-12
+                    # construct the rotation using 312 ordering
+                    m2 = Matrix3()
+                    m2.identity()
+                    m2.rotate_yaw(radians(y))
+                    m2.rotate_roll(radians(r))
+                    m2.rotate_pitch(radians(p))
+                    (r2, p2, y2) = m2.to_euler312()
+                    v2 = Vector3(degrees(r2), degrees(p2), degrees(y2))
+                    diff = v1 - v2
+                    assert diff.length() < 1.0e-12
+        # test rotate_312()
+        (r1,p1,y1) = radians(17),radians(-35),radians(126)
+        (r2,p2,y2) = radians(-39),radians(63),radians(-18)
+        m.from_euler312(r1,p1,y1)
+        m2 = m.copy()
+        m2.rotate_yaw(y2)
+        m2.rotate_roll(r2)
+        m2.rotate_pitch(p2)
+        (r3,p3,y3) = m2.to_euler312()
+        v1 = Vector3(degrees(r3),degrees(p3),degrees(y3))
+        m3 = m.copy()
+        m3.rotate_312(r2,p2,y2)
+        (r3,p3,y3) = m3.to_euler312()
+        v2 = Vector3(degrees(r3),degrees(p3),degrees(y3))
+        diff = v1 - v2
+        assert diff.length() < 1.0e-12
 
     def test_matrixops(self):
         m1 = Matrix3(Vector3(1, 0, 0), Vector3(1, 5, 0), Vector3(1, 0, -7))
@@ -162,6 +214,7 @@ class LinePlaneTest(unittest.TestCase):
         line = Line(Vector3(0, 0, 100), Vector3(10, 10, -90))
         p = line.plane_intersection(plane)
         assert p.close(Vector3(11.11, 11.11, 0.00), tol=1e-2)
+
 
 if __name__ == '__main__':
     unittest.main()
