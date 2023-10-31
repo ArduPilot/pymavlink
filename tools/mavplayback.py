@@ -122,18 +122,18 @@ class App(object):
 
     def rewind(self):
         '''rewind 10%'''
-        pos = int(self.mlog.f.tell() - 0.1*self.filesize)
+        pos = int(self.mlog.filehandle.tell() - 0.1*self.filesize)
         if pos < 0:
             pos = 0
-        self.mlog.f.seek(pos)
+        self.mlog.filehandle.seek(pos)
         self.find_message()
 
     def forward(self):
         '''forward 10%'''
-        pos = int(self.mlog.f.tell() + 0.1*self.filesize)
+        pos = int(self.mlog.filehandle.tell() + 0.1*self.filesize)
         if pos > self.filesize:
             pos = self.filesize - 2048
-        self.mlog.f.seek(pos)
+        self.mlog.filehandle.seek(pos)
         self.find_message()
 
     def status(self):
@@ -149,7 +149,7 @@ class App(object):
             self.msg = self.mlog.recv_match(condition=args.condition)
             if self.msg is not None and self.msg.get_type() != 'BAD_DATA':
                 break
-            if self.mlog.f.tell() > self.filesize - 10:
+            if self.mlog.filehandle.tell() > self.filesize - 10:
                 self.paused = True
                 break
         self.last_timestamp = getattr(self.msg, '_timestamp')
@@ -158,7 +158,7 @@ class App(object):
         '''move to a given position in the file'''
         if float(value) != self.filepos:
             pos = float(value) * self.filesize
-            self.mlog.f.seek(int(pos))
+            self.mlog.filehandle.seek(int(pos))
             self.find_message()
 
 
@@ -190,13 +190,13 @@ class App(object):
 
         while True:
             self.msg = self.mlog.recv_match(condition=args.condition)
-            if self.msg is None and self.mlog.f.tell() > self.filesize - 10:
+            if self.msg is None and self.mlog.filehandle.tell() > self.filesize - 10:
                 self.paused = True
                 return
             if self.msg is not None and self.msg.get_type() != "BAD_DATA":
                 break
 
-        pos = float(self.mlog.f.tell()) / self.filesize
+        pos = float(self.mlog.filehandle.tell()) / self.filesize
         self.slider.set(pos)
         self.filepos = self.slider.get()
 
