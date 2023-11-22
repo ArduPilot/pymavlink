@@ -13,6 +13,7 @@ import select
 import copy
 import json
 import re
+import platform
 from pymavlink import mavexpression
 
 # We want to re-export x25crc here
@@ -1148,7 +1149,11 @@ class mavmcast(mavfile):
         # packets from ourselves
         self.port = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.port.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.port.bind((mcast_ip, mcast_port))
+        if platform.system() == "Windows":
+            # on windows we need to bind to INADDR_ANY first, then use multicast join for address
+            self.port.bind(("0.0.0.0", mcast_port))
+        else:
+            self.port.bind((mcast_ip, mcast_port))
         mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
         self.port.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self.port.setblocking(0)
@@ -1469,7 +1474,7 @@ class mavmmaplog(mavlogfile):
     '''a MAVLink log file accessed via mmap. Used for fast read-only
     access with low memory overhead where particular message types are wanted'''
     def __init__(self, filename, progress_callback=None):
-        import platform, mmap
+        import mmap
         mavlogfile.__init__(self, filename)
         self.f.seek(0, 2)
         self.data_len = self.f.tell()
