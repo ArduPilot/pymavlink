@@ -178,6 +178,7 @@
 <xs:simpleType name="factor">
   <xs:restriction base="xs:string">
     <xs:enumeration value="1E-2"/>        <!-- actual value = stated value / 100 -->
+    <xs:enumeration value="360/255"/>     <!-- actual value = stated value * 360/255, as used for GPS_STATUS.satellite_azimuth -->
   </xs:restriction>
 </xs:simpleType>
 
