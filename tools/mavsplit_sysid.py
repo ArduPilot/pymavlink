@@ -50,13 +50,16 @@ def process(filename):
         if args.condition and not mavutil.evaluate_condition(args.condition, mlog.messages):
             continue
 
+        if m.get_type() == 'BAD_DATA':
+            continue
+
         sysid = m.get_srcSystem()
         if not sysid in output:
             fname = "%s-%u.%s" % (base, sysid, extension)
             print("Creating %s" % fname)
             output[sysid] = open(fname, mode='wb')
 
-        if output[sysid] and m.get_type() != 'BAD_DATA':
+        if output[sysid]:
             timestamp = getattr(m, '_timestamp', None)
             output[sysid].write(struct.pack('>Q', int(timestamp*1.0e6)))
             output[sysid].write(m.get_msgbuf())
