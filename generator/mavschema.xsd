@@ -117,8 +117,8 @@
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
     <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
-    <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
-    <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
+    <xs:enumeration value="degE5"/>    <!-- degrees * 1E5 -->
+    <xs:enumeration value="degE7"/>    <!-- degrees * 1E7 -->
     <xs:enumeration value="rpm"/>      <!-- rotations per minute -->
     <!-- electricity -->
     <xs:enumeration value="V"/>        <!-- Volt -->

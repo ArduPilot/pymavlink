@@ -162,10 +162,11 @@ def generate_field_or_param(outf, field_or_param, name, label, physical_type, fi
             field_type = "ftypes.UINT32"
     else:
         display_type = physical_type
+    unitstr = " " + field_or_param.units if field_or_param.units else ""
     t.write(outf,
 """
-f.${fname} = ProtoField.new("${flabel} (${ftypename})", "mavlink_proto.${fname}", ${ftype}, ${fvalues})
-""", {'fname': name, 'flabel': label, 'ftypename': display_type, 'ftype': field_type, 'fvalues': values})
+f.${fname} = ProtoField.new("${flabel} (${ftypename})${unitname}", "mavlink_proto.${fname}", ${ftype}, ${fvalues})
+""", {'fname': name, 'flabel': label, 'ftypename': display_type, 'ftype': field_type, 'fvalues': values, 'unitname': unitstr})
 
     # generate flag enum subfields
     if enum_obj and enum_obj.bitmask:
@@ -271,10 +272,11 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         if enum_obj and enum_obj.bitmask:
+            valuemethod = ":tonumber()" if tvb_func == "le_uint64" else ""
             t.write(outf,
 """
-    dissect_flags_${enumname}(subtree, "${fvar}", tvbrange, value)
-""", {'enumname': enum_name, 'fvar': field_var})
+    dissect_flags_${enumname}(subtree, "${fvar}", tvbrange, value${vmeth})
+""", {'enumname': enum_name, 'fvar': field_var, 'vmeth': valuemethod})
 
 
 def generate_payload_dissector(outf, msg, cmds, enums, cmd=None):
