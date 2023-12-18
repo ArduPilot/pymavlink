@@ -399,7 +399,8 @@ class mavfile(object):
             for s in self.sysid_state.keys():
                 self.sysid_state[s].messages[type] = msg
 
-        if not (src_tuple == radio_tuple or msg.get_type() == 'BAD_DATA'):
+        if not (src_tuple == radio_tuple or msg.get_msgId() < 0):
+            # Don't use unknown messages to calculate number of lost packets
             if not src_tuple in self.last_seq:
                 last_seq = -1
             else:
