@@ -2459,6 +2459,20 @@ def decode_bitmask(messagetype, field, value):
             ret.append( EnumBitInfo(i, False, enum_entry_name) )
     return ret
 
+'''lookup table to map from a raw unit into a divisor and output unit'''
+dump_message_unit_decoder = {
+    "d%":     [10.0,       "%"],
+    "c%":     [100.0,      "%"],
+    "cA":     [100.0,      "A"],
+    "cdegC":  [100.0,      "degC"],
+    "cdeg":   [100.0,      "deg"],
+    "degE5":  [100000.0,   "deg"],
+    "degE7":  [10000000.0, "deg"],
+    "mG":     [1000.0,     "G"],
+    "mrad/s": [1000.0,     "rad/s"],
+    "mV":     [1000.0,     "V"]
+}
+
 def dump_message_verbose(f, m):
     '''write an excruciatingly detailed dump of message m to file descriptor f'''
     try:
@@ -2479,56 +2493,37 @@ def dump_message_verbose(f, m):
         # try to add units:
         try:
             units = m.fieldunits_by_name[fieldname]
+
             # perform simple unit conversions:
-            divisor = None
-            if units == "d%":
-                divisor = 10.0
-                units = "%"
-            if units == "c%":
-                divisor = 100.0
-                units = "%"
-
-            if units == "cA":
-                divisor = 100.0
-                units = "A"
-
-            elif units == "cdegC":
-                divisor = 100.0
-                units = "degC"
-
-            elif units == "cdeg":
-                divisor = 100.0
-                units = "deg"
-
-            elif units == "degE7":
-                divisor = 10000000.0
-                units = "deg"
-
-            elif units == "mG":
-                divisor = 1000.0
-                units = "G"
-
-            elif units == "mrad/s":
-                divisor = 1000.0
-                units = "rad/s"
-
-            elif units == "mV":
-                divisor = 1000.0
-                units = "V"
-
-            if divisor is not None:
+            if units in dump_message_unit_decoder:
+                divisor = dump_message_unit_decoder[units][0]
+                units = dump_message_unit_decoder[units][1]
                 if type(value) == list:
                     value = [x/divisor for x in value]
                 else:
                     value = value / divisor
 
-            # and give radians in degrees too:
+            # append degrees to fields in radians:
             if units == "rad":
                 value = "%s%s (%sdeg)" % (value, units, math.degrees(value))
             elif units == "rad/s":
                 value = "%s%s (%sdeg/s)" % (value, units, math.degrees(value))
             elif units == "rad/s/s":
                 value = "%s%s (%sdeg/s/s)" % (value, units, math.degrees(value))
+
+            # append local time if us represents unix time:
+            elif units == "us":
+                if value > (1<<50):
+                    local_time = time.localtime(int(value/1000000))
+                    time_str = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
+                    tm_zone = local_time.tm_zone
+                    value = "%s%s (%s.%06d %s)" % (value, units, time_str, value%1000000, tm_zone)
+                elif value > 1000000:
+                    value = "%s%s (%ss)" % (value, units, value / 1000000.0)
+                else:
+                    value = "%s%s" % (value, units)
+
+            # by default, just append the unit:
             else:
                 value = "%s%s" % (value, units)
         except AttributeError as e:
@@ -2539,20 +2534,22 @@ def dump_message_verbose(f, m):
 
         # format any bitmask enumerations:
         try:
-            enum_name = m.fieldenums_by_name[fieldname]
-            display = m.fielddisplays_by_name[fieldname]
-            if enum_name is not None and display == "bitmask":
-                bits = decode_bitmask(m.get_type(), fieldname, value)
-                f.write("    %s: %s\n" % (fieldname, value))
-                for bit in bits:
-                    value = bit.value
-                    name = bit.name
-                    svalue = " "
-                    if not value:
-                        svalue = "!"
-                    if name is None:
-                        name = "[UNKNOWN]"
-                    f.write("      %s %s\n" % (svalue, name))
+            display = m.fielddisplays_by_name[fieldname] if fieldname in m.fielddisplays_by_name else ""
+            if display == "bitmask":
+                # Display bitmasks as hex (dec), regardless of whether there is an enum
+                f.write("    %s: 0x%x (%d)\n" % (fieldname, value, value))
+                enum_name = m.fieldenums_by_name[fieldname] if fieldname in m.fieldenums_by_name else None
+                if enum_name is not None:
+                    bits = decode_bitmask(m.get_type(), fieldname, value)
+                    for bit in bits:
+                        value = bit.value
+                        name = bit.name
+                        svalue = " "
+                        if not value:
+                            svalue = "!"
+                        if name is None:
+                            name = "[UNKNOWN]"
+                        f.write("      %s %s\n" % (svalue, name))
                 continue
 #            except NameError as e:
 #                pass
