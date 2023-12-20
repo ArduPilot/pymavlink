@@ -540,15 +540,9 @@ def get_lat_lon_alt(MSG):
         alt = MSG.alt*0.001
     elif hasattr(MSG, 'PN'):
         # origin relative position from EKF
-        global ORGN
-        if ORGN is None:
-            ORGN = get_origin()
-        if ORGN is None:
-            return None
-        (lat,lon) = gps_offset(ORGN.Lat, ORGN.Lng, MSG.PN, MSG.PE)
+        (lat,lon,alt) = ekf1_pos(MSG)
         lat = radians(lat)
         lon = radians(lon)
-        alt = ORGN.Alt - MSG.PD
     else:
         return None
     return (lat, lon, alt)
@@ -1098,7 +1092,8 @@ def ekf1_pos(EKF1):
       ekf_origin = self.messages['ORGN']
       (ekf_origin.Lat, ekf_origin.Lng) = (ekf_origin.Lat, ekf_origin.Lng)
   (lat,lon) = gps_offset(ekf_origin.Lat, ekf_origin.Lng, EKF1.PE, EKF1.PN)
-  return (lat, lon)
+  alt = ekf_origin.Alt - EKF1.PD
+  return (lat, lon, alt)
 
 def quat_to_euler(q):
   '''
