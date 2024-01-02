@@ -379,6 +379,9 @@ while True:
     elif args.verbose and istlog:
         mavutil.dump_message_verbose(sys.stdout, m)
         print("")
+    elif args.verbose and hasattr(m,"dump_verbose"):
+        m.dump_verbose(sys.stdout)
+        print("")
     else:
         # Otherwise we output in a standard Python dict-style format
         s = "%s.%02u: %s" % (time.strftime("%Y-%m-%d %H:%M:%S",
