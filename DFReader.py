@@ -17,6 +17,7 @@ import sys
 import os
 import mmap
 import platform
+import time
 
 import struct
 import sys
@@ -50,8 +51,31 @@ FORMAT_TO_STRUCT = {
     "Q": ("Q", None, long),  # Backward compat
     }
 
+MULT_TO_PREFIX = {
+    0: "",
+    1: "",
+    1.0e-1: "d", # deci
+    1.0e-2: "c", # centi
+    1.0e-3: "m", # milli
+    1.0e-6: "µ", # micro
+    1.0e-9: "n"  # nano
+}
+
 def u_ord(c):
 	return ord(c) if sys.version_info.major < 3 else c
+
+def is_quiet_nan(val):
+    '''determine if the argument is a quiet nan'''
+    # Is this a float, and some sort of nan?
+    if isinstance(val, float) and math.isnan(val):
+        # quiet nans have more non-zero values:
+        if sys.version_info.major >= 3:
+            noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+        else:
+            noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
+        return struct.pack(">d", val) != noisy_nan
+    else:
+        return False
 
 class DFFormat(object):
     def __init__(self, type, name, flen, format, columns, oldfmt=None):
@@ -61,8 +85,7 @@ class DFFormat(object):
         self.format = format
         self.columns = columns.split(',')
         self.instance_field = None
-        self.unit_ids = None
-        self.mult_ids = None
+        self.units = None
 
         if self.columns == ['']:
             self.columns = []
@@ -101,32 +124,64 @@ class DFFormat(object):
             if self.msg_fmts[i] == 'a':
                 self.a_indexes.append(i)
 
+        # If this format was alrady defined, copy over units and instance info
         if oldfmt is not None:
-            self.set_unit_ids(oldfmt.unit_ids)
-            self.set_mult_ids(oldfmt.mult_ids)
+            self.units = oldfmt.units
+            if oldfmt.instance_field is not None:
+                self.set_instance_field(self.colhash[oldfmt.instance_field])
 
-    def set_unit_ids(self, unit_ids):
+    def set_instance_field(self, instance_idx):
+        '''set up the instance field for this format'''
+        self.instance_field = self.columns[instance_idx]
+        # work out offset and length of instance field in message
+        pre_fmt = self.format[:instance_idx]
+        pre_sfmt = ""
+        for c in pre_fmt:
+            (s, mul, type) = FORMAT_TO_STRUCT[c]
+            pre_sfmt += s
+        self.instance_ofs = struct.calcsize(pre_sfmt)
+        (ifmt,) = self.format[instance_idx]
+        self.instance_len = struct.calcsize(ifmt)
+
+    def set_unit_ids(self, unit_ids, unit_lookup):
         '''set unit IDs string from FMTU'''
         if unit_ids is None:
             return
-        self.unit_ids = unit_ids
+        # Does this unit string define an instance field?
         instance_idx = unit_ids.find('#')
         if instance_idx != -1:
-            self.instance_field = self.columns[instance_idx]
-            # work out offset and length of instance field in message
-            pre_fmt = self.format[:instance_idx]
-            pre_sfmt = ""
-            for c in pre_fmt:
-                (s, mul, type) = FORMAT_TO_STRUCT[c]
-                pre_sfmt += s
-            self.instance_ofs = struct.calcsize(pre_sfmt)
-            (ifmt,) = self.format[instance_idx]
-            self.instance_len = struct.calcsize(ifmt)
+            self.set_instance_field(instance_idx)
+        # Build the units array from the IDs
+        self.units = [""]*len(self.columns)
+        for i in range(len(self.columns)):
+            if i < len(unit_ids):
+                if unit_ids[i] in unit_lookup:
+                    self.units[i] = unit_lookup[unit_ids[i]]
 
-
-    def set_mult_ids(self, mult_ids):
+    def set_mult_ids(self, mult_ids, mult_lookup):
         '''set mult IDs string from FMTU'''
-        self.mult_ids = mult_ids
+        # Update the units based on the multiplier
+        for i in range(len(self.units)):
+            # If the format has its own multiplier, do not adjust the unit,
+            # and if no unit is specified there is nothing to adjust
+            if self.msg_mults[i] is not None or self.units[i] == "":
+                continue
+            # Get the unit multiplier from the lookup table
+            if mult_ids[i] in mult_lookup:
+                unitmult = mult_lookup[mult_ids[i]]
+                # Combine the multipler and unit to derive the real unit
+                if unitmult in MULT_TO_PREFIX:
+                    self.units[i] = MULT_TO_PREFIX[unitmult]+self.units[i]
+                else:
+                    self.units[i] = "%.4g %s" % (unitmult, self.units[i])
+
+    def get_unit(self, col):
+        '''Return the unit for the specified field'''
+        if self.units is None:
+            return ""
+        else:
+            idx = self.colhash[col]
+            return self.units[idx]
 
     def __str__(self):
         return ("DFFormat(%s,%s,%s,%s)" %
@@ -192,7 +247,14 @@ class DFMessage(object):
         if self.fmt.msg_types[i] == str:
             v = null_term(v)
         if self.fmt.msg_mults[i] is not None and self._apply_multiplier:
-            v *= self.fmt.msg_mults[i]
+            # For reasons relating to floating point accuracy, you get a more
+            # accurate result by dividing by 1e2 or 1e7 than multiplying by
+            # 1e-2 or 1e-7
+            if self.fmt.msg_mults[i] > 0.0 and self.fmt.msg_mults[i] < 1.0:
+                divisor = 1/self.fmt.msg_mults[i]
+                v /= divisor
+            else:
+                v *= self.fmt.msg_mults[i]
         return v
 
     def __setattr__(self, field, value):
@@ -214,15 +276,9 @@ class DFMessage(object):
         col_count = 0
         for c in self.fmt.columns:
             val = self.__getattr__(c)
-            if isinstance(val, float) and math.isnan(val):
-                # quiet nans have more non-zero values:
-                if is_py3:
-                    noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-                else:
-                    noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
-                if struct.pack(">d", val) != noisy_nan:
-                    val = "qnan"
-
+            if is_quiet_nan(val):
+                val = "qnan"
+            # Add the value to the return string
             if is_py3:
                 ret += "%s : %s, " % (c, val)
             else:
@@ -234,6 +290,38 @@ class DFMessage(object):
         if col_count != 0:
             ret = ret[:-2]
         return ret + '}'
+
+    def dump_verbose(self, f):
+        is_py3 = sys.version_info >= (3,0)
+        timestamp = "%s.%03u" % (
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self._timestamp)),
+            int(self._timestamp*1000.0)%1000)
+        f.write("%s: %s\n" % (timestamp, self.fmt.name))
+        for c in self.fmt.columns:
+            # Get the value
+            val = self.__getattr__(c)
+            # Handle quiet nan
+            if is_quiet_nan(val):
+                val = "qnan"
+            # Output the field label and value
+            if is_py3:
+                f.write("    %s: %s" % (c, val))
+            else:
+                try:
+                    f.write("    %s: %s" % (c, val))
+                except UnicodeDecodeError:
+                    f.write("    %s: %s" % (c, to_string(val)))
+            # Append the unit to the output
+            unit = self.fmt.get_unit(c)
+            if unit == "":
+                # No unit specified - just output the newline
+                f.write("\n")
+            elif unit.startswith("rad"):
+                # For rad or rad/s, add the degrees conversion too
+                f.write(" %s (%s %s)\n" % (unit, math.degrees(val), unit.replace("rad","deg")))
+            else:
+                # Append the unit
+                f.write(" %s\n" % (unit))
 
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
@@ -482,6 +570,8 @@ class DFReader(object):
             '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
         }
         self.percent = 0
+        self.unit_lookup = {}  # lookup table of units defined by UNIT messages
+        self.mult_lookup = {}  # lookup table of multipliers defined by MULT messages
 
     def _rewind(self):
         '''reset state on rewind'''
@@ -798,6 +888,8 @@ class DFReader_binary(DFReader):
             self.counts.append(0)
         fmt_type = 0x80
         fmtu_type = None
+        unit_type = None
+        mult_type = None
         ofs = 0
         pct = 0
         HEAD1 = self.HEAD1
@@ -859,7 +951,13 @@ class DFReader_binary(DFReader):
                 self.id_to_name[mfmt.type] = mfmt.name
                 if mfmt.name == 'FMTU':
                     fmtu_type = mfmt.type
+                if mfmt.name == 'UNIT':
+                    unit_type = mfmt.type
+                if mfmt.name == 'MULT':
+                    mult_type = mfmt.type
 
+            # Handle FMTU messages by updating the DFFormat class with the
+            # unit/multiplier information
             if fmtu_type is not None and mtype == fmtu_type:
                 fmt = self.formats[mtype]
                 body = self.data_map[ofs+3:ofs+mlen]
@@ -870,9 +968,33 @@ class DFReader_binary(DFReader):
                 if ftype in self.formats:
                     fmt2 = self.formats[ftype]
                     if 'UnitIds' in fmt.colhash:
-                        fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]))
+                        fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]), self.unit_lookup)
                     if 'MultIds' in fmt.colhash:
-                        fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]))
+                        fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
+
+            # Handle UNIT messages by updating the unit_lookup dictionary
+            if unit_type is not None and mtype == unit_type:
+                fmt = self.formats[mtype]
+                body = self.data_map[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                self.unit_lookup[chr(elements[1])] = null_term(elements[2])
+
+            # Handle MULT messages by updating the mult_lookup dictionary
+            if mult_type is not None and mtype == mult_type:
+                fmt = self.formats[mtype]
+                body = self.data_map[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                # Even though the multiplier value is logged as a double, the
+                # values in log files look to be single-precision values that have
+                # been cast to a double.
+                # To ensure that the values saved here can be used to index the
+                # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
+                mult = float("%.7g" % (elements[2]))
+                self.mult_lookup[chr(elements[1])] = mult
 
             ofs += mlen
             if progress_callback is not None:
@@ -1038,8 +1160,8 @@ class DFReader_binary(DFReader):
             MultIds = elements[2]
             if FmtType in self.formats:
                 fmt = self.formats[FmtType]
-                fmt.set_unit_ids(UnitIds)
-                fmt.set_mult_ids(MultIds)
+                fmt.set_unit_ids(UnitIds, self.unit_lookup)
+                fmt.set_mult_ids(MultIds, self.mult_lookup)
 
         try:
             self._add_msg(m)
@@ -1279,8 +1401,24 @@ class DFReader_text(DFReader):
             fmtid = getattr(m, 'FmtType', None)
             if fmtid is not None and fmtid in self.id_to_name:
                 fmtu = self.formats[self.id_to_name[fmtid]]
-                fmtu.set_unit_ids(getattr(m, 'UnitIds', None))
-                fmtu.set_mult_ids(getattr(m, 'MultIds', None))
+                fmtu.set_unit_ids(getattr(m, 'UnitIds', None), self.unit_lookup)
+                fmtu.set_mult_ids(getattr(m, 'MultIds', None), self.mult_lookup)
+
+        if m.get_type() == 'UNIT':
+            unitid = getattr(m, 'Id', None)
+            label = getattr(m, 'Label', None)
+            self.unit_lookup[chr(unitid)] = null_term(label)
+
+        if m.get_type() == 'MULT':
+            multid = getattr(m, 'Id', None)
+            mult = getattr(m, 'Mult', None)
+            # Even though the multiplier value is logged as a double, the
+            # values in log files look to be single-precision values that have
+            # been cast to a double.
+            # To ensure that the values saved here can be used to index the
+            # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
+            mult = float("%.7g" % (mult))
+            self.mult_lookup[chr(multid)] = mult
 
         self._add_msg(m)
 
