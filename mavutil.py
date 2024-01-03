@@ -2114,8 +2114,6 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     mavlink.MAV_TYPE_COAXIAL:     mode_mapping_acm,
     # plane
     mavlink.MAV_TYPE_FIXED_WING: mode_mapping_apm,
-    mavlink.MAV_TYPE_VTOL_DUOROTOR: mode_mapping_apm,
-    mavlink.MAV_TYPE_VTOL_QUADROTOR: mode_mapping_apm,
     mavlink.MAV_TYPE_VTOL_TILTROTOR: mode_mapping_apm,
     # rover
     mavlink.MAV_TYPE_GROUND_ROVER: mode_mapping_rover,
@@ -2129,6 +2127,18 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     mavlink.MAV_TYPE_AIRSHIP: mode_mapping_blimp,
 }
 
+# cope with enumeration renaming:
+for (name, some_map) in ([
+        # plane, see https://github.com/ArduPilot/pymavlink/issues/571
+        ("MAV_TYPE_VTOL_DUOROTOR", mode_mapping_apm),
+        ("MAV_TYPE_VTOL_TAILSITTER_DUOROTOR", mode_mapping_apm),
+        ("MAV_TYPE_VTOL_QUADROTOR", mode_mapping_apm),
+        ("MAV_TYPE_VTOL_TAILSITTER_QUADROTOR", mode_mapping_apm),
+        ]):
+    try:
+        AP_MAV_TYPE_MODE_MAP_DEFAULT[getattr(mavlink, name)] = some_map
+    except AttributeError:
+        pass
 
 try:
     # Allow for using custom mode maps by importing a JSON dict from
