@@ -1094,6 +1094,7 @@ class DFReader_text(DFReader):
     '''parse a text dataflash file'''
     def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
+        self.name_to_id = {}
         # read the whole file into memory for simplicity
         self.filehandle = open(filename, 'r')
         self.filehandle.seek(0, 2)
@@ -1266,6 +1267,7 @@ class DFReader_text(DFReader):
                                oldfmt=self.formats.get(ftype,None))
             self.formats[fname] = new_fmt
             self.id_to_name[ftype] = fname
+            self.name_to_id[fname] = ftype
 
         try:
             m = DFMessage(fmt, elements, False, self)
