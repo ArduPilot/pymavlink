@@ -735,6 +735,7 @@ class DFReader(object):
     
     def close(self):
         '''close the log file'''
+        self.data_map.close()
         self.filehandle.close()
     
 
