@@ -44,6 +44,8 @@ def extend_with_type_info(extended, enable_type_annotations):
         "mavlink_message_signed_callback": ('Callable[["MAVLink", int], bool]', None),
         "dict_str_to_str_float_int": ("Dict[str, Union[str, float, int]]", None),
         "dict_str_to_dict_int_to_enumentry": ("Dict[str, Dict[int, EnumEntry]]", None),
+        "dict_int_to_enumentry": ("Dict[int, EnumEntry]", None),
+        "dict_str_to_MavEnum": ("Dict[str, MavEnum]", None),
         "dict_int_to_str": ("Dict[int, str]", None),
         "dict_str_to_str": ("Dict[str, str]", None),
         "dict_int_int_int_to_int": ("Dict[Tuple[int, int, int], int]", None),
@@ -457,14 +459,26 @@ class EnumEntry(object):
         self.has_location = False
 
 
-enums${type_dict_str_to_dict_int_to_enumentry} = {}
+class MavEnum(${type_dict_int_to_enumentry_cast}):
+    def __init__(self, bitmask${type_bool_default})${type_none_ret}:
+        super(MavEnum, self).__init__()
+        self.bitmask = bitmask
+
+    def is_bitmask(self)${type_bool_ret}:
+        return self.bitmask
+
+
+enums${type_dict_str_to_MavEnum} = {}
 """,
         type_info,
     )
 
     for e in enums:
         outf.write("\n# %s\n" % e.name)
-        outf.write('enums["%s"] = {}\n' % e.name)
+        mavenum_kwargs = ""
+        if bool(e.bitmask):
+            mavenum_kwargs = "bitmask=True"
+        outf.write('enums["%s"] = MavEnum(%s)\n' % (e.name, mavenum_kwargs))
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
             description = entry.description.replace("\t", "    ")
