@@ -1147,8 +1147,8 @@ class DFReader_text(DFReader):
 
         while ofs+16 < self.data_len:
             mtype = self.data_map[ofs:ofs+4]
-            if mtype[3] == b',':
-                mtype = mtype[0:3]
+            # convert to string and cut if there is a ','
+            mtype = mtype.decode().split(',')[0]
             if not mtype in self.offsets:
                 self.counts[mtype] = 0
                 self.offsets[mtype] = []
