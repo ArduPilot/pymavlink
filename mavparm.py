@@ -50,7 +50,7 @@ class MAVParmDict(dict):
                 return False
             numeric_value, = struct.unpack(">f", vstr)
         else:
-            if value.lower().startswith('0x'):
+            if isinstance(value, str) and value.lower().startswith('0x'):
                 numeric_value = int(value[2:], 16)
             else:
                 numeric_value = float(value)
