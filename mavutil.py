@@ -13,15 +13,23 @@ import select
 import copy
 import json
 import re
+import platform
 from pymavlink import mavexpression
 
+# We want to re-export x25crc here
+from pymavlink.generator.mavcrc import x25crc as x25crc
+
 is_py3 = sys.version_info >= (3,0)
+supports_type_annotations = sys.version_info >= (3,6)
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
 try:
-    from pymavlink.dialects.v10 import ardupilotmega
+    if supports_type_annotations:
+        from pymavlink.dialects.v10 import ardupilotmega
+    else:
+        from pymavlink.dialects.v10.python2 import ardupilotmega
 except Exception:
     pass
 
@@ -102,28 +110,33 @@ def add_message(messages, mtype, msg):
     messages[mtype]._instances = prev_instances
     messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
 
-def set_dialect(dialect):
+def set_dialect(dialect, with_type_annotations=None):
     '''set the MAVLink dialect to work with.
     For example, set_dialect("ardupilotmega")
     '''
     global mavlink, current_dialect
     from .generator import mavparse
+
+    if with_type_annotations is None:
+        with_type_annotations = supports_type_annotations
+
+    legacy_python_module = "python2." if not with_type_annotations else ""
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
-        modname = "pymavlink.dialects.v20." + dialect
+        modname = "pymavlink.dialects.v20." + legacy_python_module + dialect
     elif mavlink is None or mavlink.WIRE_PROTOCOL_VERSION == "1.0" or not 'MAVLINK09' in os.environ:
         wire_protocol = mavparse.PROTOCOL_1_0
-        modname = "pymavlink.dialects.v10." + dialect
+        modname = "pymavlink.dialects.v10." + legacy_python_module + dialect
     else:
         wire_protocol = mavparse.PROTOCOL_0_9
-        modname = "pymavlink.dialects.v09." + dialect
+        modname = "pymavlink.dialects.v09." + legacy_python_module + dialect
 
     try:
         mod = __import__(modname)
     except Exception:
         # auto-generate the dialect module
         from .generator.mavgen import mavgen_python_dialect
-        mavgen_python_dialect(dialect, wire_protocol)
+        mavgen_python_dialect(dialect, wire_protocol, with_type_annotations=with_type_annotations)
         mod = __import__(modname)
     components = modname.split('.')
     for comp in components[1:]:
@@ -344,6 +357,10 @@ class mavfile(object):
                         mavlink.MAV_TYPE_ADSB,
                         mavlink.MAV_TYPE_ONBOARD_CONTROLLER):
             return False
+        if msg.autopilot in frozenset([
+                mavlink.MAV_AUTOPILOT_INVALID
+                ]):
+            return False
         return True
 
     def post_message(self, msg):
@@ -382,7 +399,8 @@ class mavfile(object):
             for s in self.sysid_state.keys():
                 self.sysid_state[s].messages[type] = msg
 
-        if not (src_tuple == radio_tuple or msg.get_type() == 'BAD_DATA'):
+        if not (src_tuple == radio_tuple or msg.get_msgId() < 0):
+            # Don't use unknown messages to calculate number of lost packets
             if not src_tuple in self.last_seq:
                 last_seq = -1
             else:
@@ -779,16 +797,20 @@ class mavfile(object):
             MAV_ACTION_CALIBRATE_PRESSURE = 20
             self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_CALIBRATE_PRESSURE)
 
-    def reboot_autopilot(self, hold_in_bootloader=False):
+    def reboot_autopilot(self, hold_in_bootloader=False, force=False):
         '''reboot the autopilot'''
         if self.mavlink10():
             if hold_in_bootloader:
                 param1 = 3
             else:
                 param1 = 1
+            if force:
+                param6 = 20190226
+            else:
+                param6 = 0
             self.mav.command_long_send(self.target_system, self.target_component,
                                        mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
-                                       param1, 0, 0, 0, 0, 0, 0)
+                                       param1, 0, 0, 0, 0, param6, 0)
 
     def wait_gps_fix(self):
         self.recv_match(type='VFR_HUD', blocking=True)
@@ -908,7 +930,7 @@ class mavfile(object):
         self.mav.signing.timestamp = 0
 
 def set_close_on_exec(fd):
-    '''set the clone on exec flag on a file descriptor. Ignore exceptions'''
+    '''set the close on exec flag on a file descriptor. Ignore exceptions'''
     try:
         import fcntl
         flags = fcntl.fcntl(fd, fcntl.F_GETFD)
@@ -1128,7 +1150,11 @@ class mavmcast(mavfile):
         # packets from ourselves
         self.port = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.port.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.port.bind((mcast_ip, mcast_port))
+        if platform.system() == "Windows":
+            # on windows we need to bind to INADDR_ANY first, then use multicast join for address
+            self.port.bind(("0.0.0.0", mcast_port))
+        else:
+            self.port.bind((mcast_ip, mcast_port))
         mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
         self.port.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self.port.setblocking(0)
@@ -1309,6 +1335,8 @@ class mavtcpin(mavfile):
         self.port = None
 
     def close(self):
+        if self.port is not None:
+            self.port.close()
         self.listen.close()
 
     def recv(self,n=None):
@@ -1447,7 +1475,7 @@ class mavmmaplog(mavlogfile):
     '''a MAVLink log file accessed via mmap. Used for fast read-only
     access with low memory overhead where particular message types are wanted'''
     def __init__(self, filename, progress_callback=None):
-        import platform, mmap
+        import mmap
         mavlogfile.__init__(self, filename)
         self.f.seek(0, 2)
         self.data_len = self.f.tell()
@@ -2037,6 +2065,7 @@ mode_mapping_rover = {
     6 : 'FOLLOW',
     7 : 'SIMPLE',
     8 : 'DOCK',
+    9 : 'CIRCLE',
     10 : 'AUTO',
     11 : 'RTL',
     12 : 'SMART_RTL',
@@ -2070,6 +2099,7 @@ mode_mapping_blimp = {
     1 : 'MANUAL',
     2 : 'VELOCITY',
     3 : 'LOITER',
+    4 : 'RTL',
 }
 
 AP_MAV_TYPE_MODE_MAP_DEFAULT = {
@@ -2084,6 +2114,7 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     mavlink.MAV_TYPE_COAXIAL:     mode_mapping_acm,
     # plane
     mavlink.MAV_TYPE_FIXED_WING: mode_mapping_apm,
+    mavlink.MAV_TYPE_VTOL_TILTROTOR: mode_mapping_apm,
     # rover
     mavlink.MAV_TYPE_GROUND_ROVER: mode_mapping_rover,
     # boat
@@ -2096,6 +2127,18 @@ AP_MAV_TYPE_MODE_MAP_DEFAULT = {
     mavlink.MAV_TYPE_AIRSHIP: mode_mapping_blimp,
 }
 
+# cope with enumeration renaming:
+for (name, some_map) in ([
+        # plane, see https://github.com/ArduPilot/pymavlink/issues/571
+        ("MAV_TYPE_VTOL_DUOROTOR", mode_mapping_apm),
+        ("MAV_TYPE_VTOL_TAILSITTER_DUOROTOR", mode_mapping_apm),
+        ("MAV_TYPE_VTOL_QUADROTOR", mode_mapping_apm),
+        ("MAV_TYPE_VTOL_TAILSITTER_QUADROTOR", mode_mapping_apm),
+        ]):
+    try:
+        AP_MAV_TYPE_MODE_MAP_DEFAULT[getattr(mavlink, name)] = some_map
+    except AttributeError:
+        pass
 
 try:
     # Allow for using custom mode maps by importing a JSON dict from
@@ -2251,7 +2294,11 @@ def mode_mapping_bynumber(mav_type):
 def mode_string_v10(msg):
     '''mode string for 1.0 protocol, from heartbeat'''
     if msg.autopilot == mavlink.MAV_AUTOPILOT_PX4:
+        if msg.get_type() == "HIGH_LATENCY2":
+            return "Mode(%u)" % msg.custom_mode
+
         return interpret_px4_mode(msg.base_mode, msg.custom_mode)
+
     if msg.get_type() != 'HIGH_LATENCY2' and not msg.base_mode & mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED:
         return "Mode(0x%08x)" % msg.base_mode
 
@@ -2272,27 +2319,6 @@ def mode_string_acm(mode_number):
         return mode_mapping_acm[mode_number]
     return "Mode(%u)" % mode_number
 
-class x25crc(object):
-    '''CRC-16/MCRF4XX - based on checksum.h from mavlink library'''
-    def __init__(self, buf=''):
-        self.crc = 0xffff
-        self.accumulate(buf)
-
-    def accumulate(self, buf):
-        '''add in some more bytes'''
-        byte_buf = array.array('B')
-        if isinstance(buf, array.array):
-            byte_buf.extend(buf)
-        else:
-            byte_buf.fromstring(buf)
-        accum = self.crc
-        for b in byte_buf:
-            tmp = b ^ (accum & 0xff)
-            tmp = (tmp ^ (tmp<<4)) & 0xFF
-            accum = (accum>>8) ^ (tmp<<8) ^ (tmp<<3) ^ (tmp>>4)
-            accum = accum & 0xFFFF
-        self.crc = accum
-
 class MavlinkSerialPort(object):
         '''an object that looks like a serial port, but
         transmits using mavlink SERIAL_CONTROL packets'''
@@ -2302,7 +2328,7 @@ class MavlinkSerialPort(object):
                 self.baudrate = 0
                 self.timeout = timeout
                 self._debug = debug
-                self.buf = ''
+                self.buf = bytearray()
                 self.port = devnum
                 self.debug("Connecting with MAVLink to %s ..." % portname)
                 self.mav = mavutil.mavlink_connection(portname, autoreconnect=True, baud=baudrate)
@@ -2320,12 +2346,11 @@ class MavlinkSerialPort(object):
         def write(self, b):
                 '''write some bytes'''
                 from . import mavutil
-                self.debug("sending '%s' (0x%02x) of len %u\n" % (b, ord(b[0]), len(b)), 2)
                 while len(b) > 0:
                         n = len(b)
                         if n > 70:
                                 n = 70
-                        buf = [ord(x) for x in b[:n]]
+                        buf = bytearray(b[:])
                         buf.extend([0]*(70-len(buf)))
                         self.mav.mav.serial_control_send(self.port,
                                                          mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE |
@@ -2359,7 +2384,7 @@ class MavlinkSerialPort(object):
                         if self._debug > 2:
                                 print(m)
                         data = m.data[:m.count]
-                        self.buf += ''.join(str(chr(x)) for x in data)
+                        self.buf.extend(data)
 
         def read(self, n):
                 '''read some bytes'''
@@ -2370,20 +2395,17 @@ class MavlinkSerialPort(object):
                                 n = len(self.buf)
                         ret = self.buf[:n]
                         self.buf = self.buf[n:]
-                        if self._debug >= 2:
-                            for b in ret:
-                                self.debug("read 0x%x" % ord(b), 2)
                         return ret
-                return ''
+                return bytearray()
 
         def flushInput(self):
                 '''flush any pending input'''
-                self.buf = ''
+                self.buf = bytearray()
                 saved_timeout = self.timeout
                 self.timeout = 0.5
                 self._recv()
                 self.timeout = saved_timeout
-                self.buf = ''
+                self.buf = bytearray()
                 self.debug("flushInput")
 
         def setBaudrate(self, baudrate):
@@ -2447,6 +2469,20 @@ def decode_bitmask(messagetype, field, value):
             ret.append( EnumBitInfo(i, False, enum_entry_name) )
     return ret
 
+'''lookup table to map from a raw unit into a divisor and output unit'''
+dump_message_unit_decoder = {
+    "d%":     [10.0,       "%"],
+    "c%":     [100.0,      "%"],
+    "cA":     [100.0,      "A"],
+    "cdegC":  [100.0,      "degC"],
+    "cdeg":   [100.0,      "deg"],
+    "degE5":  [100000.0,   "deg"],
+    "degE7":  [10000000.0, "deg"],
+    "mG":     [1000.0,     "G"],
+    "mrad/s": [1000.0,     "rad/s"],
+    "mV":     [1000.0,     "V"]
+}
+
 def dump_message_verbose(f, m):
     '''write an excruciatingly detailed dump of message m to file descriptor f'''
     try:
@@ -2467,56 +2503,37 @@ def dump_message_verbose(f, m):
         # try to add units:
         try:
             units = m.fieldunits_by_name[fieldname]
+
             # perform simple unit conversions:
-            divisor = None
-            if units == "d%":
-                divisor = 10.0
-                units = "%"
-            if units == "c%":
-                divisor = 100.0
-                units = "%"
-
-            if units == "cA":
-                divisor = 100.0
-                units = "A"
-
-            elif units == "cdegC":
-                divisor = 100.0
-                units = "degC"
-
-            elif units == "cdeg":
-                divisor = 100.0
-                units = "deg"
-
-            elif units == "degE7":
-                divisor = 10000000.0
-                units = "deg"
-
-            elif units == "mG":
-                divisor = 1000.0
-                units = "G"
-
-            elif units == "mrad/s":
-                divisor = 1000.0
-                units = "rad/s"
-
-            elif units == "mV":
-                divisor = 1000.0
-                units = "V"
-
-            if divisor is not None:
+            if units in dump_message_unit_decoder:
+                divisor = dump_message_unit_decoder[units][0]
+                units = dump_message_unit_decoder[units][1]
                 if type(value) == list:
                     value = [x/divisor for x in value]
                 else:
                     value = value / divisor
 
-            # and give radians in degrees too:
+            # append degrees to fields in radians:
             if units == "rad":
                 value = "%s%s (%sdeg)" % (value, units, math.degrees(value))
             elif units == "rad/s":
                 value = "%s%s (%sdeg/s)" % (value, units, math.degrees(value))
             elif units == "rad/s/s":
                 value = "%s%s (%sdeg/s/s)" % (value, units, math.degrees(value))
+
+            # append local time if us represents unix time:
+            elif units == "us":
+                if value > (1<<50):
+                    local_time = time.localtime(int(value/1000000))
+                    time_str = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
+                    tm_zone = local_time.tm_zone
+                    value = "%s%s (%s.%06d %s)" % (value, units, time_str, value%1000000, tm_zone)
+                elif value > 1000000:
+                    value = "%s%s (%ss)" % (value, units, value / 1000000.0)
+                else:
+                    value = "%s%s" % (value, units)
+
+            # by default, just append the unit:
             else:
                 value = "%s%s" % (value, units)
         except AttributeError as e:
@@ -2527,20 +2544,22 @@ def dump_message_verbose(f, m):
 
         # format any bitmask enumerations:
         try:
-            enum_name = m.fieldenums_by_name[fieldname]
-            display = m.fielddisplays_by_name[fieldname]
-            if enum_name is not None and display == "bitmask":
-                bits = decode_bitmask(m.get_type(), fieldname, value)
-                f.write("    %s: %s\n" % (fieldname, value))
-                for bit in bits:
-                    value = bit.value
-                    name = bit.name
-                    svalue = " "
-                    if not value:
-                        svalue = "!"
-                    if name is None:
-                        name = "[UNKNOWN]"
-                    f.write("      %s %s\n" % (svalue, name))
+            display = m.fielddisplays_by_name[fieldname] if fieldname in m.fielddisplays_by_name else ""
+            if display == "bitmask":
+                # Display bitmasks as hex (dec), regardless of whether there is an enum
+                f.write("    %s: 0x%x (%d)\n" % (fieldname, value, value))
+                enum_name = m.fieldenums_by_name[fieldname] if fieldname in m.fieldenums_by_name else None
+                if enum_name is not None:
+                    bits = decode_bitmask(m.get_type(), fieldname, value)
+                    for bit in bits:
+                        value = bit.value
+                        name = bit.name
+                        svalue = " "
+                        if not value:
+                            svalue = "!"
+                        if name is None:
+                            name = "[UNKNOWN]"
+                        f.write("      %s %s\n" % (svalue, name))
                 continue
 #            except NameError as e:
 #                pass

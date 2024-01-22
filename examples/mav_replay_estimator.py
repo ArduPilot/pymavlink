@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument("log", metavar="LOG")
 parser.add_argument("--debug", action='store_true')
+parser.add_argument("--graphs", default="EK3.Roll,EK3.Pitch,EST.Roll,EST.Pitch")
 
 args = parser.parse_args()
 
@@ -70,10 +71,19 @@ def estimate(filename):
 
     output = { 'SIM.Roll' : [],
                'SIM.Pitch' : [],
+               'SIM.Yaw' : [],
                'EK3.Roll' : [],
                'EK3.Pitch' : [],
+               'EK3.Yaw' : [],
                'EST.Roll' : [],
                'EST.Pitch' : [],
+               'EST.Yaw' : [],
+               'EK3.PN' : [],
+               'EK3.PE' : [],
+               'EK3.PD' : [],
+               'EST.PN' : [],
+               'EST.PE' : [],
+               'EST.PD' : [],
                 }
 
     RGPI = None
@@ -91,12 +101,17 @@ def estimate(filename):
             tsec = m.TimeUS*1.0e-6
             output['EK3.Roll'].append((tsec, m.Roll))
             output['EK3.Pitch'].append((tsec, m.Pitch))
+            output['EK3.Yaw'].append((tsec, m.Yaw))
+            output['EK3.PN'].append((tsec, m.PN))
+            output['EK3.PE'].append((tsec, m.PE))
+            output['EK3.PD'].append((tsec, m.PD))
 
         if t == 'SIM':
             # output SITL attitude
             tsec = m.TimeUS*1.0e-6
             output['SIM.Roll'].append((tsec, m.Roll))
             output['SIM.Pitch'].append((tsec, m.Pitch))
+            output['SIM.Yaw'].append((tsec, m.Yaw))
 
         if t == 'RFRH':
             # replay frame header, used for timestamp of the frame
@@ -132,10 +147,14 @@ def estimate(filename):
             tsec = RFRH.TimeUS*1.0e-6
             output['EST.Roll'].append((tsec, degrees(r)))
             output['EST.Pitch'].append((tsec, degrees(p)))
+            output['EST.Yaw'].append((tsec, degrees(y)))
+            output['EST.PN'].append((tsec, est.pos.x))
+            output['EST.PE'].append((tsec, est.pos.y))
+            output['EST.PD'].append((tsec, est.pos.z))
 
     # graph all the fields we've output
     import matplotlib.pyplot as plt
-    for k in output.keys():
+    for k in args.graphs.split(','):
         t = [ v[0] for v in output[k] ]
         y = [ v[1] for v in output[k] ]
         plt.plot(t, y, label=k)

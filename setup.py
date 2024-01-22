@@ -11,8 +11,8 @@ except LookupError:
     func = lambda name, enc=ascii: {True: enc}.get(name=='mbcs')
     codecs.register(func)
 
-from setuptools import setup, Extension
-import glob, os, shutil, fnmatch, platform, sys
+from setuptools import setup
+import glob, os, shutil, fnmatch, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from __init__ import __version__
@@ -62,8 +62,11 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 1.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=True):
                 print("Building failed %s for protocol 1.0" % xml)
+                sys.exit(1)
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=False):
+                print("Building failed %s (Python2) for protocol 1.0" % xml)
                 sys.exit(1)
 
         for xml in v20_dialects:
@@ -72,31 +75,12 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 2.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=True):
                 print("Building failed %s for protocol 2.0" % xml)
                 sys.exit(1)
-
-extensions = []  # Assume we might be unable to build native code
-# check if we need to compile mavnative
-disable_mavnative = os.getenv("DISABLE_MAVNATIVE", False)
-if type(disable_mavnative) is str and disable_mavnative in ["True", "true", "1"]:
-    disable_mavnative = True
-else:
-    disable_mavnative = False
-
-if platform.system() != 'Windows' and not disable_mavnative:
-    extensions = [ Extension('mavnative',
-                   sources=['mavnative/mavnative.c'],
-                   include_dirs=[
-                       'generator/C/include_v1.0',
-                       'generator/C/include_v2.0',
-                       'mavnative'
-                       ]
-                   ) ]
-else:
-    print("###################################")
-    print("Skipping mavnative")
-    print("###################################")
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=False):
+                print("Building failed %s (Python2) for protocol 2.0" % xml)
+                sys.exit(1)
 
 
 class custom_build_py(build_py):
@@ -141,14 +125,15 @@ setup (name = 'pymavlink',
                                                      'CPP11/include_v2.0/*.hpp',
                                                      'CS/*.*',
                                                      'swift/*.swift',],
-                        'pymavlink'              : ['mavnative/*.h',
-                                                    'message_definitions/v*/*.xml']
+                        'pymavlink'              : ['message_definitions/v*/*.xml']
                         },
        packages = ['pymavlink',
                    'pymavlink.generator',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
-                   'pymavlink.dialects.v20'],
+                   'pymavlink.dialects.v10.python2',
+                   'pymavlink.dialects.v20',
+                   'pymavlink.dialects.v20.python2'],
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
                    'tools/mavtogpx.py', 'tools/magfit_gps.py',
@@ -175,5 +160,4 @@ setup (name = 'pymavlink',
             'lxml',
        ],
        cmdclass={'build_py': custom_build_py},
-       ext_modules = extensions
        )

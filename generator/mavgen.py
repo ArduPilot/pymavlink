@@ -45,7 +45,7 @@ MAXIMUM_INCLUDE_FILE_NESTING = 5
 
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
 # Right now, 'JavaScript' ~= 'JavaScript_Stable', in the future it may be made equivalent to 'JavaScript_NextGen'
-supportedLanguages = ["C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11"]
+supportedLanguages = ["Ada", "C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python2", "Python3", "Python", "Lua", "WLua", "ObjC", "Swift", "Java", "C++11"]
 
 
 def mavgen(opts, args):
@@ -117,7 +117,10 @@ def mavgen(opts, args):
                 break
 
         if mavparse.check_duplicates(xml):
-            sys.exit(1)
+            return False
+        if opts.validate and mavparse.check_missing_enum(xml):
+            return False
+        return True
 
     def update_includes():
         """Update dialects with crcs etc of included files.  Included files
@@ -237,7 +240,8 @@ def mavgen(opts, args):
         xml.append(mavparse.MAVXML(fname, opts.wire_protocol))
 
     # expand includes
-    expand_includes()
+    if not expand_includes():
+        return False
     update_includes()
 
     print("Found %u MAVLink message types in %u XML files" % (
@@ -246,8 +250,18 @@ def mavgen(opts, args):
     # convert language option to lowercase and validate
     opts.language = opts.language.lower()
     if opts.language == 'python':
+        # We support generating type annotations starting with
+        # python3.6. Type annotations were introduced in 3.5, but
+        # useful things like variable annotations are only supported
+        # starting with 3.6.
         from . import mavgen_python
-        mavgen_python.generate(opts.output, xml)
+        mavgen_python.generate(opts.output, xml, enable_type_annotations=sys.version_info >= (3, 6))
+    elif opts.language == 'python2':
+        from . import mavgen_python
+        mavgen_python.generate(opts.output, xml, enable_type_annotations=False)
+    elif opts.language == 'python3':
+        from . import mavgen_python
+        mavgen_python.generate(opts.output, xml, enable_type_annotations=True)
     elif opts.language == 'c':
         from . import mavgen_c
         mavgen_c.generate(opts.output, xml)
@@ -281,6 +295,12 @@ def mavgen(opts, args):
     elif opts.language == 'c++11':
         from . import mavgen_cpp11
         mavgen_cpp11.generate(opts.output, xml)
+    elif opts.language == 'ada':
+        if opts.wire_protocol != mavparse.PROTOCOL_1_0:
+            raise DeprecationWarning("Error! Mavgen_Ada only supports protocol version 1.0")
+        else:
+            from . import mavgen_ada
+            mavgen_ada.generate(opts.output, xml)
     else:
         print("Unsupported language %s" % opts.language)
 
@@ -298,26 +318,31 @@ class Opts(object):
         self.strict_units = strict_units
 
 
-def mavgen_python_dialect(dialect, wire_protocol):
+def mavgen_python_dialect(dialect, wire_protocol, with_type_annotations):
     '''generate the python code on the fly for a MAVLink dialect'''
     dialects = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'dialects')
     mdef = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'message_definitions')
+    legacy_path = "python2" if not with_type_annotations else ""
     if wire_protocol == mavparse.PROTOCOL_0_9:
-        py = os.path.join(dialects, 'v09', dialect + '.py')
+        py = os.path.join(dialects, 'v09', legacy_path, dialect + '.py')
         xml = os.path.join(dialects, 'v09', dialect + '.xml')
         if not os.path.exists(xml):
             xml = os.path.join(mdef, 'v0.9', dialect + '.xml')
     elif wire_protocol == mavparse.PROTOCOL_1_0:
-        py = os.path.join(dialects, 'v10', dialect + '.py')
+        py = os.path.join(dialects, 'v10', legacy_path, dialect + '.py')
         xml = os.path.join(dialects, 'v10', dialect + '.xml')
         if not os.path.exists(xml):
             xml = os.path.join(mdef, 'v1.0', dialect + '.xml')
     else:
-        py = os.path.join(dialects, 'v20', dialect + '.py')
+        py = os.path.join(dialects, 'v20', legacy_path, dialect + '.py')
         xml = os.path.join(dialects, 'v20', dialect + '.xml')
         if not os.path.exists(xml):
             xml = os.path.join(mdef, 'v1.0', dialect + '.xml')
-    opts = Opts(py, wire_protocol)
+
+    if with_type_annotations:
+        opts = Opts(py, wire_protocol, language="Python3")
+    else:
+        opts = Opts(py, wire_protocol, language='Python2')
 
     # Python 2 to 3 compatibility
     try:
@@ -331,6 +356,8 @@ def mavgen_python_dialect(dialect, wire_protocol):
     try:
         xml = os.path.relpath(xml)
         if not mavgen(opts, [xml]):
+            sys.stdout.seek(0)
+            stdout_saved.write(sys.stdout.getvalue())
             sys.stdout = stdout_saved
             return False
     except Exception:

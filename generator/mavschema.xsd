@@ -117,8 +117,8 @@
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
     <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
-    <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
-    <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
+    <xs:enumeration value="degE5"/>    <!-- degrees * 1E5 -->
+    <xs:enumeration value="degE7"/>    <!-- degrees * 1E7 -->
     <xs:enumeration value="rpm"/>      <!-- rotations per minute -->
     <!-- electricity -->
     <xs:enumeration value="V"/>        <!-- Volt -->
@@ -128,6 +128,7 @@
     <xs:enumeration value="cA"/>       <!-- centi-Ampere -->
     <xs:enumeration value="mA"/>       <!-- milli-Ampere -->
     <xs:enumeration value="mAh"/>      <!-- milli-Ampere hour -->
+    <xs:enumeration value="Ah"/>       <!-- Ampere hour -->
     <!-- magnetism -->
     <xs:enumeration value="mT"/>       <!-- milli-Tesla -->
     <xs:enumeration value="gauss"/>    <!-- Gauss -->
@@ -183,6 +184,7 @@
 <!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
 <xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- entry has lat/lon/alt location -->
 <xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- entry is a destination -->
+<xs:attribute name="missionOnly" type="xs:boolean" default="true"/>  <!-- entry only makes sense in missions, not commands -->
 
 <!-- definition of complex elements -->
 <xs:element name="param">
@@ -231,6 +233,9 @@
         <xs:attribute ref="enum" />
         <xs:attribute ref="display" />
         <xs:attribute ref="units" />
+        <xs:attribute ref="increment"/>
+        <xs:attribute ref="minValue"/>
+        <xs:attribute ref="maxValue"/>        
         <xs:attribute ref="default" />
         <xs:attribute ref="instance" />
         <xs:attribute ref="invalid" />
@@ -254,6 +259,7 @@
         <xs:attribute ref="name" use="required"/>
         <xs:attribute ref="hasLocation"/>
         <xs:attribute ref="isDestination"/>
+        <xs:attribute ref="missionOnly"/>
     </xs:complexType>
 </xs:element>
 

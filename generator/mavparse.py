@@ -368,8 +368,6 @@ class MAVXML(object):
             for m in self.message:
                 if m.id <= 255:
                     m2.append(m)
-                else:
-                    print("Ignoring MAVLink2 message %s" % m.name)
             self.message = m2
 
         for m in self.message:
@@ -555,6 +553,21 @@ def check_duplicates(xml):
                     return True
                 enummap[s1] = enummap[s2] = "%s.%s = %s @ %s:%u" % (enum.name, entry.name, entry.value, entry.origin_file, entry.origin_line)
 
+    return False
+
+def check_missing_enum(xml):
+    '''check for enum fields pointing to invalid enums'''
+
+    all_enums = set()
+    for x in xml:
+        for enum in x.enum:
+            all_enums.add(enum.name)
+    for x in xml:
+        for m in x.message:
+            for f in m.fields:
+                if f.enum and f.enum not in all_enums:
+                    print('Enum %s in %s.%s does not exist' % (f.enum, m.name, f.name))
+                    return True
     return False
 
 

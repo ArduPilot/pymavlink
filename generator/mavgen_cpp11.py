@@ -41,6 +41,10 @@ MACROS = {
     'MIN': 'MIN_',
     'MAX': 'MAX_',
     'NO_DATA': 'NO_DATA_',  # fix uAvionix enum bug
+    'NULL': 'NULL_',
+    'TRUE': 'TRUE_',
+    'FALSE': 'FALSE_',
+    'EOF': 'EOF_',
 }
 
 EType = collections.namedtuple('EType', ('type', 'max'))
