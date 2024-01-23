@@ -136,7 +136,7 @@ def reduce_rate_msg(m, reduction_rate):
     '''return True if this msg should be discarded by reduction'''
     global last_msg_rate_t
     mtype = m.get_type()
-    if mtype in ['PARM','MSG','FMT','FMTU','MULT','MODE','EVT','UNIT']:
+    if mtype in ['PARM','MSG','FMT','FMTU','MULT','MODE','EVT','UNIT', 'VER']:
         return False
     t = getattr(m,'_timestamp',None)
     if t is None:
@@ -258,7 +258,7 @@ while True:
             continue
 
     if not mavutil.evaluate_condition(args.condition, mlog.messages) and (
-            not (m_type in ['FMT', 'FMTU', 'MULT', 'PARM', 'MODE', 'UNIT'] and args.meta)):
+            not (m_type in ['FMT', 'FMTU', 'MULT', 'PARM', 'MODE', 'UNIT', 'VER'] and args.meta)):
         continue
     if args.source_system is not None and args.source_system != m.get_srcSystem():
         continue
