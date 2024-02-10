@@ -39,6 +39,7 @@ jspack = require("jspack").jspack,
     events = require("events"), // for .emit(..), MAVLink20Processor inherits from events.EventEmitter
     util = require("util");
 
+var Buffer = require('buffer').Buffer; // required in react - no impact in node
 var Long = require('long');
 
 // Add a convenience method to Buffer
