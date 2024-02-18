@@ -117,7 +117,7 @@ class MAVParmDict(dict):
             if not fnmatch.fnmatch(a[0].upper(), wildcard.upper()):
                 continue
             value = a[1].strip()
-            if value.lower().startswith('0x'):
+            if isinstance(value, str) and value.lower().startswith('0x'):
                 numeric_value = int(value[2:], 16)
             else:
                 numeric_value = float(value)
