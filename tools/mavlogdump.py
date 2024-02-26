@@ -187,21 +187,20 @@ if istlog and args.format == 'csv': # we know our fields from the get-go
                 currentOffset += len(fields)
             except IndexError:
                 quit()
+            except AttributeError:
+                print("Message type '%s' not found" % (type))
+                quit()
     except TypeError:
         print("You must specify a list of message types if outputting CSV format via the --types argument.")
         exit()
 
     # The first line output are names for all columns
-    csv_out = ["" for x in fields]
     print(args.csv_sep.join(fields))
 
-if isbin and args.format == 'csv': # need to accumulate columns from message
+if (isbin or islog) and args.format == 'csv': # need to accumulate columns from message
     if types is None or len(types) != 1:
         print("Need exactly one type when dumping CSV from bin file")
         quit()
-
-# Track the last timestamp value. Used for compressing data for the CSV output format.
-last_timestamp = None
 
 # Track types found
 available_types = set()
@@ -217,7 +216,11 @@ if types is not None and hasattr(mlog, 'name_to_id'):
                 match_types = []
             match_types.append(k)
 
-if isbin and args.format == 'csv':
+if (isbin or islog) and args.format == 'csv':
+    # Make sure the specified type was found
+    if match_types is None:
+        print("Specified type '%s' not found in log file" % (types[0]))
+        quit()
     # we need FMT messages for column headings
     match_types.append("FMT")
 
@@ -226,17 +229,12 @@ MAT = {}    # Dictionary to hold output data for 'mat' format option
 while True:
     m = mlog.recv_match(blocking=args.follow, type=match_types)
     if m is None:
-        # write the final csv line before exiting
-        if args.format == 'csv' and csv_out:
-          csv_out[0] = "{:.8f}".format(last_timestamp)
-          print(args.csv_sep.join(csv_out))
         break
     m_type = m.get_type()
     available_types.add(m_type)
-    if isbin and m_type == "FMT" and args.format == 'csv':
+    if (isbin or islog) and m_type == "FMT" and args.format == 'csv':
         if m.Name == types[0]:
             fields += m.Columns.split(',')
-            csv_out = ["" for x in fields]
             print(args.csv_sep.join(fields))
 
     if args.reduce and reduce_msg(m_type, args.reduce):
@@ -329,27 +327,13 @@ while True:
     # CSV format outputs columnar data with a user-specified delimiter
     elif args.format == 'csv':
         data = m.to_dict()
-
-        # If this message has a duplicate timestamp, copy its data into the existing data list. Also
-        # do this if it's the first message encountered.
-        if timestamp == last_timestamp or last_timestamp is None:
-            if isbin:
-                newData = [str(data[y]) if y != "timestamp" else "" for y in fields]
-            else:
-                newData = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
-
-            for i, val in enumerate(newData):
-                if val:
-                    csv_out[i] = val
-
-        # Otherwise if this is a new timestamp, print out the old output data, and store the current message for later output.
+        if isbin or islog:
+            csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
         else:
-            csv_out[0] = "{:.8f}".format(last_timestamp)
-            print(args.csv_sep.join(csv_out))
-            if isbin:
-                csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
-            else:
-                csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
+            csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
+        csv_out[0] = "{:.8f}".format(timestamp)
+        print(args.csv_sep.join(csv_out))
+
     # MAT format outputs data to a .mat file specified through the
     # --mat_file option
     elif args.format == 'mat':
@@ -392,9 +376,6 @@ while True:
         if args.show_seq:
             s += " seq=%u" % m.get_seq()
         print(s)
-
-    # Update our last timestamp value.
-    last_timestamp = timestamp
 
 # Export the .mat file
 if args.format == 'mat':

@@ -27,18 +27,20 @@
 <xs:attribute name="value"> <!-- used in entry elements -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
-        <xs:pattern value="\d{1,10}"/> <!-- base 10 int -->
-        <xs:pattern value="0[xX][0-9a-fA-F]{1,8}"/> <!-- base 16 -->
-        <xs:pattern value="0[bB][0-1]{1,32}"/> <!-- base 1 -->
+        <xs:pattern value="\d{1,20}"/> <!-- base 10 int -->
+        <xs:pattern value="0[xX][0-9a-fA-F]{1,16}"/> <!-- base 16 -->
+        <xs:pattern value="0[bB][0-1]{1,64}"/> <!-- base 2 -->
+        <xs:pattern value="2\*\*\d{1,2}"/> <!-- power of 2 -->
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
 <xs:attribute name="default"> <!-- used in enum field elements -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
-        <xs:pattern value="\d{1,10}"/> <!-- base 10 int -->
-        <xs:pattern value="0[xX][0-9a-fA-F]{1,8}"/> <!-- base 16 -->
-        <xs:pattern value="0[bB][0-1]{1,32}"/> <!-- base 1 -->
+        <xs:pattern value="\d{1,20}"/> <!-- base 10 int -->
+        <xs:pattern value="0[xX][0-9a-fA-F]{1,16}"/> <!-- base 16 -->
+        <xs:pattern value="0[bB][0-1]{1,64}"/> <!-- base 2 -->
+        <xs:pattern value="2\*\*\d{1,2}"/> <!-- power of 2 -->
         <xs:pattern value="NaN"/> <!-- Allow not-a-number as a default (for params) -->
     </xs:restriction>
   </xs:simpleType>
