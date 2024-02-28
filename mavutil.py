@@ -1258,7 +1258,7 @@ class mavtcp(mavfile):
                         self.port.close()
                         self.port = None
                     raise e
-                logger.info(f"{e} sleeping")
+                logger.info(str(e) + " sleeping")
                 time.sleep(1)
         self.port.setblocking(0)
         set_close_on_exec(self.port.fileno())
