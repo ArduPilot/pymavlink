@@ -9,7 +9,8 @@ from __future__ import print_function
 from __future__ import absolute_import
 from builtins import object
 from builtins import sum as builtin_sum
-
+import logging
+logger = logging.getLogger('pymavlink')
 from math import *
 
 try:
@@ -573,7 +574,7 @@ def distance_two(MSG1, MSG2, horizontal=True):
     try:
         return _distance_two(MSG1, MSG2)
     except Exception as ex:
-        print(ex)
+        logger.info(ex)
         return None
 
 first_fix = None
@@ -620,7 +621,7 @@ def airspeed(VFR_HUD, ratio=None, used_ratio=None, offset=None):
         if 'ARSPD_RATIO' in mav.params:
             used_ratio = mav.params['ARSPD_RATIO']
         else:
-            print("no ARSPD_RATIO in mav.params")
+            logger.info("no ARSPD_RATIO in mav.params")
             used_ratio = ratio
     if hasattr(VFR_HUD,'airspeed'):
         airspeed = VFR_HUD.airspeed
