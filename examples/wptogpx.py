@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 example program to extract GPS data from a waypoint file, and create a GPX

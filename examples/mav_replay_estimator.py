@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 estimate attitude from an ArduPilot replay log using a python state estimator
