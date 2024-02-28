@@ -257,7 +257,8 @@ def generate_classes(outf, msgs, xml):
     def field_descriptions(fields):
         ret = ""
         for f in fields:
-            ret += "                %-18s        : %s (%s)\n" % (f.name, f.description.strip(), f.type)
+            if not f.omit_arg:
+                ret += "                %-18s        : %s (%s)\n" % (f.name, f.description.strip(), f.type)
         return ret
 
     # now do all the messages
@@ -265,10 +266,13 @@ def generate_classes(outf, msgs, xml):
 
         # assemble some strings we'll use later in outputting ..
         comment = "%s\n\n%s" % (wrapper.fill(m.description.strip()), field_descriptions(m.fields))
-        selffieldnames = 'self, '
+        argfieldnames = []
+        conststr = ""
         for f in m.fields:
-            selffieldnames += '%s, ' % f.name
-        selffieldnames = selffieldnames[:-2]
+            if not f.omit_arg:
+                argfieldnames.append(f.name)
+            else:
+                conststr = conststr + "    this.%s = %s;\n" % (f.name, f.const_value)
 
         # instance field support copied from mavgen_python
         if m.instance_field is not None:
@@ -289,11 +293,11 @@ def generate_classes(outf, msgs, xml):
         outf.write("    %s.messages.%s = function(" % ( get_mavhead(xml), m.name.lower() ) )
         outf.write(" ...moreargs ) {\n")
         # passing the dynamic args into the correct attributes, we can call the constructor with or without the 'moreargs'
-        outf.write("     [ this.%s ] = moreargs;\n" % " , this.".join(m.fieldnames))
+        outf.write("    [ this.%s ] = moreargs;\n" % " , this.".join(argfieldnames))
+        outf.write(conststr)
 
         # body: set message type properties    
         outf.write("""
-
     this._format = '%s';
     this._id = %s.MAVLINK_MSG_ID_%s;
     this.order_map = %s;
