@@ -177,7 +177,7 @@
 
 <xs:simpleType name="factor">
   <xs:restriction base="xs:string">
-    <xs:enumeration value="1E2"/>        <!-- value scaled up by 100 -->
+    <xs:enumeration value="1E-2"/>        <!-- actual value = stated value / 100 -->
   </xs:restriction>
 </xs:simpleType>
 
