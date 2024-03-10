@@ -76,6 +76,10 @@ if args.profile:
     yappi.start()
 
 if args.format == 'mat':
+    # Check that the mat_file argument has been specified
+    if args.mat_file is None:
+        print("mat_file argument must be specified when mat format is selected")
+        quit()
     # Load these modules here, as they're only needed for MAT file creation
     import scipy.io
     import numpy as np
