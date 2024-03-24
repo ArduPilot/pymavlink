@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Generate a message using different MAVLink versions, put in a buffer and then read from it.
