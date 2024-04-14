@@ -293,12 +293,85 @@ class DFMessage(object):
             ret = ret[:-2]
         return ret + '}'
 
+    def dump_verbose_bitmask(self, f, c, val, field_metadata):
+        try:
+            try:
+                bitmask = field_metadata["bitmask"]
+            except Exception:
+                return
+
+            # work out how many bits to show:
+            t = field_metadata.get("type")
+            bit_count = None
+            if t == "uint8_t":
+                bit_count = 8
+            elif t == "uint16_t":
+                bit_count = 16
+            elif t == "uint32_t":
+                bit_count = 32
+
+            if bit_count is None:
+                return
+
+            highest = -1
+
+            # we show bit values at least up to the highest bit set:
+            for i in range(bit_count):
+                if val & (1<<i):
+                    highest = i
+
+            # we show bit values at least up until the highest
+            # bit we have a description for:
+            for bit in bitmask.bit:
+                bit_offset = int(math.log(bit["value"], 2))
+                if bit_offset > highest:
+                    highest = bit_offset
+
+            for i in range(bit_offset):
+                bit_value = 1 << i
+                done = False
+                for bit in bitmask.bit:
+                    if bit["value"] != bit_value:
+                        continue
+                    if val & bit_value:
+                        bang = ""
+                    else:
+                        bang = "!"
+                    bit_name = bit.get('name')
+                    bit_desc = None
+                    try:
+                        bit_desc = bit["description"]
+                    except KeyError:
+                        pass
+                    if bit_desc is None:
+                        f.write("        %s%s\n" % (bang, bit_name,))
+                    else:
+                        f.write("        %s%s (%s)\n" % (bang, bit_name, bit_desc))
+                    done = True
+                    break
+                if not done:
+                    f.write("        %{s}UNKNOWN_BIT%s\n" % (bang, str(i)))
+        except Exception as e:
+            # print(e)
+            pass
+
     def dump_verbose(self, f):
         is_py3 = sys.version_info >= (3,0)
         timestamp = "%s.%03u" % (
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self._timestamp)),
             int(self._timestamp*1000.0)%1000)
         f.write("%s: %s\n" % (timestamp, self.fmt.name))
+
+        field_metadata_by_name = {}
+        try:
+            metadata_tree = self._parent.metadata.metadata_tree()
+            metadata = metadata_tree[self.fmt.name]
+            for fm in metadata["fields"].field:
+                field_metadata_by_name[fm.get("name")] = fm
+        except Exception as e:
+            # print(e)
+            pass
+
         for c in self.fmt.columns:
             # Get the value
             val = self.__getattr__(c)
@@ -324,6 +397,10 @@ class DFMessage(object):
             else:
                 # Append the unit
                 f.write(" %s\n" % (unit))
+
+            # if this is a bitmask then print out all bits set:
+            if c in field_metadata_by_name:
+                self.dump_verbose_bitmask(f, c, val, field_metadata_by_name[c])
 
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
