@@ -49,7 +49,7 @@ ${MAVHEAD} = function(){};
 ${MAVHEAD}.x25Crc = function(buffer, crcIN) {
 
     var bytes = buffer;
-    var crcOUT = crcIN || 0xffff;
+    var crcOUT = crcIN ===  undefined ? 0xffff : crcIN;
     _.each(bytes, function(e) {
         var tmp = e ^ (crcOUT & 0xff);
         tmp = (tmp ^ (tmp << 4)) & 0xff;
