@@ -570,7 +570,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     messageChecksum = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum);
     
     if ( receivedChecksum != messageChecksum ) {
-        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum );
+        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got ' + receivedChecksum + ' checksum, calculated payload checksum as '+messageChecksum );
     }
 
     var paylen = jspack.CalcLength(decoder.format);

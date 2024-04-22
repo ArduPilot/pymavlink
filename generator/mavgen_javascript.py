@@ -846,7 +846,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     var messageChecksum2 = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum); 
  
     if ( receivedChecksum != messageChecksum2 ) { 
-        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum2 ); 
+        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got ' + receivedChecksum + ' checksum, calculated payload checksum as '+messageChecksum2 );
     }
  
     // now check the signature... 
