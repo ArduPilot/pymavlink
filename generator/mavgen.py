@@ -23,8 +23,10 @@ General process:
 '''
 
 from __future__ import print_function
-from future import standard_library
-standard_library.install_aliases()
+import sys
+if sys.version_info <= (3,10):
+    from future import standard_library
+    standard_library.install_aliases()
 from builtins import object
 import os
 import re
