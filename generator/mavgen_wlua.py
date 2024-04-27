@@ -308,19 +308,37 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
         else:
             field_var = t.substitute("${fmsg}_${fname}${findex}", {'fmsg': msg.name, 'fname': field.name, 'findex': index_text})
 
-        t.write(outf,
+        # If there is an associated enum and the datatype is not uint, we need to extract
+        # and pass the value to add_le, as the raw and ProtoField types will not match.
+        # This occurs in the case of using a command field to represent an enum or bitmask
+        if enum_obj and tvb_func != "le_uint":
+            value_extracted = True
+            t.write(outf,
 """
     tvbrange = padded(offset + ${foffset}, ${fbytes})
     value = tvbrange:${ftvbfunc}()
     subtree = tree:add_le(f.${fvar}, tvbrange, value)
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
+        else:
+            value_extracted = False
+            t.write(outf,
+"""
+    tvbrange = padded(offset + ${foffset}, ${fbytes})
+    subtree = tree:add_le(f.${fvar}, tvbrange)
+""", {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         unit = field.units.replace("[","").replace("]","")
         global unit_decoder_mapping
         if unit in unit_decoder_mapping:
+            if not value_extracted:
+                t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})
+                value_extracted = True
             t.write(outf,"    subtree:append_text(" + unit_decoder_mapping[unit] + ")\n")
 
         if enum_obj and enum_obj.bitmask:
+            if not value_extracted:
+                t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})
+                value_extracted = True
             valuemethod = ":tonumber()" if tvb_func == "le_uint64" else ""
             t.write(outf,
 """
