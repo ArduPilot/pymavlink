@@ -48,6 +48,8 @@ except ImportError:
         ("common.xml", "gps_global_origin.pcapng"),
         # test command specific params in MISSION_ITEM_INT are shown
         ("common.xml", "mission_item_int.pcapng"),
+        # test multipliers on eph and epv params of GPS_RAW_INT are handled
+        ("common.xml", "gps_raw_int.pcapng"),
     ],
 )
 def test_wlua(request, tmp_path, snapshot, mdef, pcap):
