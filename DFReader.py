@@ -327,30 +327,26 @@ class DFMessage(object):
                 if bit_offset > highest:
                     highest = bit_offset
 
-            for i in range(bit_offset):
+            for i in range(highest+1):
                 bit_value = 1 << i
+                if val & bit_value:
+                    bang = " "
+                else:
+                    bang = "!"
                 done = False
                 for bit in bitmask.bit:
                     if bit["value"] != bit_value:
                         continue
-                    if val & bit_value:
-                        bang = ""
-                    else:
-                        bang = "!"
                     bit_name = bit.get('name')
-                    bit_desc = None
-                    try:
-                        bit_desc = bit["description"]
-                    except KeyError:
-                        pass
-                    if bit_desc is None:
-                        f.write("        %s%s\n" % (bang, bit_name,))
+                    f.write("      %s %s" % (bang, bit_name,))
+                    if hasattr(bit, 'description'):
+                        f.write(" (%s)\n" % bit["description"])
                     else:
-                        f.write("        %s%s (%s)\n" % (bang, bit_name, bit_desc))
+                        f.write("\n")
                     done = True
                     break
                 if not done:
-                    f.write("        %{s}UNKNOWN_BIT%s\n" % (bang, str(i)))
+                    f.write("      %s UNKNOWN_BIT%d\n" % (bang, i))
         except Exception as e:
             # print(e)
             pass
