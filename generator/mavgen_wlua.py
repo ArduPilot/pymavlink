@@ -81,7 +81,10 @@ local function time_usec_decode(value)
         d = os.date("%Y-%m-%d %H:%M:%S",value:tonumber() / 1000000.0)
         us = value % 1000000
         us = string.format("%06d",us:tonumber())
-        tz = os.date(" %Z",value:tonumber() / 1000000.0)
+        ok, tz = pcall(os.date," %Z",value:tonumber() / 1000000.0)
+        if not ok then
+            tz = os.date(" %z",value:tonumber() / 1000000.0)
+        end
         return " (" .. d .. "." .. us .. tz .. ")"
     elseif value < 1000000 then
         return ""
