@@ -25,10 +25,10 @@ parser.add_argument("--wire-protocol", choices=[mavparse.PROTOCOL_0_9, mavparse.
 parser.add_argument("--no-validate", action="store_false", dest="validate", default=mavgen.DEFAULT_VALIDATE, help="Do not perform XML validation. Can speed up code generation if XML files are known to be correct.")
 parser.add_argument("--error-limit", default=mavgen.DEFAULT_ERROR_LIMIT, help="maximum number of validation errors to display")
 parser.add_argument("--strict-units", action="store_true", dest="strict_units", default=mavgen.DEFAULT_STRICT_UNITS, help="Perform validation of units attributes.")
-parser.add_argument("--exit-code", action="store_true", dest="exit_code", default=False, help="Return an error code if generation fails.")
 parser.add_argument("definitions", metavar="XML", nargs="+", help="MAVLink definitions")
 args = parser.parse_args()
 
 ok = mavgen.mavgen(args, args.definitions)
-if not ok and args.exit_code:
+# report failure in the exit code when no exception is thrown
+if not ok:
     exit(1)
