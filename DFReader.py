@@ -382,17 +382,18 @@ class DFMessage(object):
                     f.write("    %s: %s" % (c, val))
                 except UnicodeDecodeError:
                     f.write("    %s: %s" % (c, to_string(val)))
+
             # Append the unit to the output
             unit = self.fmt.get_unit(c)
-            if unit == "":
-                # No unit specified - just output the newline
-                f.write("\n")
-            elif unit.startswith("rad"):
+            if unit.startswith("rad"):
                 # For rad or rad/s, add the degrees conversion too
-                f.write(" %s (%s %s)\n" % (unit, math.degrees(val), unit.replace("rad","deg")))
+                f.write(" %s (%s %s)" % (unit, math.degrees(val), unit.replace("rad","deg")))
             else:
                 # Append the unit
-                f.write(" %s\n" % (unit))
+                f.write(" %s" % (unit))
+
+            # output the newline
+            f.write("\n")
 
             # if this is a bitmask then print out all bits set:
             if c in field_metadata_by_name:
