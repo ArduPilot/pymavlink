@@ -383,6 +383,20 @@ class DFMessage(object):
                 except UnicodeDecodeError:
                     f.write("    %s: %s" % (c, to_string(val)))
 
+            # see if this is an enumeration entry, emit enumeration
+            # entry name if it is
+            if c in field_metadata_by_name:
+                fm = field_metadata_by_name[c]
+                fm_enum = getattr(fm, "enum", None)
+                if fm_enum is not None:
+                    enum_entry_name = "?????"  # default, "not found" value
+                    for entry in fm_enum.iterchildren():
+                        if int(entry.value) == int(val):
+                            enum_entry_name = entry.get('name')
+                            break
+
+                    f.write(f" ({enum_entry_name})")
+
             # Append the unit to the output
             unit = self.fmt.get_unit(c)
             if unit.startswith("rad"):
