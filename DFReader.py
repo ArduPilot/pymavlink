@@ -384,6 +384,11 @@ class DFMessage(object):
                 except UnicodeDecodeError:
                     f.write("    %s: %s" % (c, to_string(val)))
 
+            # If this is a bitmask, then append the hex value
+            if c in field_metadata_by_name:
+                if hasattr(field_metadata_by_name[c], 'bitmask'):
+                    f.write(" (0x%x)" % val)
+
             # see if this is an enumeration entry, emit enumeration
             # entry name if it is
             if c in field_metadata_by_name:
