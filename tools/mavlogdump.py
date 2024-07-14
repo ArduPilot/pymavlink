@@ -76,6 +76,10 @@ if args.profile:
     yappi.start()
 
 if args.format == 'mat':
+    # Check that the mat_file argument has been specified
+    if args.mat_file is None:
+        print("mat_file argument must be specified when mat format is selected")
+        sys.exit(1)
     # Load these modules here, as they're only needed for MAT file creation
     import scipy.io
     import numpy as np
@@ -186,13 +190,13 @@ if istlog and args.format == 'csv': # we know our fields from the get-go
                 offsets[type] = currentOffset
                 currentOffset += len(fields)
             except IndexError:
-                quit()
+                sys.exit(1)
             except AttributeError:
                 print("Message type '%s' not found" % (type))
-                quit()
+                sys.exit(1)
     except TypeError:
         print("You must specify a list of message types if outputting CSV format via the --types argument.")
-        exit()
+        sys.exit(1)
 
     # The first line output are names for all columns
     print(args.csv_sep.join(fields))
@@ -200,7 +204,7 @@ if istlog and args.format == 'csv': # we know our fields from the get-go
 if (isbin or islog) and args.format == 'csv': # need to accumulate columns from message
     if types is None or len(types) != 1:
         print("Need exactly one type when dumping CSV from bin file")
-        quit()
+        sys.exit(1)
 
 # Track types found
 available_types = set()
@@ -220,7 +224,7 @@ if (isbin or islog) and args.format == 'csv':
     # Make sure the specified type was found
     if match_types is None:
         print("Specified type '%s' not found in log file" % (types[0]))
-        quit()
+        sys.exit(1)
     # we need FMT messages for column headings
     match_types.append("FMT")
 

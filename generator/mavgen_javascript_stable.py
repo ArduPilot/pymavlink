@@ -49,7 +49,7 @@ ${MAVHEAD} = function(){};
 ${MAVHEAD}.x25Crc = function(buffer, crcIN) {
 
     var bytes = buffer;
-    var crcOUT = crcIN || 0xffff;
+    var crcOUT = crcIN ===  undefined ? 0xffff : crcIN;
     _.each(bytes, function(e) {
         var tmp = e ^ (crcOUT & 0xff);
         tmp = (tmp ^ (tmp << 4)) & 0xff;
@@ -570,7 +570,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     messageChecksum = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum);
     
     if ( receivedChecksum != messageChecksum ) {
-        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got 0x' + receivedChecksum + ' checksum, calculated payload checksum as 0x'+messageChecksum );
+        throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got ' + receivedChecksum + ' checksum, calculated payload checksum as '+messageChecksum );
     }
 
     var paylen = jspack.CalcLength(decoder.format);

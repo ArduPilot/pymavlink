@@ -47,6 +47,12 @@ def get_field_info(field):
         field_type = "ftypes." + mavlink_type.upper()
         tvb_func = "le_" + mavlink_type
 
+    # If a multiplier is defined, then add this to the displayed mavlink type
+    # and set the field type to DOUBLE to ensure that the full number is shown
+    if field.multiplier != "":
+        mavlink_type = mavlink_type + "*" + field.multiplier
+        field_type = "ftypes.DOUBLE"
+
     return mavlink_type, field_type, tvb_func, size, count
 
 
@@ -75,7 +81,10 @@ local function time_usec_decode(value)
         d = os.date("%Y-%m-%d %H:%M:%S",value:tonumber() / 1000000.0)
         us = value % 1000000
         us = string.format("%06d",us:tonumber())
-        tz = os.date(" %Z",value:tonumber() / 1000000.0)
+        ok, tz = pcall(os.date," %Z",value:tonumber() / 1000000.0)
+        if not ok then
+            tz = os.date(" %z",value:tonumber() / 1000000.0)
+        end
         return " (" .. d .. "." .. us .. tz .. ")"
     elseif value < 1000000 then
         return ""
@@ -222,7 +231,7 @@ def generate_msg_fields(outf, msg, enums):
                 index_text = ''
 
             name = t.substitute("${fmsg}_${fname}${findex}", {'fmsg':msg.name, 'fname':f.name, 'findex':index_text})
-            label = t.substitute("${fname}${farray}", {'fname':f.name, 'farray':array_text, 'ftypename': mavlink_type})
+            label = t.substitute("${fname}${farray}", {'fname':f.name, 'farray':array_text})
             generate_field_or_param(outf, f, name, label, mavlink_type, field_type, enums)
 
     t.write(outf, '\n\n')
@@ -287,7 +296,7 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
     assert cmd is None or isinstance(cmd, mavparse.MAVEnumEntry)
     assert param is None or isinstance(param, mavparse.MAVEnumParam)
 
-    mavlink_type, _, tvb_func, size, count = get_field_info(field)
+    _, _, tvb_func, size, count = get_field_info(field)
 
     enum_name = param.enum if param else field.enum
     enum_obj = enum_name and next((e for e in enums if e.name == enum_name), None)
@@ -308,19 +317,45 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
         else:
             field_var = t.substitute("${fmsg}_${fname}${findex}", {'fmsg': msg.name, 'fname': field.name, 'findex': index_text})
 
-        t.write(outf,
+        # If there is an associated enum and the datatype is not uint, we need to extract
+        # and pass the value to add_le, as the raw and ProtoField types will not match.
+        # This occurs in the case of using a command field to represent an enum or bitmask
+        if enum_obj and tvb_func != "le_uint":
+            value_extracted = True
+            t.write(outf,
 """
     tvbrange = padded(offset + ${foffset}, ${fbytes})
     value = tvbrange:${ftvbfunc}()
     subtree = tree:add_le(f.${fvar}, tvbrange, value)
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
+        elif field.multiplier != "":
+            value_extracted = True
+            t.write(outf,
+"""
+    tvbrange = padded(offset + ${foffset}, ${fbytes})
+    value = tvbrange:${ftvbfunc}() * ${mult}
+    subtree = tree:add_le(f.${fvar}, tvbrange, value)
+""", {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var, 'mult': field.multiplier})
+        else:
+            value_extracted = False
+            t.write(outf,
+"""
+    tvbrange = padded(offset + ${foffset}, ${fbytes})
+    subtree = tree:add_le(f.${fvar}, tvbrange)
+""", {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         unit = field.units.replace("[","").replace("]","")
         global unit_decoder_mapping
         if unit in unit_decoder_mapping:
+            if not value_extracted:
+                t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})
+                value_extracted = True
             t.write(outf,"    subtree:append_text(" + unit_decoder_mapping[unit] + ")\n")
 
         if enum_obj and enum_obj.bitmask:
+            if not value_extracted:
+                t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})
+                value_extracted = True
             valuemethod = ":tonumber()" if tvb_func == "le_uint64" else ""
             t.write(outf,
 """

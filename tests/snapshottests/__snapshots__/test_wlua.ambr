@@ -533,3 +533,39 @@
     ''',
   })
 # ---
+# name: test_wlua[common.xml-gps_raw_int.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 97 bytes on wire (776 bits), 97 bytes captured (776 bits) on in
+      Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      User Datagram Protocol, Src Port: 52752, Dst Port: 14550
+      MAVLink Protocol (55)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 43
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 58
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: GPS_RAW_INT (24)
+          Payload: GPS_RAW_INT (24)
+              time_usec (uint64_t) [us]: 1583721000 (1583.721000 s)
+              fix_type (GPS_FIX_TYPE): GPS_FIX_TYPE_3D_FIX (3)
+              lat (int32_t) [degE7]: 514783466 (51.4783466 deg)
+              lon (int32_t) [degE7]: -25922214 (-2.5922214 deg)
+              alt (int32_t) [mm]: 56900
+              eph (uint16_t*1E-2): 2.33
+              epv (uint16_t*1E-2): 1.78
+              vel (uint16_t) [cm/s]: 0
+              cog (uint16_t) [cdeg]: 0
+              satellites_visible (uint8_t): 16
+          Message CRC: 0x1911
+      
+  
+    ''',
+  })
+# ---

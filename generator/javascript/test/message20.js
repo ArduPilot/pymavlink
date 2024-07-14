@@ -97,7 +97,6 @@ describe('Complete MAVLink 2.0 packet', function() {
             , base_mode=45
             , custom_mode=68
             , system_status=13
-            , mavlink_version=3 // it's NOT a v1 vs v2 thing here. 3 really is its normal value.
         );
         
         this.mav.seq = 7;
@@ -356,7 +355,6 @@ describe('MAVLink 2.0 message', function() {
             0, // base mode, mavlink.MAV_MODE_FLAG_***
             0, // custom mode
             mavlink20.MAV_STATE_STANDBY, // system status
-            3 // MAVLink version
         );
 
         this.mav = new MAVLink20Processor();

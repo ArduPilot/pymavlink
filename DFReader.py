@@ -20,7 +20,9 @@ import platform
 import time
 
 import struct
-import sys
+import gzip
+import io
+
 from . import mavutil
 
 try:
@@ -291,12 +293,81 @@ class DFMessage(object):
             ret = ret[:-2]
         return ret + '}'
 
+    def dump_verbose_bitmask(self, f, c, val, field_metadata):
+        try:
+            try:
+                bitmask = field_metadata["bitmask"]
+            except Exception:
+                return
+
+            # work out how many bits to show:
+            t = field_metadata.get("type")
+            bit_count = None
+            if t == "uint8_t":
+                bit_count = 8
+            elif t == "uint16_t":
+                bit_count = 16
+            elif t == "uint32_t":
+                bit_count = 32
+
+            if bit_count is None:
+                return
+
+            highest = -1
+
+            # we show bit values at least up to the highest bit set:
+            for i in range(bit_count):
+                if val & (1<<i):
+                    highest = i
+
+            # we show bit values at least up until the highest
+            # bit we have a description for:
+            for bit in bitmask.bit:
+                bit_offset = int(math.log(bit["value"], 2))
+                if bit_offset > highest:
+                    highest = bit_offset
+
+            for i in range(highest+1):
+                bit_value = 1 << i
+                if val & bit_value:
+                    bang = " "
+                else:
+                    bang = "!"
+                done = False
+                for bit in bitmask.bit:
+                    if bit["value"] != bit_value:
+                        continue
+                    bit_name = bit.get('name')
+                    f.write("      %s %s" % (bang, bit_name,))
+                    if hasattr(bit, 'description'):
+                        f.write(" (%s)\n" % bit["description"])
+                    else:
+                        f.write("\n")
+                    done = True
+                    break
+                if not done:
+                    f.write("      %s UNKNOWN_BIT%d\n" % (bang, i))
+        except Exception as e:
+            # print(e)
+            pass
+
     def dump_verbose(self, f):
         is_py3 = sys.version_info >= (3,0)
         timestamp = "%s.%03u" % (
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self._timestamp)),
             int(self._timestamp*1000.0)%1000)
         f.write("%s: %s\n" % (timestamp, self.fmt.name))
+
+        field_metadata_by_name = {}
+        try:
+            metadata_tree = self._parent.metadata.metadata_tree()
+            metadata = metadata_tree[self.fmt.name]
+            for fm in metadata["fields"].field:
+                field_metadata_by_name[fm.get("name")] = fm
+        except Exception as e:
+            # print(e)
+            pass
+
         for c in self.fmt.columns:
             # Get the value
             val = self.__getattr__(c)
@@ -311,17 +382,36 @@ class DFMessage(object):
                     f.write("    %s: %s" % (c, val))
                 except UnicodeDecodeError:
                     f.write("    %s: %s" % (c, to_string(val)))
+
+            # see if this is an enumeration entry, emit enumeration
+            # entry name if it is
+            if c in field_metadata_by_name:
+                fm = field_metadata_by_name[c]
+                fm_enum = getattr(fm, "enum", None)
+                if fm_enum is not None:
+                    enum_entry_name = "?????"  # default, "not found" value
+                    for entry in fm_enum.iterchildren():
+                        if int(entry.value) == int(val):
+                            enum_entry_name = entry.get('name')
+                            break
+
+                    f.write(f" ({enum_entry_name})")
+
             # Append the unit to the output
             unit = self.fmt.get_unit(c)
-            if unit == "":
-                # No unit specified - just output the newline
-                f.write("\n")
-            elif unit.startswith("rad"):
+            if unit.startswith("rad"):
                 # For rad or rad/s, add the degrees conversion too
-                f.write(" %s (%s %s)\n" % (unit, math.degrees(val), unit.replace("rad","deg")))
+                f.write(" %s (%s %s)" % (unit, math.degrees(val), unit.replace("rad","deg")))
             else:
                 # Append the unit
-                f.write(" %s\n" % (unit))
+                f.write(" %s" % (unit))
+
+            # output the newline
+            f.write("\n")
+
+            # if this is a bitmask then print out all bits set:
+            if c in field_metadata_by_name:
+                self.dump_verbose_bitmask(f, c, val, field_metadata_by_name[c])
 
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
@@ -555,6 +645,154 @@ class DFReaderClock_gps_interpolated(DFReaderClock):
         m._timestamp = self.timebase + count/rate
 
 
+class DFMetaData(object):
+    '''handle dataflash messages metadata'''
+    def __init__(self, parent):
+        self.parent = parent
+        self.data = None
+        self.metadata_load_attempted = False
+
+    def reset(self):
+        '''clear cached data'''
+        self.data = None
+        self.metadata_load_attempted = False
+
+    @staticmethod
+    def dot_pymavlink(*args):
+        '''return a path to store pymavlink data'''
+        if 'HOME' not in os.environ:
+            dir = os.path.join(os.environ['LOCALAPPDATA'], '.pymavlink')
+        else:
+            dir = os.path.join(os.environ['HOME'], '.pymavlink')
+        if len(args) == 0:
+            return dir
+        return os.path.join(dir, *args)
+
+    @staticmethod
+    def download_url(url):
+        '''download a URL and return the content'''
+        if sys.version_info.major < 3:
+            from urllib2 import urlopen as url_open
+            from urllib2 import URLError as url_error
+        else:
+            from urllib.request import urlopen as url_open
+            from urllib.error import URLError as url_error
+        try:
+            resp = url_open(url)
+        except url_error as e:
+            print('Error downloading %s : %s' % (url, e))
+            return None
+        return resp.read()
+
+    @staticmethod
+    def download():
+        # Make sure the folder to store XML in has been created
+        os.makedirs(DFMetaData.dot_pymavlink('LogMessages'), exist_ok=True)
+        # Loop through vehicles to download
+        for vehicle in ['Rover', 'Copter', 'Plane', 'Tracker', 'Blimp', 'Sub']:
+            url = 'http://autotest.ardupilot.org/LogMessages/%s/LogMessages.xml.gz' % vehicle
+            file = DFMetaData.dot_pymavlink('LogMessages', "%s.xml" % vehicle)
+            print("Downloading %s as %s" % (url, file))
+            data = DFMetaData.download_url(url)
+            if data is None:
+                continue
+            # decompress it...
+            with gzip.GzipFile(fileobj=io.BytesIO(data)) as gz:
+                data = gz.read()
+            try:
+                open(file, mode='wb').write(data)
+            except Exception as e:
+                print("Failed to save to %s : %s" % (file, e))
+
+    def metadata_tree(self, verbose=False):
+        ''' return a map between a log message and its metadata. May return
+        None if data is not available '''
+        # If we've already tried loading data, use it if we have it
+        # This avoid repeated attempts, when the file is not there
+        if self.metadata_load_attempted:
+            return self.data
+        self.metadata_load_attempted = True
+        # Get file name, based on vehicle type
+        mapping = {mavutil.mavlink.MAV_TYPE_GROUND_ROVER : "Rover",
+                   mavutil.mavlink.MAV_TYPE_FIXED_WING : "Plane",
+                   mavutil.mavlink.MAV_TYPE_QUADROTOR : "Copter",
+                   mavutil.mavlink.MAV_TYPE_HELICOPTER : "Copter",
+                   mavutil.mavlink.MAV_TYPE_ANTENNA_TRACKER : "Tracker",
+                   mavutil.mavlink.MAV_TYPE_SUBMARINE : "Sub",
+                   mavutil.mavlink.MAV_TYPE_AIRSHIP : "Blimp",
+                   }
+        if self.parent.mav_type not in mapping:
+            return None
+        path = DFMetaData.dot_pymavlink("LogMessages", "%s.xml" % mapping[self.parent.mav_type])
+        # Does the file exist?
+        if not os.path.exists(path):
+            if verbose:
+                print("Can't find '%s'" % path)
+                print("Please run 'logmessage download' from MAVExplorer, or call")
+                print("DFMetaData.download() from Python.")
+            return None
+        # Read in the XML
+        xml = open(path, 'rb').read()
+        from lxml import objectify
+        objectify.enable_recursive_str()
+        tree = objectify.fromstring(xml)
+        data = {}
+        for p in tree.logformat:
+            n = p.get('name')
+            data[n] = p
+        # Cache and return data
+        self.data = data
+        return self.data
+
+    def print_help(self, msg):
+        '''print help for a log message'''
+        data = self.metadata_tree(verbose=True)
+        if data is None:
+            return
+        if msg not in data:
+            print("No help found for message: %s" % msg)
+            return
+        node = data[msg]
+        # Message name and description
+        print("Log Message: %s\n%s\n" % (msg, node.description.text))
+        # Protect against replay messages which dont list their fields
+        if not hasattr(node.fields, 'field'):
+            return
+        namelist = []
+        unitlist = []
+        # Loop through fields to build list of name/units
+        for f in node.fields.field:
+            namelist.append(f.get('name'))
+            units = f.get('units')
+            dtype = f.get('type')
+            if units:
+                unitlist.append("[%s] " % units)
+            elif 'char' in dtype:
+                unitlist.append("[%s] " % dtype)
+            elif hasattr(f, 'enum'):
+                unitlist.append("[enum] ")
+            elif hasattr(f, 'bitmask'):
+                unitlist.append("[bitmask] ")
+            else:
+                unitlist.append("")
+        # Now get the max string length from each list
+        namelen = len(max(namelist, key=len))
+        unitlen = len(max(unitlist, key=len))
+        # Loop through fields again to do the actual printing
+        for i in range(0, len(namelist)):
+            desc = node.fields.field[i].description.text
+            print("%-*s %-*s: %s" % (namelen, namelist[i], unitlen, unitlist[i], desc))
+
+    def get_description(self, msg):
+        '''get the description of a log message'''
+        data = self.metadata_tree()
+        if data is None:
+            return None
+        if msg in data:
+            return data[msg].description.text
+        return ""
+
+
 class DFReader(object):
     '''parse a generic dataflash file'''
     def __init__(self):
@@ -572,6 +810,7 @@ class DFReader(object):
         self.percent = 0
         self.unit_lookup = {}  # lookup table of units defined by UNIT messages
         self.mult_lookup = {}  # lookup table of multipliers defined by MULT messages
+        self.metadata = DFMetaData(self)
 
     def _rewind(self):
         '''reset state on rewind'''

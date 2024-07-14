@@ -1091,8 +1091,6 @@ def ekf1_pos(EKF1):
   global ekf_origin
   from . import mavutil
   self = mavutil.mavfile_global
-  if getattr(EKF1,'C',0) != 0:
-      return None
   if ekf_origin is None:
       if not 'ORGN' in self.messages:
           return None
