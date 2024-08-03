@@ -11,3 +11,4 @@
 | wptogpx.py      |  Extract GPS data from a waypoint file, and create a GPX file, for loading into Google Earth.  |
 | mavgps.py       |  Allows connection of the uBlox u-Center software to a uBlox GPS device connected to a PX4 or Pixhawk device, using Mavlink's SERIAL_CONTROL support to route serial traffic to/from the GPS, and exposing the data to u-Center via a local TCP connection.  |
 | mavtester.py    |  Test mavlink messages.
+| status_msg.py   |  Print flight controller banner statustext message contents |
