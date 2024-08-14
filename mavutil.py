@@ -1477,12 +1477,14 @@ class mavmmaplog(mavlogfile):
         self.f.seek(0, 2)
         self.data_len = self.f.tell()
         self.f.seek(0)
-        if platform.system() == "Windows":
-            self.data_map = mmap.mmap(self.f.fileno(), self.data_len, None, mmap.ACCESS_READ)
-        else:
-            self.data_map = mmap.mmap(self.f.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
-        self._rewind()
-        self.init_arrays(progress_callback)
+        self.data_map = None
+        if self.data_len != 0:
+            if platform.system() == "Windows":
+                self.data_map = mmap.mmap(self.f.fileno(), self.data_len, None, mmap.ACCESS_READ)
+            else:
+                self.data_map = mmap.mmap(self.f.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
+            self._rewind()
+            self.init_arrays(progress_callback)
         self._flightmodes = None
 
     def _rewind(self):
@@ -1498,7 +1500,8 @@ class mavmmaplog(mavlogfile):
 
     def close(self):
         super(mavmmaplog, self).close()
-        self.data_map.close()
+        if self.data_map is not None:
+            self.data_map.close()
 
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
@@ -1618,6 +1621,8 @@ class mavmmaplog(mavlogfile):
 
     def skip_to_type(self, type):
         '''skip fwd to next msg matching given type set'''
+        if self.data_map is None:
+            return
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
             type = type.copy()
