@@ -1730,6 +1730,120 @@ class mavchildexec(mavfile):
     def write(self, buf):
         self.child.stdin.write(buf)
 
+class mavwebsocket(mavfile):
+    '''Mavlink WebSocket server, single client only'''
+    from wsproto import ConnectionType, WSConnection, utilities
+    from wsproto.events import (
+        AcceptConnection,
+        CloseConnection,
+        Request,
+        BytesMessage,
+    )
+
+    def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
+        self.ws = None
+
+        # This is a duplicate of mavtcpin
+        a = device.split(':')
+        if len(a) != 2:
+            raise ValueError("WebSocket ports must be specified as host:port")
+        self.listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listen_addr = (a[0], int(a[1]))
+        self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.listen.bind(self.listen_addr)
+        self.listen.listen(1)
+        self.listen.setblocking(0)
+        set_close_on_exec(self.listen.fileno())
+        self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        mavfile.__init__(self, self.listen.fileno(), "wsserver:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
+        self.port = None
+
+    def close_port(self):
+        self.port.close()
+        self.port = None
+        self.fd = self.listen.fileno()
+        self.ws = None
+
+    def close(self):
+        if self.port is not None:
+            self.close_port()
+        self.listen.close()
+
+    def recv(self,n=None):
+        # Based on: https://github.com/python-hyper/wsproto/blob/main/example/synchronous_server.py
+        if not self.port:
+            try:
+                (self.port, addr) = self.listen.accept()
+            except Exception:
+                return ''
+            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
+            self.port.setblocking(0) 
+            set_close_on_exec(self.port.fileno())
+            self.fd = self.port.fileno()
+
+            # Start server
+            self.ws = self.WSConnection(self.ConnectionType.SERVER)
+
+        if not self.ws:
+            # Should probbily raise a exception of some sort
+            return ''
+
+        # Read in some data and pass it to the WebSocket handeler
+        RECEIVE_BYTES = 4096
+        try:
+            in_data = self.port.recv(RECEIVE_BYTES)
+            self.ws.receive_data(in_data)
+        except socket.error as e:
+            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
+                return ''
+            self.close_port()
+            return ''
+        except self.utilities.RemoteProtocolError:
+            self.close_port()
+            return ''
+
+        # Procces WebSocket events
+        data = b""
+        reply = b""
+        keep_running = True
+        for event in self.ws.events():
+            if isinstance(event, self.Request):
+                # Negotiate new WebSocket connection
+                reply += self.ws.send(self.AcceptConnection())
+
+            elif isinstance(event, self.CloseConnection):
+                # Request to close
+                reply += self.ws.send(event.response())
+                keep_running = False
+
+            elif isinstance(event, self.BytesMessage):
+                # Some actual MAVLink data
+                data += event.data
+
+        if len(reply) > 0:
+            # Send any reply to incomming requests
+            self.port.send(reply)
+
+        if not keep_running:
+            self.close_port()
+
+        # Return the extracted data
+        return data
+
+    def write(self, buf):
+        if self.port is None or self.ws is None:
+            return
+
+        # Pack buf into WebSocket binary message
+        packed = self.ws.send(self.BytesMessage(data = buf))
+
+        try:
+            self.port.send(packed)
+        except socket.error as e:
+            if e.errno in [ errno.EPIPE ]:
+                self.close_port()
+            pass
+
 
 def mavlink_connection(device, baud=115200, source_system=255, source_component=0,
                        planner_format=None, write=False, append=False,
@@ -1762,6 +1876,8 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         return mavudp(device[7:], input=False, source_system=source_system, source_component=source_component, use_native=use_native)
     if device.startswith('udpbcast:'):
         return mavudp(device[9:], input=False, source_system=source_system, source_component=source_component, use_native=use_native, broadcast=True)
+    if device.startswith('wsserver:'):
+        return mavwebsocket(device[9:], source_system=source_system, source_component=source_component, use_native=use_native)
     # For legacy purposes we accept the following syntax and let the caller to specify direction
     if device.startswith('udp:'):
         return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native)
