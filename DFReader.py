@@ -34,6 +34,7 @@ FORMAT_TO_STRUCT = {
     "a": ("64s", None, str),
     "b": ("b", None, int),
     "B": ("B", None, int),
+    "g": ("e", None, float),
     "h": ("h", None, int),
     "H": ("H", None, int),
     "i": ("i", None, int),
