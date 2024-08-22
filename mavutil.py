@@ -1732,15 +1732,15 @@ class mavchildexec(mavfile):
 
 class mavwebsocket(mavfile):
     '''Mavlink WebSocket server, single client only'''
-    from wsproto import ConnectionType, WSConnection, utilities
-    from wsproto.events import (
-        AcceptConnection,
-        CloseConnection,
-        Request,
-        BytesMessage,
-    )
-
     def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
+        from wsproto import ConnectionType, WSConnection, utilities
+        from wsproto.events import (
+            AcceptConnection,
+            CloseConnection,
+            Request,
+            BytesMessage,
+        )
+
         self.ws = None
 
         # This is a duplicate of mavtcpin
