@@ -1738,13 +1738,8 @@ class mavchildexec(mavfile):
 class mavwebsocket(mavfile):
     '''Mavlink WebSocket server, single client only'''
     def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
-        from wsproto import ConnectionType, WSConnection, utilities
-        from wsproto.events import (
-            AcceptConnection,
-            CloseConnection,
-            Request,
-            BytesMessage,
-        )
+        # Try importing wsproto, we don't need it here but it means we fail early if its missing
+        import wsproto
 
         self.ws = None
 
@@ -1775,6 +1770,14 @@ class mavwebsocket(mavfile):
         self.listen.close()
 
     def recv(self,n=None):
+        from wsproto import ConnectionType, WSConnection, utilities
+        from wsproto.events import (
+            AcceptConnection,
+            CloseConnection,
+            Request,
+            BytesMessage,
+        )
+
         # Based on: https://github.com/python-hyper/wsproto/blob/main/example/synchronous_server.py
         if not self.port:
             try:
@@ -1787,7 +1790,7 @@ class mavwebsocket(mavfile):
             self.fd = self.port.fileno()
 
             # Start server
-            self.ws = self.WSConnection(self.ConnectionType.SERVER)
+            self.ws = WSConnection(ConnectionType.SERVER)
 
         if not self.ws:
             # Should probbily raise a exception of some sort
@@ -1803,7 +1806,7 @@ class mavwebsocket(mavfile):
                 return ''
             self.close_port()
             return ''
-        except self.utilities.RemoteProtocolError:
+        except utilities.RemoteProtocolError:
             self.close_port()
             return ''
 
@@ -1812,16 +1815,16 @@ class mavwebsocket(mavfile):
         reply = b""
         keep_running = True
         for event in self.ws.events():
-            if isinstance(event, self.Request):
+            if isinstance(event, Request):
                 # Negotiate new WebSocket connection
-                reply += self.ws.send(self.AcceptConnection())
+                reply += self.ws.send(AcceptConnection())
 
-            elif isinstance(event, self.CloseConnection):
+            elif isinstance(event, CloseConnection):
                 # Request to close
                 reply += self.ws.send(event.response())
                 keep_running = False
 
-            elif isinstance(event, self.BytesMessage):
+            elif isinstance(event, BytesMessage):
                 # Some actual MAVLink data
                 data += event.data
 
@@ -1839,8 +1842,12 @@ class mavwebsocket(mavfile):
         if self.port is None or self.ws is None:
             return
 
+        from wsproto.events import (
+            BytesMessage,
+        )
+
         # Pack buf into WebSocket binary message
-        packed = self.ws.send(self.BytesMessage(data = buf))
+        packed = self.ws.send(BytesMessage(data = buf))
 
         try:
             self.port.send(packed)
