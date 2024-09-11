@@ -11,6 +11,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 from argparse import ArgumentParser
 
+from dataclasses import dataclass
 import logging
 
 import struct
@@ -22,7 +23,7 @@ from io import BytesIO as SIO
 
 import sys
 
-from typing import Dict
+from typing import Dict, List
 from typing import Tuple
 
 from datetime import datetime
@@ -79,6 +80,12 @@ ERR_RemoteReplyTimeout = 73
 HDR_Len = 12
 MAX_Payload = 239
 # pylint: enable=invalid-name
+
+@dataclass
+class DirectoryEntry:
+    name: str
+    is_dir: bool
+    size_b: int
 
 class FTP_OP:  # pylint: disable=invalid-name, too-many-instance-attributes
     """
@@ -318,6 +325,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.write_pending = 0
         self.write_last_send = None
         self.open_retries = 0
+        self.list_result: List[DirectoryEntry] = []
+        self.list_temp_result: List[DirectoryEntry] = []
 
         self.master = master
         self.target_system = target_system
@@ -411,6 +420,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def cmd_list(self, args) -> MAVFTPReturn:
         '''list files'''
+        self.list_result = []
+        self.list_temp_result = []
         if len(args) == 0:
             dname = '/'
         elif len(args) == 1:
@@ -428,35 +439,31 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __handle_list_reply(self, op, _m) -> MAVFTPReturn:
         '''handle OP_ListDirectory reply'''
-        if op.opcode == OP_Ack:
-            dentries = sorted(op.payload.split(b'\x00'))
-            #logging.info(dentries)
+        output: List[DirectoryEntry] = []
+        if op.opcode == OP_Ack and op.payload is not None:
+            dentries = sorted(op.payload.split(b"\x00"))
             for d in dentries:
                 if len(d) == 0:
                     continue
                 self.dir_offset += 1
                 try:
-                    d = str(d, 'ascii')
-                except Exception:  # pylint: disable=broad-exception-caught
+                    dir_entry = str(d, "ascii")
+                except Exception as error:
+                    logging.debug(error)
                     continue
-                if d[0] == 'D':
-                    logging.info(" D %s", d[1:])
-                elif d[0] == 'F':
-                    (name, size) = d[1:].split('\t')
-                    size = int(size)
-                    self.total_size += size
-                    logging.info("   %s\t%u", name, size)
-                else:
-                    logging.info(d)
+                if dir_entry[0] == "D":
+                    output.append(DirectoryEntry(name=dir_entry[1:], is_dir=True, size_b=0))
+                elif dir_entry[0] == "F":
+                    (name, size_str) = dir_entry[1:].split("\t")
+                    size = int(size_str)
+                    output.append(DirectoryEntry(name=name, size_b=size, is_dir=False))
             # ask for more
             more = self.last_op
             more.offset = self.dir_offset
             self.__send(more)
-        elif op.opcode == OP_Nack and len(op.payload) == 1 and op.payload[0] == ERR_EndOfFile:
-            logging.info("Total size %.2f kByte", self.total_size / 1024.0)
-            self.total_size = 0
-        else:
-            return self.__decode_ftp_ack_and_nack(op)
+        elif op.opcode == OP_Nack and op.payload is not None and len(op.payload) == 1 and op.payload[0] == 6:
+            self.list_result = self.list_temp_result
+        self.list_temp_result.extend(output)
         return MAVFTPReturn("ListDirectory", ERR_None)
 
     def cmd_get(self, args, callback=None, progress_callback=None) -> MAVFTPReturn:
