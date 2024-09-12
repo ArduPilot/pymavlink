@@ -12,6 +12,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 from argparse import ArgumentParser
 
 from dataclasses import dataclass
+from enum import Enum
 import logging
 
 import struct
@@ -30,28 +31,28 @@ from datetime import datetime
 
 from pymavlink import mavutil
 
+from pymavlink.mavftp_op import (
+    FTP_OP,
+    OP_Ack,
+    OP_BurstReadFile,
+    OP_ListDirectory,
+    OP_Nack,
+    OP_OpenFileRO,
+    OP_ReadFile,
+    OP_TerminateSession,
+    OP_ResetSessions,
+    OP_None,
+    OP_CreateFile,
+    OP_WriteFile,
+    OP_RemoveFile,
+    OP_RemoveDirectory,
+    OP_OpenFileWO,
+    OP_CreateDirectory,
+    OP_TruncateFile,
+    OP_Rename,
+    OP_CalcFileCRC32,
+)
 
-# pylint: disable=too-many-lines
-# pylint: disable=invalid-name
-# opcodes
-OP_None = 0
-OP_TerminateSession = 1
-OP_ResetSessions = 2
-OP_ListDirectory = 3
-OP_OpenFileRO = 4
-OP_ReadFile = 5
-OP_CreateFile = 6
-OP_WriteFile = 7
-OP_RemoveFile = 8
-OP_CreateDirectory = 9
-OP_RemoveDirectory = 10
-OP_OpenFileWO = 11
-OP_TruncateFile = 12
-OP_Rename = 13
-OP_CalcFileCRC32 = 14
-OP_BurstReadFile = 15
-OP_Ack = 128
-OP_Nack = 129
 
 # error codes
 ERR_None = 0
@@ -86,43 +87,6 @@ class DirectoryEntry:
     name: str
     is_dir: bool
     size_b: int
-
-class FTP_OP:  # pylint: disable=invalid-name, too-many-instance-attributes
-    """
-    Represents an operation in the MAVLink File Transfer Protocol (FTP).
-
-    This class encapsulates the details of a single FTP operation such as reading, writing, listing directories, etc.,
-    including the necessary parameters and payload for the operation.
-    """
-    def __init__(self, seq, session, opcode, size,  # pylint: disable=too-many-arguments
-                 req_opcode, burst_complete, offset, payload):
-        self.seq = seq                        # Sequence number for the operation.
-        self.session = session                # Session identifier.
-        self.opcode = opcode                  # Operation code indicating the type of FTP operation.
-        self.size = size                      # Size of the operation.
-        self.req_opcode = req_opcode          # Request operation code.
-        self.burst_complete = burst_complete  # (bool) Flag indicating if the burst transfer is complete.
-        self.offset = offset                  # Offset for read/write operations.
-        self.payload = payload                # (bytes) Payload for the operation.
-
-    def pack(self):
-        '''pack message'''
-        ret = struct.pack("<HBBBBBBI", self.seq, self.session, self.opcode, self.size, self.req_opcode, self.burst_complete,
-                          0, self.offset)
-        if self.payload is not None:
-            ret += self.payload
-        ret = bytearray(ret)
-        return ret
-
-    def __str__(self):
-        plen = 0
-        if self.payload is not None:
-            plen = len(self.payload)
-        ret = f"OP seq:{self.seq} sess:{self.session} opcode:{self.opcode} req_opcode:{self.req_opcode}" \
-              f" size:{self.size} bc:{self.burst_complete} ofs:{self.offset} plen={plen}"
-        if plen > 0:
-            ret += f" [{self.payload[0]}]"
-        return ret
 
     def items(self):
         """Yield each attribute and its value for the FTP_OP instance. For debugging purposes."""
