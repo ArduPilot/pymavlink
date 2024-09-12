@@ -24,7 +24,7 @@ from io import BytesIO as SIO
 
 import sys
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 from typing import Tuple
 
 from datetime import datetime
@@ -291,6 +291,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.open_retries = 0
         self.list_result: List[DirectoryEntry] = []
         self.list_temp_result: List[DirectoryEntry] = []
+        self.requested_size: int = 0
+        self.requested_offset: int = 0
+        self.temp_filename = "/tmp/temp_mavftp_file"
 
         self.master = master
         self.target_system = target_system
@@ -430,6 +433,56 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.list_temp_result.extend(output)
         return MAVFTPReturn("ListDirectory", FtpError.Success)
 
+
+    def read_sector(self, path: str, offset: int, size: int) -> Optional[bytes]:
+        logging.info(f"reading sector {path}, offset={offset}, size={size}")
+        return self.read(path, size, offset)
+
+    def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:
+        """get file"""
+        self.get_result = None
+        self.requested_offset = offset
+        self.requested_size = size
+        self.filename = path
+        self.done = False
+
+        logging.info(f"Getting {path} starting at {self.requested_offset}, reading {self.requested_size} bytes")
+
+        self.op_start = time.time()
+        self.read_total = 0
+        self.reached_eof = False
+        self.burst_size = self.ftp_settings.burst_read_size
+        if self.burst_size < 1:
+            self.burst_size = 239
+        elif self.burst_size > 239:
+            self.burst_size = 239
+        enc_fname = bytearray(path, "ascii")
+        self.open_retries = 0
+        op = FTP_OP(self.seq, self.session, OP_OpenFileRO, len(enc_fname), 0, 0, 0, enc_fname)
+        self.__send(op)
+        timeout = time.time() + 5
+        while not self.done and time.time() < timeout:
+            try:
+                m = self.master.recv_match(
+                    type="FILE_TRANSFER_PROTOCOL",
+                    blocking=True,
+                    timeout=1.0,
+                )
+                if m is None:
+                    self.__idle_task()
+                    continue
+                timeout = time.time() + 5
+                self.__mavlink_packet(m)
+            except TypeError as e:
+                logging.error(e)
+            self.__idle_task()
+            time.sleep(0.0001)
+        logging.info(f"loop closed, gaps:{self.read_gaps}, done: {self.done}")
+        if len(self.read_gaps) == 0:
+            return self.get_result
+        logging.error(f"closed read with {self.read_gaps} gaaps")
+        return None
+
     def cmd_get(self, args, callback=None, progress_callback=None) -> MAVFTPReturn:
         '''get file'''
         if len(args) == 0 or len(args) > 2:
@@ -469,7 +522,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 if self.callback is not None or self.filename == '-':
                     self.fh = SIO()
                 else:
-                    self.fh = open(self.filename, 'wb')  # pylint: disable=consider-using-with
+                    # pylint: disable=consider-using-with
+                    self.fh = open(self.temp_filename, "wb+")
+                    self.fh.truncate(0)
+                    self.fh.seek(self.requested_offset)
+                    read = FTP_OP(
+                        self.seq, self.session, OP_BurstReadFile, self.burst_size, 0, 0, self.requested_offset, None
+                    )
             except Exception as ex:  # pylint: disable=broad-except
                 logging.error("FTP: Failed to open local file %s: %s", self.filename, ex)
                 self.__terminate_session()
@@ -492,10 +551,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__terminate_session()
         return ret
 
-    def __check_read_finished(self):
-        '''check if download has completed'''
-        #logging.debug("FTP: check_read_finished: %s %s", self.reached_eof, self.read_gaps)
-        if self.reached_eof and len(self.read_gaps) == 0:
+    def __check_read_finished(self) -> bool:
+        """check if download has completed"""
+        if self.fh is None:
+            return True
+        if self.op_start is None:
+            return True
+        if len(self.read_gaps) == 0 and (self.reached_eof or self.read_total >= self.requested_size):
             ofs = self.fh.tell()
             dt = time.time() - self.op_start
             rate = (ofs / dt) / 1024.0
@@ -507,8 +569,22 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 self.fh.seek(0)
                 print(self.fh.read().decode('utf-8'))
             else:
-                logging.info("Got %u bytes from %s in %.2fs %.1fkByte/s", ofs, self.filename, dt, rate)
-                self.remote_file_size = None
+                logging.info(
+                    f"Wrote {self.read_total}/{self.requested_size} bytes to {self.filename} in {dt:.2f}s {rate:.1f}kByte/s"
+                )
+                logging.info(f"terminating with {self.read_total} out of {self.requested_size} (ofs={ofs})")
+                self.done = True
+
+            assert self.fh is not None
+            self.fh.seek(0)
+            result = self.fh.read()
+            self.get_result = result[self.requested_offset : self.requested_offset + self.requested_size]
+            assert self.get_result is not None
+            if len(self.get_result) < self.requested_size:
+                logging.warning(f"expected {self.requested_size}, got {len(self.get_result)}")
+            logging.info(f"read {len(self.get_result)} bytes")
+            self.fh.flush()
+            self.fh.close()
             self.__terminate_session()
             return True
         return False
