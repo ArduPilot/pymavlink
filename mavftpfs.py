@@ -20,6 +20,7 @@ class FTP(LoggingMixIn, Operations):
     def __init__(self, mav: Any) -> None:
         self.mav = mav
         self.missing_files = []
+        self.cache_duration = 50
         self.files: Dict[str, Dict[str, int]] = {
             path: {
                 "st_mode": 0o40755,
@@ -29,6 +30,7 @@ class FTP(LoggingMixIn, Operations):
                 "st_ctime": int(time.time()),
                 "st_mtime": int(time.time()),
                 "st_atime": int(time.time()),
+                "ftp_last_update": 0,
             }
             for path in base_file_paths
         }
@@ -41,16 +43,13 @@ class FTP(LoggingMixIn, Operations):
 
     def getattr(self, path: str, _fh: int = 0) -> Any:
         path_fixed = self.fix_path(path)
-        logger.info(f"Fuse: getattr {path_fixed}")
+        # logger.info(f"Fuse: getattr {path_fixed}")
         if path_fixed in self.missing_files:
             raise FuseOSError(errno.ENOENT)
         if path_fixed in self.files:
             return self.files[path_fixed]
 
         parent_dir = ("/" + "/".join(path.split("/")[:-1])).replace("//", "/")
-        logger.debug(f"cache miss for {path_fixed}, asking for {parent_dir}")
-        logger.debug(f"files: {self.files.keys()}")
-        logger.debug(f"missing_files: {self.missing_files}")
         self.readdir(parent_dir)
         if path not in self.files:
             self.missing_files.append(path)
@@ -62,9 +61,40 @@ class FTP(LoggingMixIn, Operations):
         buf = self.ftp.read_sector(self.fix_path(path), offset, size)
         return buf
 
+    def cleaned_up_path(self, dir_path, current_path):
+        if current_path == "/":
+            return current_path
+        if current_path.startswith(dir_path):
+            remaining_path = current_path[len(dir_path):]
+            if remaining_path.startswith("/"):
+                return remaining_path[1:]
+            return remaining_path
+
+
+    def get_cached_dir_list(self, path: str) -> Dict[str, Dict[str, int]]:
+        if self.files.get(path) is None:
+            raise FuseOSError(errno.ENOENT)
+        if not path.endswith("/"):
+            path = path + "/"
+
+        files_in_path = [file for file in self.files.keys() if file.startswith(path) and file != path and path.count("/") == file.count("/")]
+
+        filtered_dict = {k: v for k, v in self.files.items() if k in files_in_path}
+
+        remmaped_dict = {self.cleaned_up_path(path, k): v for k, v in filtered_dict.items()}
+
+        return remmaped_dict
+
     def readdir(self, path: str, _fh: int = 0) -> Any:
         path_fixed = self.fix_path(path)
-        logger.info(f"Fuse: readdir {path_fixed}")
+        if self.files.get(path) is not None:
+            last_update = self.files[path].get("ftp_last_update")
+            if  last_update is None:
+                logger.warning(f"missing ftp_last_update for {path}")
+                raise FuseOSError(errno.ENOENT)
+            if time.time() - last_update < self.cache_duration:
+                return self.get_cached_dir_list(path)
+        logger.warning(f"cache miss for {path_fixed}")
         self.ftp.cmd_list([path_fixed])
         directory = self.ftp.list_result
         if directory is None or len(directory) == 0:
@@ -84,11 +114,12 @@ class FTP(LoggingMixIn, Operations):
                     "st_ctime": int(time.time()),  # Current time
                     "st_mtime": int(time.time()),  # Current time
                     "st_atime": int(time.time()),  # Current time
+                    "ftp_last_update": 0,
                 }
             ret[item.name] = new_item
             new_path = path if path.endswith("/") else path + "/"
             self.files[new_path + item.name] = new_item
-        self.files[path] = {"st_mode": (0o46766), "st_size": 0}
+        self.files[path] = {"st_mode": (0o46766), "st_size": 0, "ftp_last_update": time.time()}
         return ret
 
     def create(self, path: str, fi: int = 0) -> None:
