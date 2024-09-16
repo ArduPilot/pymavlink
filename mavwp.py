@@ -502,7 +502,7 @@ class MissionItemProtocol_Fence(MissionItemProtocol):
         version_line = get_first_line_from_file(filename)
 
         if (version_line is None or
-            not re.match("[-0-9.]+\s+[-0-9.]+", version_line)):
+            not re.match(r"[-0-9.]+\s+[-0-9.]+", version_line)):
             return super(MissionItemProtocol_Fence, self).load(filename)
 
         # shamelessly copy-and-pasted from traditional loader, below
