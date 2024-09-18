@@ -31,6 +31,9 @@ from datetime import datetime
 
 from pymavlink import mavutil
 
+
+# pylint: disable=too-many-lines
+
 from pymavlink.mavftp_op import (
     FTP_OP,
     OP_Ack,
@@ -53,9 +56,9 @@ from pymavlink.mavftp_op import (
     OP_CalcFileCRC32,
 )
 
-
-# error codes
+# pylint: disable=invalid-name
 class FtpError(IntEnum):
+    """error codes"""
     Success = 0
     Fail = 1
     FailErrno = 2
@@ -84,20 +87,10 @@ MAX_Payload = 239
 
 @dataclass
 class DirectoryEntry:
+    """Directory entry, either a file or a directory and the size"""
     name: str
     is_dir: bool
     size_b: int
-
-    def items(self):
-        """Yield each attribute and its value for the FTP_OP instance. For debugging purposes."""
-        yield "seq", self.seq
-        yield "session", self.session
-        yield "opcode", self.opcode
-        yield "size", self.size
-        yield "req_opcode", self.req_opcode
-        yield "burst_complete", self.burst_complete
-        yield "offset", self.offset
-        yield "payload", self.payload
 
 
 class WriteQueue:  # pylint: disable=too-few-public-methods
@@ -238,7 +231,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     Handles file operations such as reading, writing, listing directories, and managing sessions.
     """
-    def __init__(self, master, target_system, target_component,
+    def __init__(self, master, target_system, target_component,  # pylint: disable=too-many-statements
                  settings=MAVFTPSettings(
                      [('debug', int, 0),
                       ('pkt_loss_tx', int, 0),
@@ -298,6 +291,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.master = master
         self.target_system = target_system
         self.target_component = target_component
+        self.get_result = None
+        self.done = False
 
         # Reset the flight controller FTP state-machine
         self.__send(FTP_OP(self.seq, self.session, OP_ResetSessions, 0, 0, 0, 0, None))
@@ -415,7 +410,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 self.dir_offset += 1
                 try:
                     dir_entry = str(d, "ascii")
-                except Exception as error:
+                except Exception as error:  # pylint: disable=broad-exception-caught
                     logging.debug(error)
                     continue
                 if dir_entry[0] == "D":
@@ -435,7 +430,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
 
     def read_sector(self, path: str, offset: int, size: int) -> Optional[bytes]:
-        logging.info(f"reading sector {path}, offset={offset}, size={size}")
+        logging.info("reading sector %s, offset=%u, size=%u", path, offset, size)
         return self.read(path, size, offset)
 
     def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:
@@ -446,7 +441,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.filename = path
         self.done = False
 
-        logging.info(f"Getting {path} starting at {self.requested_offset}, reading {self.requested_size} bytes")
+        logging.info("Getting %s starting at %u reading %u bytes", path, self.requested_offset, self.requested_size)
 
         self.op_start = time.time()
         self.read_total = 0
@@ -477,10 +472,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 logging.error(e)
             self.__idle_task()
             time.sleep(0.0001)
-        logging.info(f"loop closed, gaps:{self.read_gaps}, done: {self.done}")
+        logging.info("loop closed, gaps:%u, done: %u", self.read_gaps, self.done)
         if len(self.read_gaps) == 0:
             return self.get_result
-        logging.error(f"closed read with {self.read_gaps} gaaps")
+        logging.error("closed read with %u gaps", self.read_gaps)
         return None
 
     def cmd_get(self, args, callback=None, progress_callback=None) -> MAVFTPReturn:
@@ -569,10 +564,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 self.fh.seek(0)
                 print(self.fh.read().decode('utf-8'))
             else:
-                logging.info(
-                    f"Wrote {self.read_total}/{self.requested_size} bytes to {self.filename} in {dt:.2f}s {rate:.1f}kByte/s"
-                )
-                logging.info(f"terminating with {self.read_total} out of {self.requested_size} (ofs={ofs})")
+                logging.info("Wrote %u/%u bytes to %s in %.2fs %.1fkByte/s",
+                    self.read_total, self.requested_size, self.filename, dt, rate)
+                logging.info("terminating with %u out of %u (ofs=%u)", self.read_total, self.requested_size, ofs)
                 self.done = True
 
             assert self.fh is not None
@@ -581,8 +575,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.get_result = result[self.requested_offset : self.requested_offset + self.requested_size]
             assert self.get_result is not None
             if len(self.get_result) < self.requested_size:
-                logging.warning(f"expected {self.requested_size}, got {len(self.get_result)}")
-            logging.info(f"read {len(self.get_result)} bytes")
+                logging.warning("expected %u, got %u", self.requested_size, len(self.get_result))
+            logging.info("read %u bytes", len(self.get_result))
             self.fh.flush()
             self.fh.close()
             self.__terminate_session()
@@ -1155,7 +1149,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 break
         return ret
 
-    def __decode_ftp_ack_and_nack(self, op: FTP_OP, operation_name: str='') -> MAVFTPReturn:
+    def __decode_ftp_ack_and_nack(self, op: FTP_OP, operation_name: str='') -> MAVFTPReturn:  # pylint: disable=too-many-branches
         '''decode FTP Acknowledge reply'''
         system_error = 0
         invalid_error_code = 0
@@ -1196,8 +1190,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     error_code = FtpError.NoErrorCodeInNack
                 elif error_code == FtpError.FailErrno:
                     error_code = FtpError.NoFilesystemErrorInPayload
-                elif error_code not in [FtpError.Fail, FtpError.InvalidDataSize, FtpError.InvalidSession, FtpError.NoSessionsAvailable,
-                                        FtpError.EndOfFile, FtpError.UnknownCommand, FtpError.FileExists, FtpError.FileProtected,
+                elif error_code not in [FtpError.Fail, FtpError.InvalidDataSize, FtpError.InvalidSession,
+                                        FtpError.NoSessionsAvailable, FtpError.EndOfFile,
+                                        FtpError.UnknownCommand, FtpError.FileExists, FtpError.FileProtected,
                                         FtpError.FileNotFound]:
                     invalid_error_code = error_code
                     error_code = FtpError.InvalidErrorCode
