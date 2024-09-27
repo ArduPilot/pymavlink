@@ -186,7 +186,7 @@ function mavlink_msgs.decode(message, msg_map)
       if string.sub(v[2],2,2) == 'c' then
         -- Got string, unpack includes 0 values to the set length
         -- this is annoying, so remove them
-        result[v[1]] = string.gsub(result[v[1]], "\0", "")
+        result[v[1]] = string.gsub(result[v[1]], string.char(0), "")
       end
     end
   end
