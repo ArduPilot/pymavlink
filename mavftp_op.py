@@ -40,7 +40,7 @@ OP_Nack = 129
 
 class FTP_OP:  # pylint: disable=invalid-name
     """FTP operation"""
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         seq: int,
         session: int,

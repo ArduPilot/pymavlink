@@ -164,7 +164,7 @@ class MAVFTPSettings:
 
 class MAVFTPReturn:
     """The result of a MAVFTP operation."""
-    def __init__(self, operation_name: str, error_code: int, system_error: int=0,  # pylint: disable=too-many-arguments
+    def __init__(self, operation_name: str, error_code: int, system_error: int=0,  # pylint: disable=too-many-arguments, too-many-positional-arguments
                  invalid_error_code: int=0, invalid_opcode: int=0, invalid_payload_size: int=0):
         self.operation_name = operation_name
         self.error_code = error_code
@@ -1329,7 +1329,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         logging.info("Outputted %u parameters to %s", len(pdict), filename)
 
 
-    def cmd_getparams(self, args, progress_callback=None, sort_type: str="missionplanner",  # pylint: disable=too-many-arguments
+    def cmd_getparams(self, args, progress_callback=None, sort_type: str="missionplanner",  # pylint: disable=too-many-arguments, too-many-positional-arguments
                       add_datatype_comments: bool=False, add_timestamp_comment: bool=False):
         ''' Decode the parameter file and save the values and defaults to disk '''
 
