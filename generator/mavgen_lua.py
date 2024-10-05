@@ -53,6 +53,7 @@ def generate(basename, xml):
         mavlink_msg_file = open("%s/mavlink_msg_%s.lua" % (basename, m.name), "w")
         mavlink_msg_file.write("local %s = {}\n" % m.name)
         mavlink_msg_file.write("%s.id = %u\n" % (m.name, m.id))
+        mavlink_msg_file.write("%s.crc_extra = %u\n" % (m.name, m.crc_extra))
         mavlink_msg_file.write("%s.fields = {\n" % m.name)
         for i in range(0, len(m.ordered_fields)):
             field = m.ordered_fields[i]
@@ -69,6 +70,18 @@ def generate(basename, xml):
     outf.write(
 """-- Auto generated MAVLink parsing script
 local mavlink_msgs = {{}}
+
+function mavlink_msgs.generateCRC(buffer)
+  -- generate the x25crc for a given buffer.Make sure to include msg.crc_extra!
+  local crc = 0xFFFF
+  for i = 1, #buffer do
+    local tmp = string.byte(buffer,i,i) ~ (crc & 0xFF)
+    tmp = (tmp ~ (tmp << 4)) & 0xFF
+    crc = (crc >> 8) ~ (tmp << 8) ~ (tmp << 3) ~ (tmp >> 4)
+    crc = crc & 0xFFFF
+  end
+  return string.pack("<H", crc)
+end
 
 function mavlink_msgs.get_msgid(msgname)
   local message_map = require("{module_root_rel}mavlink_msg_" .. msgname)
@@ -97,13 +110,19 @@ function mavlink_msgs.decode_header(message)
   _, read_marker = string.unpack("<B", message, read_marker) -- payload is always the second byte
 
   -- strip the incompat/compat flags
-  result.incompat_flags, result.compat_flags, read_marker = string.unpack("<BB", message, read_marker)
+  if result.protocol_version == 2 then
+    result.incompat_flags, result.compat_flags, read_marker = string.unpack("<BB", message, read_marker)
+  end
 
   -- fetch seq/sysid/compid
   result.seq, result.sysid, result.compid, read_marker = string.unpack("<BBB", message, read_marker)
 
   -- fetch the message id
-  result.msgid, read_marker = string.unpack("<I3", message, read_marker)
+  if result.protocol_version == 2 then
+    result.msgid, read_marker = string.unpack("<I3", message, read_marker)
+  else
+    result.msgid, read_marker = string.unpack("<B", message, read_marker)
+  end
 
   return result, read_marker
 end
