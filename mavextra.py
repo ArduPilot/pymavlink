@@ -271,6 +271,8 @@ lowpass_data = {}
 
 def lowpass(var, key, factor):
     '''a simple lowpass filter'''
+    if isnan(var):
+        return None
     global lowpass_data
     if not key in lowpass_data:
         lowpass_data[key] = var
