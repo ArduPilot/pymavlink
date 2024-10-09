@@ -9,8 +9,10 @@ from builtins import range
 from builtins import object
 
 import time, copy
-import logging
 import re
+
+import logging
+logger = logging.getLogger('pymavlink')
 
 from . import mavutil
 try:
@@ -524,7 +526,7 @@ class MissionItemProtocol_Fence(MissionItemProtocol):
         # at least 3 vertex points
         # 1 closing point
         if len(points) < 5:
-            print("Insufficient points in file")
+            logger.info("Insufficient points in file")
             return
 
         items = []
@@ -673,7 +675,7 @@ class MAVRallyLoader(object):
     def append_rally_point(self, p):
         '''add rallypoint to end of list'''
         if (self.rally_count() > 9):
-           print("Can't have more than 10 rally points, not adding.")
+           logger.info("Can't have more than 10 rally points, not adding.")
            return
 
         self.rally_points.append(p)
@@ -693,14 +695,14 @@ class MAVRallyLoader(object):
     def remove(self, i):
         '''remove a rally point'''
         if i < 1 or i > self.rally_count():
-            print("Invalid rally point number %u" % i)
+            logger.info("Invalid rally point number %u" % i)
         self.rally_points.pop(i-1)
         self.reindex()
 
     def move(self, i, lat, lng, change_time=True):
         '''move a rally point'''
         if i < 1 or i > self.rally_count():
-            print("Invalid rally point number %u" % i)
+            logger.info("Invalid rally point number %u" % i)
         self.rally_points[i-1].lat = int(lat*1e7)
         self.rally_points[i-1].lng = int(lng*1e7)
         if change_time:
@@ -709,7 +711,7 @@ class MAVRallyLoader(object):
     def set_alt(self, i, alt, break_alt=None, change_time=True):
         '''set rally point altitude(s)'''
         if i < 1 or i > self.rally_count():
-            print("Invalid rally point number %u" % i)
+            logger.info("Invalid rally point number %u" % i)
             return
         self.rally_points[i-1].alt = int(alt)
         if break_alt is not None:
@@ -822,7 +824,7 @@ class MAVFenceLoader(object):
     def move(self, i, lat, lng, change_time=True):
         '''move a fence point'''
         if i < 0 or i >= self.count():
-            print("Invalid fence point number %u" % i)
+            logger.info("Invalid fence point number %u" % i)
         self.points[i].lat = lat
         self.points[i].lng = lng
         # ensure we close the polygon
@@ -838,7 +840,7 @@ class MAVFenceLoader(object):
     def remove(self, i, change_time=True):
         '''remove a fence point'''
         if i < 0 or i >= self.count():
-            print("Invalid fence point number %u" % i)
+            logger.info("Invalid fence point number %u" % i)
         self.points.pop(i)
          # ensure we close the polygon
         if i == 1:
