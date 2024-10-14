@@ -742,18 +742,24 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 
 	case MAVLINK_PARSE_STATE_GOT_PAYLOAD: {
 		const mavlink_msg_entry_t *e = mavlink_get_msg_entry(rxmsg->msgid);
-		uint8_t crc_extra = e?e->crc_extra:0;
-		mavlink_update_checksum(rxmsg, crc_extra);
-		if (c != (rxmsg->checksum & 0xFF)) {
+		if (e == NULL) {
+			// Message not found in CRC_EXTRA table.
 			status->parse_state = MAVLINK_PARSE_STATE_GOT_BAD_CRC1;
+			rxmsg->ck[0] = c;
 		} else {
-			status->parse_state = MAVLINK_PARSE_STATE_GOT_CRC1;
-		}
-                rxmsg->ck[0] = c;
+			uint8_t crc_extra = e->crc_extra;
+			mavlink_update_checksum(rxmsg, crc_extra);
+			if (c != (rxmsg->checksum & 0xFF)) {
+				status->parse_state = MAVLINK_PARSE_STATE_GOT_BAD_CRC1;
+			} else {
+				status->parse_state = MAVLINK_PARSE_STATE_GOT_CRC1;
+			}
+			rxmsg->ck[0] = c;
 
-		// zero-fill the packet to cope with short incoming packets
-                if (e && status->packet_idx < e->max_msg_len) {
-                        memset(&_MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx], 0, e->max_msg_len - status->packet_idx);
+			// zero-fill the packet to cope with short incoming packets
+				if (e && status->packet_idx < e->max_msg_len) {
+					memset(&_MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx], 0, e->max_msg_len - status->packet_idx);
+			}
 		}
 		break;
         }
