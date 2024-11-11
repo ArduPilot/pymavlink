@@ -32,17 +32,9 @@ Note: this file has been auto-generated. DO NOT EDIT
 */
 
 jspack = require("jspack").jspack,
-    _ = require("underscore"),
     events = require("events"), // for .emit(..), MAVLink20Processor inherits from events.EventEmitter
     util = require("util");
 
-var Buffer = require('buffer').Buffer; // required in react - no impact in node
-var Long = require('long');
-
-// Add a convenience method to Buffer
-Buffer.prototype.toByteArray = function () {
-  return Array.prototype.slice.call(this, 0)
-}
 
 ${MAVHEAD} = function(){};
 
@@ -51,7 +43,7 @@ ${MAVHEAD}.x25Crc = function(buffer, crcIN) {
 
     var bytes = buffer;
     var crcOUT = crcIN ===  undefined ? 0xffff : crcIN;
-    _.each(bytes, function(e) {
+    bytes.forEach(function(e) {
         var tmp = e ^ (crcOUT & 0xff);
         tmp = (tmp ^ (tmp << 4)) & 0xff;
         crcOUT = (crcOUT >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4);
@@ -129,16 +121,15 @@ ${MAVHEAD}.message = function() {};
 // Convenience setter to facilitate turning the unpacked array of data into member properties
 ${MAVHEAD}.message.prototype.set = function(args,verbose) {
     // inspect
-    _.each(this.fieldnames, function(e, i) {
+    this.fieldnames.forEach(function(e, i) {
         var num = parseInt(i,10);
         if (this.hasOwnProperty(e) && isNaN(num)  ){ // asking for an attribute that's non-numeric is ok unless its already an attribute we have
             if ( verbose >= 1) { console.log("WARNING, overwriting an existing property is DANGEROUS:"+e+" ==>"+i+"==>"+args[i]+" -> "+JSON.stringify(this)); }
         }
     }, this);
-                    //console.log(this.fieldnames);
 
-// then modify
-    _.each(this.fieldnames, function(e, i) {
+    // then modify
+    this.fieldnames.forEach(function(e, i) {
         this[e] = args[i];
     }, this);
 };
@@ -164,11 +155,11 @@ ${MAVHEAD}.message.prototype.sign_packet = function( mav) {
     // first add the linkid(1 byte) and timestamp(6 bytes) that start the signature
     this._msgbuf = this._msgbuf.concat(jspack.Pack('<BIH', [mav.signing.link_id, tlow, thigh  ] ) );
  
-    h.update(mav.signing.secret_key); // secret is already a Buffer
-    h.update(new Buffer.from(this._msgbuf));
+    h.update(mav.signing.secret_key);
+    h.update(new Uint8Array.from(this._msgbuf));
     var hashDigest = h.digest();
     sig = hashDigest.slice(0,6)
-    this._msgbuf  = this._msgbuf.concat( ... sig ); 
+    this._msgbuf  = this._msgbuf.concat( ... sig );
 
     mav.signing.timestamp += 1
 } 
@@ -389,7 +380,7 @@ ${MAVHEAD}.messages.bad_data.prototype = new ${MAVHEAD}.message;
 
 //  MAVLink signing state class
 MAVLinkSigning = function MAVLinkSigning(object){
-        this.secret_key = new Buffer.from([]); //new Buffer.from([ 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 ]) // secret key must be a Buffer obj of 32 length 
+        this.secret_key = new Uint8Array();
         this.timestamp = 1
         this.link_id = 0
         this.sign_outgoing = false // todo false this
@@ -408,8 +399,8 @@ ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
     this.logger = logger;
 
     this.seq = 0;
-    this.buf = new Buffer.from([]);
-    this.bufInError = new Buffer.from([]);
+    this.buf = new Uint8Array();
+    this.bufInError = new Uint8Array();
 
     this.srcSystem = (typeof srcSystem === 'undefined') ? 0 : srcSystem;
     this.srcComponent =  (typeof srcComponent === 'undefined') ? 0 : srcComponent;
@@ -465,12 +456,18 @@ ${MAVPROCESSOR}.prototype.bytes_needed = function() {
     return ( ret <= 0 ) ? 1 : ret;
 }
 
+// Combine two buffers into one
+${MAVPROCESSOR}.prototype.concat_buffer = function(A, B) {
+    const out = new Uint8Array(A.length + B.length)
+    out.set(A, 0)
+    out.set(B, A.length)
+    return out
+}
+
 // add data to the local buffer
 ${MAVPROCESSOR}.prototype.pushBuffer = function(data) {
-    if(data) {
-        this.buf = Buffer.concat([this.buf, data]);   // python calls this self.buf.extend(c) 
-        this.total_bytes_received += data.length;
-    }
+    this.buf = this.concat_buffer(this.buf, new Uint8Array([data]));
+    this.total_bytes_received += 1;
 }
 
 // Decode prefix.  Elides the prefix.
@@ -511,6 +508,10 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
 // input some data bytes, possibly returning a new message - python equiv function is called parse_char / __parse_char_legacy 
 ${MAVPROCESSOR}.prototype.parseChar = function(c) {
 
+    if (c == null) {
+        return
+    }
+
     var m = null;
 
     try {
@@ -523,7 +524,7 @@ ${MAVPROCESSOR}.prototype.parseChar = function(c) {
         this.log('error', e.message);
         this.total_receive_errors += 1;
         m = new ${MAVHEAD}.messages.bad_data(this.bufInError, e.message);
-        this.bufInError = new Buffer.from([]);
+        this.bufInError = new Uint8Array();
 
     }
 
@@ -575,7 +576,7 @@ ${MAVPROCESSOR}.prototype.parsePayload = function() {
 
 // input some data bytes, possibly returning an array of new messages
 ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
-    
+
     // Get a message, if one is available in the stream.
     var m = this.parseChar(s);
 
@@ -583,7 +584,7 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
     if ( null === m ) {
         return null;
     }
-    
+
     // While more valid messages can be read from the existing buffer, add
     // them to the array of new messages and return them.
     var ret = [m];
@@ -598,47 +599,21 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
 
 }
 
-// from Buffer to ArrayBuffer 
-function toArrayBuffer(buf) { 
-    var ab = new ArrayBuffer(buf.length); 
-    var view = new Uint8Array(ab); 
-    for (var i = 0; i < buf.length; ++i) { 
-        view[i] = buf[i]; 
-    } 
-    return ab; 
-} 
-// and back 
-function toBuffer(ab) { 
-    var buf = Buffer.alloc(ab.byteLength); 
-    var view = new Uint8Array(ab); 
-    for (var i = 0; i < buf.length; ++i) { 
-        buf[i] = view[i]; 
-    } 
-    return buf; 
-} 
- 
 //check signature on incoming message , many of the comments in this file come from the python impl
-${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcComponent) { 
-
-        //if (isinstance(msgbuf, array.array)){
-        //    msgbuf = msgbuf.tostring()
-        //}
-        if ( Buffer.isBuffer(msgbuf) ) {
-            msgbuf = toArrayBuffer(msgbuf);
-        }
+${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcComponent) {
 
         //timestamp_buf = msgbuf[-12:-6]
         var timestamp_buf= msgbuf.slice(-12,-6);
 
         //link_id = msgbuf[-13]
-        var link_id= new Buffer.from(msgbuf.slice(-13,-12)); // just a single byte really, but returned as a buffer
+        var link_id = new Uint8Array.from(msgbuf.slice(-13,-12)); // just a single byte really, but returned as a buffer
         link_id = link_id[0]; // get the first byte.
 
         //self.mav_sign_unpacker = jspack.Unpack('<IH')
         // (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf)
 
-        // I means unsigned 4bytes, H means unsigned 2 byte
-        var t = jspack.Unpack('<IH',new Buffer.from(timestamp_buf))
+        // I means unsigned 4bytes, H means unsigned 2 bytes
+        var t = jspack.Unpack('<IH',new Uint8Array.from(timestamp_buf))
         const [tlow, thigh]  = t;
 
         // due to js not being able to shift numbers  more than 32, we'll use this instead..
@@ -679,10 +654,10 @@ ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcCompo
  
         // just the last 6 of 13 available are the actual sig . ie excluding the linkid(1) and timestamp(6)
         var sigpart = msgbuf.slice(-6);
-        sigpart = new Buffer.from(sigpart);
+        sigpart = new Uint8Array.from(sigpart);
         // not sig part 0- end-minus-6
         var notsigpart = msgbuf.slice(0,-6);
-        notsigpart = new Buffer.from(notsigpart);
+        notsigpart = new Uint8Array.from(notsigpart);
 
         h.update(this.signing.secret_key); // secret is already a Buffer
         //var tmp = h.copy().digest();
@@ -690,13 +665,13 @@ ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcCompo
         //var tmp2 = h.copy().digest()
         var hashDigest = h.digest();
         sig1 = hashDigest.slice(0,6)
- 
+
         //sig1 = str(h.digest())[:6]
         //sig2 = str(msgbuf)[-6:]
 
         // can't just compare sigs, need a full buffer compare like this...
         //if (sig1 != sigpart){
-        if (Buffer.compare(sig1,sigpart)){
+        if (Uint8Array.compare(sig1,sigpart)){
             //console.log('sig mismatch',sig1,sigpart)
             return false
         }
@@ -719,7 +694,7 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
     # Mavlink2 only
     if (xml.protocol_marker == 253):
         t.write(outf, """
-unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1 
+unpacked = jspack.Unpack('BBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1 
         magic = unpacked[0];
         mlen = unpacked[1];
         incompat_flags = unpacked[2];
@@ -775,8 +750,8 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
             return;
     }
 
-    if (magic.charCodeAt(0) != this.protocol_marker) {
-        throw new Error("Invalid MAVLink prefix ("+magic.charCodeAt(0)+")");
+    if (magic != this.protocol_marker) {
+        throw new Error("Invalid MAVLink prefix ("+magic+")");
     }
 
     // is packet supposed to be signed?
@@ -804,13 +779,13 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
 
     }
 
-    if( false === _.has(${MAVHEAD}.map, msgId) ) {
+    if (!(msgId in ${MAVHEAD}.map)) {
         throw new Error("Unknown MAVLink message ID (" + msgId + ")");
     }
 
     // here's the common chunks of packet we want to work with below..
-    var headerBuf= msgbuf.slice(${MAVHEAD}.HEADER_LEN); // first10
-    var sigBuf = msgbuf.slice(-signature_len); // last 13 or nothing
+    //var headerBuf= msgbuf.slice(${MAVHEAD}.HEADER_LEN); // first10
+    //var sigBuf = msgbuf.slice(-signature_len); // last 13 or nothing
     var crcBuf1 = msgbuf.slice(-2); // either last-2 or last-2-prior-to-signature
     var crcBuf2 = msgbuf.slice(-15,-13); // either last-2 or last-2-prior-to-signature
     var payloadBuf = msgbuf.slice(${MAVHEAD}.HEADER_LEN, -(signature_len+2)); // the remaining bit between the header and the crc
@@ -890,9 +865,9 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     # Mavlink2 only
     if (xml.protocol_marker == 253):
         t.write(outf, """
-//put any truncated 0's back in (ie zero-pad ) 
+//put any truncated 0's back in (ie zero-pad )
     if (paylen > payloadBuf.length) {
-        payloadBuf =  Buffer.concat([payloadBuf, Buffer.alloc(paylen - payloadBuf.length)]);
+        payloadBuf = this.concat_buffer(payloadBuf, new Uint8Array(paylen - payloadBuf.length).fill(0));
     }
 """)
 
@@ -912,7 +887,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
 
     if (elementsInMsg == actualElementsInMsg) {
         // Reorder the fields to match the order map
-        _.each(t, function(e, i, l) {
+        t.forEach(function(e, i, l) {
             args[i] = t[decoder.order_map[i]]
         });
     } else {
@@ -956,7 +931,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         }
 
         // Finally reorder the fields to match the order map
-        _.each(t, function(e, i, l) {
+        t.forEach(function(e, i, l) {
             args[i] = tempArgs[decoder.order_map[i]]
         });
     }
