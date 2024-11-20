@@ -11,8 +11,11 @@ from builtins import range
 
 import os
 import sys
+import operator
 import textwrap
 from . import mavtemplate
+from . import mavparse
+
 
 t = mavtemplate.MAVTemplate()
 
@@ -1242,9 +1245,55 @@ def generate(basename, xml, enable_type_annotations=False):
     filelist = []
     for x in xml:
         msgs.extend(x.message)
-        enums.extend(x.enum)
         filelist.append(os.path.basename(x.filename))
 
+    enum_map = dict();
+    enum_names = set();
+
+    # Merge enums.
+    #  We have to re-repeat merge testing of duplicates done previously
+    #  to merge the and duplicates in peer files.
+    for x in xml:
+        #print("FILE: %s" % x.filename)
+        for anenum in x.enum:
+            if anenum.name not in enum_map:
+                #print("New Enum: %s" % anenum.name)
+                enum_map[anenum.name]=anenum
+                enums.append(anenum)
+                for entry in anenum.entry:
+                    enum_names.add(entry.name)
+                    #print(" value: %s" % entry.name)
+                continue
+            else:
+                # Entry is duplicate (e.g. MAV_CMD). Need to check if values present and add only new ones.
+                print("Duplicate Enum: %s" % anenum.name)
+                for entry in anenum.entry:
+                    if entry.name not in enum_names:
+                        enum_names.add(entry.name)
+                        #print("  new entry: %s" % entry.name)
+                        enum_map[anenum.name].entry.append(entry)
+                    else:
+                        #print("  dup entry: %s" % entry.name)
+                        pass                  
+
+    # Strip off end markers, reorder then restore.
+    for enum in enums:
+        for entry in enum.entry:
+            # Strip out existing ENUM_END
+            if entry.name.endswith('_ENUM_END'):
+                #print('REMOVING: %s' % entry.name)
+                enum.entry.remove(entry)
+                # sort enum by value
+        enum.entry = sorted(enum.entry,
+                           key=operator.attrgetter('value'),
+                           reverse=False) 
+                                   
+        # add end marker _ENUM_END to the entry
+        #print("Adding ENUM_END item to: %s" % enum.name )
+        enum.entry.append(mavparse.MAVEnumEntry("%s_ENUM_END" % enum.name, enum.entry[-1].value+1, end_marker=True)) 
+
+          
+        
     for m in msgs:
         m.fielddefaults = []
         if xml[0].little_endian:
