@@ -1,5 +1,5 @@
--- Connects to ardupilot (baud rate 115200) via ttyUSB0 and set SR0_PARAMS to 11.
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Connects to ardupilot (baud rate 115200) via ttyUSB0 and set SR0_PARAMS to 11.
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Ada.Streams;
 with GNAT.Serial_Communications;
@@ -10,10 +10,10 @@ with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Maps;
 
-with Mavlink;
-with Mavlink.Connection;
-with Mavlink.Messages;
-with Mavlink.Types;
+with MAVLink;
+with MAVLink.Connection;
+with MAVLink.Messages;
+with MAVLink.Types;
 
 procedure Param_Set_SR0_PARAMS is
    use type Ada.Streams.Stream_Element_Offset;
@@ -26,10 +26,10 @@ procedure Param_Set_SR0_PARAMS is
    Output : Ada.Streams.Stream_Element_Array(1..1024);
    Output_Last : Ada.Streams.Stream_Element_Offset := Output'First;
 
-   Mav_Conn : Mavlink.Connection.Connection (System_Id => 250);
+   Mav_Conn : MAVLink.Connection.Connection (System_Id => 250);
 
    function Handler_Param_Value return Boolean is
-      Param_Value : Mavlink.Messages.Param_Value;
+      Param_Value : MAVLink.Messages.Param_Value;
    begin
       Mav_Conn.Unpack (Param_Value);
       if Ada.Strings.Fixed.Trim (Source => Param_Value.Param_Id,
@@ -44,7 +44,7 @@ procedure Param_Set_SR0_PARAMS is
       return False;
    end Handler_Param_Value;
 
-   Param_Set : Mavlink.Messages.Param_Set;
+   Param_Set : MAVLink.Messages.Param_Set;
 
 begin
    Ada.Text_IO.Put_Line ("Connects to ardupilot (baud rate 115200) via ttyUSB0 and set SR0_PARAMS to 11.");
@@ -57,7 +57,7 @@ begin
    Param_Set.Target_Component := 0;
    Param_Set.Param_Id := Ada.Strings.Fixed.Head(Source => "SR0_PARAMS", Count => 16, Pad => ASCII.Nul);
    Param_Set.Param_Value := 11.0;
-   Param_Set.Param_Type := Mavlink.Types.Mav_Param_Type_Real32;
+   Param_Set.Param_Type := MAVLink.Types.Mav_Param_Type_Real32;
 
    for B of Mav_Conn.Pack (Param_Set) loop
       Output (Output_Last) := Ada.Streams.Stream_Element (B);
@@ -69,7 +69,7 @@ begin
       GNAT.Serial_Communications.Read (Port => Ser, Buffer => Input, Last => Input_Last);
       for B of Input (Input'First .. Input_Last) loop
          if Mav_Conn.Parse_Byte(Interfaces.Unsigned_8(B)) then
-            if Mav_Conn.Get_Msg_Id = Mavlink.Messages.Param_Value_Id then
+            if Mav_Conn.Get_Msg_Id = MAVLink.Messages.Param_Value_Id then
                if Handler_Param_Value then
                   exit Main_Loop;
                end if;

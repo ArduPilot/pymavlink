@@ -1,5 +1,5 @@
--- Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Ada.Streams;
 with GNAT.Serial_Communications;
@@ -10,10 +10,10 @@ with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Maps;
 
-with Mavlink;
-with Mavlink.Connection;
-with Mavlink.Messages;
-with Mavlink.Types;
+with MAVLink;
+with MAVLink.Connection;
+with MAVLink.Messages;
+with MAVLink.Types;
 
 procedure Param_Request_List is
    use type Ada.Streams.Stream_Element_Offset;
@@ -26,10 +26,10 @@ procedure Param_Request_List is
    Output : Ada.Streams.Stream_Element_Array(1..1024);
    Output_Last : Ada.Streams.Stream_Element_Offset := Output'First;
 
-   Mav_Conn : Mavlink.Connection.Connection (System_Id => 250);
+   Mav_Conn : MAVLink.Connection.Connection (System_Id => 250);
 
    procedure Handler_Param_Value is
-      Param_Value : Mavlink.Messages.Param_Value;
+      Param_Value : MAVLink.Messages.Param_Value;
    begin
       Mav_Conn.Unpack (Param_Value);
       Ada.Text_IO.Put (Param_Value.Param_Id & " = ");
@@ -37,7 +37,7 @@ procedure Param_Request_List is
       Ada.Text_IO.New_Line;
    end Handler_Param_Value;
 
-   Param_Request_List : Mavlink.Messages.Param_Request_List;
+   Param_Request_List : MAVLink.Messages.Param_Request_List;
 
 begin
    Ada.Text_IO.Put_Line ("Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params");
@@ -58,7 +58,7 @@ begin
       GNAT.Serial_Communications.Read (Port => Ser, Buffer => Input, Last => Input_Last);
       for B of Input (Input'First .. Input_Last) loop
          if Mav_Conn.Parse_Byte(Interfaces.Unsigned_8(B)) then
-            if Mav_Conn.Get_Msg_Id = Mavlink.Messages.Param_Value_Id then
+            if Mav_Conn.Get_Msg_Id = MAVLink.Messages.Param_Value_Id then
                Handler_Param_Value;
             end if;
          end if;

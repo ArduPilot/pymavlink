@@ -1,9 +1,9 @@
--- Mavlink connection
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  MAVLink connection
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Ada.Assertions;
 
-package body Mavlink.Connection is
+package body MAVLink.Connection is
 
    function Parse_Byte (Conn : in out Connection;
                         Val : Interfaces.Unsigned_8) return Boolean is
@@ -21,7 +21,7 @@ package body Mavlink.Connection is
          X25CRC.Reset (Conn.Checksum);
          X25CRC.Update (Conn.Checksum, Val);
       elsif Conn.In_Ptr > Conn.Len then
-         X25CRC.Update (Conn.Checksum, Mavlink.Messages.CRC_Extras (Conn.In_Buf (Pos_Msg_id)));
+         X25CRC.Update (Conn.Checksum, MAVLink.Messages.CRC_Extras (Conn.In_Buf (Pos_Msg_id)));
 
          Conn.In_Ptr := 0;
          return Conn.Checksum.High = Conn.In_Buf (Conn.Len) and Conn.Checksum.Low = Conn.In_Buf (Conn.Len + 1);
@@ -39,7 +39,7 @@ package body Mavlink.Connection is
    end Get_Msg_Id;
 
    function Pack (Conn : in out Connection;
-                  Msg : Mavlink.Messages.Message'Class) return Byte_Arrray is
+                  Msg : MAVLink.Messages.Message'Class) return Byte_Arrray is
       use type Interfaces.Unsigned_8;
 
       Buf : Byte_Arrray (0 .. Natural(Msg.Payload_Length) + Packet_Control_Info_Size - 1);
@@ -71,7 +71,7 @@ package body Mavlink.Connection is
    end Pack;
 
    procedure Unpack (Conn : in out Connection;
-                     Msg  : in out Mavlink.Messages.Message'Class) is
+                     Msg  : in out MAVLink.Messages.Message'Class) is
       use type Interfaces.Unsigned_8;
 
       Fake_array : Byte_Arrray (0 .. Msg'Size / 8 - 1)
@@ -86,4 +86,4 @@ package body Mavlink.Connection is
 
    end Unpack;
 
-end Mavlink.Connection;
+end MAVLink.Connection;

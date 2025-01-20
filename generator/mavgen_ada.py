@@ -80,15 +80,15 @@ field_array_types = {
     'double' : 'Long_Float_Array'}
 
 def generate_mavlink_messages(outf, msgs):
-    outf.write("""-- Defines Mavlink messages
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+    outf.write("""--  Defines MAVLink messages
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Interfaces;
-with Mavlink.Types; use Mavlink.Types;
+with MAVLink.Types; use MAVLink.Types;
 
-package Mavlink.Messages is
+package MAVLink.Messages is
 
-   pragma Pure (Mavlink.Messages);
+   pragma Pure (MAVLink.Messages);
 
    type Message
      (Message_Id : Msg_Id;
@@ -259,12 +259,12 @@ def repr_enum(enum, size):
     return s
 
 def generate_mavlink_types(outf, types, types_size):
-    outf.write("""-- Defines Mavlink types
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+    outf.write("""--  Defines MAVLink types
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 package MAVLink.Types is
 
-   pragma Pure (Mavlink.Types);\n\n""")
+   pragma Pure (MAVLink.Types);\n\n""")
 
     for t in types:
         size = types_size[t.name]

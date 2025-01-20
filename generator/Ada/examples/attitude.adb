@@ -1,5 +1,5 @@
--- Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params
--- Copyright Fil Andrii root.fi36@gmail.com 2022s
+--  Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params
+--  Copyright Fil Andrii root.fi36@gmail.com 2022s
 
 with Ada.Streams;
 with GNAT.Serial_Communications;
@@ -7,10 +7,10 @@ with Ada.Text_IO;
 with Interfaces;
 with Ada.Numerics.Generic_Elementary_Functions;
 
-with Mavlink;
-with Mavlink.Connection;
-with Mavlink.Messages;
-with Mavlink.Types;
+with MAVLink;
+with MAVLink.Connection;
+with MAVLink.Messages;
+with MAVLink.Types;
 
 procedure Attitude is
    use type Ada.Streams.Stream_Element_Offset;
@@ -21,10 +21,10 @@ procedure Attitude is
    Input : Ada.Streams.Stream_Element_Array(1..1024);
    Input_Last : Ada.Streams.Stream_Element_Offset;
 
-   Mav_Conn : Mavlink.Connection.Connection (System_Id => 250);
+   Mav_Conn : MAVLink.Connection.Connection (System_Id => 250);
 
    procedure Handler_Attitude is
-      Attitude : Mavlink.Messages.Attitude;
+      Attitude : MAVLink.Messages.Attitude;
       K_Rad2Deg : Short_Float := 180.0 / Ada.Numerics.Pi;
    begin
       Mav_Conn.Unpack (Attitude);
@@ -48,7 +48,7 @@ begin
       GNAT.Serial_Communications.Read (Port => Ser, Buffer => Input, Last => Input_Last);
       for B of Input (Input'First .. Input_Last) loop
          if Mav_Conn.Parse_Byte(Interfaces.Unsigned_8(B)) then
-            if Mav_Conn.Get_Msg_Id = Mavlink.Messages.Attitude_Id then
+            if Mav_Conn.Get_Msg_Id = MAVLink.Messages.Attitude_Id then
                Handler_Attitude;
             end if;
          end if;

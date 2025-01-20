@@ -1,11 +1,11 @@
--- Mavlink
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  MAVLink
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Interfaces;
 
-package Mavlink is
+package MAVLink is
 
-   pragma Pure (Mavlink);
+   pragma Pure (MAVLink);
 
    Packet_Marker            : constant Interfaces.Unsigned_8 := 16#FE#;
    Packet_Marker_Length     : constant := 1;
@@ -45,5 +45,5 @@ package Mavlink is
    type Long_Float_Array is array (Natural range <>) of Long_Float
      with Component_Size => 64;
 
-end Mavlink;
+end MAVLink;
 

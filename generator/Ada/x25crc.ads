@@ -1,5 +1,5 @@
--- Package for crc checksum
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Package for crc checksum
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Interfaces; use Interfaces;
 
