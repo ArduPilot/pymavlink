@@ -22,7 +22,7 @@ package MAVLink is
 
    subtype Msg_Id is Interfaces.Unsigned_8;
 
-   type Byte_Arrray is array (Natural range <>) of Interfaces.Unsigned_8;
+   type Byte_Array is array (Natural range <>) of Interfaces.Unsigned_8;
 
    type Unsigned_8_Array is array (Natural range <>) of Interfaces.Unsigned_8
      with Component_Size => 8;

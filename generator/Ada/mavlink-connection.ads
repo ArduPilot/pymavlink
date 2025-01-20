@@ -17,7 +17,7 @@ package MAVLink.Connection is
    function Get_Msg_Id (Conn : Connection) return Msg_Id;
 
    function Pack (Conn : in out Connection;
-                  Msg : MAVLink.Messages.Message'Class) return Byte_Arrray;
+                  Msg : MAVLink.Messages.Message'Class) return Byte_Array;
 
    procedure Unpack (Conn : in out Connection;
                      Msg  : in out MAVLink.Messages.Message'Class);
@@ -28,7 +28,7 @@ private
 
    type Connection (System_Id : Interfaces.Unsigned_8) is tagged record
       Component_Id : Interfaces.Unsigned_8 := 1;
-      In_Buf       : Byte_Arrray (0 .. 255 + 8) := (others => 0);
+      In_Buf       : Byte_Array (0 .. 255 + 8) := (others => 0);
       In_Ptr       : Natural := 0;
       Len          : Natural := 0;
       Out_Sequency : Interfaces.Unsigned_8 := 0;

@@ -39,14 +39,14 @@ package body MAVLink.Connection is
    end Get_Msg_Id;
 
    function Pack (Conn : in out Connection;
-                  Msg : MAVLink.Messages.Message'Class) return Byte_Arrray is
+                  Msg : MAVLink.Messages.Message'Class) return Byte_Array is
       use type Interfaces.Unsigned_8;
 
-      Buf : Byte_Arrray (0 .. Natural(Msg.Payload_Length) + Packet_Control_Info_Size - 1);
+      Buf : Byte_Array (0 .. Natural(Msg.Payload_Length) + Packet_Control_Info_Size - 1);
       Buf_Ptr : Natural;
       Checksum : X25CRC.Checksum;
 
-      Fake_array : Byte_Arrray (0 .. Msg'Size / 8 - 1)
+      Fake_array : Byte_Array (0 .. Msg'Size / 8 - 1)
         with Address => Msg'Address, Import => True, Convention => Ada;
 
    begin
@@ -74,7 +74,7 @@ package body MAVLink.Connection is
                      Msg  : in out MAVLink.Messages.Message'Class) is
       use type Interfaces.Unsigned_8;
 
-      Fake_array : Byte_Arrray (0 .. Msg'Size / 8 - 1)
+      Fake_array : Byte_Array (0 .. Msg'Size / 8 - 1)
         with Address => Msg'Address, Import => True, Convention => Ada;
    begin
 
