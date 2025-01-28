@@ -23,7 +23,11 @@ import struct
 import gzip
 import io
 
-from . import mavutil
+try:
+    from . import mavutil
+except Exception:
+    # allows running uninstalled
+    from pymavlink import mavutil
 
 try:
     long        # Python 2 has long
@@ -1045,7 +1049,7 @@ class DFReader_binary(DFReader):
     def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
-        self.filehandle = open(filename, 'r')
+        self.filehandle = open(filename, 'rb')
         self.filehandle.seek(0, 2)
         self.data_len = self.filehandle.tell()
         self.filehandle.seek(0)
@@ -1085,15 +1089,16 @@ class DFReader_binary(DFReader):
 
     def init_arrays(self, progress_callback=None):
         '''initialise arrays for fast recv_match()'''
-        self.offsets = []
-        self.counts = []
+        offsets = []
+        counts = []
+        formats = self.formats
         self._count = 0
         self.name_to_id = {}
         self.id_to_name = {}
         type_instances = {}
         for i in range(256):
-            self.offsets.append([])
-            self.counts.append(0)
+            offsets.append([])
+            counts.append(0)
         fmt_type = 0x80
         fmtu_type = None
         unit_type = None
@@ -1103,34 +1108,35 @@ class DFReader_binary(DFReader):
         HEAD1 = self.HEAD1
         HEAD2 = self.HEAD2
         lengths = [-1] * 256
+        data_len = self.data_len
+        data_map = self.data_map
 
-        while ofs+3 < self.data_len:
-            hdr = self.data_map[ofs:ofs+3]
-            if hdr[0] != HEAD1 or hdr[1] != HEAD2:
+        while ofs+3 < data_len:
+            h1, h2, mtype = data_map[ofs:ofs+3]
+            if h1 != HEAD1 or h2 != HEAD2:
                 # avoid end of file garbage, 528 bytes has been use consistently throughout this implementation
                 # but it needs to be at least 249 bytes which is the block based logging page size (256) less a 6 byte header and
                 # one byte of data. Block based logs are sized in pages which means they can have up to 249 bytes of trailing space.
-                if self.data_len - ofs >= 528 or self.data_len < 528:
-                    print("bad header 0x%02x 0x%02x at %d" % (hdr[0], hdr[1], ofs), file=sys.stderr)
+                if data_len - ofs >= 528 or data_len < 528:
+                    print("bad header 0x%02x 0x%02x at %d" % (h1, h2, ofs), file=sys.stderr)
                 ofs += 1
                 continue
-            mtype = hdr[2]
-            self.offsets[mtype].append(ofs)
+            offsets[mtype].append(ofs)
 
             if lengths[mtype] == -1:
-                if not mtype in self.formats:
-                    if self.data_len - ofs >= 528 or self.data_len < 528:
+                if not mtype in formats:
+                    if data_len - ofs >= 528 or data_len < 528:
                         print("unknown msg type 0x%02x (%u) at %d" % (mtype, mtype, ofs),
                               file=sys.stderr)
                     break
                 self.offset = ofs
                 self._parse_next()
-                fmt = self.formats[mtype]
+                fmt = formats[mtype]
                 lengths[mtype] = fmt.len
-            elif self.formats[mtype].instance_field is not None:
-                fmt = self.formats[mtype]
+            elif formats[mtype].instance_field is not None:
+                fmt = formats[mtype]
                 # see if we've has this instance value before
-                idata = self.data_map[ofs+3+fmt.instance_ofs:ofs+3+fmt.instance_ofs+fmt.instance_len]
+                idata = data_map[ofs+3+fmt.instance_ofs:ofs+3+fmt.instance_ofs+fmt.instance_len]
                 if not mtype in type_instances:
                     type_instances[mtype] = set()
                 if not idata in type_instances[mtype]:
@@ -1139,22 +1145,22 @@ class DFReader_binary(DFReader):
                     self.offset = ofs
                     self._parse_next()
 
-            self.counts[mtype] += 1
+            counts[mtype] += 1
             mlen = lengths[mtype]
 
             if mtype == fmt_type:
-                body = self.data_map[ofs+3:ofs+mlen]
+                body = data_map[ofs+3:ofs+mlen]
                 if len(body)+3 < mlen:
                     break
-                fmt = self.formats[mtype]
+                fmt = formats[mtype]
                 elements = list(struct.unpack(fmt.msg_struct, body))
                 ftype = elements[0]
                 mfmt = DFFormat(
                     ftype,
                     null_term(elements[2]), elements[1],
                     null_term(elements[3]), null_term(elements[4]),
-                    oldfmt=self.formats.get(ftype,None))
-                self.formats[ftype] = mfmt
+                    oldfmt=formats.get(ftype,None))
+                formats[ftype] = mfmt
                 self.name_to_id[mfmt.name] = mfmt.type
                 self.id_to_name[mfmt.type] = mfmt.name
                 if mfmt.name == 'FMTU':
@@ -1166,33 +1172,33 @@ class DFReader_binary(DFReader):
 
             # Handle FMTU messages by updating the DFFormat class with the
             # unit/multiplier information
-            if fmtu_type is not None and mtype == fmtu_type:
-                fmt = self.formats[mtype]
-                body = self.data_map[ofs+3:ofs+mlen]
+            if mtype == fmtu_type:
+                fmt = formats[mtype]
+                body = data_map[ofs+3:ofs+mlen]
                 if len(body)+3 < mlen:
                     break
                 elements = list(struct.unpack(fmt.msg_struct, body))
                 ftype = int(elements[1])
-                if ftype in self.formats:
-                    fmt2 = self.formats[ftype]
+                if ftype in formats:
+                    fmt2 = formats[ftype]
                     if 'UnitIds' in fmt.colhash:
                         fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]), self.unit_lookup)
                     if 'MultIds' in fmt.colhash:
                         fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
 
             # Handle UNIT messages by updating the unit_lookup dictionary
-            if unit_type is not None and mtype == unit_type:
-                fmt = self.formats[mtype]
-                body = self.data_map[ofs+3:ofs+mlen]
+            if mtype == unit_type:
+                fmt = formats[mtype]
+                body = data_map[ofs+3:ofs+mlen]
                 if len(body)+3 < mlen:
                     break
                 elements = list(struct.unpack(fmt.msg_struct, body))
                 self.unit_lookup[chr(elements[1])] = null_term(elements[2])
 
             # Handle MULT messages by updating the mult_lookup dictionary
-            if mult_type is not None and mtype == mult_type:
-                fmt = self.formats[mtype]
-                body = self.data_map[ofs+3:ofs+mlen]
+            if mtype == mult_type:
+                fmt = formats[mtype]
+                body = data_map[ofs+3:ofs+mlen]
                 if len(body)+3 < mlen:
                     break
                 elements = list(struct.unpack(fmt.msg_struct, body))
@@ -1206,13 +1212,16 @@ class DFReader_binary(DFReader):
 
             ofs += mlen
             if progress_callback is not None:
-                new_pct = (100 * ofs) // self.data_len
+                new_pct = (100 * ofs) // data_len
                 if new_pct != pct:
                     progress_callback(new_pct)
                     pct = new_pct
 
+        self.offsets = offsets
+        self.counts = counts
+        self.formats = formats
         for i in range(256):
-            self._count += self.counts[i]
+            self._count += counts[i]
         self.offset = 0
 
     def last_timestamp(self):
@@ -1646,6 +1655,7 @@ class DFReader_text(DFReader):
 
 if __name__ == "__main__":
     use_profiler = False
+    parse_messages = False
     if use_profiler:
         from line_profiler import LineProfiler
         profiler = LineProfiler()
@@ -1661,11 +1671,12 @@ if __name__ == "__main__":
         log = DFReader_binary(filename)
     #bfile = filename + ".bin"
     #bout = open(bfile, 'wb')
-    while True:
-        m = log.recv_msg()
-        if m is None:
-            break
-        #bout.write(m.get_msgbuf())
-        #print(m)
+    if parse_messages:
+        while True:
+            m = log.recv_msg()
+            if m is None:
+                break
+            #bout.write(m.get_msgbuf())
+            #print(m)
     if use_profiler:
         profiler.print_stats()
