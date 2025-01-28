@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 APM DataFlash log file reader
 
@@ -64,18 +64,12 @@ MULT_TO_PREFIX = {
     1.0e-9: "n"  # nano
 }
 
-def u_ord(c):
-	return ord(c) if sys.version_info.major < 3 else c
-
 def is_quiet_nan(val):
     '''determine if the argument is a quiet nan'''
     # Is this a float, and some sort of nan?
     if isinstance(val, float) and math.isnan(val):
         # quiet nans have more non-zero values:
-        if sys.version_info.major >= 3:
-            noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
-        else:
-            noisy_nan = "\x7f\xf8\x00\x00\x00\x00\x00\x00"
+        noisy_nan = bytearray([0x7f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
         return struct.pack(">d", val) != noisy_nan
     else:
         return False
@@ -98,7 +92,7 @@ class DFFormat(object):
         msg_types = []
         msg_fmts = []
         for c in format:
-            if u_ord(c) == 0:
+            if c == 0:
                 break
             try:
                 msg_fmts.append(c)
@@ -195,9 +189,6 @@ def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
     if isinstance(s, str):
         return s
-    if sys.version_info[0] == 2:
-        # In python2 we want to return unicode for passed in unicode
-        return s
     return s.decode(errors="backslashreplace")
 
 def null_term(string):
@@ -274,7 +265,6 @@ class DFMessage(object):
         return self.fmt.name
 
     def __str__(self):
-        is_py3 = sys.version_info >= (3,0)
         ret = "%s {" % self.fmt.name
         col_count = 0
         for c in self.fmt.columns:
@@ -282,13 +272,7 @@ class DFMessage(object):
             if is_quiet_nan(val):
                 val = "qnan"
             # Add the value to the return string
-            if is_py3:
-                ret += "%s : %s, " % (c, val)
-            else:
-                try:
-                    ret += "%s : %s, " % (c, val)
-                except UnicodeDecodeError:
-                    ret += "%s : %s, " % (c, to_string(val))
+            ret += "%s : %s, " % (c, val)
             col_count += 1
         if col_count != 0:
             ret = ret[:-2]
@@ -353,7 +337,6 @@ class DFMessage(object):
             pass
 
     def dump_verbose(self, f):
-        is_py3 = sys.version_info >= (3,0)
         timestamp = "%s.%03u" % (
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self._timestamp)),
             int(self._timestamp*1000.0)%1000)
@@ -376,13 +359,7 @@ class DFMessage(object):
             if is_quiet_nan(val):
                 val = "qnan"
             # Output the field label and value
-            if is_py3:
-                f.write("    %s: %s" % (c, val))
-            else:
-                try:
-                    f.write("    %s: %s" % (c, val))
-                except UnicodeDecodeError:
-                    f.write("    %s: %s" % (c, to_string(val)))
+            f.write("    %s: %s" % (c, val))
 
             # If this is a bitmask, then append the hex value
             if c in field_metadata_by_name:
@@ -422,7 +399,6 @@ class DFMessage(object):
     def get_msgbuf(self):
         '''create a binary message buffer for a message'''
         values = []
-        is_py2 = sys.version_info < (3,0)
         for i in range(len(self.fmt.columns)):
             if i >= len(self.fmt.msg_mults):
                 continue
@@ -431,19 +407,13 @@ class DFMessage(object):
             if name == 'Mode' and 'ModeNum' in self.fmt.columns:
                 name = 'ModeNum'
             v = self.__getattr__(name)
-            if is_py2:
-                if isinstance(v,unicode): # NOQA
-                    v = str(v)
-                elif isinstance(v, array.array):
-                    v = v.tostring()
-            else:
-                if isinstance(v,str):
-                    try:
-                        v = bytes(v,'ascii')
-                    except UnicodeEncodeError:
-                        v = v.encode()
-                elif isinstance(v, array.array):
-                    v = v.tobytes()
+            if isinstance(v,str):
+                try:
+                    v = bytes(v,'ascii')
+                except UnicodeEncodeError:
+                    v = v.encode()
+            elif isinstance(v, array.array):
+                v = v.tobytes()
             if mul is not None:
                 v /= mul
                 v = int(round(v))
@@ -677,12 +647,8 @@ class DFMetaData(object):
     @staticmethod
     def download_url(url):
         '''download a URL and return the content'''
-        if sys.version_info.major < 3:
-            from urllib2 import urlopen as url_open
-            from urllib2 import URLError as url_error
-        else:
-            from urllib.request import urlopen as url_open
-            from urllib.error import URLError as url_error
+        from urllib.request import urlopen as url_open
+        from urllib.error import URLError as url_error
         try:
             resp = url_open(url)
         except url_error as e:
@@ -1091,9 +1057,6 @@ class DFReader_binary(DFReader):
         self.HEAD1 = 0xA3
         self.HEAD2 = 0x95
         self.unpackers = {}
-        if sys.version_info.major < 3:
-            self.HEAD1 = chr(self.HEAD1)
-            self.HEAD2 = chr(self.HEAD2)
         self.formats = {
             0x80: DFFormat(0x80,
                            'FMT',
@@ -1148,10 +1111,10 @@ class DFReader_binary(DFReader):
                 # but it needs to be at least 249 bytes which is the block based logging page size (256) less a 6 byte header and
                 # one byte of data. Block based logs are sized in pages which means they can have up to 249 bytes of trailing space.
                 if self.data_len - ofs >= 528 or self.data_len < 528:
-                    print("bad header 0x%02x 0x%02x at %d" % (u_ord(hdr[0]), u_ord(hdr[1]), ofs), file=sys.stderr)
+                    print("bad header 0x%02x 0x%02x at %d" % (hdr[0], hdr[1], ofs), file=sys.stderr)
                 ofs += 1
                 continue
-            mtype = u_ord(hdr[2])
+            mtype = hdr[2]
             self.offsets[mtype].append(ofs)
 
             if lengths[mtype] == -1:
@@ -1328,7 +1291,7 @@ class DFReader_binary(DFReader):
                           file=sys.stderr)
                     skip_type = None
                 # check we recognise this message type:
-                msg_type = u_ord(hdr[2])
+                msg_type = hdr[2]
                 if msg_type in self.formats:
                     # recognised message found
                     self.prev_type = msg_type
@@ -1338,7 +1301,7 @@ class DFReader_binary(DFReader):
                 # are easily recognisable in the "Skipped bytes"
                 # message.
             if skip_type is None:
-                skip_type = (u_ord(hdr[0]), u_ord(hdr[1]), u_ord(hdr[2]))
+                skip_type = (hdr[0], hdr[1], hdr[2])
                 skip_start = self.offset
             self.offset += 1
             self.remaining -= 1
@@ -1584,8 +1547,7 @@ class DFReader_text(DFReader):
                 if endline < self.offset:
                     break
             s = self.data_map[self.offset:endline].rstrip()
-            if sys.version_info.major >= 3:
-                s = s.decode('utf-8')
+            s = s.decode('utf-8')
             elements = s.split(self.delimiter)
             self.offset = endline+1
             if len(elements) >= 2:
