@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 Print flight controller banner statustext messages and AUTOPILOT_VERSION message information.
