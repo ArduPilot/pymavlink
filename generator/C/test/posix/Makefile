@@ -50,3 +50,6 @@ testmav2.0_minimal: testmav.c
 
 sha256_test: sha256_test.c
 	$(CC) $(CFLAGS) -I../../include_v2.0 -o $@ sha256_test.c
+
+parse_tlog: parse_tlog.c
+	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/ardupilotmega -o $@ parse_tlog.c

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 play back a mavlink log as a FlightGear FG NET stream, and as a
@@ -18,6 +18,7 @@ import time
 import tkinter
 
 from pymavlink import fgFDM
+from pymavlink import DFReader
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
@@ -57,6 +58,10 @@ class App(object):
 
         self.mlog = mavutil.mavlink_connection(filename, planner_format=args.planner,
                                                robust_parsing=True)
+        if isinstance(self.mlog, DFReader.DFReader_binary):
+            print("mavplayback.py only works on .tlog files, not BIN ('dataflash') files")
+            sys.exit(1)
+
         self.mout = []
         for m in args.out:
             self.mout.append(mavutil.mavlink_connection(m, input=False, baud=args.baudrate))
@@ -122,7 +127,7 @@ class App(object):
 
     def rewind(self):
         '''rewind 10%'''
-        pos = int(self.mlog.f.tell() - 0.1*self.filesize)
+        pos = int(self.mlog.f.tell() - 0.1 * self.filesize)
         if pos < 0:
             pos = 0
         self.mlog.f.seek(pos)
@@ -130,7 +135,7 @@ class App(object):
 
     def forward(self):
         '''forward 10%'''
-        pos = int(self.mlog.f.tell() + 0.1*self.filesize)
+        pos = int(self.mlog.f.tell() + 0.1 * self.filesize)
         if pos > self.filesize:
             pos = self.filesize - 2048
         self.mlog.f.seek(pos)

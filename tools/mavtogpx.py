@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 example program to extract GPS data from a mavlink log, and create a GPX
@@ -6,19 +6,21 @@ file, for loading into google earth
 '''
 from __future__ import print_function
 
+import math
 import time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by a condition")
 parser.add_argument("--nofixcheck", default=False, action='store_true', help="don't check for GPS fix")
+parser.add_argument("--type", default=[], nargs="*")
 parser.add_argument("logs", metavar="LOG", nargs="+")
 args = parser.parse_args()
 
 from pymavlink import mavutil
 
 
-def mav_to_gpx(infilename, outfilename):
+def mav_to_gpx(infilename, outfilename, display_types=None):
     '''convert a mavlink log file to a GPX file'''
 
     mlog = mavutil.mavlink_connection(infilename)
@@ -61,8 +63,12 @@ def mav_to_gpx(infilename, outfilename):
     lat=0
     lon=0
     fix=0
+
+    match_types =['GPS_RAW', 'GPS_RAW_INT', 'GPS', 'GPS2', 'GLOBAL_POSITION_INT', 'POS']
+    if display_types is None or len(display_types) == 0:
+        display_types = match_types
     while True:
-        m = mlog.recv_match(type=['GPS_RAW', 'GPS_RAW_INT', 'GPS', 'GPS2'], condition=args.condition)
+        m = mlog.recv_match(type=match_types, condition=args.condition)
         if m is None:
             break
         if m.get_type() == 'GPS_RAW_INT':
@@ -73,6 +79,14 @@ def mav_to_gpx(infilename, outfilename):
             hdg = m.cog/100.0
             timestamp = m._timestamp
             fix = m.fix_type
+        elif m.get_type() == 'GLOBAL_POSITION_INT':
+            lat = m.lat/1.0e7
+            lon = m.lon/1.0e7
+            alt = m.alt/1.0e3
+            v = math.sqrt(m.vx**2+m.vy**2)/100.0  # nb. 2D?!
+            hdg = m.hdg/100.0
+            timestamp = m._timestamp
+            # fix = m.fix_type
         elif m.get_type() == 'GPS_RAW':
             lat = m.lat
             lon = m.lon
@@ -89,6 +103,10 @@ def mav_to_gpx(infilename, outfilename):
             hdg = m.GCrs
             timestamp = m._timestamp
             fix = m.Status
+        elif m.get_type() == 'POS':
+            lat = m.Lat
+            lon = m.Lng
+            alt = m.Alt
         else:
             pass
 
@@ -96,6 +114,10 @@ def mav_to_gpx(infilename, outfilename):
             continue
         if lat == 0.0 or lon == 0.0:
             continue
+
+        if m.get_type() not in display_types:
+            continue
+
         process_packet(timestamp, lat, lon, alt, hdg, v)
         count += 1
     add_footer()
@@ -104,4 +126,4 @@ def mav_to_gpx(infilename, outfilename):
 
 for infilename in args.logs:
     outfilename = infilename + '.gpx'
-    mav_to_gpx(infilename, outfilename)
+    mav_to_gpx(infilename, outfilename, display_types=args.type)

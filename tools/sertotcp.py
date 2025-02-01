@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 map a serial port to an outgoing TCP connection
@@ -39,12 +39,27 @@ open_socket()
 while True:
     gotdata = False
 
+    if serport is None:
+        try:
+            print("Reopening %s" % args.serialport)
+            serport = serial.Serial(args.serialport, args.baudrate, timeout=0)
+        except Exception:
+            time.sleep(1)
+            continue
+        print("Opened %s" % args.serialport)
+
+
     if tcpsock is None:
         open_socket()
         time.sleep(0.1)
         continue
 
-    n = serport.inWaiting()
+    try:
+        n = serport.inWaiting()
+    except Exception:
+        serport = None
+        time.sleep(1)
+        continue
     if n > 0:
         b = serport.read(n)
         if b:

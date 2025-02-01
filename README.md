@@ -77,7 +77,7 @@ sudo python -m pip install --upgrade pymavlink
 
 #### Mavnative
 
-Starting from September 2022, mavnative, a C extension for parsing mavlink, was deprecated and removed. Mavnative developpement was stalled for long time, it only supports MAVLink1 and doesn't get any fix on the protocol.
+Starting from September 2022, mavnative, a C extension for parsing mavlink, was deprecated and removed. Mavnative development was stalled for long time, it only supports MAVLink1 and doesn't get any fix on the protocol.
 
 ### For developers
 
@@ -131,6 +131,8 @@ The JSON file is a dictionary that maps vehicle [`MAV_TYPE`](https://mavlink.io/
         "22": "QAUTOTUNE",
         "23": "QACRO",
         "24": "THERMAL"
+        "25": "LOITERALTQLAND",
+        "26": "AUTOLAND",
     }
 }
 ```

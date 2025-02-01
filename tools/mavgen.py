@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 parse a MAVLink protocol XML file and generate a python implementation
@@ -28,4 +28,7 @@ parser.add_argument("--strict-units", action="store_true", dest="strict_units", 
 parser.add_argument("definitions", metavar="XML", nargs="+", help="MAVLink definitions")
 args = parser.parse_args()
 
-mavgen.mavgen(args, args.definitions)
+ok = mavgen.mavgen(args, args.definitions)
+# report failure in the exit code when no exception is thrown
+if not ok:
+    exit(1)

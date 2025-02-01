@@ -45,6 +45,8 @@
     #endif
     MAVLINK_HELPER void mavlink_reset_channel_status(uint8_t chan);
     #if MAVLINK_CRC_EXTRA
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+                                                            mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra);
     MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
                                                           uint8_t chan, uint8_t min_length, uint8_t length, uint8_t crc_extra);
     MAVLINK_HELPER uint16_t mavlink_finalize_message(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
@@ -54,6 +56,8 @@
                                                         uint8_t min_length, uint8_t length, uint8_t crc_extra);
     #endif
     #else
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+                                                            mavlink_status_t* status, uint8_t min_length, uint8_t length);
     MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
                                                           uint8_t chan, uint8_t length);
     MAVLINK_HELPER uint16_t mavlink_finalize_message(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,

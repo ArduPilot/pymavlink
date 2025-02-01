@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
       - uses: actions/checkout@v3
@@ -31,7 +31,7 @@ jobs:
           fi
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           sudo apt update
-          sudo apt install -y libgtest-dev g++
+          sudo apt install -y libgtest-dev g++ tshark
 
       - uses: actions/setup-node@v3
         with:
@@ -84,3 +84,35 @@ jobs:
       - name: Test with pytest
         run: |
           python -m pytest
+
+
+  node-tests:
+    name: Node ${{ matrix.node-version }} test
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['12', '14', '16', '18', '20']
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          pip install future lxml
+      - uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install mavlink message
+        run: |
+          git clone https://github.com/ArduPilot/mavlink.git
+          ln -s $PWD/mavlink/message_definitions ../
+      - run: cd "generator/javascript" && npm install
+      - name : Test mavlink
+        run: |
+          ./test_gen_js.sh
+          cd "generator/javascript" && npm test

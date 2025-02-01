@@ -93,13 +93,12 @@ describe('Complete MAVLink 1.0 packet', function() {
             , base_mode=45
             , custom_mode=68
             , system_status=13
-            , mavlink_version=1
         );
         
         this.mav.seq = 7;
 
         // Create a buffer that matches what the Python version of MAVLink creates
-        var reference = new Buffer.from([0xfe, 0x09, 0x07, 0x2a, 0x96, 0x00, 0x44, 0x00, 0x00, 0x00, 0x05, 0x03, 0x2d, 0x0d, 0x01, 0xac, 0x9d]);
+        var reference = new Buffer.from([0xfe, 0x09, 0x07, 0x2a, 0x96, 0x00, 0x44, 0x00, 0x00, 0x00, 0x05, 0x03, 0x2d, 0x0d, 0x03, 0x1c, 0xae]);
         new Buffer.from(heartbeat.pack(this.mav)).should.eql(reference);
 
     });
@@ -161,7 +160,6 @@ describe('MAVLink 1.0 message', function() {
             0, // base mode, mavlink10.MAV_MODE_FLAG_***
             0, // custom mode
             mavlink10.MAV_STATE_STANDBY, // system status
-            3 // MAVLink version
         );
 
         this.mav = new MAVLink10Processor();

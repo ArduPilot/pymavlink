@@ -17,7 +17,7 @@
     "eslint": "^6.1.0",
     "mocha": "",
     "should": "",
-    "sinon": ""
+    "sinon": "^15.2.0"
   },
   "scripts": {
     "preinstall": "rm -rf implementations",

@@ -289,10 +289,6 @@ class MissionItemProtocol(object):
                 break
             idx += 1
 
-        exclusion_start = -1
-        exclusion_count = -1
-        inclusion_start = -1
-        inclusion_count = -1
         while idx < self.count():
             w = self.wp(idx)
             if idx in done:
@@ -306,34 +302,11 @@ class MissionItemProtocol(object):
                 if self.is_location_wp(w):
                     ret.append(idx)
                 continue
-            # display loops for exclusion and inclusion zones
-            if w.command == mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION:
-                if exclusion_start == -1:
-                    exclusion_count = int(w.param1)
-                    exclusion_start = idx
-                if idx == exclusion_start + exclusion_count - 1:
-                    ret.append(idx)
-                    ret.append(exclusion_start)
-                    return ret
-            if w.command == mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION:
-                if inclusion_start == -1:
-                    inclusion_count = int(w.param1)
-                    inclusion_start = idx
-                if idx == inclusion_start + inclusion_count - 1:
-                    ret.append(idx)
-                    ret.append(inclusion_start)
-                    return ret
             if self.is_location_wp(w):
                 ret.append(idx)
             if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
                               mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND ]:
                 # stop at landing points
-                return ret
-            exc_zones = [mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION,
-                         mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION]
-            w2 = self.wp(idx+1)
-            if w2 is not None and w.command not in exc_zones and w2.command in exc_zones:
-                # don't draw a line from last WP to first exc zone
                 return ret
             idx += 1
         return ret
@@ -502,7 +475,7 @@ class MissionItemProtocol_Fence(MissionItemProtocol):
         version_line = get_first_line_from_file(filename)
 
         if (version_line is None or
-            not re.match("[-0-9.]+\s+[-0-9.]+", version_line)):
+            not re.match(r"[-0-9.]+\s+[-0-9.]+", version_line)):
             return super(MissionItemProtocol_Fence, self).load(filename)
 
         # shamelessly copy-and-pasted from traditional loader, below

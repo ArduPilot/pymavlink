@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 calculate GPS CEP from DF or mavlink log for all present GPS modules

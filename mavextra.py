@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 useful extra functions for use by mavlink clients
 
@@ -271,6 +271,8 @@ lowpass_data = {}
 
 def lowpass(var, key, factor):
     '''a simple lowpass filter'''
+    if isnan(var):
+        return None
     global lowpass_data
     if not key in lowpass_data:
         lowpass_data[key] = var
@@ -540,22 +542,22 @@ def get_lat_lon_alt(MSG):
         alt = MSG.alt*0.001
     elif hasattr(MSG, 'PN'):
         # origin relative position from EKF
-        global ORGN
-        if ORGN is None:
-            ORGN = get_origin()
-        if ORGN is None:
-            return None
-        (lat,lon) = gps_offset(ORGN.Lat, ORGN.Lng, MSG.PN, MSG.PE)
+        (lat,lon,alt) = ekf1_pos(MSG)
         lat = radians(lat)
         lon = radians(lon)
-        alt = ORGN.Alt - MSG.PD
     else:
         return None
     return (lat, lon, alt)
 
 
 def _distance_two(MSG1, MSG2, horizontal=True):
-    '''distance between two points'''
+    '''
+    Return the distance between two points in metres
+    Calculated as the great-circle distance using 'haversine’ formula
+    (Ref: http://www.movable-type.co.uk/scripts/latlong.html)
+    Uses the globally-average earth radius value of 6371km
+    '''
+    # get_lat_lon_alt returns radians - so no need to convert here
     (lat1, lon1, alt1) = get_lat_lon_alt(MSG1)
     (lat2, lon2, alt2) = get_lat_lon_alt(MSG2)
     dLat = lat2 - lat1
@@ -1050,7 +1052,7 @@ def distance_gps2(GPS, GPS2):
         return None
     return distance_two(GPS, GPS2)
 
-
+# SI base unit for 1 Rgeo / equatorial radius
 radius_of_earth = 6378100.0 # in meters
 
 def wrap_valid_longitude(lon):
@@ -1090,15 +1092,14 @@ def ekf1_pos(EKF1):
   global ekf_origin
   from . import mavutil
   self = mavutil.mavfile_global
-  if getattr(EKF1,'C',0) != 0:
-      return None
   if ekf_origin is None:
       if not 'ORGN' in self.messages:
           return None
       ekf_origin = self.messages['ORGN']
       (ekf_origin.Lat, ekf_origin.Lng) = (ekf_origin.Lat, ekf_origin.Lng)
   (lat,lon) = gps_offset(ekf_origin.Lat, ekf_origin.Lng, EKF1.PE, EKF1.PN)
-  return (lat, lon)
+  alt = ekf_origin.Alt - EKF1.PD
+  return (lat, lon, alt)
 
 def quat_to_euler(q):
   '''
@@ -1504,7 +1505,12 @@ def airspeed_estimate(GLOBAL_POSITION_INT,WIND):
 
 
 def distance_from(GPS_RAW1, lat, lon):
-    '''distance from a given location'''
+    '''
+    Return the distance from a given location in meters
+    Calculated as the great-circle distance using 'haversine’ formula
+    (Ref: http://www.movable-type.co.uk/scripts/latlong.html)
+    Uses the globally-average earth radius value of 6371km
+    '''
     if hasattr(GPS_RAW1, 'Lat'):
         lat1 = radians(GPS_RAW1.Lat)
         lon1 = radians(GPS_RAW1.Lng)
@@ -1527,9 +1533,19 @@ def distance_from(GPS_RAW1, lat, lon):
     return ground_dist
 
 def distance_lat_lon(lat1, lon1, lat2, lon2):
-    '''distance between two points'''
-    dLat = radians(lat2) - radians(lat1)
-    dLon = radians(lon2) - radians(lon1)
+    '''
+    Return the distance between two points in metres
+    Calculated as the great-circle distance using 'haversine’ formula
+    (Ref: http://www.movable-type.co.uk/scripts/latlong.html)
+    Uses the globally-average earth radius value of 6371km
+    '''
+    lat1 = radians(lat1)
+    lon1 = radians(lon1)
+    lat2 = radians(lat2)
+    lon2 = radians(lon2)
+
+    dLat = lat2 - lat1
+    dLon = lon2 - lon1
 
     a = sin(0.5*dLat)**2 + sin(0.5*dLon)**2 * cos(lat1) * cos(lat2)
     c = 2.0 * atan2(sqrt(a), sqrt(1.0-a))
@@ -1657,3 +1673,8 @@ def mm_curr(RCOU,BAT,PWM_MIN,PWM_MAX,Mfirst,Mlast):
         command = voltage*max(pwm - PWM_MIN,0)/(PWM_MAX-PWM_MIN)
         total_curr += command**2
     return total_curr
+
+def RotateMag(MAG,rotation):
+    '''rotate a MAG message by rotation enumeration'''
+    v = Vector3(MAG.MagX,MAG.MagY,MAG.MagZ)
+    return v.rotate_by_id(rotation)

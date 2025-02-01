@@ -22,23 +22,26 @@
 <xs:attribute name="enum" type="xs:string"/> <!-- used in field,param elements -->
 <xs:attribute name="display" type="xs:string"/> <!-- used in field elements -->
 <xs:attribute name="units" type="SI_Unit"/> <!-- this will get changed on the fly to xs:string if no strict-units command line option is used -->
+<xs:attribute name="multiplier" type="factor"/>
 <xs:attribute name="instance" type="xs:boolean"/>
 <xs:attribute name="invalid" type="xs:string"/> <!-- used in message field elements -->
 <xs:attribute name="value"> <!-- used in entry elements -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
-        <xs:pattern value="\d{1,10}"/> <!-- base 10 int -->
-        <xs:pattern value="0[xX][0-9a-fA-F]{1,8}"/> <!-- base 16 -->
-        <xs:pattern value="0[bB][0-1]{1,32}"/> <!-- base 1 -->
+        <xs:pattern value="\d{1,20}"/> <!-- base 10 int -->
+        <xs:pattern value="0[xX][0-9a-fA-F]{1,16}"/> <!-- base 16 -->
+        <xs:pattern value="0[bB][0-1]{1,64}"/> <!-- base 2 -->
+        <xs:pattern value="2\*\*\d{1,2}"/> <!-- power of 2 -->
     </xs:restriction>
   </xs:simpleType>
 </xs:attribute>
 <xs:attribute name="default"> <!-- used in enum field elements -->
   <xs:simpleType>
     <xs:restriction base="xs:string">
-        <xs:pattern value="\d{1,10}"/> <!-- base 10 int -->
-        <xs:pattern value="0[xX][0-9a-fA-F]{1,8}"/> <!-- base 16 -->
-        <xs:pattern value="0[bB][0-1]{1,32}"/> <!-- base 1 -->
+        <xs:pattern value="\d{1,20}"/> <!-- base 10 int -->
+        <xs:pattern value="0[xX][0-9a-fA-F]{1,16}"/> <!-- base 16 -->
+        <xs:pattern value="0[bB][0-1]{1,64}"/> <!-- base 2 -->
+        <xs:pattern value="2\*\*\d{1,2}"/> <!-- power of 2 -->
         <xs:pattern value="NaN"/> <!-- Allow not-a-number as a default (for params) -->
     </xs:restriction>
   </xs:simpleType>
@@ -117,8 +120,8 @@
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
     <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
-    <xs:enumeration value="degE5"/>    <!-- degrees * 10E5 -->
-    <xs:enumeration value="degE7"/>    <!-- degrees * 10E7 -->
+    <xs:enumeration value="degE5"/>    <!-- degrees * 1E5 -->
+    <xs:enumeration value="degE7"/>    <!-- degrees * 1E7 -->
     <xs:enumeration value="rpm"/>      <!-- rotations per minute -->
     <!-- electricity -->
     <xs:enumeration value="V"/>        <!-- Volt -->
@@ -172,6 +175,13 @@
   </xs:restriction>
 </xs:simpleType>
 
+<xs:simpleType name="factor">
+  <xs:restriction base="xs:string">
+    <xs:enumeration value="1E-2"/>        <!-- actual value = stated value / 100 -->
+    <xs:enumeration value="360/255"/>     <!-- actual value = stated value * 360/255, as used for GPS_STATUS.satellite_azimuth -->
+  </xs:restriction>
+</xs:simpleType>
+
 <!-- definition param elements attributes (like the ones used on MAV_CMD for example) -->
 <xs:attribute name="index" type="xs:unsignedByte"/>                    <!-- parameter index -->
 <xs:attribute name="label" type="xs:string"/>                          <!-- parameter label (name) -->
@@ -192,6 +202,7 @@
         <xs:attribute ref="index" use="required"/>
         <xs:attribute ref="label"/>
         <xs:attribute ref="units"/>
+        <xs:attribute ref="multiplier"/>
         <xs:attribute ref="instance"/>
         <xs:attribute ref="enum" />
         <xs:attribute ref="decimalPlaces"/>
@@ -233,6 +244,10 @@
         <xs:attribute ref="enum" />
         <xs:attribute ref="display" />
         <xs:attribute ref="units" />
+        <xs:attribute ref="increment"/>
+        <xs:attribute ref="minValue"/>
+        <xs:attribute ref="maxValue"/>        
+        <xs:attribute ref="multiplier"/>
         <xs:attribute ref="default" />
         <xs:attribute ref="instance" />
         <xs:attribute ref="invalid" />

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 fit best estimate of magnetometer offsets, trying to take into account motor interference
