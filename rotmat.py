@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # vector3 and rotation matrix classes
 # This follows the conventions in the ArduPilot code,

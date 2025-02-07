@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 mavlink python utility functions
 
@@ -2148,6 +2148,7 @@ mode_mapping_apm = {
     23 : 'QACRO',
     24 : 'THERMAL',
     25 : 'LOITERALTQLAND',
+    26 : 'AUTOLAND',
 }
 
 mode_mapping_acm = {

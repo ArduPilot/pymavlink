@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 Summarize MAVLink logs. Useful for identifying which log is of interest in a large set.

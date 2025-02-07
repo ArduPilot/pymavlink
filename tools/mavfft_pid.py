@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 fit estimate of PID oscillations
@@ -11,7 +11,7 @@ import pylab
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--condition", default=None, help="select packets by condition")
-parser.add_argument("--sample-rate", dest='sample_rate', type=int, default=400, help="sample rate of PID values")
+parser.add_argument("--sample-rate", dest='sample_rate', type=int, default=0, help="sample rate of PID values")
 parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
@@ -22,6 +22,10 @@ def fft(logfile):
     '''display fft for PID data in logfile'''
 
     sample_rate = args.sample_rate
+    loop_rate = 400
+    fstrate_enable = 0
+    fstrate_div = 1
+    gyro_rate = 0
 
     print("Processing log %s" % filename)
     mlog = mavutil.mavlink_connection(filename)
@@ -31,11 +35,23 @@ def fft(logfile):
         if m is None:
             break
         type = m.get_type()
-        if type == "PARM" and m.Name == 'SCHED_LOOP_RATE':
-            sample_rate = int(m.Value)
-            break
-
-
+        if type == "PARM":
+            if m.Name == 'SCHED_LOOP_RATE':
+                loop_rate = int(m.Value)
+            elif m.Name == 'FSTRATE_ENABLE':
+                fstrate_enable = int(m.Value)
+            elif m.Name == 'FSTRATE_DIV':
+                fastrate_div = int(m.Value)
+            elif m.Name == 'INS_GYRO_RATE':
+                gyro_rate = int(m.Value)
+    
+    if sample_rate == 0:
+        if fstrate_enable == 0:
+            sample_rate = loop_rate
+        else:
+            gyro_rate = 1000 * pow(2, gyro_rate)
+            sample_rate = gyro_rate / fstrate_div
+        
     mlog = mavutil.mavlink_connection(filename)
 
     data = {'PIDR.rate' : sample_rate,

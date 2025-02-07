@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 merge 2 logs into a 3rd log, mapping some messages from LOG2 to new message names
