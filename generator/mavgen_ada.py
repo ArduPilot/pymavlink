@@ -181,26 +181,34 @@ package MAVLink.Messages is
 def repr_bitmask(enum, size):
     enum_name = normalize_enum_name(enum.name).title()
     s = "   type %s is record\n" % enum_name
+    names = [i.name for i in enum.entry if not i.end_marker]
+    common_prefix = os.path.commonprefix(names)
 
     max_len = 0
     for i in enum.entry:
         if i.end_marker:
-            break
+            name = "Reserved_%i" % (size * 8 - 1)
         elif i.value == 0 or not is_position(i.value):
             continue
-        name_len = len(normalize_entry_name(i.name))
+        else:
+            name = i.name[len(common_prefix):] # strip common prefix
+        name_len = len(normalize_entry_name(name))
         if name_len > max_len:
             max_len = name_len
 
     for i in enum.entry:
         if i.end_marker:
+            for j in range(math.ceil(math.log(i.value, 2)), size * 8):
+                name = "Reserved_%i" % j
+                s += "      %s : Boolean := False;\n" % name.ljust(max_len)
             break
         elif i.value == 0:
             continue
         elif not is_position(i.value):
             print("%s ignored because the composite value!" % i.name)
             continue
-        name = normalize_entry_name(i.name).title()
+        name = i.name[len(common_prefix):] # strip common prefix
+        name = normalize_entry_name(name).title()
         s += "      %s : Boolean := False;\n" % name.ljust(max_len)
 
     s += "   end record with Size => %i;\n" % (size * 8)
@@ -208,10 +216,14 @@ def repr_bitmask(enum, size):
     s += "   for %s use record\n" % enum_name
     for i in enum.entry:
         if i.end_marker:
+            for j in range(math.ceil(math.log(i.value, 2)), size * 8):
+                name = "Reserved_%i" % j
+                s += "      %s at 0 range %i .. %i;\n" % (name.ljust(max_len), j, j)
             break
         elif i.value == 0 or not is_position(i.value):
             continue
-        name = normalize_entry_name(i.name).title()
+        name = i.name[len(common_prefix):] # strip common prefix
+        name = normalize_entry_name(name).title()
         pos = int(math.log(i.value, 2))
         s += "      %s at 0 range %i .. %i;\n" % (name.ljust(max_len), pos, pos)
     s += "   end record;\n"
