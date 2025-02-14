@@ -9,6 +9,7 @@ Released under GNU GPL version 3 or later
 from __future__ import print_function
 
 import os
+import os.path
 import math
 import shutil
 from operator import attrgetter
@@ -38,6 +39,8 @@ except:
 def normalize_name(name, suffix):
     if name.lower() in reserved_words:
         return name + "_" + suffix
+    if not name[0].isalpha():
+        return "A_" + name
     return name
 
 def normalize_field_name(name):
@@ -88,7 +91,7 @@ with MAVLink.Types; use MAVLink.Types;
 
 package MAVLink.Messages is
 
-   pragma Pure (MAVLink.Messages);
+   pragma Pure;
 
    type Message
      (Message_Id : Msg_Id;
@@ -217,54 +220,29 @@ def repr_bitmask(enum, size):
 
 def repr_enum(enum, size):
     enum_name = normalize_enum_name(enum.name).title()
-    s = "   type %s is\n     (" % enum_name
-    l = 6
-    max_len = 0
+    s = "   type %s is new Interfaces.Unsigned_%i;\n\n" % (enum_name, size * 8)
+    names = [i.name for i in enum.entry]
+    common_prefix = os.path.commonprefix(names)
+
     for i in enum.entry:
         if i.end_marker:
             break
-        if max_len > 0:
-            s += ", "
-            l += 2
-
-        name = normalize_entry_name(i.name).title()
-        name_len = len(name)
-        if name_len > max_len:
-            max_len = name_len
-        l += name_len + 1
-        if l > 80:
-            l = name_len + 6
-            s += "\n      "
-        s += "%s" % name
-
-    s += ")"
-    aspect = " with Size => %i;\n" % (size * 8)
-    if l + len(aspect) > 79:
-        s += "\n    "
-    s += aspect;
-
-    s += "   for %s use\n     (" % enum_name
-    l = 0
-    for i in enum.entry:
-        if i.end_marker:
-            break
-        if l > 0:
-            s += ",\n      "
-        else:
-            l = 1
-        s += "%s => %i" % (normalize_entry_name(i.name).title().ljust(max_len), i.value)
-            
-    s += ");\n"
+        name = i.name[len(common_prefix):] # strip common prefix
+        name = normalize_entry_name(name).title()
+        fun = "   function %s return %s is (%i)\n     with Static;\n\n" % (name, enum_name, i.value)
+        s += fun
 
     return s
 
 def generate_mavlink_types(outf, types, types_size):
     outf.write("""--  Defines MAVLink types
---  Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Copyright Fil Andrii root.fi36@gmail.com 2022-2025
+
+pragma Ada_2022;
 
 package MAVLink.Types is
 
-   pragma Pure (MAVLink.Types);\n\n""")
+   pragma Pure;\n\n""")
 
     for t in types:
         size = types_size[t.name]
