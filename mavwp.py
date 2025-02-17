@@ -37,7 +37,8 @@ class MissionItemProtocol(object):
         self.last_change = 0
         self.colour_for_polygon = {
             mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION : (255,0,0),
-            mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION : (0,255,0)
+            mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION : (0,255,0),
+            mavutil.mavlink.MAV_CMD_DO_LAND_START: (255, 127, 0),
         }
 
     def count(self):
@@ -295,6 +296,14 @@ class MissionItemProtocol(object):
                 if self.is_location_wp(w):
                     ret.append(idx)
                 break
+            if w.command == mavutil.mavlink.MAV_CMD_DO_LAND_START:
+                # these are starting points; we should never fly to
+                # one of these.... but we want an edge *from* one of these
+                if len(ret) == 0:
+                    ret.append(idx)
+                    done.add(idx)
+                idx += 1
+                continue
             done.add(idx)
             if w.command == mavutil.mavlink.MAV_CMD_DO_JUMP:
                 idx = int(w.param1)
@@ -435,6 +444,9 @@ class MAVWPLoader(MissionItemProtocol):
 
     def is_location_wp(self, w):
         '''see if w.command is a MAV_CMD with a latitude/longitude'''
+        if w.command == mavutil.mavlink.MAV_CMD_DO_LAND_START:
+            # technically stores a location, but we do not navigate there!
+            return False
         if w.x == 0 and w.y == 0:
             return False
         return self.is_location_command(w.command)
