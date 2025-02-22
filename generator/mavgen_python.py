@@ -518,16 +518,42 @@ def byname_hash_from_field_attribute(m, attribute):
     return ", ".join(strings)
 
 
-def generate_classes(outf, msgs, enable_type_annotations):
+def generate_classes(outf, msgs, enums, enable_type_annotations):
     print("Generating class definitions")
     wrapper = textwrap.TextWrapper(initial_indent="    ", subsequent_indent="    ")
     for m in msgs:
         classname = "MAVLink_%s_message" % m.name.lower()
         fieldname_str = ", ".join(['"%s"' % s for s in m.fieldnames])
         ordered_fieldname_str = ", ".join(['"%s"' % s for s in m.ordered_fieldnames])
-        fielddisplays_str = byname_hash_from_field_attribute(m, "display")
-        fieldenums_str = byname_hash_from_field_attribute(m, "enum")
         fieldunits_str = byname_hash_from_field_attribute(m, "units")
+
+        # Parse display and enums, possibly setting display based on enum
+        m_display = []
+        m_enum = []
+        for field in m.fields:
+            display = getattr(field, "display", None)
+            enum_name = getattr(field, "enum", None)
+
+            display_valid = not (display is None or display == "")
+            enum_valid = not (enum_name is None or enum_name == "")
+
+            if not display_valid and enum_valid:
+                # Set display based on enum
+                for enum in enums:
+                    if enum.name == enum_name:
+                        if enum.bitmask == True:
+                            display = "bitmask"
+                            display_valid = True
+                        break
+
+            if display_valid:
+                m_display.append('"%s": "%s"' % (field.name, display))
+
+            if enum_valid:
+                m_enum.append('"%s": "%s"' % (field.name, enum_name))
+
+        fielddisplays_str = ", ".join(m_display)
+        fieldenums_str = ", ".join(m_enum)
 
         fieldtypes_str = ", ".join(['"%s"' % s for s in m.fieldtypes])
         if m.instance_field is not None:
@@ -1275,7 +1301,7 @@ def generate(basename, xml, enable_type_annotations=False):
     generate_preamble(outf, msgs, basename, filelist, xml)
     generate_enums(outf, enums, enable_type_annotations)
     generate_message_ids(outf, msgs)
-    generate_classes(outf, msgs, enable_type_annotations)
+    generate_classes(outf, msgs, enums, enable_type_annotations)
     generate_mavlink_class(outf, msgs, xml)
     generate_methods(outf, msgs, enable_type_annotations)
     outf.close()
