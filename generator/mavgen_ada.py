@@ -182,7 +182,7 @@ def repr_bitmask(enum, size):
     enum_name = normalize_enum_name(enum.name).title()
     s = "   type %s is record\n" % enum_name
     names = [i.name for i in enum.entry if not i.end_marker]
-    common_prefix = os.path.commonprefix(names)
+    common_prefix = os.path.commonprefix(names) if len(names) > 1 else ""
 
     max_len = 0
     for i in enum.entry:
@@ -233,8 +233,8 @@ def repr_bitmask(enum, size):
 def repr_enum(enum, size):
     enum_name = normalize_enum_name(enum.name).title()
     s = "   type %s is new Interfaces.Unsigned_%i;\n\n" % (enum_name, size * 8)
-    names = [i.name for i in enum.entry]
-    common_prefix = os.path.commonprefix(names)
+    names = [i.name for i in enum.entry if not i.end_marker]
+    common_prefix = os.path.commonprefix(names) if len(names) > 1 else ""
 
     for i in enum.entry:
         if i.end_marker:
