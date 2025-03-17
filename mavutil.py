@@ -159,10 +159,22 @@ class mavfile_state(object):
         self.armed = False # canonical arm state for the vehicle as a whole
 
         if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
-            mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
+            try:
+                self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
+            except AttributeError:
+                # may be using a minimal dialect
+                pass
+            try:
+                mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
+            except AttributeError:
+                # may be using a minimal dialect
+                pass
         else:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
+            try:
+                self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
+            except AttributeError:
+                # may be using a minimal dialect
+                pass
 
 class param_state(object):
     '''state for a particular system id/component id pair'''
