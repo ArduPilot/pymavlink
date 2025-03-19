@@ -455,6 +455,7 @@ class EnumEntry(object):
         self.description = description
         self.param${type_dict_int_to_str} = {}
         self.has_location = False
+        self.is_destination = False
 
 
 enums${type_dict_str_to_dict_int_to_enumentry} = {}
@@ -481,6 +482,9 @@ enums${type_dict_str_to_dict_int_to_enumentry} = {}
             if entry.has_location:
                 outf.write('enums["%s"][%d].has_location = True\n' %
                            (e.name, int(entry.value),))
+
+            outf.write(f'enums["{e.name}"][{int(entry.value)}].is_destination = {entry.is_destination}\n')
+
             for param in entry.param:
                 description = param.description.replace("\t", "    ")
                 if "\n" in description:
