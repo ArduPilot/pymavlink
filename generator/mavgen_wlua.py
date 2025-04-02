@@ -346,7 +346,6 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         unit = field.units.replace("[","").replace("]","")
-        global unit_decoder_mapping
         if unit in unit_decoder_mapping:
             if not value_extracted:
                 t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})
