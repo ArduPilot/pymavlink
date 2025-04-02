@@ -295,7 +295,6 @@ class mavfile(object):
     
     def auto_mavlink_version(self, buf):
         '''auto-switch mavlink protocol version'''
-        global mavlink
         if len(buf) == 0:
             return
         try:
@@ -1998,7 +1997,6 @@ except:
 
 def is_printable(c):
     '''see if a character is printable'''
-    global have_ascii
     if have_ascii:
         return ascii.isprint(c)
     if isinstance(c, int):
