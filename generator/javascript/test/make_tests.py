@@ -171,7 +171,6 @@ templatefooter = '''
 #------------------------------------------------
 
 def is_packet_and_field_in_long_list(pname,fname):
-    global llines
     for l in llines:
         if ( pname+'.'+fname in l ) : 
             return (True, l)
