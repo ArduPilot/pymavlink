@@ -29,7 +29,6 @@ class Sample:
         self.fix_type = fix_type
 
 def add_data(sysid, gps_id, lat, lon, alt, fix_type):
-    global DATA
     if not sysid in DATA:
         DATA[sysid] = {}
     if not gps_id in DATA[sysid]:
