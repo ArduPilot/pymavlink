@@ -33,7 +33,6 @@ kml_linestrings = []
 
 def add_to_linestring(position_data, kml_linestring):
     '''add a point to the kml file'''
-    global kml
 
     # add altitude offset
     position_data[2] += float(args.aoff)
@@ -42,7 +41,6 @@ def add_to_linestring(position_data, kml_linestring):
 
 def save_kml(filename):
     '''saves the kml file'''
-    global kml
     kml.save(filename)
     print("KML written to %s" % filename)
 
