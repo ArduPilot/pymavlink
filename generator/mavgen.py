@@ -310,7 +310,7 @@ class Opts(object):
         self.strict_units = strict_units
 
 
-def mavgen_python_dialect(dialect, wire_protocol, with_type_annotations):
+def mavgen_python_dialect(dialect, wire_protocol):
     '''generate the python code on the fly for a MAVLink dialect'''
     dialects = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'dialects')
     mdef = os.getenv("MDEF", default=os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'message_definitions'))
