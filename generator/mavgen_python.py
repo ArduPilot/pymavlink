@@ -20,6 +20,7 @@ t = mavtemplate.MAVTemplate()
 def extend_with_type_info(extended, enable_type_annotations):
     types = {
         "int": ("int", 0),
+        "Enum": ("Enum", None),
         "bool": ("bool", False),
         "float": ("float", 0),
         "str": ("str", ""),
@@ -44,6 +45,7 @@ def extend_with_type_info(extended, enable_type_annotations):
         "mavlink_message_signed_callback": ('Callable[["MAVLink", int], bool]', None),
         "dict_str_to_str_float_int": ("Dict[str, Union[str, float, int]]", None),
         "dict_str_to_dict_int_to_enumentry": ("Dict[str, Dict[int, EnumEntry]]", None),
+        "dict_str_to_Enum_int_to_enumentry": ("Dict[str, Enum]", None),
         "dict_int_to_str": ("Dict[int, str]", None),
         "dict_str_to_str": ("Dict[str, str]", None),
         "dict_int_int_int_to_int": ("Dict[Tuple[int, int, int], int]", None),
@@ -80,6 +82,7 @@ def extend_with_type_info(extended, enable_type_annotations):
             res["type_optional_" + type_name + "_default"] = (
                 ": Optional[" + type_info[0] + "] = None"
             )
+        res["enum_dictionary"] = "Dict[int, EnumEntry]"
 
     else:
         res[
@@ -102,6 +105,8 @@ def cast(type_str, arg):
             res["type_optional_" + type_name + "_ret"] = ""
             res["type_optional_" + type_name + "_cast"] = '"Optional[' + type_info[0] + ']"'
             res["type_optional_" + type_name + "_default"] = "=None"
+
+        res["enum_dictionary"] = "dict"
 
     return res
 
@@ -456,15 +461,19 @@ class EnumEntry(object):
         self.param${type_dict_int_to_str} = {}
         self.has_location = False
 
+class Enum(${enum_dictionary}):
+    def __init__(self)${type_none_ret}:
+        self.bitmask = False
 
-enums${type_dict_str_to_dict_int_to_enumentry} = {}
+enums${type_dict_str_to_Enum_int_to_enumentry} = {}
 """,
         type_info,
     )
 
     for e in enums:
         outf.write("\n# %s\n" % e.name)
-        outf.write('enums["%s"] = {}\n' % e.name)
+        outf.write('enums["%s"] = Enum()\n' % e.name)
+        outf.write(f'enums["{e.name}"].bitmask = {e.bitmask}\n');
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
             description = entry.description.replace("\t", "    ")
