@@ -62,7 +62,7 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 1.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=True):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
                 print("Building failed %s for protocol 1.0" % xml)
                 sys.exit(1)
 
@@ -72,7 +72,7 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 2.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=True):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
                 print("Building failed %s for protocol 2.0" % xml)
                 sys.exit(1)
 

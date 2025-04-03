@@ -109,8 +109,8 @@ def set_dialect(dialect, with_type_annotations=None):
     global mavlink, current_dialect
     from .generator import mavparse
 
-    if with_type_annotations is None:
-        with_type_annotations = True
+    if with_type_annotations is not None:
+        print("with_type_annotations ignored; remove parameter")
 
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
@@ -127,7 +127,7 @@ def set_dialect(dialect, with_type_annotations=None):
     except Exception:
         # auto-generate the dialect module
         from .generator.mavgen import mavgen_python_dialect
-        mavgen_python_dialect(dialect, wire_protocol, with_type_annotations=with_type_annotations)
+        mavgen_python_dialect(dialect, wire_protocol)
         mod = __import__(modname)
     components = modname.split('.')
     for comp in components[1:]:
