@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<mavlink>
+  <!-- ardupilotmega.xml range of IDs:
+    messages: 11000 - 11999
+    commands: 42000 - 42999
+  -->
+  <include>ardupilotmega.xml</include>
+  <!-- ASLUAV.xml range of IDs:
+    messages: 8000 - 8999
+    commands: 40001 - 41999
+  -->
+  <include>ASLUAV.xml</include>
+  <!-- common.xml range of IDs:
+    messages: 300 - 10000
+    commands: 0 - 39999
+    Note: entities imported from other dialects may fall outside these ranges.
+  -->
+  <include>common.xml</include>
+  <include>development.xml</include>
+  <!-- icarous.xml range of IDs:
+    messages: 42000 - 42999
+    commands: ? - ?
+  -->
+  <include>icarous.xml</include>
+  <!-- matrixpilot.xml: ERROR: Duplicate message id 150 for FLEXIFUNCTION_SET (matrixpilot.xml:50) also used by SENSOR_OFFSETS (ardupilotmega.xml:1101) -->
+  <!-- <include>matrixpilot.xml</include> -->
+  <include>minimal.xml</include>
+  <!-- paparazzi.xml: : ERROR: Duplicate message id 180 for SCRIPT_ITEM (paparazzi.xml:9) also used by CAMERA_FEEDBACK (ardupilotmega.xml:1370) -->
+  <!-- <include>paparazzi.xml</include> -->
+  <include>python_array_test.xml</include>
+  <include>standard.xml</include>
+  <include>test.xml</include>
+  <include>ualberta.xml</include>
+  <!-- uAvionix.xml range of IDs:
+    messages: 10001-10999
+    commands: ? - ?
+  -->
+  <include>uAvionix.xml</include>
+  <!-- storm32.xml range of IDs:
+    messages: 60000 - 60049
+    commands: 60000 - 60049
+  -->
+  <include>storm32.xml</include>
+  <!-- AVSSUAS.xml range of IDs:
+    messages: 60050 - 60099
+    commands: 60050 - 60099
+  -->
+  <include>AVSSUAS.xml</include>
+  <!-- Herelink.xml range of IDs:
+    messages: 50000 - 50099
+    commands: 50000 - 50099
+  -->
+  <include>cubepilot.xml</include>
+  <!-- ras_a.xml range of IDs:
+    messages: 51000 - 51999
+    commands: 51000 - 51999
+    https://github.com/Dronecode/air-iop-definitions/blob/master/message_definitions/v1.0/ras_a.xml
+  -->
+  <include>csAirLink.xml</include>
+  <!-- csAirLink.xml range of IDs:
+    messages: 52000 - 52099
+    commands: 52000 - 52099
+  -->
+  <!--Reserved range of IDs: contact james@auturgy.com.au
+    messages: 52100 - 52499
+    commands: 52100 - 52499
+  -->
+  <!--Next range to allocate range of IDs:
+    messages: 52500 - 52599 (< 60000)
+    commands: 52500 - 52599 (< 60000)
+  -->
+  <messages/>
+</mavlink>
