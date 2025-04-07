@@ -279,23 +279,18 @@ class MissionItemProtocol(object):
 
     def view_indexes(self, done=None):
         '''return a list waypoint indexes in view order'''
-        ret = []
         if done is None:
             done = set()
-        idx = 0
 
-        # find first point not done yet
-        while idx < self.count():
-            if not idx in done:
-                break
-            idx += 1
-
-        while idx < self.count():
+        ret = []
+        for idx in range(self.count()):
             w = self.wp(idx)
             if idx in done:
-                if self.is_location_wp(w):
-                    ret.append(idx)
-                break
+                continue
+            if w.command in [ mavutil.mavlink.MAV_CMD_DO_JUMP ]:
+                # handled in a separate loop, below
+                continue
+            done.add(idx)
             if w.command == mavutil.mavlink.MAV_CMD_DO_LAND_START:
                 # these are starting points; we should never fly to
                 # one of these.... but we want an edge *from* one of these
@@ -304,21 +299,47 @@ class MissionItemProtocol(object):
                     done.add(idx)
                 idx += 1
                 continue
-            done.add(idx)
-            if w.command == mavutil.mavlink.MAV_CMD_DO_JUMP:
-                idx = int(w.param1)
-                w = self.wp(idx)
-                if self.is_location_wp(w):
-                    ret.append(idx)
-                continue
             if self.is_location_wp(w):
                 ret.append(idx)
             if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
                               mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND ]:
                 # stop at landing points
                 return ret
-            idx += 1
-        return ret
+
+        if len(ret) != 0:
+            return ret
+
+        # extra edges for jumps:
+        prev_loc_wp_num = None
+        for idx in range(self.count()):
+            w = self.wp(idx)
+
+            if w.command != mavutil.mavlink.MAV_CMD_DO_JUMP:
+                if self.is_location_wp(w):
+                    prev_loc_wp_num = idx
+                continue
+
+            if idx in done:
+                continue
+
+            # always succeed:
+            done.add(idx)
+
+            if prev_loc_wp_num is None:
+                print("Invalid jump (no prior location wp")
+                return []
+
+            nidx = int(w.param1)
+            while nidx < self.count():
+                w = self.wp(nidx)
+                if self.is_location_wp(w):
+                    return [prev_loc_wp_num, nidx]
+                nidx += 1
+            # invalid jump
+            print("Invalid jump?")
+            break
+
+        return []
 
     def polygon(self, done=None):
         '''return a polygon for the waypoints'''
