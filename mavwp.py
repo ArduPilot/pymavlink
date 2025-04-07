@@ -287,18 +287,13 @@ class MissionItemProtocol(object):
             w = self.wp(idx)
             if idx in done:
                 continue
-            if w.command in [ mavutil.mavlink.MAV_CMD_DO_JUMP ]:
+            if w.command in [
+                    mavutil.mavlink.MAV_CMD_DO_JUMP,
+                    mavutil.mavlink.MAV_CMD_DO_LAND_START,
+            ]:
                 # handled in a separate loop, below
                 continue
             done.add(idx)
-            if w.command == mavutil.mavlink.MAV_CMD_DO_LAND_START:
-                # these are starting points; we should never fly to
-                # one of these.... but we want an edge *from* one of these
-                if len(ret) == 0:
-                    ret.append(idx)
-                    done.add(idx)
-                idx += 1
-                continue
             if self.is_location_wp(w):
                 ret.append(idx)
             if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
@@ -314,9 +309,13 @@ class MissionItemProtocol(object):
         for idx in range(self.count()):
             w = self.wp(idx)
 
-            if w.command != mavutil.mavlink.MAV_CMD_DO_JUMP:
-                if self.is_location_wp(w):
-                    prev_loc_wp_num = idx
+            if self.is_location_wp(w):
+                prev_loc_wp_num = idx
+
+            if w.command not in [
+                    mavutil.mavlink.MAV_CMD_DO_JUMP,
+                    mavutil.mavlink.MAV_CMD_DO_LAND_START,
+            ]:
                 continue
 
             if idx in done:
@@ -324,6 +323,15 @@ class MissionItemProtocol(object):
 
             # always succeed:
             done.add(idx)
+
+            if w.command == mavutil.mavlink.MAV_CMD_DO_LAND_START:
+                # look forward for a location command:
+                for nidx in range(idx+1, self.count()):
+                    w = self.wp(nidx)
+                    if self.is_location_wp(w):
+                        return [idx, nidx]
+                print("Invalid DLS")
+                return [idx, idx]
 
             if prev_loc_wp_num is None:
                 print("Invalid jump (no prior location wp")
