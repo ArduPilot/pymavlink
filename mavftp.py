@@ -582,10 +582,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.fh.close()
             # Move the result to the final location
             logging.info("Moving %s to %s", self.temp_filename, self.filename)
-            self.fh = open(self.filename, "wb")
-            self.fh.write(self.get_result)
-            self.fh.flush()
-            self.fh.close()
+            with open(self.filename, "wb") as final_file:
+                final_file.write(self.get_result)
             self.__terminate_session()
             return True
         return False
