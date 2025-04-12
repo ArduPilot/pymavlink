@@ -27,8 +27,8 @@ jobs:
 
     - name: Analysing the code known to be pylint clean
       run: |
-        pylint __init__.py dialects/__init__.py dialects/v09/__init__.py dialects/v09/python2/__init__.py \
-        dialects/v10/__init__.py dialects/v10/python2/__init__.py dialects/v20/__init__.py \
+        pylint __init__.py dialects/__init__.py dialects/v09/__init__.py \
+        dialects/v10/__init__.py dialects/v20/__init__.py \
         examples/__init__.py generator/__init__.py tests/test_mavxml.py tools/__init__.py \
         mavftp.py mavftp_op.py examples/mavftp_example.py examples/status_msg.py tests/test_mavftp.py \
         tests/test_mavxml.py

@@ -19,17 +19,11 @@ from pymavlink import mavexpression
 # We want to re-export x25crc here
 from pymavlink.generator.mavcrc import x25crc as x25crc
 
-is_py3 = sys.version_info >= (3,0)
-supports_type_annotations = sys.version_info >= (3,6)
-
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
 # without having complex spec files. To allow for installs that don't have ardupilotmega
 # at all we avoid throwing an exception if it isn't installed
 try:
-    if supports_type_annotations:
-        from pymavlink.dialects.v10 import ardupilotmega
-    else:
-        from pymavlink.dialects.v10.python2 import ardupilotmega
+    from pymavlink.dialects.v10 import ardupilotmega
 except Exception:
     pass
 
@@ -76,9 +70,7 @@ def evaluate_condition(condition, vars):
     return v
 
 def u_ord(c):
-    if is_py3:
-        return c
-    return ord(c)
+    return c
 
 class location(object):
     '''represent a GPS coordinate'''
@@ -118,18 +110,17 @@ def set_dialect(dialect, with_type_annotations=None):
     from .generator import mavparse
 
     if with_type_annotations is None:
-        with_type_annotations = supports_type_annotations
+        with_type_annotations = True
 
-    legacy_python_module = "python2." if not with_type_annotations else ""
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
-        modname = "pymavlink.dialects.v20." + legacy_python_module + dialect
+        modname = "pymavlink.dialects.v20." + dialect
     elif mavlink is None or mavlink.WIRE_PROTOCOL_VERSION == "1.0" or not 'MAVLINK09' in os.environ:
         wire_protocol = mavparse.PROTOCOL_1_0
-        modname = "pymavlink.dialects.v10." + legacy_python_module + dialect
+        modname = "pymavlink.dialects.v10." + dialect
     else:
         wire_protocol = mavparse.PROTOCOL_0_9
-        modname = "pymavlink.dialects.v09." + legacy_python_module + dialect
+        modname = "pymavlink.dialects.v09." + dialect
 
     try:
         mod = __import__(modname)
@@ -487,10 +478,7 @@ class mavfile(object):
 
             if numnew != 0:
                 if self.logfile_raw:
-                    if is_py3:
-                        self.logfile_raw.write(s)
-                    else:
-                        self.logfile_raw.write(str(s))
+                    self.logfile_raw.write(s)
                 if self.first_byte:
                     self.auto_mavlink_version(s)
 
@@ -500,10 +488,7 @@ class mavfile(object):
             if msg:
                 if self.logfile and  msg.get_type() != 'BAD_DATA' :
                     usec = int(time.time() * 1.0e6) & ~3
-                    if is_py3:
-                        self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
-                    else:
-                        self.logfile.write(str(struct.pack('>Q', usec) + msg.get_msgbuf()))
+                    self.logfile.write(struct.pack('>Q', usec) + msg.get_msgbuf())
                 self.post_message(msg)
                 return msg
             else:
@@ -580,7 +565,7 @@ class mavfile(object):
             idx = int(name)
             self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
         except Exception:
-            if sys.version_info.major >= 3 and not isinstance(name, bytes):
+            if not isinstance(name, bytes):
                 name = bytes(name,'ascii')
             self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
 

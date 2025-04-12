@@ -14,8 +14,6 @@ from pymavlink import mavutil
 def process_tlog(filename):
     '''convert a tlog to a .m file'''
 
-    is_py2 = sys.version_info < (3,0)
-
     print("Processing %s" % filename)
 
     mlog = mavutil.mavlink_connection(filename, dialect=args.dialect, zero_time_base=True)
@@ -66,10 +64,6 @@ def process_tlog(filename):
             for field in fieldnames:
                 val = getattr(m, field)
 
-                if is_py2:
-                    if isinstance(val,unicode): # NOQA
-                        val = str(val)
-
                 if not isinstance(val, str):
                     if type(val) is not list:
                         f.write(",'%s'" % field)
@@ -82,10 +76,6 @@ def process_tlog(filename):
         f.write("%s.data(%u,:) = [%f" % (mtype, type_counters[mtype], m._timestamp))
         for field in m._fieldnames:
             val = getattr(m, field)
-
-            if is_py2:
-                if isinstance(val,unicode): # NOQA
-                    val = str(val)
 
             if not isinstance(val, str):
                 if type(val) is not list:
