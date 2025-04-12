@@ -16,12 +16,6 @@ import struct
 import sys
 import time
 
-# Detect python version
-if sys.version_info[0] < 3:
-    runningPython3 = False
-else:
-    runningPython3 = True
-
 try:
     from pymavlink.mavextra import *
 except:
@@ -160,9 +154,6 @@ def to_string(s):
     '''desperate attempt to convert a string regardless of what garbage we get'''
     if isinstance(s, str):
         return s
-    if sys.version_info[0] == 2:
-        # In python2 we want to return unicode for passed in unicode
-        return s
     return s.decode(errors="backslashreplace")
 
 def match_type(mtype, patterns):
@@ -181,10 +172,7 @@ if istlog and args.format == 'csv': # we know our fields from the get-go
         for type in types:
             try:
                 typeClass = "MAVLink_{0}_message".format(type.lower())
-                if runningPython3:
-                    fields += [type + '.' + x for x in inspect.getfullargspec(getattr(mavutil.mavlink, typeClass).__init__).args[1:]]
-                else:
-                    fields += [type + '.' + x for x in inspect.getargspec(getattr(mavutil.mavlink, typeClass).__init__).args[1:]]
+                fields += [type + '.' + x for x in inspect.getfullargspec(getattr(mavutil.mavlink, typeClass).__init__).args[1:]]
                 offsets[type] = currentOffset
                 currentOffset += len(fields)
             except IndexError:
