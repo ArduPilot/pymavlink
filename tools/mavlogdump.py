@@ -116,7 +116,6 @@ reduction_count = {}
 
 def reduce_msg(mtype, reduction_ratio):
     '''return True if this msg should be discarded by reduction'''
-    global reduction_count, reduction_msgs, reduction_yes, reduction_no
     if mtype in reduction_no:
         return False
     if not mtype in reduction_yes:
@@ -138,7 +137,6 @@ last_msg_rate_t = {}
 
 def reduce_rate_msg(m, reduction_rate):
     '''return True if this msg should be discarded by reduction'''
-    global last_msg_rate_t
     mtype = m.get_type()
     if mtype in ['PARM','MSG','FMT','FMTU','MULT','MODE','EVT','UNIT', 'VER']:
         return False

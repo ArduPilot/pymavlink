@@ -78,12 +78,13 @@ time_usec_threshold = UInt64.new(0,0x40000)
 -- function to append human-readable time onto unix_time_us fields
 local function time_usec_decode(value)
     if value > time_usec_threshold then
-        d = os.date("%Y-%m-%d %H:%M:%S",value:tonumber() / 1000000.0)
+        s = math.floor(value:tonumber() / 1000000.0)
         us = value % 1000000
+        d = os.date("%Y-%m-%d %H:%M:%S",s)
         us = string.format("%06d",us:tonumber())
-        ok, tz = pcall(os.date," %Z",value:tonumber() / 1000000.0)
+        ok, tz = pcall(os.date," %Z",s)
         if not ok then
-            tz = os.date(" %z",value:tonumber() / 1000000.0)
+            tz = os.date(" %z",s)
         end
         return " (" .. d .. "." .. us .. tz .. ")"
     elseif value < 1000000 then
@@ -345,7 +346,6 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         unit = field.units.replace("[","").replace("]","")
-        global unit_decoder_mapping
         if unit in unit_decoder_mapping:
             if not value_extracted:
                 t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})

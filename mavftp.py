@@ -533,6 +533,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                                         (op.payload[3] << 24)
                 if self.ftp_settings.debug > 0:
                     logging.info("Remote file size: %u", self.remote_file_size)
+                self.requested_size = self.remote_file_size
             else:
                 self.remote_file_size = None
             read = FTP_OP(self.seq, self.session, OP_BurstReadFile, self.burst_size, 0, 0, 0, None)
@@ -565,7 +566,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 print(self.fh.read().decode('utf-8'))
             else:
                 logging.info("Wrote %u/%u bytes to %s in %.2fs %.1fkByte/s",
-                    self.read_total, self.requested_size, self.filename, dt, rate)
+                    self.read_total, self.requested_size, self.temp_filename, dt, rate)
                 logging.info("terminating with %u out of %u (ofs=%u)", self.read_total, self.requested_size, ofs)
                 self.done = True
 
@@ -579,6 +580,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.info("read %u bytes", len(self.get_result))
             self.fh.flush()
             self.fh.close()
+            # Move the result to the final location
+            logging.info("Moving %s to %s", self.temp_filename, self.filename)
+            with open(self.filename, "wb") as final_file:
+                final_file.write(self.get_result)
             self.__terminate_session()
             return True
         return False

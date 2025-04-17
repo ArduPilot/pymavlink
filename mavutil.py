@@ -159,10 +159,22 @@ class mavfile_state(object):
         self.armed = False # canonical arm state for the vehicle as a whole
 
         if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
-            mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
+            try:
+                self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
+            except AttributeError:
+                # may be using a minimal dialect
+                pass
+            try:
+                mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
+            except AttributeError:
+                # may be using a minimal dialect
+                pass
         else:
-            self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
+            try:
+                self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
+            except AttributeError:
+                # may be using a minimal dialect
+                pass
 
 class param_state(object):
     '''state for a particular system id/component id pair'''
@@ -283,7 +295,6 @@ class mavfile(object):
     
     def auto_mavlink_version(self, buf):
         '''auto-switch mavlink protocol version'''
-        global mavlink
         if len(buf) == 0:
             return
         try:
@@ -420,9 +431,7 @@ class mavfile(object):
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
             if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-                self.flightmode = mode_string_v10(msg)
-                self.mav_type = msg.type
-                self.base_mode = msg.base_mode
+                self.sysid_state[src_system].flightmode = mode_string_v10(msg)
                 self.sysid_state[src_system].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
                 self.sysid_state[src_system].mav_type = msg.type
                 self.sysid_state[src_system].mav_autopilot = msg.autopilot
@@ -430,11 +439,10 @@ class mavfile(object):
             if self.sysid == 0:
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
-            self.flightmode = mode_string_v10(msg)
-            self.mav_type = msg.type
             if msg.autopilot == mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA:
-                self.base_mode = msg.custom0
+                self.sysid_state[src_system].base_mode = msg.custom0
                 self.sysid_state[src_system].armed = (msg.custom0 & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            self.sysid_state[src_system].flightmode = mode_string_v10(msg)
             self.sysid_state[src_system].mav_type = msg.type
             self.sysid_state[src_system].mav_autopilot = msg.autopilot
 
@@ -443,7 +451,7 @@ class mavfile(object):
                 self.param_state[src_tuple] = param_state()
             self.param_state[src_tuple].params[msg.param_id] = msg.param_value
         elif type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
-            self.flightmode = mode_string_v09(msg)
+            self.sysid_state[src_system].flightmode = mode_string_v09(msg)
         elif type == 'GPS_RAW':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 2:
                 self.sysid_state[src_system].messages['HOME'] = msg
@@ -1986,7 +1994,6 @@ except:
 
 def is_printable(c):
     '''see if a character is printable'''
-    global have_ascii
     if have_ascii:
         return ascii.isprint(c)
     if isinstance(c, int):

@@ -121,7 +121,6 @@ def get_yaw(ATT,MAG,BAT,CTUN,c):
     headY = mag.y * dcm_matrix.c.z - mag.z * dcm_matrix.c.y
     headX = mag.x * cos_pitch_sq - dcm_matrix.c.x * (mag.y * dcm_matrix.c.y + mag.z * dcm_matrix.c.z)
 
-    global declination
     yaw = math.degrees(math.atan2(-headY,headX)) + declination
     if yaw < 0:
         yaw += 360
@@ -129,7 +128,6 @@ def get_yaw(ATT,MAG,BAT,CTUN,c):
 
 def expected_field(ATT, yaw):
     '''return expected magnetic field for attitude'''
-    global earth_field
 
     roll = ATT.Roll
     pitch = ATT.Pitch
@@ -274,7 +272,6 @@ def remove_offsets(MAG, BAT, CTUN, c):
     return True
 
 def param_name(short_name, index):
-    global new_param_format
     if new_param_format:
         return "COMPASS%s_%s" % (index, short_name)
     if index == 1:

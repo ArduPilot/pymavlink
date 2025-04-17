@@ -21,7 +21,6 @@ parser.add_argument("--baudrate", type=int,
 args = parser.parse_args()
 
 def set_attitude(rc3, rc4):
-    global mav1, mav2
     values = [ 65535 ] * 8
     values[2] = rc3
     values[3] = rc4

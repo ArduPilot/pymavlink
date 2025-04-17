@@ -138,14 +138,12 @@ class Vector3(object):
 
     def rotate_by_id(self, rot_id):
         '''rotate a vector using a rotation enum ID'''
-        global rotations
         if rot_id >= len(rotations):
             return None
         return rotations[rot_id].r * self
 
     def rotate_by_inverse_id(self, rot_id):
         '''rotate a vector using a inverse rotation enum ID'''
-        global rotations
         if rot_id >= len(rotations):
             return None
         return rotations[rot_id].rt * self
