@@ -281,6 +281,15 @@ class mavfile(object):
     def base_mode(self, value):
         setattr(self.sysid_state[self.sysid],'base_mode',value)
     
+    def get_msg(self, msg_type, source_system=None):
+        '''get the latest MAVLink message that matches the given condition, or None if unknow
+        by default, source_system is set to sysid'''
+        if source_system is None:
+            source_system = self.sysid
+        if source_system not in self.sysid_state:
+            return None
+        return self.sysid_state[source_system].messages.get(msg_type, None)
+    
     def auto_mavlink_version(self, buf):
         '''auto-switch mavlink protocol version'''
         global mavlink
@@ -420,9 +429,6 @@ class mavfile(object):
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
             if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-                self.flightmode = mode_string_v10(msg)
-                self.mav_type = msg.type
-                self.base_mode = msg.base_mode
                 self.sysid_state[src_system].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
                 self.sysid_state[src_system].mav_type = msg.type
                 self.sysid_state[src_system].mav_autopilot = msg.autopilot
@@ -430,10 +436,8 @@ class mavfile(object):
             if self.sysid == 0:
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
-            self.flightmode = mode_string_v10(msg)
-            self.mav_type = msg.type
             if msg.autopilot == mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA:
-                self.base_mode = msg.custom0
+                self.sysid_state[src_system].base_mode = msg.custom0
                 self.sysid_state[src_system].armed = (msg.custom0 & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
             self.sysid_state[src_system].mav_type = msg.type
             self.sysid_state[src_system].mav_autopilot = msg.autopilot
@@ -443,7 +447,7 @@ class mavfile(object):
                 self.param_state[src_tuple] = param_state()
             self.param_state[src_tuple].params[msg.param_id] = msg.param_value
         elif type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
-            self.flightmode = mode_string_v09(msg)
+            self.sysid_state[src_system].flightmode = mode_string_v09(msg)
         elif type == 'GPS_RAW':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 2:
                 self.sysid_state[src_system].messages['HOME'] = msg
@@ -504,11 +508,16 @@ class mavfile(object):
                 if numnew == 0:
                     return None
                 
-    def recv_match(self, condition=None, type=None, blocking=False, timeout=None):
+    def recv_match(self, condition=None, type=None, blocking=False, timeout=None, source_system=None, source_component=None):
         '''recv the next MAVLink message that matches the given condition
-        type can be a string or a list of strings'''
+        type can be a string or a list of strings
+        source_system/source_component can be a integer or a list of integer'''
         if type is not None and not isinstance(type, list) and not isinstance(type, set):
             type = [type]
+        if source_system is not None and not isinstance(source_system, list) and not isinstance(source_system, set):
+            source_system = [source_system]
+        if source_component is not None and not isinstance(source_component, list) and not isinstance(source_component, set):
+            source_component = [source_component]
         start_time = time.time()
         while True:
             if timeout is not None:
@@ -530,13 +539,21 @@ class mavfile(object):
                 return None
             if type is not None and not m.get_type() in type:
                 continue
-            if not evaluate_condition(condition, self.messages):
+            if source_system is not None and not m.get_srcSystem() in source_system:
+                continue
+            if source_component is not None and not m.get_srcComponent() in source_component:
+                continue
+            if m.get_srcSystem() not in self.sysid_state or not evaluate_condition(condition, self.sysid_state[m.get_srcSystem()].messages):
                 continue
             return m
 
-    def check_condition(self, condition):
+    def check_condition(self, condition, source_system=None):
         '''check if a condition is true'''
-        return evaluate_condition(condition, self.messages)
+        if source_system is None:
+            source_system=self.sysid
+        if source_system not in self.sysid_state:
+            return False
+        return evaluate_condition(condition, self.sysid_state[source_system].messages)
 
     def mavlink10(self):
         '''return True if using MAVLink 1.0 or later'''
@@ -554,138 +571,186 @@ class mavfile(object):
         '''start logging raw bytes to the given logfile, without timestamps'''
         self.logfile_raw = open(logfile, mode=mode)
 
-    def wait_heartbeat(self, blocking=True, timeout=None):
+    def wait_heartbeat(self, blocking=True, timeout=None, source_system=None):
         '''wait for a heartbeat so we know the target system IDs'''
-        return self.recv_match(type='HEARTBEAT', blocking=blocking, timeout=timeout)
+        return self.recv_match(type='HEARTBEAT', blocking=blocking, timeout=timeout, source_system=source_system)
 
-    def param_fetch_all(self):
+    def param_fetch_all(self, target_system=None, target_component=None):
         '''initiate fetch of all parameters'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if time.time() - self.param_fetch_start < 2.0:
             # don't fetch too often
             return
         self.param_fetch_start = time.time()
-        self.mav.param_request_list_send(self.target_system, self.target_component)
+        self.mav.param_request_list_send(target_system, target_component)
 
-    def param_fetch_one(self, name):
+    def param_fetch_one(self, name, target_system=None, target_component=None):
         '''initiate fetch of one parameter'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         try:
             idx = int(name)
-            self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
+            self.mav.param_request_read_send(target_system, target_component, b"", idx)
         except Exception:
             if sys.version_info.major >= 3 and not isinstance(name, bytes):
                 name = bytes(name,'ascii')
-            self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
+            self.mav.param_request_read_send(target_system, target_component, name, -1)
 
-    def time_since(self, mtype):
-        '''return the time since the last message of type mtype was received'''
-        if not mtype in self.messages:
+    def time_since(self, mtype, source_system=None):
+        '''return the time since the last message of type mtype was received from source_system'''
+        if source_system is None:
+            source_system = self.sysid
+        if not source_system in self.sysid_state or not mtype in self.sysid_state[source_system].messages:
             return time.time() - self.start_time
-        return time.time() - self.messages[mtype]._timestamp
+        return time.time() - self.sysid_state[source_system].messages[mtype]._timestamp
 
-    def param_set_send(self, parm_name, parm_value, parm_type=None):
+    def param_set_send(self, parm_name, parm_value, parm_type=None, target_system=None, target_component=None):
         '''wrapper for parameter set'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
             if parm_type is None:
                 parm_type = mavlink.MAVLINK_TYPE_FLOAT
-            self.mav.param_set_send(self.target_system, self.target_component,
+            self.mav.param_set_send(target_system, target_component,
                                     parm_name.encode('utf8'), parm_value, parm_type)
         else:
-            self.mav.param_set_send(self.target_system, self.target_component,
+            self.mav.param_set_send(target_system, target_component,
                                     parm_name.encode('utf8'), parm_value)
 
-    def waypoint_request_list_send(self):
+    def waypoint_request_list_send(self, target_system=None, target_component=None):
         '''wrapper for waypoint_request_list_send'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.mission_request_list_send(self.target_system, self.target_component)
+            self.mav.mission_request_list_send(target_system, target_component)
         else:
-            self.mav.waypoint_request_list_send(self.target_system, self.target_component)
+            self.mav.waypoint_request_list_send(target_system, target_component)
 
-    def waypoint_clear_all_send(self):
+    def waypoint_clear_all_send(self, target_system=None, target_component=None):
         '''wrapper for waypoint_clear_all_send'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.mission_clear_all_send(self.target_system, self.target_component)
+            self.mav.mission_clear_all_send(target_system, target_component)
         else:
-            self.mav.waypoint_clear_all_send(self.target_system, self.target_component)
+            self.mav.waypoint_clear_all_send(target_system, target_component)
 
-    def waypoint_request_send(self, seq):
+    def waypoint_request_send(self, seq, target_system=None, target_component=None):
         '''wrapper for waypoint_request_send'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.mission_request_send(self.target_system, self.target_component, seq)
+            self.mav.mission_request_send(target_system, target_component, seq)
         else:
-            self.mav.waypoint_request_send(self.target_system, self.target_component, seq)
+            self.mav.waypoint_request_send(target_system, target_component, seq)
 
-    def waypoint_set_current_send(self, seq):
+    def waypoint_set_current_send(self, seq, target_system=None, target_component=None):
         '''wrapper for waypoint_set_current_send'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.mission_set_current_send(self.target_system, self.target_component, seq)
+            self.mav.mission_set_current_send(target_system, target_component, seq)
         else:
-            self.mav.waypoint_set_current_send(self.target_system, self.target_component, seq)
+            self.mav.waypoint_set_current_send(target_system, target_component, seq)
 
-    def waypoint_current(self):
+    def waypoint_current(self, source_system=None, source_component=None):
         '''return current waypoint'''
         if self.mavlink10():
-            m = self.recv_match(type='MISSION_CURRENT', blocking=True)
+            m = self.recv_match(type='MISSION_CURRENT', blocking=True, source_system=source_system, source_component=source_component)
         else:
-            m = self.recv_match(type='WAYPOINT_CURRENT', blocking=True)
+            m = self.recv_match(type='WAYPOINT_CURRENT', blocking=True, source_system=source_system, source_component=source_component)
         return m.seq
 
-    def waypoint_count_send(self, seq):
+    def waypoint_count_send(self, seq, target_system=None, target_component=None):
         '''wrapper for waypoint_count_send'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.mission_count_send(self.target_system, self.target_component, seq)
+            self.mav.mission_count_send(target_system, target_component, seq)
         else:
-            self.mav.waypoint_count_send(self.target_system, self.target_component, seq)
+            self.mav.waypoint_count_send(target_system, target_component, seq)
 
-    def set_mode_flag(self, flag, enable):
+    def set_mode_flag(self, flag, enable, target_system=None, target_component=None):
         '''
         Enables/ disables MAV_MODE_FLAG
         @param flag The mode flag, 
           see MAV_MODE_FLAG enum
         @param enable Enable the flag, (True/False)
         '''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
             mode = self.base_mode
             if enable:
                 mode = mode | flag
             elif not enable:
                 mode = mode & ~flag
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                            mavlink.MAV_CMD_DO_SET_MODE, 0,
                                            mode,
                                            0, 0, 0, 0, 0, 0)
         else:
             print("Set mode flag not supported")
 
-    def set_mode_auto(self):
+    def set_mode_auto(self, target_system=None, target_component=None):
         '''enter auto mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
         else:
             MAV_ACTION_SET_AUTO = 13
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_SET_AUTO)
+            self.mav.action_send(target_system, target_component, MAV_ACTION_SET_AUTO)
 
-    def mode_mapping(self):
+    def mode_mapping(self, source_system=None):
         '''return dictionary mapping mode names to numbers, or None if unknown'''
-        mav_type = self.sysid_state[self.sysid].mav_type
-        mav_autopilot = self.sysid_state[self.sysid].mav_autopilot
+        if source_system is None:
+            source_system = self.sysid
+        mav_type = self.sysid_state[source_system].mav_type
+        mav_autopilot = self.sysid_state[source_system].mav_autopilot
         if mav_autopilot == mavlink.MAV_AUTOPILOT_PX4:
             return px4_map
         if mav_type is None:
             return None
         return mode_mapping_byname(mav_type)
 
-    def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0):
+    def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0, target_system=None, target_component=None):
         '''enter arbitrary mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if isinstance(mode, str):
-            mode_map = self.mode_mapping()
+            mode_map = self.mode_mapping(source_system=target_system)
             if mode_map is None or mode not in mode_map:
                 print("Unknown mode '%s'" % mode)
                 return
             mode = mode_map[mode]
         # set mode by integer mode number for ArduPilot
-        self.mav.command_long_send(self.target_system,
-                                   self.target_component,
+        self.mav.command_long_send(target_system,
+                                   target_component,
                                    mavlink.MAV_CMD_DO_SET_MODE,
                                    0,
                                    mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
@@ -696,79 +761,111 @@ class mavfile(object):
                                    0,
                                    0)
 
-    def set_mode_px4(self, mode, custom_mode, custom_sub_mode):
+    def set_mode_px4(self, mode, custom_mode, custom_sub_mode, target_system=None, target_component=None):
         '''enter arbitrary mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if isinstance(mode, str):
-            mode_map = self.mode_mapping()
+            mode_map = self.mode_mapping(source_system=target_system)
             if mode_map is None or mode not in mode_map:
                 print("Unknown mode '%s'" % mode)
                 return
             # PX4 uses two fields to define modes
             mode, custom_mode, custom_sub_mode = px4_map[mode]
-        self.mav.command_long_send(self.target_system, self.target_component,
+        self.mav.command_long_send(target_system, target_component,
                                    mavlink.MAV_CMD_DO_SET_MODE, 0, mode, custom_mode, custom_sub_mode, 0, 0, 0, 0)
 
-    def set_mode(self, mode, custom_mode = 0, custom_sub_mode = 0):
+    def set_mode(self, mode, custom_mode = 0, custom_sub_mode = 0, target_system=None, target_component=None):
         '''set arbitrary flight mode'''
-        mav_autopilot = self.field('HEARTBEAT', 'autopilot', None)
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
+        mav_autopilot = self.field('HEARTBEAT', 'autopilot', None, target_system)
         if mav_autopilot == mavlink.MAV_AUTOPILOT_PX4:
-            self.set_mode_px4(mode, custom_mode, custom_sub_mode)
+            self.set_mode_px4(mode, custom_mode, custom_sub_mode, target_system, target_component)
         else:
-            self.set_mode_apm(mode)
+            self.set_mode_apm(mode, target_system, target_component)
         
-    def set_mode_rtl(self):
+    def set_mode_rtl(self, target_system=None, target_component=None):
         '''enter RTL mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0, 0, 0, 0, 0, 0)
         else:
             MAV_ACTION_RETURN = 3
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_RETURN)
+            self.mav.action_send(target_system, target_component, MAV_ACTION_RETURN)
 
-    def set_mode_manual(self):
+    def set_mode_manual(self, target_system=None, target_component=None):
         '''enter MANUAL mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_DO_SET_MODE, 0,
                                        mavlink.MAV_MODE_MANUAL_ARMED,
                                        0, 0, 0, 0, 0, 0)
         else:
             MAV_ACTION_SET_MANUAL = 12
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_SET_MANUAL)
+            self.mav.action_send(target_system, target_component, MAV_ACTION_SET_MANUAL)
 
-    def set_mode_fbwa(self):
+    def set_mode_fbwa(self, target_system=None, target_component=None):
         '''enter FBWA mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_DO_SET_MODE, 0,
                                        mavlink.MAV_MODE_STABILIZE_ARMED,
                                        0, 0, 0, 0, 0, 0)
         else:
             print("Forcing FBWA not supported")
 
-    def set_mode_loiter(self):
+    def set_mode_loiter(self, target_system=None, target_component=None):
         '''enter LOITER mode'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_NAV_LOITER_UNLIM, 0, 0, 0, 0, 0, 0, 0, 0)
         else:
             MAV_ACTION_LOITER = 27
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_LOITER)
+            self.mav.action_send(target_system, target_component, MAV_ACTION_LOITER)
 
-    def set_servo(self, channel, pwm):
+    def set_servo(self, channel, pwm, target_system=None, target_component=None):
         '''set a servo value'''
-        self.mav.command_long_send(self.target_system, self.target_component,
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
+        self.mav.command_long_send(target_system, target_component,
                                    mavlink.MAV_CMD_DO_SET_SERVO, 0,
                                    channel, pwm,
                                    0, 0, 0, 0, 0)
 
 
-    def set_relay(self, relay_pin=0, state=True):
+    def set_relay(self, relay_pin=0, state=True, target_system=None, target_component=None):
         '''Set relay_pin to value of state'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
             self.mav.command_long_send(
-                self.target_system,  # target_system
-                self.target_component, # target_component
+                target_system,  # target_system
+                target_component, # target_component
                 mavlink.MAV_CMD_DO_SET_RELAY, # command
                 0, # Confirmation
                 relay_pin, # Relay Number
@@ -781,24 +878,36 @@ class mavfile(object):
         else:
             print("Setting relays not supported.")
 
-    def calibrate_level(self):
+    def calibrate_level(self, target_system=None, target_component=None):
         '''calibrate accels (1D version)'''
-        self.mav.command_long_send(self.target_system, self.target_component,
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
+        self.mav.command_long_send(target_system, target_component,
                                    mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, 0,
                                    1, 1, 0, 0, 0, 0, 0)
 
-    def calibrate_pressure(self):
+    def calibrate_pressure(self, target_system=None, target_component=None):
         '''calibrate pressure'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, 0,
                                        0, 0, 1, 0, 0, 0, 0)
         else:
             MAV_ACTION_CALIBRATE_PRESSURE = 20
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_CALIBRATE_PRESSURE)
+            self.mav.action_send(target_system, target_component, MAV_ACTION_CALIBRATE_PRESSURE)
 
-    def reboot_autopilot(self, hold_in_bootloader=False, force=False):
+    def reboot_autopilot(self, hold_in_bootloader=False, force=False, target_system=None, target_component=None):
         '''reboot the autopilot'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
             if hold_in_bootloader:
                 param1 = 3
@@ -808,40 +917,46 @@ class mavfile(object):
                 param6 = 20190226
             else:
                 param6 = 0
-            self.mav.command_long_send(self.target_system, self.target_component,
+            self.mav.command_long_send(target_system, target_component,
                                        mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
                                        param1, 0, 0, 0, 0, param6, 0)
 
-    def wait_gps_fix(self):
-        self.recv_match(type='VFR_HUD', blocking=True)
+    def wait_gps_fix(self, target_system=None, target_component=None):
+        self.recv_match(type='VFR_HUD', blocking=True, source_system=target_system, source_component=target_component)
         if self.mavlink10():
             self.recv_match(type='GPS_RAW_INT', blocking=True,
-                            condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
+                            condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0',
+                            source_system=target_system, source_component=target_component)
         else:
             self.recv_match(type='GPS_RAW', blocking=True,
-                            condition='GPS_RAW.fix_type>=2 and GPS_RAW.lat != 0')
+                            condition='GPS_RAW.fix_type>=2 and GPS_RAW.lat != 0',
+                            source_system=target_system, source_component=target_component)
 
-    def location(self, relative_alt=False):
+    def location(self, relative_alt=False, source_system=None, source_component=None):
         '''return current location'''
-        self.wait_gps_fix()
+        self.wait_gps_fix(target_system=source_system, target_component=source_component)
         # wait for another VFR_HUD, to ensure we have correct altitude
-        self.recv_match(type='VFR_HUD', blocking=True)
-        self.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        self.recv_match(type='VFR_HUD', blocking=True, source_system=source_system, source_component=source_component)
+        self.recv_match(type='GLOBAL_POSITION_INT', blocking=True, source_system=source_system, source_component=source_component)
         if relative_alt:
-            alt = self.messages['GLOBAL_POSITION_INT'].relative_alt*0.001
+            alt = self.sysid_state[source_system].messages['GLOBAL_POSITION_INT'].relative_alt*0.001
         else:
-            alt = self.messages['VFR_HUD'].alt
-        return location(self.messages['GPS_RAW_INT'].lat*1.0e-7,
-                        self.messages['GPS_RAW_INT'].lon*1.0e-7,
+            alt = self.sysid_state[source_system].messages['VFR_HUD'].alt
+        return location(self.sysid_state[source_system].messages['GPS_RAW_INT'].lat*1.0e-7,
+                        self.sysid_state[source_system].messages['GPS_RAW_INT'].lon*1.0e-7,
                         alt,
-                        self.messages['VFR_HUD'].heading)
+                        self.sysid_state[source_system].messages['VFR_HUD'].heading)
 
-    def arducopter_arm(self):
+    def arducopter_arm(self, target_system=None, target_component=None):
         '''arm motors (arducopter only)'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
             self.mav.command_long_send(
-                self.target_system,  # target_system
-                self.target_component,
+                target_system,  # target_system
+                target_component,
                 mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
                 0, # confirmation
                 1, # param1 (1 to indicate arm)
@@ -852,12 +967,16 @@ class mavfile(object):
                 0, # param6
                 0) # param7
 
-    def arducopter_disarm(self):
+    def arducopter_disarm(self, target_system=None, target_component=None):
         '''disarm motors (arducopter only)'''
+        if target_system is None:
+            target_system = self.target_system
+        if target_component is None:
+            target_component = self.target_component
         if self.mavlink10():
             self.mav.command_long_send(
-                self.target_system,  # target_system
-                self.target_component,
+                target_system,  # target_system
+                target_component,
                 mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
                 0, # confirmation
                 0, # param1 (0 to indicate disarm)
@@ -868,38 +987,56 @@ class mavfile(object):
                 0, # param6
                 0) # param7
 
-    def motors_armed(self):
+    def motors_armed(self, source_system=None):
         '''return true if motors armed'''
-        return self.sysid_state[self.sysid].armed
+        if source_system is None:
+            source_system = self.sysid
+        if source_system not in self.sysid_state:
+            return False 
+        return self.sysid_state[source_system].armed
 
-    def motors_armed_wait(self):
+    def motors_armed_wait(self, source_system=None):
         '''wait for motors to be armed'''
         while True:
-            m = self.wait_heartbeat()
-            if self.motors_armed():
+            m = self.wait_heartbeat(source_system=source_system)
+            if self.motors_armed(source_system=source_system):
                 return
 
-    def motors_disarmed_wait(self):
+    def motors_disarmed_wait(self, source_system=None):
         '''wait for motors to be disarmed'''
         while True:
-            m = self.wait_heartbeat()
-            if not self.motors_armed():
+            m = self.wait_heartbeat(source_system=source_system)
+            if not self.motors_armed(source_system=source_system):
                 return
 
 
-    def field(self, type, field, default=None):
+    def field(self, type, field, default=None, source_system=None):
         '''convenient function for returning an arbitrary MAVLink
            field with a default'''
-        if not type in self.messages:
+        if source_system is None:
+            source_system = self.sysid
+        if not source_system in self.sysid_state or not type in self.sysid_state[source_system].messages:
             return default
-        return getattr(self.messages[type], field, default)
+        return getattr(self.sysid_state[source_system].messages[type], field, default)
 
-    def param(self, name, default=None):
+    def param(self, name, default=None, source_system=None, source_component=None):
         '''convenient function for returning an arbitrary MAVLink
            parameter with a default'''
-        if not name in self.params:
+        if source_system is None:
+            source_system = self.target_system
+        if source_component is None:
+            source_component = self.target_component
+        if source_component == 0:
+            eff_tuple = (source_system, 1)
+            if eff_tuple in self.param_state:
+                params = getattr(self.param_state[eff_tuple],'params')
+            else:
+                params = getattr(self.param_state[(source_system, source_component)],'params')
+        else:
+            params = getattr(self.param_state[(source_system, source_component)],'params')
+        if not name in params:
             return default
-        return self.params[name]
+        return params[name]
 
     def setup_signing(self, secret_key, sign_outgoing=True, allow_unsigned_callback=None, initial_timestamp=None, link_id=None):
         '''setup for MAVLink2 signing'''
