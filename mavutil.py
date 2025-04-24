@@ -728,6 +728,8 @@ class mavfile(object):
         '''return dictionary mapping mode names to numbers, or None if unknown'''
         if source_system is None:
             source_system = self.sysid
+        if source_system not in self.sysid_state:
+            return None
         mav_type = self.sysid_state[source_system].mav_type
         mav_autopilot = self.sysid_state[source_system].mav_autopilot
         if mav_autopilot == mavlink.MAV_AUTOPILOT_PX4:
