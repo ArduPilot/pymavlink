@@ -58,7 +58,7 @@ jobs:
 
       - name: Install pymavlink
         run: |
-          python setup.py build install
+          python3 -m pip install .
 
       - name: Lint generated python code
         run: |
