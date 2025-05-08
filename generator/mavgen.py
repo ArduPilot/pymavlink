@@ -83,22 +83,78 @@ def mavgen(opts, args):
             print("WARNING: Unable to load XML validator libraries. XML validation will not be performed", file=sys.stderr)
             opts.validate = False
 
+    def find_unique_items(dict1, dict2):
+        """
+        Finds items present the second dictionaries and returns them as a list.
 
-    def merge_enums(enums1, enums2):
-        '''Merge duplicate enum sets in enum1 and enum2 based on name and return updated enum1.'''
-        for an_enum1 in enums1:
-            for an_enum2 in enums2:
-                if an_enum1.name==an_enum2.name:
-                    print("Merging enum: %s" % an_enum1.name)
-                    an_enum1.entry.extend(an_enum2.entry)
+        Args:
+            dict1: The first dictionary.
+            dict2: The second dictionary.
+
+        Returns:
+            A list containing items (values) that are present in only one of the dictionaries.
+        """
+        keys1 = set(dict1.keys())
+        keys2 = set(dict2.keys())
+
+        #unique_to_dict1 = [dict1[key] for key in keys1 - keys2]
+        unique_to_dict2 = [dict2[key] for key in keys2 - keys1]
+
+        return unique_to_dict2
+
+    def merge_enums(enums, included_enums):
+        '''Merge inc_enums into enums (combining duplicate enums based on name).'''
+        #print("merge %s into %s" % (ix.filename, x.filename) )
+        if not included_enums:
+            # nothing to merge
+            return
+        if not enums:
+            return
+
+        # Merge1
+        enums_dict = {an_enum.name: an_enum for an_enum in enums}
+
+        for inc_enum in included_enums:
+            if inc_enum.name in enums_dict:
+
+                an_enum = enums_dict[inc_enum.name]
+                enum_entry_dict = {an_enum_entry.name: an_enum_entry for an_enum_entry in an_enum.entry}
+                inc_enum_entry_dict = {an_enum_entry.name: an_enum_entry for an_enum_entry in inc_enum.entry}
+                only_inherited_new = find_unique_items(enum_entry_dict, inc_enum_entry_dict)
+                #print(f"Adding length enum: {len(only_inherited_new)}")
+                if len(only_inherited_new) > 0: # Only merge things from lower level
+                    #print("Merging enum: %s" % inc_enum.name)
+                    an_enum.merged = True
+                    an_enum.entry.extend(only_inherited_new)
+
                     # sort by value
-                    an_enum1.entry = sorted(an_enum1.entry,
+                    an_enum.entry = sorted(an_enum.entry,
+                                       key=operator.attrgetter('value'),
+                                       reverse=False)
+                # Add description but only it has not been defined at top level.
+                if not an_enum.description:
+                    an_enum.description = inc_enum.description
+
+            else: # Just copy it.
+                newitem = inc_enum.copy()
+                newitem.copied = True
+                enums.append(newitem)
+
+        # Merge2
+        """
+        for an_enum in enums:
+            for inc_enum in included_enums:
+                if an_enum.name==inc_enum.name:
+                    print("Merging enum: %s" % an_enum.name)
+                    an_enum.entry.extend(inc_enum.entry)
+                    # sort by value
+                    an_enum.entry = sorted(an_enum.entry,
                                    key=operator.attrgetter('value'),
-                                   reverse=False)      
+                                   reverse=False)
                     # Add description but only it has not been defined at top level.
-                    if not an_enum1.description:
-                        an_enum1.description = an_enum2.description
-                                                         
+                    if not an_enum.description:
+                        an_enum.description = inc_enum.description
+        """
 
     def fixup_enums(xml):
         '''Sort enums. Ensure last entry is end marker.'''
@@ -108,19 +164,19 @@ def mavgen(opts, args):
                     for entry in enum.entry:
                         # Strip out existing ENUM_END
                         if entry.name.endswith('_ENUM_END'):
-                            print('REMOVING: %s' % entry.name)
+                            #print('REMOVING: %s' % entry.name)
                             enum.entry.remove(entry)
-                    
+
                     # sort enum by value
                     enum.entry = sorted(enum.entry,
                                    key=operator.attrgetter('value'),
-                                   reverse=False) 
-                                   
+                                   reverse=False)
+
                     # add end marker _ENUM_END to the entry
                     #print("Adding ENUM_END item to: %s" % enum.name )
-                    enum.entry.append(mavparse.MAVEnumEntry("%s_ENUM_END" % enum.name, enum.entry[-1].value+1, end_marker=True)) 
+                    enum.entry.append(mavparse.MAVEnumEntry("%s_ENUM_END" % enum.name, enum.entry[-1].value+1, end_marker=True))
 
-                                            
+
     def expand_includes():
         """Expand includes. Root files already parsed objects in the xml list."""
 
@@ -221,9 +277,19 @@ def mavgen(opts, args):
                         x.message_target_component_ofs.update(ix.message_target_component_ofs)
                         x.message_names.update(ix.message_names)
                         x.largest_payload = max(x.largest_payload, ix.largest_payload)
-                        if x.enum is not None and ix.enum is not None:
-                            #print("merge %s into %s" % (ix.filename, x.filename) )
-                            merge_enums(x.enum, ix.enum) # Update duplicate x.enums with included values 
+
+
+                        if not ix.enum:
+                            # Nothing included enums to be merged
+                            break
+                        if not x.enum:
+                            # No enums in parent. Copy included enums but mark as such
+                            for inc_enum in ix.enum:
+                                newitem = inc_enum.copy()
+                                newitem.copied = True
+                                x.enum.append(newitem)
+                            break
+                        merge_enums(x.enum, ix.enum) # Merge ix (included) enums into x enums.
                         break
 
             if len(done) == len(xml):
@@ -288,6 +354,7 @@ def mavgen(opts, args):
         return False
     update_includes()
     fixup_enums(xml)
+
 
     print("Found %u MAVLink message types in %u XML files" % (
         mavparse.total_msgs(xml), len(xml)))
