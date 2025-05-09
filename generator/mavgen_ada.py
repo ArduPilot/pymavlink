@@ -213,6 +213,7 @@ def repr_bitmask(enum, size):
 
     s += "   end record with Size => %i;\n" % (size * 8)
 
+    parts = ""
     s += "   for %s use record\n" % enum_name
     for i in enum.entry:
         if i.end_marker:
@@ -223,11 +224,17 @@ def repr_bitmask(enum, size):
         elif i.value == 0 or not is_position(i.value):
             continue
         name = i.name[len(common_prefix):] # strip common prefix
+        image = name
         name = normalize_entry_name(name).title()
         pos = int(math.log(i.value, 2))
         s += "      %s at 0 range %i .. %i;\n" % (name.ljust(max_len), pos, pos)
+        parts += '\n      & (if V.%s then "%s " else "")' % (name, image)
     s += "   end record;\n"
-
+    s += """
+   function Image (V : {}) return String is
+     ("["{}
+      & "]");
+""".format (enum_name, parts)
     return s
 
 def repr_enum(enum, size):
@@ -235,14 +242,52 @@ def repr_enum(enum, size):
     s = "   type %s is new Interfaces.Unsigned_%i;\n\n" % (enum_name, size * 8)
     names = [i.name for i in enum.entry if not i.end_marker]
     common_prefix = os.path.commonprefix(names) if len(names) > 1 else ""
+    first = ""
+    last = ""
+    last_value = 0
+    predicate = ""
+    choises = ""
 
     for i in enum.entry:
         if i.end_marker:
             break
         name = i.name[len(common_prefix):] # strip common prefix
         name = normalize_entry_name(name).title()
+
+        if first == "":
+            first = name
+            last = name
+            last_value = i.value
+        elif last_value + 1 == i.value:
+            last = name
+            last_value = i.value
+        else:
+            predicate += ("\n       | " if predicate else "")
+            predicate += (first if first == last else first + " .. " + last)
+            first = name
+            last = name
+            last_value = i.value
+
+        choises += ("," if choises else "")
+        choises += '\n        when %s => "%s"' % (name, name)
         fun = "   function %s return %s is (%i)\n     with Static;\n\n" % (name, enum_name, i.value)
         s += fun
+
+    predicate += ("\n       | " if predicate else "")
+    predicate += (first if first == last else first + " .. " + last)
+    subtype = """   subtype {0}_Well_Known is {0}
+     with Static_Predicate => {0}_Well_Known in
+       {1};
+
+   function Well_Known_Image
+     (Value : {0}_Well_Known) return String is
+       (case Value is{2});
+
+   function Image (Value : {0}) return String is
+     (if Value in {0}_Well_Known
+      then Well_Known_Image (Value) else "Unknown:" & Value'Image);
+"""
+    s += subtype.format(enum_name, predicate, choises)
 
     return s
 
