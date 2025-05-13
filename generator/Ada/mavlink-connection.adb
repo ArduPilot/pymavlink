@@ -1,12 +1,13 @@
 --  MAVLink connection
---  Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Copyright Fil Andrii root.fi36@gmail.com 2022-2025
 
 with Ada.Assertions;
 
 package body MAVLink.Connection is
 
-   function Parse_Byte (Conn : in out Connection;
-                        Val : Interfaces.Unsigned_8) return Boolean is
+   function Parse_Byte
+     (Conn : in out Connection; Val : Interfaces.Unsigned_8) return Boolean
+   is
       use type Interfaces.Unsigned_8;
    begin
       Conn.In_Buf (Conn.In_Ptr) := Val;
@@ -17,14 +18,19 @@ package body MAVLink.Connection is
          end if;
          X25CRC.Reset (Conn.Checksum);
       elsif Conn.In_Ptr = 1 then
-         Conn.Len := Natural (Val) + Packet_Header_Length + Packet_Marker_Length;
+         Conn.Len :=
+           Natural (Val) + Packet_Header_Length + Packet_Marker_Length;
          X25CRC.Reset (Conn.Checksum);
          X25CRC.Update (Conn.Checksum, Val);
       elsif Conn.In_Ptr > Conn.Len then
-         X25CRC.Update (Conn.Checksum, MAVLink.Messages.CRC_Extras (Conn.In_Buf (Pos_Msg_id)));
+         X25CRC.Update
+           (Conn.Checksum,
+            MAVLink.Messages.CRC_Extras (Conn.In_Buf (Pos_Msg_id)));
 
          Conn.In_Ptr := 0;
-         return Conn.Checksum.High = Conn.In_Buf (Conn.Len) and Conn.Checksum.Low = Conn.In_Buf (Conn.Len + 1);
+         return
+           Conn.Checksum.High = Conn.In_Buf (Conn.Len)
+           and Conn.Checksum.Low = Conn.In_Buf (Conn.Len + 1);
       elsif Conn.In_Ptr /= Conn.Len then
          X25CRC.Update (Conn.Checksum, Val);
       end if;
@@ -33,28 +39,34 @@ package body MAVLink.Connection is
       return False;
    end Parse_Byte;
 
-   function Get_Msg_Id (Conn : Connection) return Msg_Id is
-   begin
-      return Conn.In_Buf (Pos_Msg_id);
-   end Get_Msg_Id;
-
-   function Pack (Conn : in out Connection;
-                  Msg : MAVLink.Messages.Message'Class) return Byte_Array is
+   function Pack
+     (Conn : in out Connection; Msg : MAVLink.Messages.Message'Class)
+      return Byte_Array
+   is
       use type Interfaces.Unsigned_8;
 
-      Buf : Byte_Array (0 .. Natural(Msg.Payload_Length) + Packet_Control_Info_Size - 1);
-      Buf_Ptr : Natural;
+      Buf      :
+        Byte_Array
+          (0 .. Natural (Msg.Payload_Length) + Packet_Control_Info_Size - 1);
+      Buf_Ptr  : Natural;
       Checksum : X25CRC.Checksum;
 
       Fake_array : Byte_Array (0 .. Msg'Size / 8 - 1)
-        with Address => Msg'Address, Import => True, Convention => Ada;
+      with Address => Msg'Address, Import => True, Convention => Ada;
 
    begin
 
-      Buf (0 .. 5) := (Packet_Marker, Msg.Payload_Length, Conn.Out_Sequency,
-                      Conn.System_Id, Conn.Component_Id, Msg.Message_Id);
+      Buf (0 .. 5) :=
+        (Packet_Marker,
+         Msg.Payload_Length,
+         Conn.Out_Sequency,
+         Conn.System_Id,
+         Conn.Component_Id,
+         Msg.Message_Id);
       Buf_Ptr := Natural (Msg.Payload_Length) + 5;
-      Buf (6 .. Buf_Ptr) := Fake_array (Message_Size .. Message_Size + Natural (Msg.Payload_Length) - 1);
+      Buf (6 .. Buf_Ptr) :=
+        Fake_array
+          (Message_Size .. Message_Size + Natural (Msg.Payload_Length) - 1);
 
       Conn.Out_Sequency := Conn.Out_Sequency + 1;
 
@@ -70,19 +82,25 @@ package body MAVLink.Connection is
 
    end Pack;
 
-   procedure Unpack (Conn : in out Connection;
-                     Msg  : in out MAVLink.Messages.Message'Class) is
+   procedure Unpack
+     (Conn : in out Connection; Msg : in out MAVLink.Messages.Message'Class)
+   is
       use type Interfaces.Unsigned_8;
 
       Fake_array : Byte_Array (0 .. Msg'Size / 8 - 1)
-        with Address => Msg'Address, Import => True, Convention => Ada;
+      with Address => Msg'Address, Import => True, Convention => Ada;
    begin
 
-      Ada.Assertions.Assert (Msg.Payload_Length = Conn.In_Buf (1) and Msg.Message_Id = Conn.In_Buf (Pos_Msg_Id));
+      Ada.Assertions.Assert
+        (Msg.Payload_Length = Conn.In_Buf (1)
+         and Msg.Message_Id = Conn.In_Buf (Pos_Msg_Id));
 
       Fake_array (Tag_Length + 1 .. Tag_Length + 3) := Conn.In_Buf (2 .. 4);
-      Fake_array (Message_Size .. Message_Size - 1 + Natural (Msg.Payload_Length)) :=
-        Conn.In_Buf (Packet_Payload_First .. Packet_Payload_First - 1 + Natural (Msg.Payload_Length));
+      Fake_array
+        (Message_Size .. Message_Size - 1 + Natural (Msg.Payload_Length)) :=
+        Conn.In_Buf
+          (Packet_Payload_First
+           .. Packet_Payload_First - 1 + Natural (Msg.Payload_Length));
 
    end Unpack;
 
