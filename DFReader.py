@@ -841,6 +841,20 @@ class DFReader(object):
         first_ms_stamp = None
 
         have_good_clock = False
+        first_modern_gps_message = None
+
+        # Try first for a fast lookup for a modern GPS time
+        while True:
+            m = self.recv_match('GPS')
+            if m is None:
+                break
+            if getattr(m, "TimeUS", None) is None or \
+               getattr(m, "GWk", None) is None or \
+               getattr(m, "GMS", None) is None:
+                break
+            # Just need to find the first TimeUS to set the timebase
+            first_modern_gps_message = m
+
         while True:
             m = self.recv_msg()
             if m is None:
@@ -850,6 +864,13 @@ class DFReader(object):
 
             if first_us_stamp is None:
                 first_us_stamp = getattr(m, "TimeUS", None)
+                if first_modern_gps_message is not None and first_us_stamp is not None:
+                    # we have a modern GPS clock, so we can use it
+                    self.init_clock_usec()
+                    if not self._zero_time_base:
+                        self.clock.find_time_base(first_modern_gps_message, first_us_stamp)
+                    have_good_clock = True
+                    break
 
             if first_ms_stamp is None and (type != 'GPS' and type != 'GPS2'):
                 # Older GPS messages use TimeMS for msecs past start
@@ -1070,10 +1091,10 @@ class DFReader_binary(DFReader):
         }
         self._zero_time_base = zero_time_base
         self.prev_type = None
+        self.init_arrays_fast()
         self.init_clock()
         self.prev_type = None
         self._rewind()
-        self.init_arrays(progress_callback)
 
     def _rewind(self):
         '''rewind to start of log'''
