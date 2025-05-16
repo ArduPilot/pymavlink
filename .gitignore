@@ -24,3 +24,4 @@ include/mavlink/v1.0
 /bin/
 /.vscode
 .idea/
+.venv/
