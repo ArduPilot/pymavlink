@@ -1037,12 +1037,12 @@ class DFReader(object):
 
         self._rewind()
         return self._flightmodes
-    
+
     def close(self):
         '''close the log file'''
         self.data_map.close()
         self.filehandle.close()
-    
+
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
@@ -1246,7 +1246,6 @@ class DFReader_binary(DFReader):
             m = self.recv_msg()
         return m._timestamp
 
-
     def skip_to_type(self, type):
         '''skip fwd to next msg matching given type set'''
 
@@ -1420,7 +1419,7 @@ class DFReader_binary(DFReader):
                                                  fmt.format.encode('ascii'),
                                                  ','.join(fmt.columns).encode('ascii')])
         return ret
-    
+
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
