@@ -25,9 +25,11 @@ import io
 
 try:
     from . import mavutil
-except Exception:
+    from . import dfindexer
+except ImportError:
     # allows running uninstalled
     from pymavlink import mavutil
+    from pymavlink import dfindexer
 
 try:
     long        # Python 2 has long
@@ -1067,7 +1069,7 @@ class DFReader(object):
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
-    def __init__(self, filename, zero_time_base=False, progress_callback=None):
+    def __init__(self, filename, zero_time_base=False, progress_callback=None, use_fast_indexer=True):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
         self.filehandle = open(filename, 'rb')
@@ -1091,7 +1093,10 @@ class DFReader_binary(DFReader):
         }
         self._zero_time_base = zero_time_base
         self.prev_type = None
-        self.init_arrays_fast()
+        if use_fast_indexer and dfindexer.available:
+            self.init_arrays_fast()
+        else:
+            self.init_arrays(progress_callback=progress_callback)
         self.init_clock()
         self.prev_type = None
         self._rewind()
@@ -1247,7 +1252,6 @@ class DFReader_binary(DFReader):
 
     def init_arrays_fast(self):
         '''initialise arrays for fast recv_match(), but with Cython'''
-        import dfindexer
 
         self._count = 0
         self.name_to_id = {}
