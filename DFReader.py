@@ -1397,6 +1397,9 @@ class DFReader_binary(DFReader):
         if smallest_index >= 0:
             self.indexes[smallest_index] += 1
             self.offset = smallest_offset
+        if smallest_index == -1:
+            # no more messages
+            self.offset = self.data_len
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
