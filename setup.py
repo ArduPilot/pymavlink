@@ -11,11 +11,37 @@ except LookupError:
     func = lambda name, enc=ascii: {True: enc}.get(name=='mbcs')
     codecs.register(func)
 
-from setuptools import setup
-import glob, os, shutil, fnmatch, sys
+from setuptools import setup, Extension
+from Cython.Build import cythonize
+import glob, os, shutil, fnmatch, sys, platform, warnings
 
 sys.path.insert(0, os.path.dirname(__file__))
 from __init__ import __version__
+
+# Option for building the fast indexer Cython module
+build_fast_index = True
+# Disable by default on Windows and macOS
+if platform.system() in ("Windows", "Darwin"):
+    build_fast_index = False
+# Allow an environment variable to override the default
+if os.getenv("PYMAVLINK_FAST_INDEX", None) == "0":
+    build_fast_index = False
+elif os.getenv("PYMAVLINK_FAST_INDEX", None) == "1":
+    build_fast_index = True
+# Handle command line arguments
+if "--no-fast-index" in sys.argv:
+    build_fast_index = False
+    sys.argv.remove("--no-fast-index")
+if "--fast-index" in sys.argv:
+    build_fast_index = True
+    sys.argv.remove("--fast-index")
+
+# Debug build option for Cython
+debug_build = False
+if "--cython-debug" in sys.argv:
+    debug_build = True
+    sys.argv.remove("--cython-debug")
+
 
 def generate_content():
     # generate the file content...
@@ -87,6 +113,24 @@ class custom_build_py(build_py):
 with open("README.md", "r", encoding = "utf-8") as fh:
     long_description = fh.read()
 
+ext_modules = []
+
+if build_fast_index:
+    extra_compile_args = ["-g", "-Og"] if debug_build else ["-O2"]
+    extra_link_args = ["-g"] if debug_build else []
+    ext_modules += cythonize([
+        Extension(
+            name="pymavlink.dfindexer.dfindexer_cy",
+            sources=[
+                "dfindexer/dfindexer_cy.pyx",
+                "dfindexer/dfindexer.c"
+            ],
+            include_dirs=["pymavlink/dfindexer"],
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        )
+    ], language_level=3)
+
 setup (name = 'pymavlink',
        version = __version__,
        description = 'Python MAVLink code',
@@ -126,6 +170,7 @@ setup (name = 'pymavlink',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
                    'pymavlink.dialects.v20',
+                   'pymavlink.dfindexer',
                    ],
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
@@ -151,5 +196,6 @@ setup (name = 'pymavlink',
             'future',
             'lxml',
        ],
+       ext_modules=ext_modules,
        cmdclass={'build_py': custom_build_py},
        )
