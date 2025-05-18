@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <Python.h>
 
 #define NUM_TYPES 256
 #define INITIAL_CAP 1024
@@ -37,7 +38,16 @@ OffsetArray* scan_offsets(const uint8_t *data, size_t len,
     if (!results) panic("Memory allocation failed");
 
     size_t i = 0;
+    size_t loop_count = 0;
     while (i + 3 < len) {
+        // Allow SIGINT to interrupt the loop
+        if ((++loop_count & 0xFFFF) == 0) {
+            if (PyErr_CheckSignals()) {
+                free_offsets(results);
+                fprintf(stderr, "scan_offsets interrupted!\n");
+                return NULL;
+            }
+        }
         if (data[i] != head1 || data[i + 1] != head2) {
             if (len - i >= 528 || len < 528) {
                 fprintf(stderr, "bad header 0x%02x%02x at %zu\n", data[i], data[i + 1], i);
