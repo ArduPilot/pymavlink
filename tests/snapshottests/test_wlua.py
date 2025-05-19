@@ -50,6 +50,8 @@ except ImportError:
         ("common.xml", "mission_item_int.pcapng"),
         # test multipliers on eph and epv params of GPS_RAW_INT are handled
         ("common.xml", "gps_raw_int.pcapng"),
+        # test custom dissector for FILE_TRANSFER_PROTOCOL
+        ("common.xml", "file_transfer_protocol.pcapng"),
     ],
 )
 def test_wlua(request, tmp_path, snapshot, mdef, pcap):

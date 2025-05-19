@@ -569,3 +569,41 @@
     ''',
   })
 # ---
+# name: test_wlua[common.xml-file_transfer_protocol.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 139 bytes on wire (1112 bits), 139 bytes captured (1112 bits) o
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      User Datagram Protocol, Src Port: 50261, Dst Port: 14550
+      MAVLink Protocol (107)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 95
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 35
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: FILE_TRANSFER_PROTOCOL (110)
+          Payload: FILE_TRANSFER_PROTOCOL (110)
+              target_network (uint8_t): 0
+              target_system (uint8_t): 255
+              target_component (uint8_t): 230
+              payload (uint8_t[251])
+                  seq_number: 142
+                  payload_session: 1
+                  opcode: MAV_FTP_OPCODE_ACK (128)
+                  payload_size: 80
+                  req_opcode: MAV_FTP_OPCODE_BURSTREADFILE (15)
+                  burst_complete: 0
+                  payload_offset: 11120
+                  payload_data: cdcc4c3e0374414646494e495459000000000194535243
+          Message CRC: 0xb843
+      
+  
+    ''',
+  })
+# ---
