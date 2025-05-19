@@ -9,7 +9,13 @@
 #define NUM_TYPES 256
 #define INITIAL_CAP 1024
 
-static void panic(const char *msg, ...) __attribute__((noreturn));
+// Add a #if, since windows doesn't have __attribute__((noreturn))
+#if defined(_WIN32) || defined(_WIN64)
+#define NORETURN
+#else
+#define NORETURN __attribute__((noreturn))
+#endif
+static void panic(const char *msg, ...) NORETURN;
 static void panic(const char *msg, ...) {
     va_list args;
     va_start(args, msg);
