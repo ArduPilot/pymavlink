@@ -1073,7 +1073,7 @@ class DFReader(object):
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
-    def __init__(self, filename, zero_time_base=False, progress_callback=None, use_fast_indexer=True):
+    def __init__(self, filename, zero_time_base=False, progress_callback=None):
         DFReader.__init__(self)
         # read the whole file into memory for simplicity
         self.filehandle = open(filename, 'rb')
@@ -1097,6 +1097,12 @@ class DFReader_binary(DFReader):
         }
         self._zero_time_base = zero_time_base
         self.prev_type = None
+        default_fast_index = '1' if dfindexer.available else '0'
+        use_fast_indexer = os.getenv('PYMAVLINK_FAST_INDEX', default_fast_index) == '1'
+        if use_fast_indexer and not dfindexer.available:
+            print("Warning: dfindexer is not available. Falling back to legacy indexer.")
+            print("You may need to pip install pymavlink again with PYMAVLINK_FAST_INDEX=1")
+            use_fast_indexer = False
         if use_fast_indexer and dfindexer.available:
             self.init_arrays_fast()
         else:
