@@ -27,3 +27,4 @@ include/mavlink/v1.0
 .venv/
 dfindexer/dfindexer_cy.c
 dfindexer/*.so
+dfindexer/*.pyd
