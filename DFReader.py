@@ -1014,7 +1014,10 @@ class DFReader(object):
                 type = set(type)
         while True:
             if type is not None:
-                self.skip_to_type(type)
+                # If we don't have any conditions, we don't need skip_to_type
+                # to add extra key messages to "type"
+                strict = condition is not None
+                self.skip_to_type(type, strict=strict)
             m = self.recv_msg()
             if m is None:
                 return None
@@ -1403,13 +1406,14 @@ class DFReader_binary(DFReader):
             m = self.recv_msg()
         return m._timestamp
 
-    def skip_to_type(self, type):
+    def skip_to_type(self, type, strict=False):
         '''skip fwd to next msg matching given type set'''
 
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
-            type = type.copy()
-            type.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
+            if not strict:
+                type = type.copy()
+                type.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1677,13 +1681,14 @@ class DFReader_text(DFReader):
             self._count += self.counts[mtype]
         self.offset = 0
 
-    def skip_to_type(self, type):
+    def skip_to_type(self, type, strict=False):
         '''skip fwd to next msg matching given type set'''
 
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
-            self.type_list = type.copy()
-            self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
+            if not strict:
+                self.type_list = type.copy()
+                self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.type_list = list(self.type_list)
             self.indexes = []
             self.type_nums = []
