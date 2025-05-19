@@ -790,17 +790,18 @@ class DFReader(object):
         self.mult_lookup = {}  # lookup table of multipliers defined by MULT messages
         self.metadata = DFMetaData(self)
 
-    def _rewind(self):
+    def _rewind(self, keep_messages=False):
         '''reset state on rewind'''
         # be careful not to replace self.messages with a new hash;
         # some people have taken a reference to self.messages and we
         # need their messages to disappear to.  If they want their own
         # copy they can copy.copy it!
-        self.messages.clear()
-        self.messages = {
-            'MAV': self,
-            '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
-        }
+        if not keep_messages:
+            self.messages.clear()
+            self.messages = {
+                'MAV': self,
+                '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
+            }
         if self._flightmodes is not None and len(self._flightmodes) > 0:
             self.flightmode = self._flightmodes[0][0]
         else:
@@ -829,7 +830,7 @@ class DFReader(object):
     def init_clock(self):
         '''work out time basis for the log'''
 
-        self._rewind()
+        self._rewind(keep_messages=True)
 
         # speculatively create a gps clock in case we don't find anything
         # better
@@ -932,7 +933,7 @@ class DFReader(object):
             elif first_ms_stamp is not None:
                 self.init_clock_msec()
 
-        self._rewind()
+        self._rewind(keep_messages=True)
 
         return
 
@@ -1099,11 +1100,11 @@ class DFReader_binary(DFReader):
             self.init_arrays(progress_callback=progress_callback)
         self.init_clock()
         self.prev_type = None
-        self._rewind()
+        self._rewind(keep_messages=True)
 
-    def _rewind(self):
+    def _rewind(self, keep_messages=False):
         '''rewind to start of log'''
-        DFReader._rewind(self)
+        DFReader._rewind(self, keep_messages=keep_messages)
         self.offset = 0
         self.remaining = self.data_len
         self.type_nums = None
@@ -1256,6 +1257,7 @@ class DFReader_binary(DFReader):
         self._count = 0
         self.name_to_id = {}
         self.id_to_name = {}
+        type_instances = {}
 
         data = memoryview(self.data_map)
         for f in self.formats.values():
@@ -1346,6 +1348,33 @@ class DFReader_binary(DFReader):
                     fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]), self.unit_lookup)
                 if 'MultIds' in fmt.colhash:
                     fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
+
+        # Parse the first 100 messages of each type to try to build the
+        # messages dictionary. 100 was chosen as a reasonable heuristic to
+        # catch every index value that might be in that message.
+        for mtype in range(256):
+            if mtype not in self.formats:
+                continue
+            fmt = self.formats[mtype]
+            NMSG = 100 if fmt.instance_field is not None else 1
+            for i in range(NMSG):
+                if i >= len(offsets[mtype]):
+                    break
+                ofs = offsets[mtype][i]
+                if self.formats[mtype].name not in self.messages:
+                    self.offset = ofs
+                    self._parse_next()
+                if self.formats[mtype].instance_field is not None:
+                    fmt = self.formats[mtype]
+                    # see if we've has this instance value before
+                    idata = data[ofs+3+fmt.instance_ofs:ofs+3+fmt.instance_ofs+fmt.instance_len]
+                    if not mtype in type_instances:
+                        type_instances[mtype] = set()
+                    if not idata in type_instances[mtype]:
+                        # its a new one, need to parse it so we have the complete set of instances
+                        type_instances[mtype].add(idata)
+                        self.offset = ofs
+                        self._parse_next()
 
         self.offsets = offsets
         self.counts = [len(offsets[i]) for i in range(256)]
@@ -1588,12 +1617,12 @@ class DFReader_text(DFReader):
         self._rewind()
         self._zero_time_base = zero_time_base
         self.init_clock()
-        self._rewind()
         self.init_arrays(progress_callback)
+        self._rewind(keep_messages=True)
 
-    def _rewind(self):
+    def _rewind(self, keep_messages=False):
         '''rewind to start of log'''
-        DFReader._rewind(self)
+        DFReader._rewind(self, keep_messages=keep_messages)
         # find the first valid line
         self.offset = self.data_map.find(b'FMT, ')
         if self.offset == -1:
