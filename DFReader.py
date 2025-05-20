@@ -1104,7 +1104,7 @@ class DFReader_binary(DFReader):
             print("You may need to pip install pymavlink again with PYMAVLINK_FAST_INDEX=1")
             use_fast_indexer = False
         if use_fast_indexer and dfindexer.available:
-            self.init_arrays_fast()
+            self.init_arrays_fast(progress_callback=progress_callback)
         else:
             self.init_arrays(progress_callback=progress_callback)
         self.init_clock()
@@ -1260,7 +1260,7 @@ class DFReader_binary(DFReader):
             self._count += counts[i]
         self.offset = 0
 
-    def init_arrays_fast(self):
+    def init_arrays_fast(self, progress_callback=None):
         '''initialise arrays for fast recv_match(), but with Cython'''
 
         self._count = 0
@@ -1296,6 +1296,7 @@ class DFReader_binary(DFReader):
             size_offset,
             self.HEAD1,
             self.HEAD2,
+            progress_callback=progress_callback
         )
 
         # Parse the FMT messages

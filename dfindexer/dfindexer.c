@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include <Python.h>
+#include <stdbool.h>
 
 #define NUM_TYPES 256
 #define INITIAL_CAP 1024
@@ -35,10 +35,27 @@ static void ensure_capacity(OffsetArray *arr) {
     }
 }
 
+static bool call_progress_callback(PyObject *callback, int percent) {
+    PyObject *arg = PyLong_FromLong(percent);
+    PyObject *res = PyObject_CallFunctionObjArgs(callback, arg, NULL);
+    Py_DECREF(arg);
+    if (!res) {
+        if (PyErr_Occurred()) {
+            PyErr_Print();
+        }
+        return false;
+    }
+    Py_DECREF(res);
+    return true;
+}
+
+static int last_percent = -1;
+
 OffsetArray* scan_offsets(const uint8_t *data, size_t len,
                           uint8_t fmt_type, uint8_t fmt_length,
                           uint8_t type_offset, uint8_t length_offset,
-                          uint8_t head1, uint8_t head2) {
+                          uint8_t head1, uint8_t head2,
+                          PyObject *progress_callback) {
     uint8_t lengths[NUM_TYPES] = {0};
     OffsetArray *results = calloc(NUM_TYPES, sizeof(OffsetArray));
     if (!results) panic("Memory allocation failed");
@@ -57,6 +74,18 @@ OffsetArray* scan_offsets(const uint8_t *data, size_t len,
                 free_offsets(results);
                 fprintf(stderr, "scan_offsets interrupted!\n");
                 return NULL;
+            }
+        }
+        // Even less frequently, check if we should call the progress callback
+        if (progress_callback && (loop_count & 0x3FFFFF) == 0) {
+            int percent = (int)((i * 100) / len);
+            if (percent != last_percent) {
+                last_percent = percent;
+                if (!call_progress_callback(progress_callback, percent)) {
+                    free_offsets(results);
+                    fprintf(stderr, "Error calling progress callback\n");
+                    return NULL;
+                }
             }
         }
         if (data[i] != head1 || data[i + 1] != head2) {
@@ -88,6 +117,10 @@ OffsetArray* scan_offsets(const uint8_t *data, size_t len,
         ensure_capacity(arr);
         arr->data[arr->len++] = i;
         i += mlen;
+    }
+    // Fire the progress callback one last time
+    if (progress_callback) {
+        call_progress_callback(progress_callback, 100);
     }
 
     return results;
