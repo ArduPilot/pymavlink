@@ -36,12 +36,17 @@ static void ensure_capacity(OffsetArray *arr) {
 }
 
 OffsetArray* scan_offsets(const uint8_t *data, size_t len,
-                          uint8_t fmt_type,
+                          uint8_t fmt_type, uint8_t fmt_length,
                           uint8_t type_offset, uint8_t length_offset,
                           uint8_t head1, uint8_t head2) {
     uint8_t lengths[NUM_TYPES] = {0};
     OffsetArray *results = calloc(NUM_TYPES, sizeof(OffsetArray));
     if (!results) panic("Memory allocation failed");
+
+    // Make an a-priori assumption about the FMT message length, since
+    // sometimes, somehow, the FMT for FMT ends up NOT being the first message
+    // in the file.
+    lengths[fmt_type] = fmt_length;
 
     size_t i = 0;
     size_t loop_count = 0;

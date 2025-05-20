@@ -5,14 +5,14 @@ cdef extern from "dfindexer.h":
         size_t cap
 
     OffsetArray* scan_offsets(const unsigned char* data, size_t len,
-                              unsigned char fmt_type,
+                              unsigned char fmt_type, unsigned char fmt_length,
                               unsigned char type_offset, unsigned char length_offset,
                               unsigned char head1, unsigned char head2)
 
     void free_offsets(OffsetArray* offsets)
 
 def build_offsets(const unsigned char[:] data,
-                  unsigned char fmt_type,
+                  unsigned char fmt_type, unsigned char fmt_length,
                   unsigned char type_offset, unsigned char length_offset,
                   unsigned char head1, unsigned char head2):
     cdef OffsetArray* results
@@ -20,7 +20,7 @@ def build_offsets(const unsigned char[:] data,
     cdef list py_offsets = []
 
     results = scan_offsets(&data[0], data.shape[0],
-                           fmt_type,
+                           fmt_type, fmt_length,
                            type_offset, length_offset,
                            head1, head2)
     if results == NULL:
