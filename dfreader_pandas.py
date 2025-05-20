@@ -21,11 +21,9 @@ HASH_SIZE_BYTES = 1024 * 1024  # 1MB
 
 def parse_log_to_df(path, specs, frequency, cache_dir=None):
     manager = LogCacheManager(cache_dir)
-
-    if manager:
-        df = manager.try_load_dataframe(path, specs, frequency)
-        if df is not None:
-            return df
+    df = manager.try_load_dataframe(path, specs, frequency)
+    if df is not None:
+        return df
 
     reader = DFReader_binary(path)
     fields = expand_field_specs(specs, reader)
@@ -57,8 +55,7 @@ def parse_log_to_df(path, specs, frequency, cache_dir=None):
     df.set_index("timestamp", inplace=True)
     df = df[[f"{m}.{f}" for m in fields.keys() for f in fields[m]]]
 
-    if manager:
-        manager.save_dataframe(path, df, specs, frequency)
+    manager.save_dataframe(df)
 
     return df
 
@@ -96,15 +93,24 @@ def expand_field_specs(specs, reader: DFReader_binary):
 
 
 class LogCacheManager:
+    """Cache manager for log files."""
+
+    _module_hash = None
+
     def __init__(self, cache_dir):
         self.cache_dir = cache_dir
-        if cache_dir is not None:
-            os.makedirs(cache_dir, exist_ok=True)
+        if cache_dir is None:
+            return
+        os.makedirs(cache_dir, exist_ok=True)
+        if self._module_hash is None:
+            with open(__file__, "rb") as f:
+                self._module_hash = hashlib.sha256(f.read()).hexdigest()[:8]
 
-    def __bool__(self):
-        return self.cache_dir is not None
-
-    def _compute_key(self, path):
+    @staticmethod
+    def _compute_key(path):
+        """Compute a unique key for a log file based on content and size."""
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File {path} does not exist")
         stat = os.stat(path)
         size = stat.st_size
         with open(path, "rb") as f:
@@ -113,43 +119,86 @@ class LogCacheManager:
         h = h[:16]  # 16 characters is plenty to prevent collisions
         return f"{h}_{size}"
 
-    def _module_hash(self):
-        with open(__file__, "rb") as f:
-            return hashlib.sha256(f.read()).hexdigest()[:8]
-
     @staticmethod
     def _specs_equal(a, b):
+        """Compare two lists of messages/fields for equality."""
         return set(a) == set(b)
 
+    def _cache_path(self):
+        """Compute the cache path for a given key."""
+        if self.cache_dir is None:
+            return None
+        return os.path.join(self.cache_dir, f"{self.key}.feather")
+
+    def _meta_path(self):
+        """Compute the metadata path for a given key."""
+        if self.cache_dir is None:
+            return None
+        return os.path.join(self.cache_dir, f"{self.key}.meta.json")
+
+    @staticmethod
+    def _metadata(specs, frequency):
+        """Generate metadata for the cache file."""
+        return {
+            "specs": specs,
+            "frequency": frequency,
+            "module_hash": LogCacheManager._module_hash,
+        }
+
+    @staticmethod
+    def _compare_metadata(meta1, meta2):
+        """Compare metadata for equality."""
+        if meta1 is None or meta2 is None:
+            return False
+        if meta1.keys() != meta2.keys():
+            return False
+        for k in meta1.keys():
+            if meta1[k] != meta2[k]:
+                return False
+        return True
+
     def try_load_dataframe(self, path, specs, frequency):
-        key = self._compute_key(path)
-        cache_path = os.path.join(self.cache_dir, f"{key}.feather")
-        meta_path = os.path.join(self.cache_dir, f"{key}.meta.json")
+        """Try to load a cached DataFrame for this log file.
+
+        If the cache file does not exist yet, we store the information needed
+        to save the cache file later.
+        """
+        if self.cache_dir is None or not os.path.exists(self.cache_dir):
+            return None
+        self.path = path
+        self.key = self._compute_key(path)
+        self.meta = self._metadata(specs, frequency)
+        cache_path = self._cache_path()
+        meta_path = self._meta_path()
 
         if os.path.exists(cache_path) and os.path.exists(meta_path):
             with open(meta_path, "r") as f:
                 meta = json.load(f)
-            if (
-                self._specs_equal(meta.get("specs", []), specs)
-                and meta.get("frequency") == frequency
-                and meta.get("module_hash") == self._module_hash()
-            ):
+            if self._compare_metadata(meta, self.meta):
                 return pd.read_feather(cache_path)
         return None
 
-    def save_dataframe(self, path, df, specs, frequency):
-        key = self._compute_key(path)
-        cache_path = os.path.join(self.cache_dir, f"{key}.feather")
-        meta_path = os.path.join(self.cache_dir, f"{key}.meta.json")
+    def save_dataframe(self, df):
+        """Save the DataFrame to a cache file."""
+        if self.cache_dir is None or not os.path.exists(self.cache_dir):
+            return
+        key = self._compute_key(self.path)
+        if self.key != key:
+            print(
+                f"Warning: cache key {self.key} does not match computed key {key}. "
+                "This suggests the log file has changed since it was opened. "
+                "This dataframe will not be saved to the cache."
+            )
+            return
 
-        df.reset_index(drop=True).to_feather(cache_path)
-        meta = {
-            "specs": specs,
-            "frequency": frequency,
-            "module_hash": self._module_hash(),
-        }
-        with open(meta_path, "w") as f:
-            json.dump(meta, f)
+        df.to_feather(self._cache_path())
+        with open(self._meta_path(), "w") as f:
+            json.dump(self.meta, f)
+
+        # Force the user to call try_load_dataframe() again before saving again
+        self.key = None
+        self.path = None
+        self.meta = None
 
 
 def main():
