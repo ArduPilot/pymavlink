@@ -1273,7 +1273,6 @@ class DFReader_binary(DFReader):
             if f.name == 'FMT':
                 fmt_fmt = f
                 break
-        # fmt_fmt = self.formats['FMT']
         fmt_type = fmt_fmt.type
         type_offset = -1
         size_offset = -1
@@ -1292,6 +1291,7 @@ class DFReader_binary(DFReader):
         offsets = dfindexer.build_offsets(
             data,
             fmt_type,
+            fmt_fmt.len,
             type_offset,
             size_offset,
             self.HEAD1,
