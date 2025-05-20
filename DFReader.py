@@ -1016,7 +1016,7 @@ class DFReader(object):
             if type is not None:
                 # If we don't have any conditions, we don't need skip_to_type
                 # to add extra key messages to "type"
-                strict = condition is not None
+                strict = condition is None
                 self.skip_to_type(type, strict=strict)
             m = self.recv_msg()
             if m is None:
