@@ -10,6 +10,7 @@ Intended for efficient, repeatable log analysis workflows.
 """
 
 import os
+import re
 import json
 import hashlib
 import pandas as pd
@@ -36,8 +37,10 @@ def parse_log_to_df(path, specs, frequency, cache_dir=None):
     next_emit_time = None
 
     rows = []
+    # Make a list of base (non-instanced) message types
+    filter_types = [re.sub(r"\[\d+\]", "", m) for m in fields.keys()]
     while True:
-        msg = reader.recv_match(type=fields.keys())
+        msg = reader.recv_match(type=filter_types)
         if msg is None:
             break
         if not first_timestamp:
@@ -74,19 +77,20 @@ def new_row(reader: DFReader_binary, fields):
 def expand_field_specs(specs, reader: DFReader_binary):
     out = {}
     for spec in specs:
-        if "." in spec:
-            msg, field = spec.split(".")
-            if msg not in reader.name_to_id:
-                raise ValueError(f"Message {msg} not found in log file")
-            fmt = reader.formats[reader.name_to_id[msg]]
+        msg, field = spec.split(".") if "." in spec else (spec, None)
+        msg_base = re.sub(r"\[\d+\]", "", msg)
+        if msg_base not in reader.name_to_id:
+            raise ValueError(f"Message {msg_base} not found in log file")
+        fmt = reader.formats[reader.name_to_id[msg_base]]
+        if msg_base != msg and fmt.instance_field is None:
+            raise ValueError(
+                f"Message {msg_base} does not support instances, but {msg} was requested"
+            )
+        if field is not None:
             if field not in fmt.columns:
-                raise ValueError(f"Field {field} not found in message {msg}")
+                raise ValueError(f"Field {field} not found in message {msg_base}")
             out.setdefault(msg, []).append(field)
         else:
-            msg = spec
-            if msg not in reader.name_to_id:
-                raise ValueError(f"Message {msg} not found in log file")
-            fmt = reader.formats[reader.name_to_id[msg]]
             out.setdefault(msg, []).extend(fmt.columns)
     return out
 
@@ -154,7 +158,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Parse a log file to a DataFrame.",
         usage="python -m pymavlink.dfreader_pandas <log_file> [options]",
-        epilog="Example usage: python -m pymavlink.dfreader_pandas log.bin --fields TECS EFI CTUN.E2T --frequency 10.0",
+        epilog="Example usage: python -m pymavlink.dfreader_pandas log.bin --fields TECS EFI CTUN.E2T BAT[0].Volt --frequency 10.0 --cache_dir ./.tmp",
     )
     parser.add_argument("path", type=str, help="Path to the log file")
     parser.add_argument(
