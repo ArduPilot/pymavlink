@@ -2,6 +2,7 @@
 Module to parse ArduPilot logs into pandas DataFrames with optional caching.
 
 - Accepts a log file, list of messages/fields, and resample frequency.
+- Extracts both flight data and parameter changes as separate DataFrames.
 - Aligns output rows to clean time intervals relative to the start of the log.
 - Uses a lightweight caching mechanism keyed by file content and module hash.
 - Automatically invalidates cache on module updates or parameter changes.
@@ -19,15 +20,51 @@ from pymavlink.DFReader import DFReader_binary
 HASH_SIZE_BYTES = 1024 * 1024  # 1MB
 
 
-def parse_log_to_df(path, specs, frequency, cache_dir=None):
+def load_log(path, fields, frequency, cache_dir=None):
+    """Load data and parameters from a log file."""
     manager = LogCacheManager(cache_dir)
-    df = manager.try_load_dataframe(path, specs, frequency)
-    if df is not None:
-        return df
+    manager.try_load(path, fields, frequency)
+
+    if manager.data is not None and manager.params is not None:
+        return manager.data, manager.params
 
     reader = DFReader_binary(path)
-    fields = expand_field_specs(specs, reader)
-    # Dump the messages dict, so we get NaNs until the first valid message of each type
+    if manager.data is None:
+        manager.data = parse_log_data(reader, fields, frequency)
+    if manager.params is None:
+        manager.params = parse_log_params(reader)
+    manager.save()
+    return manager.data, manager.params
+
+def load_log_params(path, cache_dir=None):
+    """Load only parameters from a log file."""
+    manager = LogCacheManager(cache_dir)
+    manager.try_load(path)
+
+    if manager.params is not None:
+        return manager.params
+
+    reader = DFReader_binary(path)
+    manager.params = parse_log_params(reader)
+    manager.save()
+    return manager.params
+
+def load_log_data(path, fields, frequency, cache_dir=None):
+    """Load only data from a log file."""
+    manager = LogCacheManager(cache_dir)
+    manager.try_load(path, fields, frequency)
+
+    if manager.data is not None:
+        return manager.data
+
+    reader = DFReader_binary(path)
+    manager.data = parse_log_data(reader, fields, frequency)
+    manager.save()
+    return manager.data
+
+def parse_log_data(reader: DFReader_binary, fields, frequency):
+    fields = expand_field_specs(fields, reader)
+    # Ensures missing data is NaN until first message of each type is received
     reader.rewind()
 
     PERIOD = 1 / frequency
@@ -55,7 +92,51 @@ def parse_log_to_df(path, specs, frequency, cache_dir=None):
     df.set_index("timestamp", inplace=True)
     df = df[[f"{m}.{f}" for m in fields.keys() for f in fields[m]]]
 
-    manager.save_dataframe(df)
+    return df
+
+
+def parse_log_params(reader):
+    """Parse parameters from the log file."""
+    param_dict = {}
+    reader.rewind()
+
+    while True:
+        msg = reader.recv_match(type="PARM")
+        if msg is None:
+            break
+        name = msg.Name
+        ts = msg._timestamp
+        val = msg.Value
+        default = msg.Default
+
+        entry = param_dict.setdefault(name, [])
+
+        # A NaN default means "no change"
+        if pd.isna(default) and len(entry) > 0:
+            default = entry[-1][2]
+
+        # We force the first timestamp to be time-of-boot. This allows users
+        # to easily use asof() on the DataFrame later (since they don't have to
+        # worry about using too early of a timestamp).
+        if not entry:
+            ts = reader.clock.timebase
+
+        # Log every change in value/default
+        if not entry or entry[-1][0] != val or entry[-1][1] != default:
+            entry.append((ts, val, default))
+
+
+    # Flatten the dictionary list of index/value tuples
+    index = []
+    values = []
+    for name, entries in param_dict.items():
+        for entry in entries:
+            index.append((name, pd.to_datetime(entry[0], unit="s")))
+            values.append((entry[1], entry[2]))
+    # Create a DataFrame with a multi-index
+    df = pd.DataFrame(values, index=pd.MultiIndex.from_tuples(index))
+    df.columns = ["Value", "Default"]
+    df.index.names = ["Name", "Timestamp"]
 
     return df
 
@@ -98,13 +179,19 @@ class LogCacheManager:
     _module_hash = None
 
     def __init__(self, cache_dir):
+        self.init_module_hash()
         self.cache_dir = cache_dir
-        if cache_dir is None:
-            return
-        os.makedirs(cache_dir, exist_ok=True)
-        if self._module_hash is None:
+        self.data = None
+        self.params = None
+        if cache_dir is not None:
+            os.makedirs(cache_dir, exist_ok=True)
+
+    @classmethod
+    def init_module_hash(cls):
+        """Initialize the module hash for the current module."""
+        if cls._module_hash is None:
             with open(__file__, "rb") as f:
-                self._module_hash = hashlib.sha256(f.read()).hexdigest()[:8]
+                cls._module_hash = hashlib.sha256(f.read()).hexdigest()[:8]
 
     @staticmethod
     def _compute_key(path):
@@ -119,30 +206,44 @@ class LogCacheManager:
         h = h[:16]  # 16 characters is plenty to prevent collisions
         return f"{h}_{size}"
 
-    @staticmethod
-    def _specs_equal(a, b):
-        """Compare two lists of messages/fields for equality."""
-        return set(a) == set(b)
-
-    def _cache_path(self):
+    def _data_cache_path(self):
         """Compute the cache path for a given key."""
         if self.cache_dir is None:
             return None
-        return os.path.join(self.cache_dir, f"{self.key}.feather")
+        return os.path.join(self.cache_dir, f"{self._key}.feather")
 
-    def _meta_path(self):
+    def _param_cache_path(self):
+        """Compute the parameter cache path for a given key."""
+        if self.cache_dir is None:
+            return None
+        return os.path.join(self.cache_dir, f"{self._key}.params.feather")
+
+    def _data_meta_path(self):
         """Compute the metadata path for a given key."""
         if self.cache_dir is None:
             return None
-        return os.path.join(self.cache_dir, f"{self.key}.meta.json")
+        return os.path.join(self.cache_dir, f"{self._key}.meta.json")
 
-    @staticmethod
-    def _metadata(specs, frequency):
+    def _param_meta_path(self):
+        """Compute the parameter metadata path for a given key."""
+        if self.cache_dir is None:
+            return None
+        return os.path.join(self.cache_dir, f"{self._key}.params.meta.json")
+
+    @classmethod
+    def _data_meta(cls, fields, frequency):
         """Generate metadata for the cache file."""
         return {
-            "specs": specs,
+            "fields": fields,
             "frequency": frequency,
-            "module_hash": LogCacheManager._module_hash,
+            "module_hash": cls._module_hash,
+        }
+
+    @classmethod
+    def _param_meta(cls):
+        """Generate metadata for the parameter cache file."""
+        return {
+            "module_hash": cls._module_hash,
         }
 
     @staticmethod
@@ -157,48 +258,72 @@ class LogCacheManager:
                 return False
         return True
 
-    def try_load_dataframe(self, path, specs, frequency):
-        """Try to load a cached DataFrame for this log file.
+    def try_load(self, path, fields=None, frequency=None):
+        """Try to load a cached data and params for this log file.
 
-        If the cache file does not exist yet, we store the information needed
-        to save the cache file later.
+        If we store the information needed to save the cache file later in
+        case a cache file does not exist yet.
         """
         if self.cache_dir is None or not os.path.exists(self.cache_dir):
-            return None
-        self.path = path
-        self.key = self._compute_key(path)
-        self.meta = self._metadata(specs, frequency)
-        cache_path = self._cache_path()
-        meta_path = self._meta_path()
+            return None, None
+        self._log_path = path
+        self._key = self._compute_key(path)
+        self._data_meta = self._data_meta(fields, frequency)
+        self._param_meta = self._param_meta()
+        data_cache_path = self._data_cache_path()
+        data_meta_path = self._data_meta_path()
 
-        if os.path.exists(cache_path) and os.path.exists(meta_path):
-            with open(meta_path, "r") as f:
+        if os.path.exists(data_cache_path) and os.path.exists(data_meta_path):
+            with open(data_meta_path, "r") as f:
                 meta = json.load(f)
-            if self._compare_metadata(meta, self.meta):
-                return pd.read_feather(cache_path)
-        return None
+            if self._compare_metadata(meta, self._data_meta):
+                self.data = pd.read_feather(data_cache_path)
 
-    def save_dataframe(self, df):
+        param_cache_path = self._param_cache_path()
+        param_meta_path = self._param_meta_path()
+        if os.path.exists(param_cache_path) and os.path.exists(
+            param_meta_path
+        ):
+            with open(param_meta_path, "r") as f:
+                meta = json.load(f)
+            if self._compare_metadata(meta, self._param_meta):
+                self.params = pd.read_feather(param_cache_path)
+
+        return self.data, self.params
+
+    def save(self):
         """Save the DataFrame to a cache file."""
         if self.cache_dir is None or not os.path.exists(self.cache_dir):
             return
-        key = self._compute_key(self.path)
-        if self.key != key:
+        if self.data is None and self.params is None:
+            raise ValueError(
+                "Either data or params must be provided to save the cache"
+            )
+        key = self._compute_key(self._log_path)
+        if self._key != key:
             print(
-                f"Warning: cache key {self.key} does not match computed key {key}. "
-                "This suggests the log file has changed since it was opened. "
-                "This dataframe will not be saved to the cache."
+                f"Warning: cache key {self._key} does not match computed key "
+                f"{key}. This suggests the log file has changed since it was "
+                "opened. Your data is likely truncated; it will not be saved "
+                "to the cache."
             )
             return
 
-        df.to_feather(self._cache_path())
-        with open(self._meta_path(), "w") as f:
-            json.dump(self.meta, f)
+        if self.data is not None:
+            self.data.to_feather(self._data_cache_path())
+            with open(self._data_meta_path(), "w") as f:
+                json.dump(self._data_meta, f)
 
-        # Force the user to call try_load_dataframe() again before saving again
-        self.key = None
-        self.path = None
-        self.meta = None
+        if self.params is not None:
+            self.params.to_feather(self._param_cache_path())
+            with open(self._param_meta_path(), "w") as f:
+                json.dump(self._param_meta, f)
+
+        # Every call to save() should be preceded by a call to try_load()
+        self._key = None
+        self._log_path = None
+        self._data_meta = None
+        self._param_meta = None
 
 
 def main():
@@ -240,7 +365,9 @@ def main():
         from line_profiler import LineProfiler
 
         profiler = LineProfiler()
-        profiler.add_function(parse_log_to_df)
+        profiler.add_function(load_log)
+        profiler.add_function(parse_log_data)
+        profiler.add_function(parse_log_params)
         profiler.add_function(new_row)
         profiler.enable_by_count()
 
@@ -249,12 +376,25 @@ def main():
             "No fields provided. Use --fields to specify message types and/or fields."
         )
 
-    df = parse_log_to_df(
+    data, params = load_log(
         args.path, args.fields, args.frequency, args.cache_dir
     )
-    print(df.head())
+    print(data.head())
     print("...")
-    print(df.tail())
+    print(data.tail())
+    print(params.head())
+    print("...")
+    print(params.tail())
+
+    # Drop all params that don't change
+    # Params is a multi-index with Name, Timestamp. Drop everything with only
+    # one timestamp
+    params = params.groupby("Name").filter(lambda x: len(x) > 1)
+
+    # Print all the names remaining, and their counts
+    print("Remaining params:")
+    print(params.groupby("Name").size())
+    print("...")
 
     if args.profile:
         profiler.print_stats()
