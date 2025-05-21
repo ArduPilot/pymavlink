@@ -1,9 +1,11 @@
 # This workflow will upload a Python Package using Twine when a release is created
 # For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
 
-name: Upload pymavlink Package
+name: Build and Optionally Publish
 
 on:
+  push:
+  pull_request:
   release:
     types: [published]
 
@@ -31,6 +33,7 @@ jobs:
     - name: Build package
       run: python -m build
     - name: Publish package
+      if: github.event_name == 'release' && github.event.action == 'published'
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
