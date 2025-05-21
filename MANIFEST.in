@@ -1,0 +1,2 @@
+include pymavlink/dfindexer/dfindexer_cy.pyx
+include pymavlink/dfindexer/dfindexer.c
