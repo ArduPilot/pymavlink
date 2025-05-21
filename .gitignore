@@ -25,6 +25,6 @@ include/mavlink/v1.0
 /.vscode
 .idea/
 .venv/
-pymavlink/dfindexer/dfindexer_cy.c
-pymavlink/dfindexer/*.so
-pymavlink/dfindexer/*.pyd
+dfindexer/dfindexer_cy.c
+dfindexer/*.so
+dfindexer/*.pyd
