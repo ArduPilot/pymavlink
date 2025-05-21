@@ -848,16 +848,21 @@ class DFReader(object):
 
         # Try first for a fast lookup for a modern GPS time
         while True:
-            m = self.recv_match('GPS')
+            m = self.recv_match(type=['GPS'])
             if m is None:
                 break
             if getattr(m, "TimeUS", None) is None or \
                getattr(m, "GWk", None) is None or \
                getattr(m, "GMS", None) is None:
+                # not a modern GPS message
                 break
-            # Just need to find the first TimeUS to set the timebase
             first_modern_gps_message = m
+            if m.GWk > 0:
+                # We have a good GPS time; we just need to go back and get
+                # the first TimeUS timestamp to set the time base
+                break
 
+        self._rewind(keep_messages=True)
         while True:
             m = self.recv_msg()
             if m is None:
@@ -868,7 +873,11 @@ class DFReader(object):
             if first_us_stamp is None:
                 first_us_stamp = getattr(m, "TimeUS", None)
                 if first_modern_gps_message is not None and first_us_stamp is not None:
-                    # we have a modern GPS clock, so we can use it
+                    # If we never got a valid time out of that message, then
+                    # we don't have a good clock
+                    if first_modern_gps_message.GWk <= 0:
+                        break
+                    # we have a valid GPS time and a valid TimeUS
                     self.init_clock_usec()
                     if not self._zero_time_base:
                         self.clock.find_time_base(first_modern_gps_message, first_us_stamp)
