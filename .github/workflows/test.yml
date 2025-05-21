@@ -30,6 +30,7 @@ jobs:
             pip install mypy
           fi
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install build
           sudo apt update
           sudo apt install -y libgtest-dev g++ tshark
 
@@ -55,10 +56,14 @@ jobs:
         run: |
           git clone https://github.com/ArduPilot/mavlink.git
           ln -s $PWD/mavlink/message_definitions ../
+          ln -s $PWD/mavlink/message_definitions
 
       - name: Install pymavlink
         run: |
           python3 -m pip install .
+
+      - name: Build package
+        run: python -m build
 
       - name: Lint generated python code
         run: |
