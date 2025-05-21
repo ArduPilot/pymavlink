@@ -848,7 +848,7 @@ class DFReader(object):
 
         # Try first for a fast lookup for a modern GPS time
         while True:
-            m = self.recv_match(type=['GPS'])
+            m = self.recv_match(type=['GPS'], strict=True)
             if m is None:
                 break
             if getattr(m, "TimeUS", None) is None or \
@@ -1013,7 +1013,7 @@ class DFReader(object):
                 self.param_defaults[m.Name] = m.Default
         self._set_time(m)
 
-    def recv_match(self, condition=None, type=None, blocking=False):
+    def recv_match(self, condition=None, type=None, blocking=False, strict=False):
         '''recv the next message that matches the given condition
         type can be a string or a list of strings'''
         if type is not None:
@@ -1023,9 +1023,6 @@ class DFReader(object):
                 type = set(type)
         while True:
             if type is not None:
-                # If we don't have any conditions, we don't need skip_to_type
-                # to add extra key messages to "type"
-                strict = condition is None
                 self.skip_to_type(type, strict=strict)
             m = self.recv_msg()
             if m is None:
@@ -1056,7 +1053,7 @@ class DFReader(object):
             self._flightmodes = []
             types = set(['MODE'])
             while True:
-                m = self.recv_match(type=types)
+                m = self.recv_match(type=types, strict=True)
                 if m is None:
                     break
                 tstamp = m._timestamp
