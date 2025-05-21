@@ -122,8 +122,8 @@ if build_fast_index:
         Extension(
             name="pymavlink.dfindexer.dfindexer_cy",
             sources=[
-                "pymavlink/dfindexer/dfindexer_cy.pyx",
-                "pymavlink/dfindexer/dfindexer.c"
+                "dfindexer/dfindexer_cy.pyx",
+                "dfindexer/dfindexer.c"
             ],
             include_dirs=["pymavlink/dfindexer"],
             extra_compile_args=extra_compile_args,
@@ -170,7 +170,7 @@ setup (name = 'pymavlink',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
                    'pymavlink.dialects.v20',
-                   'pymavlink.pymavlink.dfindexer',
+                   'pymavlink.dfindexer',
                    ],
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
