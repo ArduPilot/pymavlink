@@ -25,11 +25,11 @@ import io
 
 try:
     from . import mavutil
-    from . import dfindexer
 except ImportError:
     # allows running uninstalled
     from pymavlink import mavutil
-    from pymavlink import dfindexer
+
+from pymavlink import dfindexer
 
 try:
     long        # Python 2 has long
