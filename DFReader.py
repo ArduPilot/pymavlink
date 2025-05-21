@@ -1054,7 +1054,8 @@ class DFReader(object):
         if self._flightmodes is None:
             self._rewind()
             self._flightmodes = []
-            types = set(['MODE'])
+            # Adding 'PARM' here keeps MAVExplorer behaving the same as before
+            types = set(['MODE', 'PARM'])
             while True:
                 m = self.recv_match(type=types, strict=True)
                 if m is None:
