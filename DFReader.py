@@ -848,9 +848,12 @@ class DFReader(object):
 
         # Try first for a fast lookup for a modern GPS time
         while True:
-            m = self.recv_match(type=['GPS'], strict=True)
+            # Add PARM messages so that we also initialize the param dict
+            m = self.recv_match(type=['GPS', 'PARM'], strict=True)
             if m is None:
                 break
+            if m.get_type() == 'PARM':
+                continue
             if getattr(m, "TimeUS", None) is None or \
                getattr(m, "GWk", None) is None or \
                getattr(m, "GMS", None) is None:
