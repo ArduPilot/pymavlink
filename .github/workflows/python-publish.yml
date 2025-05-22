@@ -30,8 +30,12 @@ jobs:
         python -m pip install -U wheel
         pip install build
         pip install -U .
-    - name: Build package
-      run: python -m build
+
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.23.3
+      env:
+        CIBW_SKIP: "cp36-* cp37-* pp*"
+
     - name: Publish package
       if: github.event_name == 'release' && github.event.action == 'published'
       uses: pypa/gh-action-pypi-publish@release/v1
