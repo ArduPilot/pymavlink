@@ -140,21 +140,6 @@ def mavgen(opts, args):
                 newitem.copied = True
                 enums.append(newitem)
 
-        # Merge2
-        """
-        for an_enum in enums:
-            for inc_enum in included_enums:
-                if an_enum.name==inc_enum.name:
-                    print("Merging enum: %s" % an_enum.name)
-                    an_enum.entry.extend(inc_enum.entry)
-                    # sort by value
-                    an_enum.entry = sorted(an_enum.entry,
-                                   key=operator.attrgetter('value'),
-                                   reverse=False)
-                    # Add description but only it has not been defined at top level.
-                    if not an_enum.description:
-                        an_enum.description = inc_enum.description
-        """
 
     def fixup_enums(xml):
         '''Sort enums. Ensure last entry is end marker.'''
