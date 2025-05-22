@@ -88,7 +88,7 @@ def parse_log_data(reader: DFReader_binary, fields, frequency):
             rows.append(new_row(reader, fields))
 
     df = pd.DataFrame(rows)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
     df.set_index("timestamp", inplace=True)
     df = df[[f"{m}.{f}" for m in fields.keys() for f in fields[m]]]
 
@@ -131,7 +131,7 @@ def parse_log_params(reader):
     values = []
     for name, entries in param_dict.items():
         for entry in entries:
-            index.append((name, pd.to_datetime(entry[0], unit="s")))
+            index.append((name, pd.to_datetime(entry[0], unit="s", utc=True)))
             values.append((entry[1], entry[2]))
     # Create a DataFrame with a multi-index
     df = pd.DataFrame(values, index=pd.MultiIndex.from_tuples(index))
