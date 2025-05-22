@@ -24,14 +24,38 @@ jobs:
       run: |
         git clone https://github.com/ArduPilot/mavlink.git
         ln -s $PWD/mavlink/message_definitions
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.23.3
+      env:
+        CIBW_SKIP: "cp36-* cp37-* pp*"
+        CIBW_BEFORE_BUILD_LINUX: >
+          if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
+            apk add --no-cache libxml2-dev libxslt-dev;
+          fi
+    - name: Check existence of at least one wheel
+      run: |
+        if [ ! -d wheelhouse ] || [ -z "$(ls -A wheelhouse/*.whl 2>/dev/null)" ]; then
+          echo "No wheels found in wheelhouse"
+          exit 1
+        fi
+    - name: Move wheels to dist
+      run: |
+        mkdir -p dist
+        cp wheelhouse/* dist/
     - name: Install dependencies
       run: |
         python -m pip install -U pip
         python -m pip install -U wheel
         pip install build
         pip install -U .
-    - name: Build package
-      run: python -m build
+    - name: Build sdist
+      run: pipx run build --sdist
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/*
+        if-no-files-found: error
     - name: Publish package
       if: github.event_name == 'release' && github.event.action == 'published'
       uses: pypa/gh-action-pypi-publish@release/v1
