@@ -471,13 +471,20 @@ class DFReaderClock_usec(DFReaderClock):
     '''DFReaderClock_usec - use microsecond timestamps from messages'''
     def __init__(self):
         DFReaderClock.__init__(self)
+        self.first_us_stamp = None
 
     def find_time_base(self, gps, first_us_stamp):
         '''work out time basis for the log - even newer style'''
         t = self._gpsTimeToTime(gps.GWk, gps.GMS)
         self.set_timebase(t - gps.TimeUS*0.000001)
         # this ensures FMT messages get appropriate timestamp:
-        self.timestamp = self.timebase + first_us_stamp*0.000001
+        self.first_us_stamp = first_us_stamp
+
+    def rewind_event(self):
+        '''reset state on rewind'''
+        self.timestamp = self.timebase
+        if self.first_us_stamp is not None:
+            self.timestamp += self.first_us_stamp*0.000001
 
     def type_has_good_TimeMS(self, type):
         '''The TimeMS in some messages is not from *our* clock!'''
@@ -512,11 +519,20 @@ class DFReaderClock_usec(DFReaderClock):
 class DFReaderClock_msec(DFReaderClock):
     '''DFReaderClock_msec - a format where many messages have TimeMS in
     their formats, and GPS messages have a "T" field giving msecs'''
+    def __init__(self):
+        DFReaderClock.__init__(self)
+        self.first_ms_stamp = None
     def find_time_base(self, gps, first_ms_stamp):
         '''work out time basis for the log - new style'''
         t = self._gpsTimeToTime(gps.Week, gps.TimeMS)
         self.set_timebase(t - gps.T*0.001)
-        self.timestamp = self.timebase + first_ms_stamp*0.001
+        self.first_ms_stamp = first_ms_stamp
+
+    def rewind_event(self):
+        '''reset state on rewind'''
+        self.timestamp = self.timebase
+        if self.first_ms_stamp is not None:
+            self.timestamp += self.first_ms_stamp*0.001
 
     def set_message_timestamp(self, m):
         if 'TimeMS' == m._fieldnames[0]:
