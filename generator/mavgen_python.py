@@ -11,8 +11,11 @@ from builtins import range
 
 import os
 import sys
+import operator
 import textwrap
 from . import mavtemplate
+from . import mavparse
+
 
 t = mavtemplate.MAVTemplate()
 
@@ -1135,11 +1138,10 @@ def generate(basename, xml):
         filename = basename + ".py"
 
     msgs = []
-    enums = []
+    enums = xml[0].enum #All enums merged in top level
     filelist = []
     for x in xml:
         msgs.extend(x.message)
-        enums.extend(x.enum)
         filelist.append(os.path.basename(x.filename))
 
     for m in msgs:
