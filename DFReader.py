@@ -1653,8 +1653,8 @@ class DFReader_text(DFReader):
         self.id_to_name = { 0x80 : 'FMT' }
         self._rewind()
         self._zero_time_base = zero_time_base
-        self.init_clock()
         self.init_arrays(progress_callback)
+        self.init_clock()
         self._rewind(keep_messages=True)
 
     def _rewind(self, keep_messages=False):
@@ -1719,8 +1719,8 @@ class DFReader_text(DFReader):
 
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
+            self.type_list = type.copy()
             if not strict:
-                self.type_list = type.copy()
                 self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.type_list = list(self.type_list)
             self.indexes = []
