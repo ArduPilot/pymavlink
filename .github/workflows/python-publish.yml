@@ -28,6 +28,7 @@ jobs:
       uses: pypa/cibuildwheel@v2.23.3
       env:
         CIBW_SKIP: "cp36-* cp37-* pp*"
+        CIBW_ARCHS_LINUX: "auto aarch64"
         CIBW_BEFORE_BUILD_LINUX: >
           if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
             apk add --no-cache libxml2-dev libxslt-dev;
