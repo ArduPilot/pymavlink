@@ -312,12 +312,18 @@ class mavfile(object):
         (callback, callback_args, callback_kwargs) = (self.mav.callback,
                                                       self.mav.callback_args,
                                                       self.mav.callback_kwargs)
+        (send_callback, send_callback_args, send_callback_kwargs) = (self.mav.send_callback,
+                                                                     self.mav.send_callback_args,
+                                                                     self.mav.send_callback_kwargs)
         self.mav = mavlink.MAVLink(self, srcSystem=self.source_system, srcComponent=self.source_component)
         self.mav.robust_parsing = self.robust_parsing
         self.WIRE_PROTOCOL_VERSION = mavlink.WIRE_PROTOCOL_VERSION
         (self.mav.callback, self.mav.callback_args, self.mav.callback_kwargs) = (callback,
                                                                                  callback_args,
                                                                                  callback_kwargs)
+        (self.mav.send_callback, self.mav.send_callback_args, self.mav.send_callback_kwargs) = (send_callback,
+                                                                                                send_callback_args,
+                                                                                                send_callback_kwargs)
 
     def recv(self, n=None):
         '''default recv method'''
