@@ -14,38 +14,51 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+    name: ${{ matrix.os }} ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
 
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install mavlink messages
+      run: |
+        git clone https://github.com/ArduPilot/mavlink.git
+        ln -s $PWD/mavlink/message_definitions
+    - name: Set CIBW_BUILD
+      run: echo "CIBW_BUILD=cp${PYTHON/./}-*" >> $GITHUB_ENV
+      env:
+        PYTHON: ${{ matrix.python }}
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.23.3
+      env:
+        CIBW_BEFORE_BUILD_LINUX: >
+          if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
+            apk add --no-cache libxml2-dev libxslt-dev;
+          fi
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-${{ matrix.os }}-cp${{ matrix.python }}
+        path: wheelhouse/*.whl
+        if-no-files-found: error
+
+  sdist:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.9'
-    - name: Install mavlink message
+        python-version: "3.9"
+    - name: Install mavlink messages
       run: |
         git clone https://github.com/ArduPilot/mavlink.git
         ln -s $PWD/mavlink/message_definitions
-    - name: Build wheels
-      uses: pypa/cibuildwheel@v2.23.3
-      env:
-        CIBW_SKIP: "cp36-* cp37-* pp*"
-        CIBW_BEFORE_BUILD_LINUX: >
-          if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
-            apk add --no-cache libxml2-dev libxslt-dev;
-          fi
-    - name: Check existence of at least one wheel
-      run: |
-        if [ ! -d wheelhouse ] || [ -z "$(ls -A wheelhouse/*.whl 2>/dev/null)" ]; then
-          echo "No wheels found in wheelhouse"
-          exit 1
-        fi
-    - name: Move wheels to dist
-      run: |
-        mkdir -p dist
-        cp wheelhouse/* dist/
     - name: Install dependencies
       run: |
         python -m pip install -U pip
@@ -54,12 +67,33 @@ jobs:
         pip install -U .
     - name: Build sdist
       run: pipx run build --sdist
-    - name: Upload artifacts
+    - name: Upload sdist
+      uses: actions/upload-artifact@v4
+      with:
+        name: sdist
+        path: dist/*.tar.gz
+        if-no-files-found: error
+
+  publish:
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: dist
+        merge-multiple: true
+
+    - name: Verify dist contents
+      run: ls -lh dist/
+
+    - name: Upload final dist artifact
       uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/*
         if-no-files-found: error
+
     - name: Publish package
       if: github.event_name == 'release' && github.event.action == 'published'
       uses: pypa/gh-action-pypi-publish@release/v1
