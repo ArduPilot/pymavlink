@@ -6,6 +6,7 @@ name: Build and Optionally Publish
 on:
   push:
   pull_request:
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -14,28 +15,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  wheels:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      # This allows us to save the more expensive full build for the main branch
+      # and releases, while using a lighter build for PRs
+      - name: Set build matrix
+        id: set-matrix
+        shell: python
+        run: |
+          import json
+          import os
+
+          ref = os.environ.get("GITHUB_REF", "")
+          event = os.environ.get("GITHUB_EVENT_NAME", "")
+
+          if ref in ("refs/heads/main", "refs/heads/master") or event in ("release", "workflow_dispatch"):
+              machines = [
+                  ("linux", "ubuntu-latest", "auto"),
+                  ("linux-arm", "ubuntu-24.04-arm", "auto"),
+                  ("macos", "macos-latest", "arm64 x86_64 universal2"),
+                  ("windows", "windows-latest", "auto"),
+                  # ("windows-arm", "windows-11-arm", "auto"), # Can't do this one yet, as lxml doesn't have Windows ARM wheels, and the runner doesn't have libxml2 pre-installed
+              ]
+              py_versions = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+          else:
+              machines = [
+                  ("linux", "ubuntu-latest", "native"),
+                  ("windows", "windows-latest", "native"),
+              ]
+              py_versions = ["3.8", "3.13"] # Chosing the two most likely to break in PRs
+
+          matrix = {"include": []}
+          for (name, runner, cibw_archs) in machines:
+              for py in py_versions:
+                  matrix["include"].append({
+                      "name": f"python{py}-{name}",
+                      "os": runner,
+                      "python_version": py,
+                      "cibw_build": f"cp{py.replace('.', '')}-*",
+                      "cibw_archs": cibw_archs,
+                  })
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps(matrix)}\n")
+
+  build-wheels:
+    needs: prepare
     strategy:
       fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
-        python: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-    name: ${{ matrix.os }} ${{ matrix.python }}
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-
+    env:
+      PYTHON_VERSION: ${{ matrix.python_version }}
     steps:
     - uses: actions/checkout@v2
-    - name: Install mavlink messages
+    - name: Install mavlink definitions
+      shell: bash
       run: |
         git clone https://github.com/ArduPilot/mavlink.git
         ln -s $PWD/mavlink/message_definitions
     - name: Set CIBW_BUILD
-      run: echo "CIBW_BUILD=cp${PYTHON/./}-*" >> $GITHUB_ENV
-      env:
-        PYTHON: ${{ matrix.python }}
+      shell: bash
+      run: echo "CIBW_BUILD=cp${PYTHON_VERSION/./}-*" >> $GITHUB_ENV
     - name: Build wheels
       uses: pypa/cibuildwheel@v2.23.3
       env:
+        PYMAVLINK_FAST_INDEX: "1"
+        CIBW_BUILD: ${{ matrix.cibw_build }}
+        CIBW_ARCHS: ${{ matrix.cibw_archs }}
         CIBW_BEFORE_BUILD_LINUX: >
           if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
             apk add --no-cache libxml2-dev libxslt-dev;
@@ -43,11 +94,11 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels-${{ matrix.os }}-cp${{ matrix.python }}
+        name: ${{ matrix.name }}
         path: wheelhouse/*.whl
         if-no-files-found: error
 
-  sdist:
+  build-sdist:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -75,7 +126,7 @@ jobs:
         if-no-files-found: error
 
   publish:
-    needs: [wheels, sdist]
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     steps:
     - name: Download all artifacts
