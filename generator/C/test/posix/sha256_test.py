@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
+
 from builtins import range
-#!/usr/bin/env python
 
 import hashlib, sys
 
