@@ -44,10 +44,10 @@ jobs:
         cp wheelhouse/* dist/
     - name: Install dependencies
       run: |
-        python -m pip install -U pip
-        python -m pip install -U wheel
-        pip install build
-        pip install -U .
+        python3 -m pip install -U pip
+        python3 -m pip install -U wheel
+        python3 -m pip install build
+        python3 -m pip install -U .
     - name: Build sdist
       run: pipx run build --sdist
     - name: Upload artifacts
