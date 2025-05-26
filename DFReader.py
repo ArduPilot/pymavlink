@@ -7,7 +7,6 @@ Released under GNU GPL version 3 or later
 
 Partly based on SDLog2Parser by Anton Babushkin
 '''
-from __future__ import print_function
 from builtins import range
 from builtins import object
 

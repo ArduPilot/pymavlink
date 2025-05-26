@@ -5,7 +5,7 @@
 test for trimming under Python 3
 """
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 import unittest
 import os
 import pkg_resources

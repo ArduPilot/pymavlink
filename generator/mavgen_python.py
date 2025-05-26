@@ -5,8 +5,6 @@ parse a MAVLink protocol XML file and generate a python implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
-
 from builtins import range
 
 import os

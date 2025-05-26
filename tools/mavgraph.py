@@ -3,7 +3,6 @@
 graph a MAVLink log file
 Andrew Tridgell August 2011
 '''
-from __future__ import print_function
 from builtins import input
 from builtins import range
 

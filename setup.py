@@ -1,4 +1,4 @@
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import
 from setuptools.command.build_py import build_py
 from io import open
 # Work around mbcs bug in distutils.
