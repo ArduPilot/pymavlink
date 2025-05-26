@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 """
 Allows connection of the uBlox u-Center software to
 a uBlox GPS device connected to a PX4 or Pixhawk device,
