@@ -3,7 +3,6 @@
 '''
 fit best estimate of magnetometer offsets, trying to take into account motor interference
 '''
-from __future__ import print_function
 from builtins import range
 
 from argparse import ArgumentParser

@@ -3,7 +3,6 @@
 Module to test MAVXML
 """
 
-from __future__ import print_function
 import unittest
 import pkg_resources
 

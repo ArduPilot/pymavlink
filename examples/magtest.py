@@ -4,8 +4,6 @@
 rotate APMs on bench to test magnetometers
 
 '''
-from __future__ import print_function
-
 import time
 from math import radians
 

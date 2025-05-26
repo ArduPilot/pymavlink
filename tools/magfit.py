@@ -3,7 +3,6 @@
 '''
 fit best estimate of magnetometer offsets
 '''
-from __future__ import print_function
 from builtins import range
 
 from argparse import ArgumentParser

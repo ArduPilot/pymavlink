@@ -6,8 +6,6 @@ assumed to be in the format that qgroundcontrol uses, which consists
 of a series of MAVLink packets, each with a 64 bit timestamp
 header. The timestamp is in microseconds since 1970 (unix epoch)
 '''
-from __future__ import print_function
-
 import array
 import fnmatch
 import json

@@ -8,7 +8,6 @@ via a local TCP connection.
 
 @author: Matthew Lloyd (github@matthewlloyd.net)
 """
-from __future__ import print_function
 
 from pymavlink import mavutil
 from argparse import ArgumentParser

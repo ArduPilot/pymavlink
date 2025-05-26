@@ -17,8 +17,6 @@ After doing this, Wireshark should be able to show details of MAVLink packets.
 Copyright Holger Steinhaus 2012
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
 from builtins import range
 
 import os

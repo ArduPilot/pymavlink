@@ -3,8 +3,6 @@
 '''
 interactively select accel and gyro data for FFT analysis
 '''
-from __future__ import print_function
-
 import numpy
 import pylab
 import matplotlib
