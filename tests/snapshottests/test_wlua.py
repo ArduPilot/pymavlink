@@ -3,7 +3,7 @@
 """
 Test that the wlua generator works in Wireshark
 """
-import os
+import os, re
 import shutil
 import subprocess
 
@@ -94,8 +94,11 @@ def test_wlua(request, tmp_path, snapshot, mdef, pcap):
     # note that, with text output, tshark truncates hex dump lines at 80-ish or 100-ish characters.
     # Truncate them preemptively so this isn't reflected in the diff.
     # This doesn't lose any info we really care about.
-    truncated_stdout = ''.join([line[:72]+"\n" for line in actual.stdout.splitlines()])
-    
+    stdout_lines = actual.stdout.splitlines()
+    for i in range(len(stdout_lines)):
+        if re.search(r"[0-9a-f]{60}", stdout_lines[i]):
+            stdout_lines[i] = stdout_lines[i][:72]
+    truncated_stdout = '\n'.join(stdout_lines) + '\n'
     props_to_match = {
         "stdout": truncated_stdout,
         "stderr": actual.stderr,
