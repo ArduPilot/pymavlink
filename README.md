@@ -27,21 +27,22 @@ The following instructions assume you are using Python 3 and a Debian-based (lik
 
 Pymavlink has several dependencies :
 
-    - [future](http://python-future.org/) : for Python 2 and Python 3 interoperability
-    - [lxml](http://lxml.de/installation.html) : for checking and parsing xml file 
+- [future](http://python-future.org/) : for Python 2 and Python 3 interoperability
+- [lxml](http://lxml.de/installation.html) : for checking and parsing xml file 
 
 Optional :
 
-    - numpy : for FFT
-    - pytest : for tests
+- numpy : for FFT
+- pytest : for tests
 
 ### On Linux
 
 lxml has some additional dependencies that can be installed with your package manager (here with `apt-get`) :
 
-.. note::
+## Note :
 
-   If you continue to use Python 2 you may need to change package names here (e.g. python3-numpy => python-numpy)
+- If you continue to use Python 2 you may need to change package names here (e.g. python3-numpy => python-numpy)
+
 
 ```bash
 sudo apt-get install libxml2-dev libxslt-dev
