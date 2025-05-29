@@ -6,3 +6,4 @@ $ bash make.sh
 $ ./attitude
 $ ./param_request_list
 $ ./param_set_sr0_params
+$ ./gps_position
