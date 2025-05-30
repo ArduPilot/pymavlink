@@ -117,6 +117,7 @@
     <xs:enumeration value="mrad/s"/>   <!-- milli-radians per second -->
     <xs:enumeration value="deg"/>      <!-- degrees -->
     <xs:enumeration value="deg/2"/>    <!-- degrees/2 required from dagar for HIGH_LATENCY2 message-->
+    <xs:enumeration value="ddeg/s"/>   <!-- decidegrees per second, used to correct a mistake in the AIS_VESSEL message, not recommended elsewhere-->
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
     <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
