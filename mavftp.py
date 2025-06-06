@@ -1414,6 +1414,8 @@ if __name__ == "__main__":
                             help="Read retry time. Defaults to %(default)s")
         parser.add_argument("--retry_time", type=float, default=0.5,
                             help="Retry time. Defaults to %(default)s")
+        parser.add_argument("--poke", action="store_true",
+                            help="Send heartbeat to start MAVLink")
 
         subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -1607,11 +1609,25 @@ if __name__ == "__main__":
         return comport
 
 
+    def poke(port, baudrate = 115200):
+        logging.info("Poking flight controller with heartbeat on %s @ %d...", port, baudrate)
+        p = mavutil.mavlink_connection(port, baud=baudrate)
+
+        p.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_GENERIC,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0, 0, 0
+        )
+
+        p.wait_heartbeat(timeout=5)
+        p.close()
+
+
     def wait_heartbeat(m):
         '''wait for a heartbeat so we know the target system IDs'''
-        logging.info("Waiting for flight controller heartbeat")
+        logging.info("Waiting for flight controller heartbeat...")
         m.wait_heartbeat(timeout=5)
-        logging.info("Heartbeat from system %u, component %u", m.target_system, m.target_system)
+        logging.info("Heartbeat from system %u, component %u", m.target_system, m.target_component)
 
 
     def main():
@@ -1622,6 +1638,9 @@ if __name__ == "__main__":
 
         # create a mavlink serial instance
         comport = auto_connect(args.device)
+        if args.poke:
+            poke(args.device or comport.device, args.baudrate)
+
         master = mavutil.mavlink_connection(comport.device, baud=args.baudrate, source_system=args.source_system)
 
         # wait for the heartbeat msg to find the system ID
