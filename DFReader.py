@@ -1340,49 +1340,52 @@ class DFReader_binary(DFReader):
             self.id_to_name[mfmt.type] = mfmt.name
 
         # Parse the UNIT messages
-        mtype = self.name_to_id['UNIT']
-        fmt = self.formats[mtype]
-        mlen = fmt.len
-        for ofs in offsets[mtype]:
-            body = data[ofs+3:ofs+mlen]
-            if len(body)+3 < mlen:
-                break
-            elements = list(struct.unpack(fmt.msg_struct, body))
-            self.unit_lookup[chr(elements[1])] = null_term(elements[2])
+        if 'UNIT' in self.name_to_id:
+            mtype = self.name_to_id['UNIT']
+            fmt = self.formats[mtype]
+            mlen = fmt.len
+            for ofs in offsets[mtype]:
+                body = data[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                self.unit_lookup[chr(elements[1])] = null_term(elements[2])
 
         # Parse the MULT messages
-        mtype = self.name_to_id['MULT']
-        fmt = self.formats[mtype]
-        mlen = fmt.len
-        for ofs in offsets[mtype]:
-            body = data[ofs+3:ofs+mlen]
-            if len(body)+3 < mlen:
-                break
-            elements = list(struct.unpack(fmt.msg_struct, body))
-            # Even though the multiplier value is logged as a double, the
-            # values in log files look to be single-precision values that have
-            # been cast to a double.
-            # To ensure that the values saved here can be used to index the
-            # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
-            mult = float("%.7g" % (elements[2]))
-            self.mult_lookup[chr(elements[1])] = mult
+        if 'MULT' in self.name_to_id:
+            mtype = self.name_to_id['MULT']
+            fmt = self.formats[mtype]
+            mlen = fmt.len
+            for ofs in offsets[mtype]:
+                body = data[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                # Even though the multiplier value is logged as a double, the
+                # values in log files look to be single-precision values that have
+                # been cast to a double.
+                # To ensure that the values saved here can be used to index the
+                # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
+                mult = float("%.7g" % (elements[2]))
+                self.mult_lookup[chr(elements[1])] = mult
 
         # Parse the FMTU messages
-        mtype = self.name_to_id['FMTU']
-        fmt = self.formats[mtype]
-        mlen = fmt.len
-        for ofs in offsets[mtype]:
-            body = data[ofs+3:ofs+mlen]
-            if len(body)+3 < mlen:
-                break
-            elements = list(struct.unpack(fmt.msg_struct, body))
-            ftype = int(elements[1])
-            if ftype in self.formats:
-                fmt2 = self.formats[ftype]
-                if 'UnitIds' in fmt.colhash:
-                    fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]), self.unit_lookup)
-                if 'MultIds' in fmt.colhash:
-                    fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
+        if 'FMTU' in self.name_to_id:
+            mtype = self.name_to_id['FMTU']
+            fmt = self.formats[mtype]
+            mlen = fmt.len
+            for ofs in offsets[mtype]:
+                body = data[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                ftype = int(elements[1])
+                if ftype in self.formats:
+                    fmt2 = self.formats[ftype]
+                    if 'UnitIds' in fmt.colhash:
+                        fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]), self.unit_lookup)
+                    if 'MultIds' in fmt.colhash:
+                        fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
 
         # Parse the first 100 messages of each type to try to build the
         # messages dictionary. 100 was chosen as a reasonable heuristic to
