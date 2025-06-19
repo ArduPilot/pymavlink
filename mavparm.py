@@ -3,7 +3,8 @@ module for loading/saving sets of mavlink parameters
 '''
 import fnmatch, math, time, struct
 from pymavlink import mavutil
-
+import logging
+logger = logging.getLogger('pymavlink')
 class MAVParmDict(dict):
     def __init__(self, *args):
         dict.__init__(self, args)
@@ -43,7 +44,7 @@ class MAVParmDict(dict):
             elif parm_type == mavutil.mavlink.MAV_PARAM_TYPE_INT32:
                 vstr = struct.pack(">i", int(value))
             else:
-                print("can't send %s of type %u" % (name, parm_type))
+                logger.info("can't send %s of type %u" % (name, parm_type))
                 return False
             numeric_value, = struct.unpack(">f", vstr)
         else:
@@ -66,7 +67,7 @@ class MAVParmDict(dict):
                     self.__setitem__(name, numeric_value)
                     break
         if not got_ack:
-            print("timeout setting %s to %f" % (name, numeric_value))
+            logger.info("timeout setting %s to %f" % (name, numeric_value))
             return False
         return True
 
@@ -87,7 +88,7 @@ class MAVParmDict(dict):
                 count += 1
         f.close()
         if verbose:
-            print("Saved %u parameters to %s" % (count, filename))
+            logger.info("Saved %u parameters to %s" % (count, filename))
 
 
     def load(self, filename, wildcard='*', mav=None, check=True, use_excludes=True):
@@ -95,7 +96,7 @@ class MAVParmDict(dict):
         try:
             f = open(filename, mode='r')
         except Exception as e:
-            print("Failed to open file '%s': %s" % (filename, str(e)))
+            logger.info("Failed to open file '%s': %s" % (filename, str(e)))
             return False
         count = 0
         changed = 0
@@ -106,7 +107,7 @@ class MAVParmDict(dict):
             line = line.replace(',',' ')
             a = line.split()
             if len(a) != 2:
-                print("Invalid line: %s" % line)
+                logger.info("Invalid line: %s" % line)
                 continue
             # some parameters should not be loaded from files
             if use_excludes and a[0] in self.exclude_load:
@@ -122,16 +123,16 @@ class MAVParmDict(dict):
             if mav is not None:
                 if check:
                     if a[0] not in list(self.keys()):
-                        print("Unknown parameter %s" % a[0])
+                        logger.info("Unknown parameter %s" % a[0])
                         continue
                     old_value = self.__getitem__(a[0])
                     if math.fabs(old_value - numeric_value) <= self.mindelta:
                         count += 1
                         continue
                     if self.mavset(mav, a[0], value):
-                        print("changed %s from %f to %f" % (a[0], old_value, numeric_value))
+                        logger.info("changed %s from %f to %f" % (a[0], old_value, numeric_value))
                 else:
-                    print("set %s to %f" % (a[0], numeric_value))
+                    logger.info("set %s to %f" % (a[0], numeric_value))
                     self.mavset(mav, a[0], value)
                 changed += 1
             else:
@@ -139,13 +140,13 @@ class MAVParmDict(dict):
             count += 1
         f.close()
         if mav is not None:
-            print("Loaded %u parameters from %s (changed %u)" % (count, filename, changed))
+            logger.info("Loaded %u parameters from %s (changed %u)" % (count, filename, changed))
         else:
-            print("Loaded %u parameters from %s" % (count, filename))
+            logger.info("Loaded %u parameters from %s" % (count, filename))
         return True
 
     def show_param_value(self, name, value):
-        print("%-16.16s %s" % (name, value))
+        logger.info("%-16.16s %s" % (name, value))
 
     def show(self, wildcard='*'):
         '''show parameters'''
@@ -166,13 +167,13 @@ class MAVParmDict(dict):
             if not k in other:
                 value = float(self[k])
                 if show_only2:
-                    print("%-16.16s              %12.4f" % (k, value))
+                    logger.info("%-16.16s              %12.4f" % (k, value))
             elif not k in self:
                 if show_only1:
-                    print("%-16.16s %12.4f" % (k, float(other[k])))
+                    logger.info("%-16.16s %12.4f" % (k, float(other[k])))
             elif abs(self[k] - other[k]) > self.mindelta:
                 value = float(self[k])
                 if use_tabs:
-                    print("%s\t%.4f\t%.4f" % (k, other[k], value))
+                    logger.info("%s\t%.4f\t%.4f" % (k, other[k], value))
                 else:
-                    print("%-16.16s %12.4f %12.4f" % (k, other[k], value))
+                    logger.info("%-16.16s %12.4f %12.4f" % (k, other[k], value))
