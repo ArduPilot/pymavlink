@@ -134,6 +134,28 @@ def set_dialect(dialect, with_type_annotations=None):
     current_dialect = dialect
     mavlink = mod
 
+def set_dialect_from_file(file):
+    '''set the MAVLink dialect to work with from a file.
+    For example, set_dialect_from_file("/home/user/my_dialects/v20/my_special_dialect.py")
+    '''
+    global mavlink, current_dialect
+    import importlib.util
+
+    dialect = os.path.splitext(os.path.basename(file))[0]
+
+    spec = importlib.util.spec_from_file_location(dialect, file)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[dialect] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except FileNotFoundError:
+        print('Could not find dialect file %s' % file)
+        print('Stay on dialect %s' % current_dialect)
+    else:
+        current_dialect = dialect
+        mavlink = mod
+        print('Set dialect %s' % current_dialect)
+
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
