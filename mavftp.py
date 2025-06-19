@@ -403,6 +403,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         '''handle OP_ListDirectory reply'''
         output: List[DirectoryEntry] = []
         if op.opcode == OP_Ack and op.payload is not None:
+            if self.ftp_settings.debug > 0:
+                logging.info("FTP: Processing ListDirectory with %uB payload", len(op.payload))
             dentries = sorted(op.payload.split(b"\x00"))
             for d in dentries:
                 if len(d) == 0:
@@ -411,7 +413,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 try:
                     dir_entry = str(d, "ascii")
                 except Exception as error:  # pylint: disable=broad-exception-caught
-                    logging.debug(error)
+                    logging.debug("FTP: Failed to decode entry: %s", error)
                     continue
                 if dir_entry[0] == "D":
                     output.append(DirectoryEntry(name=dir_entry[1:], is_dir=True, size_b=0))
@@ -1414,6 +1416,8 @@ if __name__ == "__main__":
                             help="Read retry time. Defaults to %(default)s")
         parser.add_argument("--retry_time", type=float, default=0.5,
                             help="Retry time. Defaults to %(default)s")
+        parser.add_argument("--poke", action="store_true",
+                            help="Send heartbeat to start MAVLink")
 
         subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -1607,11 +1611,25 @@ if __name__ == "__main__":
         return comport
 
 
+    def poke(port, baudrate = 115200):
+        logging.info("Poking flight controller with heartbeat on %s @ %d...", port, baudrate)
+        p = mavutil.mavlink_connection(port, baud=baudrate)
+
+        p.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_GENERIC,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0, 0, 0
+        )
+
+        p.wait_heartbeat(timeout=5)
+        p.close()
+
+
     def wait_heartbeat(m):
         '''wait for a heartbeat so we know the target system IDs'''
-        logging.info("Waiting for flight controller heartbeat")
+        logging.info("Waiting for flight controller heartbeat...")
         m.wait_heartbeat(timeout=5)
-        logging.info("Heartbeat from system %u, component %u", m.target_system, m.target_system)
+        logging.info("Heartbeat from system %u, component %u", m.target_system, m.target_component)
 
 
     def main():
@@ -1622,6 +1640,9 @@ if __name__ == "__main__":
 
         # create a mavlink serial instance
         comport = auto_connect(args.device)
+        if args.poke:
+            poke(args.device or comport.device, args.baudrate)
+
         master = mavutil.mavlink_connection(comport.device, baud=args.baudrate, source_system=args.source_system)
 
         # wait for the heartbeat msg to find the system ID
@@ -1654,6 +1675,17 @@ if __name__ == "__main__":
 
         if args.command in ['get', 'put', 'getparams']:
             ret = mav_ftp.process_ftp_reply(args.command, timeout=500)
+
+        if args.command == 'list':
+            if ret.error_code in [FtpError.Success, FtpError.EndOfFile]:
+                if mav_ftp.list_result:
+                    for entry in mav_ftp.list_result:
+                        if entry.is_dir:
+                            print(f"{entry.name}/")
+                        else:
+                            print(f"{entry.name:<30} {entry.size_b:>10} bytes")
+                else:
+                    print("Directory is empty")
 
         if isinstance(ret, str):
             logging.error("Command returned: %s, but it should return a MAVFTPReturn instead", ret)
