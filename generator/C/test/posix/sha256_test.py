@@ -1,16 +1,9 @@
-#!/usr/bin/env python3
-
-from builtins import range
-
-import hashlib, sys
+import hashlib
+import sys
 
 h = hashlib.new('sha256')
-h.update(sys.argv[1])
+h.update((sys.argv[1] if len(sys.argv) > 1 else "Test123").encode("utf-8"))
 res = h.digest()[:6]
 for i in range(6):
-    sys.stdout.write("%02x " % ord(res[i]))
+    sys.stdout.write("%02x " % res[i])
 sys.stdout.write("\n")
-
-
-
-
