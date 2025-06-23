@@ -28,7 +28,7 @@ class MAVWPError(Exception):
 
 
 class MissionItemProtocol(object):
-    '''Base class for transfering items based on the MISSION_ITEM protocol'''
+    '''Base class for transferring items based on the MISSION_ITEM protocol'''
     def __init__(self, target_system=0, target_component=0):
         self.wpoints = []
         self.target_system = target_system

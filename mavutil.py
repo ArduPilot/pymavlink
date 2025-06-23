@@ -1794,7 +1794,7 @@ class mavwebsocket(mavfile):
             # Should probbily raise a exception of some sort
             return ''
 
-        # Read in some data and pass it to the WebSocket handeler
+        # Read in some data and pass it to the WebSocket handler
         RECEIVE_BYTES = 4096
         try:
             in_data = self.port.recv(RECEIVE_BYTES)
@@ -1808,7 +1808,7 @@ class mavwebsocket(mavfile):
             self.close_port()
             return ''
 
-        # Procces WebSocket events
+        # Process WebSocket events
         data = b""
         reply = b""
         keep_running = True
@@ -1827,7 +1827,7 @@ class mavwebsocket(mavfile):
                 data += event.data
 
         if len(reply) > 0:
-            # Send any reply to incomming requests
+            # Send any reply to incoming requests
             self.port.send(reply)
 
         if not keep_running:
@@ -2302,7 +2302,7 @@ except Exception:
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
 # string, used in DFReader and possibly other places.  These are
-# related but distict from what is found in mavlink messages; see
+# related but distinct from what is found in mavlink messages; see
 # "Custom mode definitions", below.
 mainstate_mapping_px4 = {
     0 : 'MANUAL',
