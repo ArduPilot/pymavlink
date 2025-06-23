@@ -2594,7 +2594,7 @@
       <field type="uint8_t" name="target_component">Component ID</field>
       <field type="char[16]" name="param_id">Onboard parameter id, terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string</field>
       <field type="int16_t" name="param_index">Parameter index. Send -1 to use the param ID field as identifier (else the param id will be ignored), send -2 to disable any existing map for this rc_channel_index.</field>
-      <field type="uint8_t" name="parameter_rc_channel_index">Index of parameter RC channel. Not equal to the RC channel id. Typically correpsonds to a potentiometer-knob on the RC.</field>
+      <field type="uint8_t" name="parameter_rc_channel_index">Index of parameter RC channel. Not equal to the RC channel id. Typically corresponds to a potentiometer-knob on the RC.</field>
       <field type="float" name="param_value0">Initial parameter value</field>
       <field type="float" name="scale">Scale, maps the RC range [-1, 1] to a parameter value</field>
       <field type="float" name="param_value_min">Minimum param value. The protocol does not define if this overwrites an onboard minimum value. (Depends on implementation)</field>
@@ -3397,7 +3397,7 @@
     </message>
     <message id="142" name="RESOURCE_REQUEST">
       <description>The autopilot is requesting a resource (file, binary, other type of data)</description>
-      <field type="uint8_t" name="request_id">Request ID. This ID should be re-used when sending back URI contents</field>
+      <field type="uint8_t" name="request_id">Request ID. This ID should be reused when sending back URI contents</field>
       <field type="uint8_t" name="uri_type">The type of requested URI. 0 = a file via URL. 1 = a UAVCAN binary</field>
       <field type="uint8_t[120]" name="uri">The requested unique resource identifier (URI). It is not necessarily a straight domain name (depends on the URI type enum)</field>
       <field type="uint8_t" name="transfer_type">The way the autopilot wants to receive the URI. 0 = MAVLink FTP. 1 = binary stream.</field>
@@ -3474,7 +3474,7 @@
       <description>The location of a landing area captured from a downward facing camera</description>
       <field type="uint64_t" name="time_usec">Timestamp (micros since boot or Unix epoch)</field>
       <field type="uint8_t" name="target_num">The ID of the target if multiple targets are present</field>
-      <field type="uint8_t" name="frame">MAV_FRAME enum specifying the whether the following feilds are earth-frame, body-frame, etc.</field>
+      <field type="uint8_t" name="frame">MAV_FRAME enum specifying the whether the following fields are earth-frame, body-frame, etc.</field>
       <field type="float" name="angle_x">X-axis angular offset (in radians) of the target from the center of the image</field>
       <field type="float" name="angle_y">Y-axis angular offset (in radians) of the target from the center of the image</field>
       <field type="float" name="distance">Distance to the target from the vehicle in meters</field>

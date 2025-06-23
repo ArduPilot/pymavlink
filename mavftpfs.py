@@ -12,7 +12,7 @@ from pymavlink import mavutil
 
 from mavftp import MAVFTP
 
-# this allows us to support acessing the special files
+# this allows us to support accessing the special files
 base_file_paths = ["/", "@ROMFS", "@SYS"]
 
 

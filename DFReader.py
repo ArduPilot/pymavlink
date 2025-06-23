@@ -126,7 +126,7 @@ class DFFormat(object):
             if self.msg_fmts[i] == 'a':
                 self.a_indexes.append(i)
 
-        # If this format was alrady defined, copy over units and instance info
+        # If this format was already defined, copy over units and instance info
         if oldfmt is not None:
             self.units = oldfmt.units
             if oldfmt.instance_field is not None:
@@ -171,7 +171,7 @@ class DFFormat(object):
             # Get the unit multiplier from the lookup table
             if mult_ids[i] in mult_lookup:
                 unitmult = mult_lookup[mult_ids[i]]
-                # Combine the multipler and unit to derive the real unit
+                # Combine the multiplier and unit to derive the real unit
                 if unitmult in MULT_TO_PREFIX:
                     self.units[i] = MULT_TO_PREFIX[unitmult]+self.units[i]
                 else:
@@ -229,7 +229,7 @@ class DFMessage(object):
         except Exception:
             raise AttributeError(field)
         if self.fmt.msg_fmts[i] == 'Z' and self.fmt.name == 'FILE':
-            # special case for FILE contens as bytes
+            # special case for FILE contents as bytes
             return self._elements[i]
         if isinstance(self._elements[i], bytes):
             try:

@@ -425,7 +425,7 @@ def generate_one(basename, xml):
             underlying_type = types[-1]
 
         # template do not support "if"
-        # filter out ENUM_END, it often > than unterlying type may handle
+        # filter out ENUM_END, it often > than underlying type may handle
         e.entry_flt = []
         for f in e.entry:
             f.name_trim = enum_remove_prefix(e.name, f.name)
