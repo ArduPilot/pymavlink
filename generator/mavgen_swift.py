@@ -119,7 +119,7 @@ extension ${swift_name}: MAVLinkBitmask {
         outf.close()
 
 def get_enum_raw_type(enum, msgs):
-    """Search appropirate raw type for enums in messages fields"""
+    """Search appropriate raw type for enums in messages fields"""
 
     for msg in msgs:
         for field in msg.fields:

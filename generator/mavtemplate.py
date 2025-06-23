@@ -69,7 +69,7 @@ class MAVTemplate(object):
         if checkmissing is None:
             checkmissing = self.checkmissing
 
-        # handle repititions
+        # handle repetitions
         while True:
             subidx = text.find(self.start_rep_token)
             if subidx == -1:
