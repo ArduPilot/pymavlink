@@ -202,7 +202,7 @@ def generate_message_defs(outf, msgs, enums):
                 field.name = field.name.lower()
             if len(field.name) > 30:
                 field.name = field.name[0:30]
-            if field.type == "char": # I'm an array of chars let's just allocate the memory
+            if field.type.startswith("char"): # I'm an array of chars let's just allocate the memory
                 m.spin_fields.append("BYTE " + field.name + "[" + str(field.array_length) + "]")
                 m.spin_names.append(field.name)
             elif field.type == "uint8_t" or field.type == "int8_t":
@@ -233,7 +233,10 @@ def generate_message_defs(outf, msgs, enums):
                 else:
                     m.spin_fields.append(field.type + " " + field.name) # I'm a struct     
                 m.spin_names.append(field.name)        
-            m.init_fields.append("msg.%s := %s" % (field.name, field.name))
+            if(field.array_length > 0):
+                m.init_fields.append("BYTEMOVE(msg.%s, %s, %s)" % (field.name, field.name, field.array_length))
+            else:
+                m.init_fields.append("msg.%s := %s" % (field.name, field.name))
         t.write(
             outf,
             '''
@@ -246,12 +249,12 @@ CON
     ${cleanname}_crcx = ${crc_extra}
     STRUCT ${classname} (${spin_fields})
 
-PUB ${cleanname}_pack(${field_names}): siz | ${classname} msg
+PUB ${cleanname}_pack(${field_names}, ${classname} ^outptr): siz
     BYTEFILL(@payload_buf, 0, MAVLINK_PAYLOAD_SIZE)
-    ${init_fields}
+    ${init_fields}    
     ' build payload
-    BYTEMOVE(@payload_buf, @msg, sizeof(msg))
-    siz := sizeof(msg)
+    BYTEMOVE(@payload_buf, @outptr, sizeof(outptr))
+    siz := sizeof(outptr)
 
 PUB ${cleanname}_send(${field_names}): siz | ${classname} msg
     BYTEFILL(@payload_buf, 0, MAVLINK_PAYLOAD_SIZE)
