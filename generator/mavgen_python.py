@@ -73,21 +73,16 @@ MAVLINK_TYPE_FLOAT = 9
 MAVLINK_TYPE_DOUBLE = 10
 
 
-class x25crc(object):
-    """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
-
-    def __init__(self, buf: Optional[Sequence[int]] = None) -> None:
-        self.crc = 0xFFFF
-        if buf is not None:
-            self.accumulate(buf)
-
-    def accumulate(self, buf: Sequence[int]) -> None:
-        accum = self.crc
+try:
+    from crcmod.predefined import mkPredefinedCrcFun
+    x25crc = mkPredefinedCrcFun("crc-16-mcrf4xx")
+except ImportError:
+    def x25crc(buf: Sequence[int], crc: int = 0xFFFF):
         for b in buf:
-            tmp = b ^ (accum & 0xFF)
+            tmp = b ^ (crc & 0xFF)
             tmp = (tmp ^ (tmp << 4)) & 0xFF
-            accum = (accum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
-        self.crc = accum
+            crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
+        return crc
 
 
 class MAVLink_header(object):
@@ -285,11 +280,10 @@ class MAVLink_message(object):
         )
         self._msgbuf = bytearray(self._header.pack(force_mavlink1=force_mavlink1))
         self._msgbuf += self._payload
-        crc = x25crc(self._msgbuf[1:])
+        self._crc = x25crc(self._msgbuf[1:])
         if ${crc_extra}:
             # we are using CRC extra
-            crc.accumulate(struct.pack("B", crc_extra))
-        self._crc = crc.crc
+            self._crc = x25crc([crc_extra], self._crc)
         self._msgbuf += struct.pack("<H", self._crc)
         if mav.signing.sign_outgoing and not force_mavlink1:
             self.sign_packet(mav)
@@ -970,8 +964,8 @@ class MAVLink(object):
             # using CRC extra
             crcbuf.append(crc_extra)
         crc2 = x25crc(crcbuf)
-        if crc != crc2.crc and not MAVLINK_IGNORE_CRC:
-            raise MAVError("invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x" % (msgId, crc, crc2.crc))
+        if crc != crc2 and not MAVLINK_IGNORE_CRC:
+            raise MAVError("invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x" % (msgId, crc, crc2))
 
         sig_ok = False
         if signature_len == MAVLINK_SIGNATURE_BLOCK_LEN:
