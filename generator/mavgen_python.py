@@ -77,7 +77,7 @@ try:
     from crcmod.predefined import mkPredefinedCrcFun
     x25crc = mkPredefinedCrcFun("crc-16-mcrf4xx")
 except ImportError:
-    def x25crc(buf: Sequence[int], crc: int = 0xFFFF):
+    def x25crc(buf: Sequence[int], crc: int = 0xFFFF) -> int:
         for b in buf:
             tmp = b ^ (crc & 0xFF)
             tmp = (tmp ^ (tmp << 4)) & 0xFF
