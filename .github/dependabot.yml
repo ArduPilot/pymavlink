@@ -4,6 +4,8 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
+      commit-message:
+        prefix: .github
     directory: /
     groups:
       github-actions:
