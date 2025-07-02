@@ -38,7 +38,7 @@ jobs:
                   ("linux-arm", "ubuntu-24.04-arm", "auto"),
                   ("macos", "macos-latest", "arm64 x86_64 universal2"),
                   ("windows", "windows-latest", "auto"),
-                  # ("windows-arm", "windows-11-arm", "auto"), # Can't do this one yet, as lxml doesn't have Windows ARM wheels, and the runner doesn't have libxml2 pre-installed
+                  ("windows-arm", "windows-11-arm", "auto"),
               ]
               py_versions = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
           else:
@@ -51,6 +51,8 @@ jobs:
           matrix = {"include": []}
           for (name, runner, cibw_archs) in machines:
               for py in py_versions:
+                  if name == "windows-arm" and py == "3.8": # The windows arm runner does not support Python 3.8
+                      continue
                   matrix["include"].append({
                       "name": f"python{py}-{name}",
                       "os": runner,
