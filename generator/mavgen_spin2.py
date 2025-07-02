@@ -96,6 +96,10 @@ VAR
     WORD crc
     BYTE tmp1, tmp2
     
+pub get_crc():result
+    result := crc
+    return
+    
 pub make_crc(msgadr,len,CRC_EXTRA)
     crc:=$FFFF
     byte[msgadr+len-2]:= CRC_EXTRA & $FF ' stick the crcextra in the first byte
@@ -657,13 +661,16 @@ OBJ
     Handles an incoming MAVLink message.
 }}
 
-PUB checkCrc(WORD crc, crcextra): result | newcrc
-    mavlink.make_crc(@msg, msg.len+12, crcextra)
-    newcrc := mavlink.get_crc
-    if (crc <> newcrc)
+PUB checkCrc(crcextra, ^mavlink.MAVLink msg): result | newcrc
+    mavlink.make_crc([msg], msg.len+12, crcextra)
+    newcrc := mavlink.get_crc()
+    if (msg.checksum <> newcrc)
         return FALSE
     else
         return TRUE
+
+PUB crcError()
+    ' TODO: Handle CRC errors for your solution
 
 PUB handleMessage(^mavlink.MAVLink packet) | msgid
     ' little endian
@@ -671,9 +678,11 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
     msgid |= packet.msgid_m << 8
     msgid |= packet.msgid
     
-    CASE_FAST msgid
+    ' Can't use CASE_FAST; ID values have to be within 255 of each other
+    ' maybe use a compare and two CASE statements in a flight controller implementation but that is beyond the scope of pymavgen
+    CASE msgid
         mavlink.MSG_ID_MANUAL_CONTROL: ' highest priority is manual control and mode messages
-            handle_manual_control(@packet)
+            hdl_manual_control(@packet)
 ''',{"DIALECT": dialect}, )
     for m in msgs:
         if (m.name == "MANUAL_CONTROL" or m.name == "HEARTBEAT"): # skip manual control and heartbeat; manual control should be first and heartbeat last.
@@ -682,7 +691,7 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
             outf,
             '''
         mavlink.${cleanname}_id:
-            if(checkCrc(mavlink.${cleanname}_crcx)
+            if(checkCrc(mavlink.${cleanname}_crcx, @packet))
                 hdl_${cleanname}(@packet)
             else
                 crcError()
@@ -702,7 +711,7 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
         outf,
         '''
         mavlink.MSG_ID_HEARTBEAT:
-            handle_heartbeat(@packet)
+            hdl_heartbeat(@packet)
         
 ''') 
 def generate_handler(outf, msgs):
@@ -714,7 +723,7 @@ def generate_handler(outf, msgs):
 ${spin_fields}
 }}
 PUB hdl_${cleanname}(^mavlink.MAVLink packet) | mavlink.${classname} msg
-    BYTEMOVE(@msg, @packet.payload, sizeof(msg)
+    BYTEMOVE(@msg, @packet.payload, sizeof(msg))
     ' TODO: implement handler
                 
 ''',
