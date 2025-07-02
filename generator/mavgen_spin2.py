@@ -201,40 +201,57 @@ def generate_message_defs(outf, msgs, enums):
                 field.name = field.name.replace("A","").replace("E","").replace("I","").replace("O","").replace("U","")
                 field.name = field.name.lower()
             if len(field.name) > 30:
-                field.name = field.name[0:30]
-            if field.type.startswith("char"): # I'm an array of chars let's just allocate the memory
-                m.spin_fields.append("BYTE " + field.name + "[" + str(field.array_length) + "]")
-                m.spin_names.append(field.name)
-            elif field.type == "uint8_t" or field.type == "int8_t":
-                m.spin_fields.append("BYTE " + field.name)
-                m.spin_names.append(field.name)
-            elif field.type == "uint16_t" or field.type == "int16_t":
-                m.spin_fields.append("WORD " + field.name)
-                m.spin_names.append(field.name)
-            elif field.type == "uint32_t" or field.type == "int32_t":
-                m.spin_names.append(field.name)
-                m.spin_fields.append(field.name) #default is long save progmem
-            elif field.type == "uint64_t" or field.type == "int64_t":
-                m.spin_fields.append("int64 " + field.name) # we need a structured type for this
-                m.spin_names.append("int64 " + field.name)
-            elif field.type == "int16_t": # signed
-                m.spin_fields.append("WORD " + field.name)
-                m.spin_names.append(field.name)
-            elif field.type == "float":
-                m.spin_fields.append(field.name)
-                m.spin_names.append(field.name)
-            elif field.type == "double":
-                m.spin_fields.append("double " + field.name)
-                m.spin_names.append("double " + field.name)
-            else:
-                if field.array_length > 0:
-                    print("APPENDING FIELD WITH ARRAY LENGTH")
-                    m.spin_fields.append(field.type + " " + field.name + "[" + str(field.array_length) + "]") # I'm a struct array
+                field.name = field.name[0:30]            
+            if field.type == "uint8_t" or field.type == "int8_t" or field.type.startswith("char"):
+                if(field.array_length > 0):
+                    m.spin_names.append(field.name) # array pointer takes precedence over struct pointer, we just receive a long
+                    m.spin_fields.append("BYTE " + field.name + "[" + str(field.array_length) + "]")
                 else:
-                    m.spin_fields.append(field.type + " " + field.name) # I'm a struct     
-                m.spin_names.append(field.name)        
+                    m.spin_names.append(field.name)
+                    m.spin_fields.append("BYTE " + field.name)
+            elif field.type == "uint16_t" or field.type == "int16_t":
+                if(field.array_length > 0):
+                    m.spin_names.append(field.name) # array pointer takes precedence over struct pointer, we just receive a long
+                    m.spin_fields.append("WORD " + field.name + "[" + str(field.array_length) + "]")
+                else:
+                    m.spin_names.append(field.name)
+                    m.spin_fields.append("WORD " + field.name)
+            elif field.type == "uint32_t" or field.type == "int32_t" or field.type == "float":
+                if(field.array_length > 0):
+                    m.spin_names.append(field.name) # array pointer takes precedence over struct pointer, we just receive a long
+                    m.spin_fields.append(field.name + "[" + str(field.array_length) + "]")
+                else:
+                    m.spin_names.append(field.name)
+                    m.spin_fields.append(field.name)
+            elif field.type == "uint64_t" or field.type == "int64_t":
+                if(field.array_length > 0):
+                    m.spin_names.append(field.name) # array pointer takes precedence over struct pointer, we just receive a long
+                    m.spin_fields.append("int64 " + field.name + "[" + str(field.array_length) + "]")
+                else:
+                    m.spin_names.append("int64 " + field.name)
+                    m.spin_fields.append("int64 " + field.name)
+            elif field.type == "double":
+                if(field.array_length > 0):
+                    m.spin_names.append(field.name) # array pointer takes precedence over struct pointer, we just receive a long
+                    m.spin_fields.append("double " + field.name + "[" + str(field.array_length) + "]")
+                else:
+                    m.spin_names.append("double " + field.name)
+                    m.spin_fields.append("double " + field.name)
+                
+            else:
+                if field.array_length > 0:                    
+                    m.spin_names.append(field.name) # I'm an array of unknown structs
+                    m.spin_fields.append(field.type + field.name + "[" + str(field.array_length) + "]")
+                else:
+                    m.spin_fields.append(field.type + " " + field.name) # I'm an unknown struct
+                    m.spin_names.append(field.type + " " + field.name)        
             if(field.array_length > 0):
-                m.init_fields.append("BYTEMOVE(msg.%s, %s, %s)" % (field.name, field.name, field.array_length))
+                if(field.type == "double"):
+                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s*sizeof(double))" % (field.name, field.name, field.array_length))
+                elif(field.type == "uint64_t" or field.type == "int64_t"):
+                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s*sizeof(int64)" % (field.name, field.name, field.array_length))
+                else:
+                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s)" % (field.name, field.name, field.array_length))
             else:
                 m.init_fields.append("msg.%s := %s" % (field.name, field.name))
         t.write(
@@ -249,20 +266,21 @@ CON
     ${cleanname}_crcx = ${crc_extra}
     STRUCT ${classname} (${spin_fields})
 
-PUB ${cleanname}_pack(${field_names}, ${classname} ^outptr): siz
+PUB ${cleanname}_pack(${field_names}, ^${classname} msg): siz
     BYTEFILL(@payload_buf, 0, MAVLINK_PAYLOAD_SIZE)
-    ${init_fields}    
+    ${init_fields}
     ' build payload
-    BYTEMOVE(@payload_buf, @outptr, sizeof(outptr))
-    siz := sizeof(outptr)
+    siz := sizeof(msg)
+    BYTEMOVE(@payload_buf, @msg, siz)
+    
 
 PUB ${cleanname}_send(${field_names}): siz | ${classname} msg
     BYTEFILL(@payload_buf, 0, MAVLINK_PAYLOAD_SIZE)
-    ${init_fields}    
+    ${init_fields}
     ' build payload
-    BYTEMOVE(@payload_buf, @msg, sizeof(msg))
-    send_mavlink(${cleanname}_id, srcSystemId, srcComponentId, ${cleanname}_crcx, sizeof(msg), False)
     siz := sizeof(msg)
+    BYTEMOVE(@payload_buf, @msg, siz)
+    send_mavlink(${cleanname}_id, srcSystemId, srcComponentId, ${cleanname}_crcx, siz, False)
 
 ''',
                 {
