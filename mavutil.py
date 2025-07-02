@@ -1794,7 +1794,7 @@ class mavwebsocket(mavfile):
             # Should probbily raise a exception of some sort
             return ''
 
-        # Read in some data and pass it to the WebSocket handeler
+        # Read in some data and pass it to the WebSocket handler
         RECEIVE_BYTES = 4096
         try:
             in_data = self.port.recv(RECEIVE_BYTES)
@@ -1808,7 +1808,7 @@ class mavwebsocket(mavfile):
             self.close_port()
             return ''
 
-        # Procces WebSocket events
+        # Process WebSocket events
         data = b""
         reply = b""
         keep_running = True
@@ -1827,7 +1827,7 @@ class mavwebsocket(mavfile):
                 data += event.data
 
         if len(reply) > 0:
-            # Send any reply to incomming requests
+            # Send any reply to incoming requests
             self.port.send(reply)
 
         if not keep_running:
@@ -1854,7 +1854,107 @@ class mavwebsocket(mavfile):
                 self.close_port()
             pass
 
+class mavwebsocket_client(mavfile):
+    '''client using WebSocket over TCP'''
+    def __init__(self,
+                 device,
+                 source_system=255,
+                 source_component=0,
+                 retries=6,
+                 use_native=default_native):
+        self.resource = "/"
+        a = device.split(':')
+        if len(a) < 2:
+            raise ValueError("TCP ports must be specified as host:port")
+        self.host = a[0]
+        self.port = int(a[1])
+        if len(a) > 2:
+            self.resource = a[2]
+        self.sock = None
+        self.connect()
+        mavfile.__init__(self, self.sock.fileno(), "ws:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
+    def connect(self):
+        self.close()
+        from wsproto import ConnectionType, WSConnection
+        from wsproto.events import (
+            AcceptConnection,
+            CloseConnection,
+            Request,
+            BytesMessage,
+        )
+        try:
+            self.sock = socket.create_connection((self.host, self.port))
+        except socket.error as e:
+            if e.errno in [ errno.ECONNREFUSED, errno.EHOSTUNREACH ]:
+                return
+            raise
+        self.sock.setblocking(1)
+        self.ws = WSConnection(ConnectionType.CLIENT)
+        b = self.ws.send(Request(host=self.host, target=self.resource))
+        self.sock.send(b)
+        self.buffer = b''
+
+        # wait for handshake response
+        while True:
+            data = self.sock.recv(4096)
+            if not data:
+                raise RuntimeError("WebSocket handshake failed")
+            self.ws.receive_data(data)
+            for event in self.ws.events():
+                if isinstance(event, AcceptConnection):
+                    self.sock.setblocking(0)
+                    return
+
+    def recv(self,n=None):
+        from wsproto.events import (
+            BytesMessage,
+            CloseConnection
+        )
+        if not self.sock:
+            self.connect()
+            return b''
+        if self.buffer:
+            out, self.buffer = self.buffer, b''
+            return out
+        try:
+            data = self.sock.recv(n)
+        except socket.error as e:
+            if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
+                return b""
+            if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
+                self.connect()
+                return b''
+            raise
+        if not data:
+            return b''
+        self.ws.receive_data(data)
+        for event in self.ws.events():
+            if isinstance(event, BytesMessage):
+                self.buffer += event.data
+            elif isinstance(event, CloseConnection):
+                return b''
+        out, self.buffer = self.buffer, b''
+        return out
+
+    def write(self, data):
+        from wsproto.events import BytesMessage
+        if not self.sock:
+            self.connect()
+            return
+        b = self.ws.send(BytesMessage(data=data))
+        try:
+            self.sock.send(b)
+        except socket.error as e:
+            if e.errno in [ errno.EPIPE ]:
+                self.connect()
+            pass
+
+    def close(self):
+        if self.sock:
+            self.sock.close()
+            self.sock = None
+        
 def mavlink_connection(device, baud=115200, source_system=255, source_component=0,
                        planner_format=None, write=False, append=False,
                        robust_parsing=True, notimestamps=False, input=True,
@@ -1888,6 +1988,8 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         return mavudp(device[9:], input=False, source_system=source_system, source_component=source_component, use_native=use_native, broadcast=True)
     if device.startswith('wsserver:'):
         return mavwebsocket(device[9:], source_system=source_system, source_component=source_component, use_native=use_native)
+    if device.startswith('ws:'):
+        return mavwebsocket_client(device[3:], source_system=source_system, source_component=source_component, use_native=use_native)
     # For legacy purposes we accept the following syntax and let the caller to specify direction
     if device.startswith('udp:'):
         return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native)
@@ -2302,7 +2404,7 @@ except Exception:
 # map from a PX4 "main_state" to a string; see msg/commander_state.msg
 # This allows us to map sdlog STAT.MainState to a simple "mode"
 # string, used in DFReader and possibly other places.  These are
-# related but distict from what is found in mavlink messages; see
+# related but distinct from what is found in mavlink messages; see
 # "Custom mode definitions", below.
 mainstate_mapping_px4 = {
     0 : 'MANUAL',

@@ -144,7 +144,7 @@ def get_last_log(mav_ftp):
         logging_error("File LASTLOG.TXT not found.")
         return
     except ValueError:
-        logging_error("Could not extract last log file number from LASTLOG.TXT contants %s", file_contents)
+        logging_error("Could not extract last log file number from LASTLOG.TXT contents %s", file_contents)
         return
     remote_filenumber = remote_filenumber - 1 # we do not want the very last log
     remote_filename = f'/APM/LOGS/{remote_filenumber:08}.BIN'
