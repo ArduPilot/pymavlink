@@ -87,10 +87,6 @@ jobs:
         PYMAVLINK_FAST_INDEX: "1"
         CIBW_BUILD: ${{ matrix.cibw_build }}
         CIBW_ARCHS: ${{ matrix.cibw_archs }}
-        CIBW_BEFORE_BUILD_LINUX: >
-          if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
-            apk add --no-cache libxml2-dev libxslt-dev;
-          fi
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
