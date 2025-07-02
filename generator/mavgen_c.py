@@ -227,7 +227,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t packet;
 ${{scalar_fields:    packet.${name} = ${putname};
 }}
-${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${array_length});
+${{array_fields:    mav_array_assign_${type}(packet.${name}, ${name}, ${array_length});
 }}
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_${name}_LEN);
 #endif
@@ -299,7 +299,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t packet;
 ${{scalar_fields:    packet.${name} = ${putname};
 }}
-${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${array_length});
+${{array_fields:    mav_array_assign_${type}(packet.${name}, ${name}, ${array_length});
 }}
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_${name}_LEN);
 #endif
@@ -371,7 +371,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t packet;
 ${{scalar_fields:    packet.${name} = ${putname};
 }}
-${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${array_length});
+${{array_fields:    mav_array_assign_${type}(packet.${name}, ${name}, ${array_length});
 }}
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_${name}, (const char *)&packet, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC);
 #endif
@@ -393,7 +393,7 @@ static inline void mavlink_msg_${name_lower}_send_struct(mavlink_channel_t chan,
 
 #if MAVLINK_MSG_ID_${name}_LEN <= MAVLINK_MAX_PAYLOAD_LEN
 /*
-  This variant of _send() can be used to save stack space by re-using
+  This variant of _send() can be used to save stack space by reusing
   memory from the receive buffer.  The caller provides a
   mavlink_message_t which is the size of a full mavlink message. This
   is usually the receive buffer for the channel, and allows a reply to an
@@ -412,7 +412,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t *packet = (mavlink_${name_lower}_t *)msgbuf;
 ${{scalar_fields:    packet->${name} = ${putname};
 }}
-${{array_fields:    mav_array_memcpy(packet->${name}, ${name}, sizeof(${type})*${array_length});
+${{array_fields:    mav_array_assign_${type}(packet->${name}, ${name}, ${array_length});
 }}
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_${name}, (const char *)packet, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC);
 #endif
