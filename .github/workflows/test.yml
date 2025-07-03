@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install flake8 pytest pytest-mock numpy
+          python3 -m pip install flake8 pytest pytest-mock numpy crcmod-plus
           if [ "${{ matrix.python-version }}" != "3.5" ]
           then
             pip install mypy
