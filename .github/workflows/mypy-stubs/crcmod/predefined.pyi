@@ -1,0 +1,6 @@
+from typing import Protocol, Sequence
+
+class CrcFun(Protocol):
+    def __call__(self, buf: Sequence[int], crc: int = ...) -> int: ...
+
+def mkPredefinedCrcFun(name: str) -> CrcFun: ...
