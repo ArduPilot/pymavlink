@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.x']
 
     steps:
       - uses: actions/checkout@v3
@@ -25,12 +25,8 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install flake8 pytest pytest-mock numpy
-          if [ "${{ matrix.python-version }}" != "3.5" ]
-          then
-            pip install mypy
-          fi
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python3 -m pip install flake8 mypy numpy pytest pytest-mock
+          pip install -r requirements.txt
           sudo apt update
           sudo apt install -y libgtest-dev g++ tshark
 
@@ -85,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['12', '14', '16', '18', '20']
+        node-version: ['12', '14', '16', '18', '20', 'lts/*']
     steps:
       - uses: actions/checkout@v2
         with:
