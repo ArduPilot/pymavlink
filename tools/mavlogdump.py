@@ -42,6 +42,7 @@ parser.add_argument("--no-bad-data", action='store_true', help="Don't output cor
 parser.add_argument("--show-source", action='store_true', help="Show source system ID and component ID")
 parser.add_argument("--show-seq", action='store_true', help="Show sequence numbers")
 parser.add_argument("--show-types", action='store_true', help="Shows all message types available on opened log")
+parser.add_argument("--show-loss", action='store_true', help="Shows changes in lost messages")
 parser.add_argument("--source-system", type=int, default=None, help="filter by source system ID")
 parser.add_argument("--source-component", type=int, default=None, help="filter by source component ID")
 parser.add_argument("--link", type=int, default=None, help="filter by comms link ID")
@@ -212,6 +213,8 @@ if (isbin or islog) and args.format == 'csv':
     # we need FMT messages for column headings
     match_types.append("FMT")
 
+last_loss = 0
+
 # Keep track of data from the current timestep. If the following timestep has the same data, it's stored in here as well. Output should therefore have entirely unique timesteps.
 MAT = {}    # Dictionary to hold output data for 'mat' format option
 while True:
@@ -364,6 +367,10 @@ while True:
         if args.show_seq:
             s += " seq=%u" % m.get_seq()
         print(s)
+    if args.show_loss:
+        if last_loss != mlog.mav_loss:
+            print("lost %d messages" % (mlog.mav_loss - last_loss))
+            last_loss = mlog.mav_loss
 
 # Export the .mat file
 if args.format == 'mat':
