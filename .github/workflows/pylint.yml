@@ -27,7 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         python3 -m pip install --upgrade pip
-        pip install requests 'pylint<=3.2.7'
+        pip install requests 'pylint<=3.3.7'
 
     - name: Analysing the code known to be pylint clean
       run: |
