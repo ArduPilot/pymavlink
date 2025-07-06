@@ -1,3 +1,6 @@
+[DESIGN]
+max-positional-arguments=9
+
 [FORMAT]
 max-line-length=127
 
