@@ -562,10 +562,10 @@ PUB parse_char(c)
                 parse_state := PARSE_STATE_GOT_PAYLOAD
         PARSE_STATE_GOT_PAYLOAD: 
             ' don't handle the CRC just read it, verify it in handling steps
-            byte[@inPacket.checksum +1] := c
+            byte[@inPacket.checksum] := c
             parse_state := PARSE_STATE_GOT_CRC1
         PARSE_STATE_GOT_CRC1:
-            byte[@inPacket.checksum] := c
+            byte[@inPacket.checksum + 1] := c
             parse_state := PARSE_STATE_GOT_CRC2 ' done; this is our terminator state
             total_packets_sent++            
         PARSE_STATE_GOT_CRC2:
