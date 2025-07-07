@@ -34,11 +34,11 @@ jobs:
 
           if ref in ("refs/heads/main", "refs/heads/master") or event in ("release", "workflow_dispatch"):
               machines = [
-                  ("linux", "ubuntu-latest", "auto"),
+                  ("linux", "ubuntu-latest", "auto64 auto32"),
                   ("linux-arm", "ubuntu-24.04-arm", "auto"),
                   ("macos", "macos-latest", "arm64 x86_64 universal2"),
-                  ("windows", "windows-latest", "auto"),
-                  # ("windows-arm", "windows-11-arm", "auto"), # Can't do this one yet, as lxml doesn't have Windows ARM wheels, and the runner doesn't have libxml2 pre-installed
+                  ("windows", "windows-latest", "auto64 auto32"),
+                  ("windows-arm", "windows-11-arm", "auto"),
               ]
               py_versions = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
           else:
@@ -51,6 +51,8 @@ jobs:
           matrix = {"include": []}
           for (name, runner, cibw_archs) in machines:
               for py in py_versions:
+                  if name == "windows-arm" and py == "3.8": # The windows arm runner does not support Python 3.8
+                      continue
                   matrix["include"].append({
                       "name": f"python{py}-{name}",
                       "os": runner,
@@ -72,7 +74,7 @@ jobs:
     env:
       PYTHON_VERSION: ${{ matrix.python_version }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Install mavlink definitions
       shell: bash
       run: |
@@ -82,15 +84,11 @@ jobs:
       shell: bash
       run: echo "CIBW_BUILD=cp${PYTHON_VERSION/./}-*" >> $GITHUB_ENV
     - name: Build wheels
-      uses: pypa/cibuildwheel@v2.23.3
+      uses: pypa/cibuildwheel@v3.0.0
       env:
         PYMAVLINK_FAST_INDEX: "1"
         CIBW_BUILD: ${{ matrix.cibw_build }}
         CIBW_ARCHS: ${{ matrix.cibw_archs }}
-        CIBW_BEFORE_BUILD_LINUX: >
-          if [ "$(uname -m)" = "i686" ] && grep -q musl /lib/libc.musl-*; then
-            apk add --no-cache libxml2-dev libxslt-dev;
-          fi
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
@@ -101,9 +99,9 @@ jobs:
   build-sdist:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: "3.9"
     - name: Install mavlink messages
