@@ -194,6 +194,7 @@ setup (name = 'pymavlink',
        install_requires=[
             'future',
             'lxml',
+            'fastcrc',
        ],
        ext_modules=ext_modules,
        cmdclass={'build_py': custom_build_py},
