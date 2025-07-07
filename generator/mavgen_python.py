@@ -72,17 +72,55 @@ MAVLINK_TYPE_INT64_T = 8
 MAVLINK_TYPE_FLOAT = 9
 MAVLINK_TYPE_DOUBLE = 10
 
-
+# CRC calculation using fastcrc, falling back to a pure Python implementation
+# if fastcrc is not available
 try:
-    from crcmod.predefined import mkPredefinedCrcFun
-    x25crc = mkPredefinedCrcFun("crc-16-mcrf4xx")
-except ImportError:
-    def x25crc(buf: Sequence[int], crc: int = 0xFFFF) -> int:
+    import fastcrc
+    mcrf4xx = fastcrc.crc16.mcrf4xx
+except Exception:
+    mcrf4xx = None
+
+class _x25crc_slow(object):
+    """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
+
+    crc: int
+
+    def __init__(self, buf: Optional[Union[Sequence[int], str]] = None):
+        self.crc = 0xFFFF
+        if buf is not None:
+            self.accumulate(buf)
+
+    def accumulate(self, buf: Union[Sequence[int], str]) -> None:
+        """add in some more bytes (it also accepts strings)"""
+        if isinstance(buf, str):
+            buf = buf.encode()
+
+        accum = self.crc
         for b in buf:
-            tmp = b ^ (crc & 0xFF)
+            tmp = b ^ (accum & 0xFF)
             tmp = (tmp ^ (tmp << 4)) & 0xFF
-            crc = (crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
-        return crc
+            accum = (accum >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)
+        self.crc = accum
+
+
+class _x25crc_fast(object):
+    """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
+
+    def __init__(self, buf: Optional[Union[Sequence[int], str]] = None):
+        self.crc = 0xFFFF
+        if buf is not None:
+            self.accumulate(buf)
+
+    def accumulate(self, buf: Union[Sequence[int], str]) -> None:
+        """add in some more bytes (it also accepts strings)"""
+        if isinstance(buf, str):
+            buf = bytes(buf.encode())
+        elif isinstance(buf, (list, tuple, bytearray)):
+            buf = bytes(buf)
+        self.crc = mcrf4xx(buf, self.crc)
+
+
+x25crc = _x25crc_fast if mcrf4xx is not None else _x25crc_slow
 
 
 class MAVLink_header(object):
@@ -280,10 +318,11 @@ class MAVLink_message(object):
         )
         self._msgbuf = bytearray(self._header.pack(force_mavlink1=force_mavlink1))
         self._msgbuf += self._payload
-        self._crc = x25crc(self._msgbuf[1:])
+        crc = x25crc(self._msgbuf[1:])
         if ${crc_extra}:
             # we are using CRC extra
-            self._crc = x25crc([crc_extra], self._crc)
+            crc.accumulate(struct.pack("B", crc_extra))
+        self._crc = crc.crc
         self._msgbuf += struct.pack("<H", self._crc)
         if mav.signing.sign_outgoing and not force_mavlink1:
             self.sign_packet(mav)
@@ -964,8 +1003,8 @@ class MAVLink(object):
             # using CRC extra
             crcbuf.append(crc_extra)
         crc2 = x25crc(crcbuf)
-        if crc != crc2 and not MAVLINK_IGNORE_CRC:
-            raise MAVError("invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x" % (msgId, crc, crc2))
+        if crc != crc2.crc and not MAVLINK_IGNORE_CRC:
+            raise MAVError("invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x" % (msgId, crc, crc2.crc))
 
         sig_ok = False
         if signature_len == MAVLINK_SIGNATURE_BLOCK_LEN:
