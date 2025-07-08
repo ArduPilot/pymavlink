@@ -937,7 +937,7 @@ def set_close_on_exec(fd):
     except Exception:
         pass
 
-class FakeSerial():
+class FakeSerial:
     def __init__(self):
         pass
     def read(self, len):

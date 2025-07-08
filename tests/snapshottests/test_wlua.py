@@ -88,7 +88,7 @@ def test_wlua(request, tmp_path, snapshot, mdef, pcap):
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        universal_newlines=True,
+        text=True,
         check=False,
     )
     # note that, with text output, tshark truncates hex dump lines at 80-ish or 100-ish characters.

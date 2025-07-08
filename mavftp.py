@@ -1238,7 +1238,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
         count = 0
         pad_byte = 0
-        last_name = bytes()
+        last_name = b''
         while True:
             while len(data) > 0 and data[0] == pad_byte:
                 data = data[1:]  # skip pad bytes
