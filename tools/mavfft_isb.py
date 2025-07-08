@@ -72,7 +72,7 @@ class PlotData(object):
     def __str__(self):
         return "%s[%u]" % (self.prefix(), self.instance)
 
-class mavfft_fttd():
+class mavfft_fttd:
     '''display fft for raw ACC data in logfile'''
     def __init__(self, cond=None, scale='db', win='hanning', overlap=False, output='psd', ntch_param=False, peak=0, axis='XYZ', fmax=None):
         self.condition = cond # Select packets by condition

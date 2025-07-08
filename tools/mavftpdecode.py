@@ -30,7 +30,7 @@ class Transfer(object):
 
     def extract(self):
         self.blocks.sort(key = lambda x: x.offset)
-        data = bytes()
+        data = b""
         for b in self.blocks:
             if b.offset != len(data):
                 print("gap at %u" % len(data))
@@ -61,7 +61,7 @@ def param_decode(data):
     params = []
 
     pad_byte = 0
-    last_name = bytes()
+    last_name = b""
     ret = []
 
     while True:
