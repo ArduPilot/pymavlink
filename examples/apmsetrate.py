@@ -3,7 +3,6 @@
 '''
 set stream rate on an APM
 '''
-from builtins import range
 
 import sys
 

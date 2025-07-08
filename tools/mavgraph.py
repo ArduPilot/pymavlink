@@ -3,8 +3,6 @@
 graph a MAVLink log file
 Andrew Tridgell August 2011
 '''
-from builtins import input
-from builtins import range
 
 import datetime
 import matplotlib

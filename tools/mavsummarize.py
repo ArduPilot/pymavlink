@@ -3,7 +3,6 @@
 '''
 Summarize MAVLink logs. Useful for identifying which log is of interest in a large set.
 '''
-from builtins import object
 
 import glob
 import time

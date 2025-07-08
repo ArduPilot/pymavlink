@@ -23,7 +23,6 @@ The following instructions assume you are using a Debian-based (like Ubuntu) ins
 
 Pymavlink has several dependencies :
 
-    - [future](http://python-future.org/) : for interoperability
     - [lxml](http://lxml.de/installation.html) : for checking and parsing xml file 
 
 Optional :
@@ -48,12 +47,11 @@ sudo apt-get install python3-numpy python3-pytest
 Using pip you can install the required dependencies for pymavlink :
 
 ```bash
-sudo python3 -m pip install --upgrade future lxml
+sudo python3 -m pip install --upgrade lxml
 ```
 
 ### On Windows
 
-Use pip to install future as for Linux.
 Lxml can be installed with a Windows installer from here : https://pypi.org/project/lxml
 
 

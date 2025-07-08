@@ -4,8 +4,6 @@
 # Andrew Tridgell, November 2011
 # released under GNU GPL version 2 or later
 
-from builtins import range
-from builtins import object
 import struct, math
 
 class fgFDMError(Exception):

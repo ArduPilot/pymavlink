@@ -3,8 +3,6 @@
 '''
 fit best estimate of magnetometer rotation to gyro data
 '''
-from builtins import range
-from builtins import object
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

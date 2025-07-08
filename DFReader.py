@@ -7,8 +7,6 @@ Released under GNU GPL version 3 or later
 
 Partly based on SDLog2Parser by Anton Babushkin
 '''
-from builtins import range
-from builtins import object
 
 import array
 import math

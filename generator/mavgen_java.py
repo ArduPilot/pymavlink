@@ -5,8 +5,6 @@ Parse a MAVLink protocol XML file and generate a Java implementation
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from builtins import range
-from builtins import object
 
 import os
 from . import mavparse, mavtemplate

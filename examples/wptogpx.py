@@ -4,7 +4,6 @@
 example program to extract GPS data from a waypoint file, and create a GPX
 file, for loading into google earth
 '''
-from builtins import range
 
 import time
 

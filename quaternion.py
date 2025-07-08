@@ -5,9 +5,7 @@
 Quaternion implementation for use in pymavlink
 """
 
-from __future__ import absolute_import, division
 
-from builtins import object
 import numpy as np
 from .rotmat import Vector3, Matrix3
 

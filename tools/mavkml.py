@@ -4,7 +4,6 @@
 simple kml export for logfiles
 Thomas Gubler <thomasgubler@gmail.com>
 '''
-from builtins import range
 
 from argparse import ArgumentParser
 import simplekml

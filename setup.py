@@ -1,6 +1,4 @@
-from __future__ import absolute_import
 from setuptools.command.build_py import build_py
-from io import open
 # Work around mbcs bug in distutils.
 # http://bugs.python.org/issue10945
 import codecs
@@ -192,7 +190,6 @@ setup (name = 'pymavlink',
                    'tools/magfit_WMM.py',
        ],
        install_requires=[
-            'future',
             'lxml',
        ],
        ext_modules=ext_modules,

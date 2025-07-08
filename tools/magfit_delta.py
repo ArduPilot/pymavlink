@@ -4,7 +4,6 @@
 fit best estimate of magnetometer offsets using the algorithm from
 Bill Premerlani
 '''
-from builtins import range
 
 import sys
 

@@ -6,7 +6,6 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 
-from builtins import object
 
 from .mavparse import MAVParseError
 

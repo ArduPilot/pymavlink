@@ -3,7 +3,6 @@
 '''
 fit best estimate of magnetometer offsets
 '''
-from builtins import object
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)

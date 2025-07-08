@@ -22,11 +22,6 @@ General process:
 
 '''
 
-import sys
-if sys.version_info <= (3,10):
-    from future import standard_library
-    standard_library.install_aliases()
-from builtins import object
 import os
 import re
 import sys
