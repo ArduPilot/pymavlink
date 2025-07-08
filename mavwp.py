@@ -4,8 +4,6 @@ module for loading/saving waypoints
 Copyright the ArduPilot Project
 Released under GNU LGPL version 3 or later
 '''
-from builtins import range
-from builtins import object
 
 import time, copy
 import logging

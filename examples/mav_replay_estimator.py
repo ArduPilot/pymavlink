@@ -3,7 +3,6 @@
 '''
 estimate attitude from an ArduPilot replay log using a python state estimator
 '''
-from builtins import range
 
 import os
 

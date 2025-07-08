@@ -4,7 +4,6 @@
 regression tests for mavwp.py
 """
 
-from __future__ import absolute_import
 import unittest
 import os
 import pkg_resources

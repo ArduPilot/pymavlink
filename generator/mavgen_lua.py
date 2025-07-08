@@ -2,7 +2,6 @@
 '''
 parse a MAVLink protocol XML file and generate a Ardupilot LUA mavlink module
 '''
-from builtins import range
 
 import os
 
