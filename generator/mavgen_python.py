@@ -78,19 +78,23 @@ try:
     import fastcrc
     mcrf4xx = fastcrc.crc16.mcrf4xx
 except Exception:
-    mcrf4xx = None
+    mcrf4xx = None  # type: ignore
+
+
+BytesLike = Union[List[int], Tuple[int], bytes, bytearray, str]
+
 
 class _x25crc_slow(object):
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
 
     crc: int
 
-    def __init__(self, buf: Optional[Union[Sequence[int], str]] = None):
+    def __init__(self, buf: Optional[BytesLike] = None):
         self.crc = 0xFFFF
         if buf is not None:
             self.accumulate(buf)
 
-    def accumulate(self, buf: Union[Sequence[int], str]) -> None:
+    def accumulate(self, buf: BytesLike) -> None:
         """add in some more bytes (it also accepts strings)"""
         if isinstance(buf, str):
             buf = buf.encode()
@@ -106,18 +110,20 @@ class _x25crc_slow(object):
 class _x25crc_fast(object):
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
 
-    def __init__(self, buf: Optional[Union[Sequence[int], str]] = None):
+    def __init__(self, buf: Optional[BytesLike] = None):
         self.crc = 0xFFFF
         if buf is not None:
             self.accumulate(buf)
 
-    def accumulate(self, buf: Union[Sequence[int], str]) -> None:
+    def accumulate(self, buf: BytesLike) -> None:
         """add in some more bytes (it also accepts strings)"""
         if isinstance(buf, str):
-            buf = bytes(buf.encode())
+            buf_as_bytes = bytes(buf.encode())
         elif isinstance(buf, (list, tuple, bytearray)):
-            buf = bytes(buf)
-        self.crc = mcrf4xx(buf, self.crc)
+            buf_as_bytes = bytes(buf)
+        else:
+            buf_as_bytes = buf
+        self.crc = mcrf4xx(buf_as_bytes, self.crc)
 
 
 x25crc = _x25crc_fast if mcrf4xx is not None else _x25crc_slow
