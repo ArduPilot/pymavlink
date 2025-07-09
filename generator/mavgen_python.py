@@ -894,8 +894,10 @@ class MAVLink(object):
             if timestamp + 6000 * 1000 < self.signing.timestamp:
                 logger.info("bad new stream %s %s", timestamp / (100.0 * 1000 * 60 * 60 * 24 * 365), self.signing.timestamp / (100.0 * 1000 * 60 * 60 * 24 * 365))
                 return False
-            self.signing.stream_timestamps[stream_key] = timestamp
             logger.info("new stream")
+
+        # set the streams timestamp so we reject timestamps that go backwards
+        self.signing.stream_timestamps[stream_key] = timestamp
 
         h = hashlib.new("sha256")
         h.update(self.signing.secret_key)
