@@ -14,6 +14,8 @@ import json
 import re
 import platform
 from pymavlink import mavexpression
+import logging
+logger = logging.getLogger('pymavlink')
 
 # We want to re-export x25crc here
 from pymavlink.generator.mavcrc import x25crc as x25crc
@@ -417,7 +419,7 @@ class mavfile(object):
             if seq != seq2 and last_seq != -1:
                 diff = (seq2 - seq) % 256
                 self.mav_loss += diff
-                #print("lost %u seq=%u seq2=%u last_seq=%u src_tupe=%s %s" % (diff, seq, seq2, last_seq, str(src_tuple), msg.get_type()))
+                #logger.info("lost %u seq=%u seq2=%u last_seq=%u src_tupe=%s %s" % (diff, seq, seq2, last_seq, str(src_tuple), msg.get_type()))
             self.last_seq[src_tuple] = seq2
             self.mav_count += 1
         
@@ -652,7 +654,7 @@ class mavfile(object):
                                            mode,
                                            0, 0, 0, 0, 0, 0)
         else:
-            print("Set mode flag not supported")
+            logger.info("Set mode flag not supported")
 
     def set_mode_auto(self):
         '''enter auto mode'''
@@ -678,7 +680,7 @@ class mavfile(object):
         if isinstance(mode, str):
             mode_map = self.mode_mapping()
             if mode_map is None or mode not in mode_map:
-                print("Unknown mode '%s'" % mode)
+                logger.info("Unknown mode '%s'" % mode)
                 return
             mode = mode_map[mode]
         # set mode by integer mode number for ArduPilot
@@ -699,7 +701,7 @@ class mavfile(object):
         if isinstance(mode, str):
             mode_map = self.mode_mapping()
             if mode_map is None or mode not in mode_map:
-                print("Unknown mode '%s'" % mode)
+                logger.info("Unknown mode '%s'" % mode)
                 return
             # PX4 uses two fields to define modes
             mode, custom_mode, custom_sub_mode = px4_map[mode]
@@ -742,7 +744,7 @@ class mavfile(object):
                                        mavlink.MAV_MODE_STABILIZE_ARMED,
                                        0, 0, 0, 0, 0, 0)
         else:
-            print("Forcing FBWA not supported")
+            logger.info("Forcing FBWA not supported")
 
     def set_mode_loiter(self):
         '''enter LOITER mode'''
@@ -777,7 +779,7 @@ class mavfile(object):
                 0, # param6
                 0) # param7
         else:
-            print("Setting relays not supported.")
+            logger.info("Setting relays not supported.")
 
     def calibrate_level(self):
         '''calibrate accels (1D version)'''
@@ -1013,7 +1015,7 @@ class mavserial(mavfile):
             return self.port.write(bytes(buf))
         except Exception:
             if not self.portdead:
-                print("Device %s is dead" % self.device)
+                logger.info("Device %s is dead" % self.device)
             self.portdead = True
             if self.autoreconnect:
                 self.reset()
@@ -1032,7 +1034,7 @@ class mavserial(mavfile):
                 return False
             self.port.close()
             self.port = newport
-            print("Device %s reopened OK" % self.device)
+            logger.info("Device %s reopened OK" % self.device)
             self.portdead = False
             try:
                 self.fd = self.port.fileno()
@@ -1223,6 +1225,7 @@ class mavtcp(mavfile):
         a = device.split(':')
         if len(a) != 2:
             raise ValueError("TCP ports must be specified as host:port")
+
         self.destination_addr = (a[0], int(a[1]))
 
         self.autoreconnect = autoreconnect
@@ -1252,7 +1255,7 @@ class mavtcp(mavfile):
                         self.port.close()
                         self.port = None
                     raise e
-                print(e, "sleeping")
+                logger.info(str(e) + " sleeping")
                 time.sleep(1)
         self.port.setblocking(0)
         set_close_on_exec(self.port.fileno())
@@ -1262,12 +1265,12 @@ class mavtcp(mavfile):
         self.port.close()
 
     def handle_disconnect(self):
-        print("Connection reset or closed by peer on TCP socket")
+        logger.info("Connection reset or closed by peer on TCP socket")
         self.reconnect()
 
     def handle_eof(self):
         # EOF
-        print("EOF on TCP socket")
+        logger.info("EOF on TCP socket")
         self.reconnect()
 
     def recv(self,n=None):
@@ -1305,7 +1308,7 @@ class mavtcp(mavfile):
 
     def reconnect(self):
         if self.autoreconnect:
-            print("Attempting reconnect")
+            logger.info("Attempting reconnect")
             if self.port is not None:
                 self.port.close()
                 self.port = None
@@ -1318,6 +1321,7 @@ class mavtcpin(mavfile):
         a = device.split(':')
         if len(a) != 2:
             raise ValueError("TCP ports must be specified as host:port")
+
         self.listen = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listen_addr = (a[0], int(a[1]))
         self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -2038,7 +2042,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         return mavudp(device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
     if os.path.isfile(device):
         if device.endswith(".elf") or device.find("/bin/") != -1:
-            print("executing '%s'" % device)
+            logger.info("executing '%s'" % device)
             return mavchildexec(device, source_system=source_system, source_component=source_component, use_native=use_native)
         elif not write and not append and not notimestamps:
             return mavmmaplog(device, progress_callback=progress_callback)
@@ -2069,7 +2073,7 @@ class periodic_event(object):
         tnow = time.time()
 
         if tnow < self.last_time:
-            print("Warning, time moved backwards. Restarting timer.")
+            logger.info("Warning, time moved backwards. Restarting timer.")
             self.last_time = tnow
 
         if self.last_time + (1.0/self.frequency) <= tnow:
@@ -2378,7 +2382,7 @@ try:
             _json_mode_map = json.load(f)
     except json.decoder.JSONDecodeError as ex:
         # inform the user of a malformed custom_mode_map.json
-        print("Error: pymavlink custom mode file ('" + _custom_mode_map_path + "') is not valid JSON.")
+        logger.info("Error: pymavlink custom mode file ('" + _custom_mode_map_path + "') is not valid JSON.")
         raise
     except Exception:
         # file is not present, fall back to using default map
@@ -2391,7 +2395,7 @@ try:
             _custom_mode_map[int(mav_type)] = { int(mode_num): str(mode_name) for mode_num, mode_name in mode_map.items() }
     except Exception:
         # inform the user of invalid custom mode map
-        print("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
+        logger.info("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
         raise
 
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
@@ -2566,7 +2570,7 @@ class MavlinkSerialPort(object):
         def debug(self, s, level=1):
                 '''write some debug text'''
                 if self._debug >= level:
-                        print(s)
+                        logger.info(s)
 
         def write(self, b):
                 '''write some bytes'''
@@ -2607,7 +2611,7 @@ class MavlinkSerialPort(object):
                                 break
                 if m is not None:
                         if self._debug > 2:
-                                print(m)
+                                logger.info(m)
                         data = m.data[:m.count]
                         self.buf.extend(data)
 
@@ -2814,4 +2818,4 @@ def dump_message_verbose(f, m):
 if __name__ == '__main__':
         serial_list = auto_detect_serial(preferred_list=['*FTDI*',"*Arduino_Mega_2560*", "*3D_Robotics*", "*USB_to_UART*", '*PX4*', '*FMU*'])
         for port in serial_list:
-            print("%s" % port)
+            logger.info("%s" % port)
