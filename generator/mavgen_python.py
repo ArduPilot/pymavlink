@@ -857,7 +857,10 @@ class MAVLink(object):
             magic = self.buf[self.buf_index]
             self.buf_index += 1
             if self.robust_parsing:
-                m = MAVLink_bad_data(bytearray([magic]), "Bad prefix")
+                invalid_prefix_start = self.buf_index - 1
+                while self.buf_len() >= 1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V2:
+                    self.buf_index += 1
+                m = MAVLink_bad_data(self.buf[invalid_prefix_start : self.buf_index], "Bad prefix")
                 self.expected_length = header_len + 2
                 self.total_receive_errors += 1
                 return m
