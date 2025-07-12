@@ -95,7 +95,7 @@ def test_wlua(request, tmp_path, snapshot, mdef, pcap):
     # Truncate them preemptively so this isn't reflected in the diff.
     # This doesn't lose any info we really care about.
     truncated_stdout = ''.join([line[:72]+"\n" for line in actual.stdout.splitlines()])
-    
+
     props_to_match = {
         "stdout": truncated_stdout,
         "stderr": actual.stderr,

@@ -12,6 +12,7 @@ import numpy as np
 
 from pymavlink.rotmat import Vector3, Matrix3, Plane, Line
 
+
 class VectorTest(unittest.TestCase):
 
     """
@@ -22,7 +23,6 @@ class VectorTest(unittest.TestCase):
         """Constructor, set up some data that is reused in many tests"""
         super(VectorTest, self).__init__(*args, **kwargs)
 
-
     def test_constructor(self):
         """Test the constructor functionality"""
         v1 = Vector3(1, 0.2, -3)
@@ -32,7 +32,6 @@ class VectorTest(unittest.TestCase):
         assert v1 == v2
         assert v1 != v3
         assert str(v1) == "Vector3(1.00, 0.20, -3.00)"
-
 
     def test_maths(self):
         """Test simple maths"""
@@ -121,7 +120,6 @@ class MatrixTest(unittest.TestCase):
         v2 = Vector3(degrees(r3),degrees(p3),degrees(y3))
         diff = v1 - v2
         assert diff.length() < 1.0e-12
-
 
     def test_euler312(self):
         '''check that from_euler312() and to_euler312() are consistent'''

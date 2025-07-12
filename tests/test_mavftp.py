@@ -20,6 +20,7 @@ from pymavlink.mavftp import OP_ReadFile
 from pymavlink.mavftp import OP_Ack
 from pymavlink.mavftp import OP_Nack
 
+
 class TestMAVFTPPayloadDecoding(unittest.TestCase):
     """Test MAVFTP payload decoding"""
 
