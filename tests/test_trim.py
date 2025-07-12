@@ -6,10 +6,9 @@ test for trimming under Python 3
 """
 
 import unittest
-import os
-import pkg_resources
-import sys
+
 from pymavlink import mavutil
+
 
 class PayLoadTrimZeros(unittest.TestCase):
     '''Trivial test for trimming zeros from end of messages'''
@@ -28,6 +27,7 @@ class PayLoadTrimZeros(unittest.TestCase):
             packed = m.pack(mav.mav)
             print("(%u/%u) should be %u" % (sysid,compid, result))
             self.assertEqual(len(packed), result)
+
 
 if __name__ == '__main__':
     unittest.main()
