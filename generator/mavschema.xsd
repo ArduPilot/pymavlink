@@ -170,9 +170,11 @@
     <!-- flow -->
     <xs:enumeration value="g/min"/>    <!-- grams/minute -->
     <xs:enumeration value="cm^3/min"/> <!-- cubic centimetres/minute -->
+    <xs:enumeration value="L/h"/>      <!-- Litres/hour -->
     <!-- volume -->
     <xs:enumeration value="cm^3"/>     <!-- cubic centimetres -->
     <xs:enumeration value="l"/>        <!-- litres -->
+    <xs:enumeration value="L"/>        <!-- Litres -->
   </xs:restriction>
 </xs:simpleType>
 
