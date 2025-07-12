@@ -628,7 +628,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		{
 			status->buffer_overrun++;
 			_mav_parse_error(status);
-			status->msg_received = 0;
+			status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 		}
 		else
@@ -652,7 +652,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		if ((rxmsg->incompat_flags & ~MAVLINK_IFLAG_MASK) != 0) {
 			// message includes an incompatible feature flag
 			_mav_parse_error(status);
-			status->msg_received = 0;
+			status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 			break;
 		}
@@ -776,14 +776,15 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		rxmsg->ck[1] = c;
 
 		if (rxmsg->incompat_flags & MAVLINK_IFLAG_SIGNED) {
-			status->parse_state = MAVLINK_PARSE_STATE_SIGNATURE_WAIT;
-			status->signature_wait = MAVLINK_SIGNATURE_BLOCK_LEN;
-
-			// If the CRC is already wrong, don't overwrite msg_received,
-			// otherwise we can end up with garbage flagged as valid.
-			if (status->msg_received != MAVLINK_FRAMING_BAD_CRC) {
-				status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
+			if (status->msg_received == MAVLINK_FRAMING_BAD_CRC) {
+			    // If the CRC is already wrong, don't overwrite msg_received,
+			    // otherwise we can end up with garbage flagged as valid.
+			    status->parse_state = MAVLINK_PARSE_STATE_SIGNATURE_WAIT_BAD_CRC;
+			} else {
+			    status->parse_state = MAVLINK_PARSE_STATE_SIGNATURE_WAIT;
+			    status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
 			}
+			status->signature_wait = MAVLINK_SIGNATURE_BLOCK_LEN;
 		} else {
 			if (status->signing &&
 			   	(status->signing->accept_unsigned_callback == NULL ||
@@ -801,6 +802,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		}
 		break;
 	case MAVLINK_PARSE_STATE_SIGNATURE_WAIT:
+	case MAVLINK_PARSE_STATE_SIGNATURE_WAIT_BAD_CRC:
 		rxmsg->signature[MAVLINK_SIGNATURE_BLOCK_LEN-status->signature_wait] = c;
 		status->signature_wait--;
 		if (status->signature_wait == 0) {
@@ -816,10 +818,12 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 				// accepted via application level override
 				sig_ok = true;
 			}
-			if (sig_ok) {
-				status->msg_received = MAVLINK_FRAMING_OK;
+			if (status->parse_state == MAVLINK_PARSE_STATE_SIGNATURE_WAIT_BAD_CRC) {
+			    status->msg_received = MAVLINK_FRAMING_BAD_CRC;
+			} else if (sig_ok) {
+			    status->msg_received = MAVLINK_FRAMING_OK;
 			} else {
-				status->msg_received = MAVLINK_FRAMING_BAD_SIGNATURE;
+			    status->msg_received = MAVLINK_FRAMING_BAD_SIGNATURE;
 			}
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 			if (r_message !=NULL) {
