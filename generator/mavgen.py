@@ -33,7 +33,6 @@ schemaFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mavschem
 # Set defaults for generating MAVLink code
 DEFAULT_WIRE_PROTOCOL = mavparse.PROTOCOL_1_0
 DEFAULT_LANGUAGE = 'Python'
-DEFAULT_ERROR_LIMIT = 200
 DEFAULT_VALIDATE = True
 DEFAULT_STRICT_UNITS = False
 
@@ -298,9 +297,8 @@ def mavgen(opts, args):
 
 # build all the dialects in the dialects subpackage
 class Opts(object):
-    def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, error_limit=DEFAULT_ERROR_LIMIT, strict_units=DEFAULT_STRICT_UNITS):
+    def __init__(self, output, wire_protocol=DEFAULT_WIRE_PROTOCOL, language=DEFAULT_LANGUAGE, validate=DEFAULT_VALIDATE, strict_units=DEFAULT_STRICT_UNITS):
         self.wire_protocol = wire_protocol
-        self.error_limit = error_limit
         self.language = language
         self.output = output
         self.validate = validate
