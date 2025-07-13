@@ -53,6 +53,11 @@ jobs:
       - name: Lint generated python code
         run: |
             flake8 --config=.github/workflows/flake8-generated.cfg --statistics dialects/
+
+      - name: Type check generated python code
+        if: matrix.python-version != '3.7'
+        run: |
+            # Latest version of mypy that supports Python 3.7 is too old
             mypy --config-file ./.github/workflows/mypy-generated.ini dialects/v10/*.py dialects/v20/*.py
 
       - name: Generate messages
