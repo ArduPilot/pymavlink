@@ -26,7 +26,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install flake8 mypy numpy pytest pytest-mock
-          pip install -r requirements.txt
+          python3 -m pip install -r requirements.txt
           sudo apt update
           sudo apt install -y libgtest-dev g++ tshark
 
@@ -88,7 +88,7 @@ jobs:
           python-version: 3.8
       - name: Install dependencies
         run: |
-          pip install lxml
+          python3 -m pip install lxml
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
