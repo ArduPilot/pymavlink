@@ -527,8 +527,12 @@ class mavfile(object):
                 return None
             if type is not None and not m.get_type() in type:
                 continue
-            if not evaluate_condition(condition, self.messages):
-                continue
+            if hasattr(m, "get_srcSystem"):
+                if m.get_srcSystem() not in self.sysid_state or not evaluate_condition(condition, self.sysid_state[m.get_srcSystem()].messages):
+                    continue
+            else:
+                if not evaluate_condition(condition, self.messages):
+                    continue
             return m
 
     def check_condition(self, condition):
@@ -1670,8 +1674,12 @@ class mavmmaplog(mavlogfile):
                 return None
             if type is not None and not m.get_type() in type:
                 continue
-            if not evaluate_condition(condition, self.messages):
-                continue
+            if hasattr(m, "get_srcSystem"):
+                if m.get_srcSystem() not in self.sysid_state or not evaluate_condition(condition, self.sysid_state[m.get_srcSystem()].messages):
+                    continue
+            else:
+                if not evaluate_condition(condition, self.messages):
+                    continue
             return m
         
     def flightmode_list(self):
