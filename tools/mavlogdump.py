@@ -238,6 +238,9 @@ while True:
         if (isbin or islog) and m_type == "FMT":
             output.write(m.get_msgbuf())
             continue
+        if (isbin or islog) and m_type in ["FMTU", "MULT", "UNIT"]:
+            output.write(m.get_msgbuf())
+            continue
         if (isbin or islog) and (m_type == "PARM" and args.parms):
             output.write(m.get_msgbuf())
             continue
