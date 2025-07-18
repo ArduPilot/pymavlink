@@ -1385,27 +1385,34 @@ class DFReader_binary(DFReader):
                     if 'MultIds' in fmt.colhash:
                         fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
 
-        # Parse the first 100 messages of each type to try to build the
-        # messages dictionary. 100 was chosen as a reasonable heuristic to
-        # catch every index value that might be in that message.
+        # Parse the messages of each type to try to build the messages
+        # dictionary.
         for mtype in range(256):
             if mtype not in self.formats:
                 continue
             fmt = self.formats[mtype]
-            NMSG = 100 if fmt.instance_field is not None else 1
+            omtype = offsets[mtype]
+            num_offsets = len(omtype)
+            if fmt.instance_field:
+                NMSG = num_offsets
+                if not mtype in type_instances:
+                    type_instances[mtype] = set()
+                if fmt.instance_len == 1:
+                    # hack to reduce load cost, only scan first 100 messages
+                    # for single byte instance values. This works nearly all the time, and allows
+                    # for full indexing for things like NVF which is string indexed, while not taking a huge amount of CPU
+                    # on IMU and other bulk data
+                    NMSG = min(NMSG, 100)
+            else:
+                NMSG = min(1, num_offsets)
             for i in range(NMSG):
-                if i >= len(offsets[mtype]):
-                    break
-                ofs = offsets[mtype][i]
-                if self.formats[mtype].name not in self.messages:
+                ofs = omtype[i]
+                if fmt.name not in self.messages:
                     self.offset = ofs
                     self._parse_next()
-                if self.formats[mtype].instance_field is not None:
-                    fmt = self.formats[mtype]
-                    # see if we've has this instance value before
+                if fmt.instance_field is not None:
+                    # see if we've had this instance value before
                     idata = data[ofs+3+fmt.instance_ofs:ofs+3+fmt.instance_ofs+fmt.instance_len]
-                    if not mtype in type_instances:
-                        type_instances[mtype] = set()
                     if not idata in type_instances[mtype]:
                         # its a new one, need to parse it so we have the complete set of instances
                         type_instances[mtype].add(idata)
