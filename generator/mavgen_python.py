@@ -239,7 +239,7 @@ class MAVLink_message(object):
         return self._signed
 
     def get_link_id(self) -> Optional[int]:
-        return self._link_id
+        return self._link
 
     def __str__(self) -> str:
         ret = "%s {" % self._type
