@@ -2718,7 +2718,20 @@ def dump_message_verbose(f, m):
         timestamp = "%s.%02u: " % (
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
             int(timestamp*100.0)%100)
-    f.write("%s%s (id=%u) (link=%s) (signed=%s) (seq=%u) (src=%u/%u)\n" % (timestamp, m.get_type(), m.get_msgId(), str(m.get_link_id()), str(m.get_signed()), m.get_seq(), m.get_srcSystem(), m.get_srcComponent()))
+    if m.get_signed():
+        signed = f"Yes; out-link={str(m.get_link_id())}"
+    else:
+        signed = "No"
+
+    inbound_link = getattr(m, '_link', None)
+    f.write(
+        f"{timestamp}{m.get_type()} (id={m.get_msgId()}) "
+        f"(seq={m.get_seq()}) "
+        f"(src={m.get_srcSystem()}/{m.get_srcComponent()}) "
+        f"(in-link={inbound_link}) "
+        f"(signed={signed})\n"
+    )
+
     for fieldname in m.get_fieldnames():
 
         # format in those most boring way possible:
