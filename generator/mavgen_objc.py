@@ -45,7 +45,7 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
  @param mavlink The MVMavlink object calling this method
  @param data NSData object containing the bytes to be sent
  */
-- (BOOL)mavlink:(MVMavlink *)mavlink shouldWriteData:(NSData *)data;
+- (MAV_BOOL)mavlink:(MVMavlink *)mavlink shouldWriteData:(NSData *)data;
 
 @end
 
@@ -70,7 +70,7 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
  @param message Object conforming to the MVMessage protocol that represents the data to be sent
  @return YES if message sending was successful
  */
-- (BOOL)sendMessage:(id<MVMessage>)message;
+- (MAV_BOOL)sendMessage:(id<MVMessage>)message;
 
 @end
 ''', xml)
@@ -103,7 +103,7 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
   }
 }
 
-- (BOOL)sendMessage:(id<MVMessage>)message {
+- (MAV_BOOL)sendMessage:(id<MVMessage>)message {
   return [_delegate mavlink:self shouldWriteData:[message data]];
 }
 
