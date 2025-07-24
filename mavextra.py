@@ -1081,9 +1081,10 @@ def ekf1_pos(EKF1):
   from . import mavutil
   self = mavutil.mavfile_global
   if ekf_origin is None:
-      if not 'ORGN' in self.messages:
+      # Look for the ORGN[0] message explicitly
+      if not 'ORGN[0]' in self.messages:
           return None
-      ekf_origin = self.messages['ORGN']
+      ekf_origin = self.messages['ORGN[0]']
       (ekf_origin.Lat, ekf_origin.Lng) = (ekf_origin.Lat, ekf_origin.Lng)
   (lat,lon) = gps_offset(ekf_origin.Lat, ekf_origin.Lng, EKF1.PE, EKF1.PN)
   alt = ekf_origin.Alt - EKF1.PD
