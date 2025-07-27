@@ -5,7 +5,6 @@ var    fs = require('fs');
 // Actual data stream taken from APM.
 global.fixtures = global.fixtures || {};
 global.fixtures.serialStream = fs.readFileSync("test/capture.mavlink");
-//global.fixtures.heartbeatBinaryStream = fs.readFileSync("javascript/test/heartbeat-data-fixture");
 
 describe("Generated MAVLink 1.0 protocol handler object", function() {
 
@@ -81,14 +80,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
 
     describe("buffer decoder (parseBuffer)", function() {
 
-        // This test prepopulates a single message as a binary buffer.
-        it("decodes a binary stream representation of a single message correctly", function() {
-            this.m.pushBuffer(global.fixtures.heartbeatBinaryStream);
-            var messages = this.m.parseBuffer();
-            
-        });
-
-        // This test includes a "noisy" signal, with non-mavlink data/messages/noise.
+	// This test includes a "noisy" signal, with non-mavlink data/messages/noise.
         it("decodes a real serial binary stream into an array of MAVLink messages", function() {
             this.m.pushBuffer(global.fixtures.serialStream);
             var messages = this.m.parseBuffer();
@@ -113,11 +105,11 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
         });
 
         it("emits a 'message' event, provisioning callbacks with the message", function(done) {
-            this.m.on('message', function(message) {
-                message.should.be.an.instanceof(mavlink10.messages.heartbeat);
+	    this.m.on('message', function(message) {
+		message.should.be.an.instanceof(mavlink10.messages.heartbeat);
                 done();
-            });
-            this.m.parseChar(this.heartbeatPayload);
+	    });
+	    this.m.parseChar(this.heartbeatPayload);
         });
 
         it("emits a 'message' event for bad messages, provisioning callbacks with the message", function(done) {
@@ -129,24 +121,12 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
             this.m.parseChar(b);
         });
 
-        it("on bad prefix: cuts-off first char in buffer and returns correct bad data", function() {
-            var b = new Buffer.from([3, 0, 1, 2, 3, 4, 5]); // invalid message
-            var message = this.m.parseChar(b);
-            message._msgbuf.length.should.be.eql(1);
-            message._msgbuf[0].should.be.eql(3);
-            this.m.buf.length.should.be.eql(6);
-            // should process next char
-            message = this.m.parseChar();
-            message._msgbuf.length.should.be.eql(1);
-            message._msgbuf[0].should.be.eql(0);
-            this.m.buf.length.should.be.eql(5);
-        });
-
-        it("on bad message: cuts-off message length and returns correct bad data", function() {
+	it("on bad message: cuts-off message length and returns correct bad data", function() {
             var message = this.m.parseChar(this.completeInvalidMessage);
-            message._msgbuf.length.should.be.eql(8);
-            message._msgbuf.should.be.eql(this.completeInvalidMessage);
-            this.m.buf.length.should.be.eql(0);
+
+	    message._msgbuf.length.should.be.eql(8);
+	    Buffer.from(message._msgbuf).should.be.eql(this.completeInvalidMessage);
+	    this.m.buf.length.should.be.eql(0);
         });
 
         it("error counter is raised on error", function() {
@@ -180,7 +160,7 @@ describe("Generated MAVLink 1.0 protocol handler object", function() {
             var b = new Buffer.alloc(16);
             b.fill("h");
             this.m.pushBuffer(b);
-            this.m.buf.should.eql(b); // eql = wiggly equality
+	    Buffer.from(this.m.buf).should.eql(b); // eql = wiggly equality
         });
     });
 

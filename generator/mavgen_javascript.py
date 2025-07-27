@@ -31,9 +31,71 @@ Generated from: ${FILELIST}
 Note: this file has been auto-generated. DO NOT EDIT
 */
 
-jspack = require("jspack").jspack,
-    events = require("events"), // for .emit(..), MAVLink20Processor inherits from events.EventEmitter
+// Detect environment
+const isNode = typeof process !== 'undefined' &&
+               process.versions &&
+               process.versions.node;
+
+// Handle jspack dependency
+let jspack;
+if (isNode) {
+    jspack = (global && global.jspack) || require("jspack").jspack;
+} else {
+    import("./local_modules/jspack/jspack.js").then((mod) => {
+	jspack = new mod.default()
+    }).catch((e) => {
+    });
+}
+
+// Handle Node.js specific modules
+let events, util;
+if (isNode) {
+    events = require("events");
     util = require("util");
+} else {
+    // Browser polyfills for Node.js modules
+    util = { 
+        inherits: function(constructor, superConstructor) {
+            constructor.prototype = Object.create(superConstructor.prototype);
+            constructor.prototype.constructor = constructor;
+        }
+    };
+    
+    // Simple EventEmitter polyfill for browsers
+    events = { 
+        EventEmitter: function() {
+            this._events = {};
+            
+            this.on = function(event, listener) {
+                if (!this._events[event]) {
+                    this._events[event] = [];
+                }
+                this._events[event].push(listener);
+            };
+            
+            this.emit = function(event, ...args) {
+                if (this._events[event]) {
+                    this._events[event].forEach(listener => {
+                        try {
+                            listener.apply(this, args);
+                        } catch (e) {
+                            console.error('Error in event listener:', e);
+                        }
+                    });
+                }
+            };
+            
+            this.removeListener = function(event, listener) {
+                if (this._events[event]) {
+                    const index = this._events[event].indexOf(listener);
+                    if (index > -1) {
+                        this._events[event].splice(index, 1);
+                    }
+                }
+            };
+        }
+    };
+}
 
 
 ${MAVHEAD} = function(){};
@@ -76,7 +138,7 @@ ${MAVHEAD}.MAVLINK_IFLAG_SIGNED = 0x01
 ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 // Mavlink headers incorporate sequence, source system (platform) and source component. 
-${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0,) {
+${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0) {
 
     this.mlen = ( typeof mlen === 'undefined' ) ? 0 : mlen;
     this.seq = ( typeof seq === 'undefined' ) ? 0 : seq;
@@ -134,36 +196,140 @@ ${MAVHEAD}.message.prototype.set = function(args,verbose) {
     }, this);
 };
 
-// trying to be the same-ish as the python function of the same name
+/*
+  sha256 implementation
+  embedded to avoid async issues in web browsers with crypto library
+  with thanks to https://geraintluff.github.io/sha256/
+*/
+${MAVHEAD}.sha256 = function(inputBytes) {
+    const K = new Uint32Array([
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b,
+        0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01,
+        0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7,
+        0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152,
+        0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+        0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819,
+        0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08,
+        0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f,
+        0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ]);
+
+    function ROTR(n, x) { return (x >>> n) | (x << (32 - n)); }
+
+    function Σ0(x) { return ROTR(2, x) ^ ROTR(13, x) ^ ROTR(22, x); }
+    function Σ1(x) { return ROTR(6, x) ^ ROTR(11, x) ^ ROTR(25, x); }
+    function σ0(x) { return ROTR(7, x) ^ ROTR(18, x) ^ (x >>> 3); }
+    function σ1(x) { return ROTR(17, x) ^ ROTR(19, x) ^ (x >>> 10); }
+
+    function Ch(x, y, z) { return (x & y) ^ (~x & z); }
+    function Maj(x, y, z) { return (x & y) ^ (x & z) ^ (y & z); }
+
+    const H = new Uint32Array([
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+    ]);
+
+    const l = inputBytes.length;
+    const bitLen = l * 8;
+
+    const withPadding = new Uint8Array(((l + 9 + 63) >> 6) << 6); // pad to multiple of 64 bytes
+    withPadding.set(inputBytes);
+    withPadding[l] = 0x80;
+    withPadding.set([
+        0, 0, 0, 0,
+        (bitLen >>> 24) & 0xff,
+        (bitLen >>> 16) & 0xff,
+        (bitLen >>> 8) & 0xff,
+        bitLen & 0xff
+    ], withPadding.length - 8);
+
+    const w = new Uint32Array(64);
+    for (let i = 0; i < withPadding.length; i += 64) {
+        for (let j = 0; j < 16; j++) {
+            w[j] = (
+                (withPadding[i + 4 * j] << 24) |
+                (withPadding[i + 4 * j + 1] << 16) |
+                (withPadding[i + 4 * j + 2] << 8) |
+                (withPadding[i + 4 * j + 3])
+            ) >>> 0;
+        }
+        for (let j = 16; j < 64; j++) {
+            w[j] = (σ1(w[j - 2]) + w[j - 7] + σ0(w[j - 15]) + w[j - 16]) >>> 0;
+        }
+
+        let [a, b, c, d, e, f, g, h] = H;
+
+        for (let j = 0; j < 64; j++) {
+            const T1 = (h + Σ1(e) + Ch(e, f, g) + K[j] + w[j]) >>> 0;
+            const T2 = (Σ0(a) + Maj(a, b, c)) >>> 0;
+            h = g;
+            g = f;
+            f = e;
+            e = (d + T1) >>> 0;
+            d = c;
+            c = b;
+            b = a;
+            a = (T1 + T2) >>> 0;
+        }
+
+        H[0] = (H[0] + a) >>> 0;
+        H[1] = (H[1] + b) >>> 0;
+        H[2] = (H[2] + c) >>> 0;
+        H[3] = (H[3] + d) >>> 0;
+        H[4] = (H[4] + e) >>> 0;
+        H[5] = (H[5] + f) >>> 0;
+        H[6] = (H[6] + g) >>> 0;
+        H[7] = (H[7] + h) >>> 0;
+    }
+
+    const output = new Uint8Array(32);
+    for (let i = 0; i < 8; i++) {
+        output[i * 4 + 0] = (H[i] >>> 24) & 0xff;
+        output[i * 4 + 1] = (H[i] >>> 16) & 0xff;
+        output[i * 4 + 2] = (H[i] >>> 8) & 0xff;
+        output[i * 4 + 3] = H[i] & 0xff;
+    }
+
+    return output;
+}
+
+// create a message signature
+${MAVHEAD}.create_signature = function(key, msgbuf) {
+    const input = new Uint8Array(32 + msgbuf.length);
+    input.set(key, 0);
+    input.set(msgbuf, 32);
+
+    const hash = mavlink20.sha256(input);
+    const sig = hash.slice(0, 6);
+
+    return sig;
+}
+
+// sign outgoing packet
 ${MAVHEAD}.message.prototype.sign_packet = function( mav) {
-    var crypto= require('crypto');
-    var h =  crypto.createHash('sha256');
+    function packUint48LE(value) {
+        const bytes = []
+        for (let i = 0; i < 6; i++) {
+            bytes.push(Number((value >> BigInt(8 * i)) & 0xFFn));
+        }
+        return bytes;
+    }
 
-    //mav.signing.timestamp is a 48bit number, or 6 bytes.
+    var tsbuf = packUint48LE(BigInt(mav.signing.timestamp));
 
-        // due to js not being able to shift numbers  more than 32, we'll use this instead.. 
-        // js stores all its numbers as a 64bit float with 53 bits of mantissa, so have room for 48 ok. 
-        // positive shifts left, negative shifts right
-        function shift(number, shift) { 
-            return number * Math.pow(2, shift); 
-        } 
-
-    var thigh = shift(mav.signing.timestamp,-32) // 2 bytes from the top, shifted right by 32 bits
-    var tlow  = (mav.signing.timestamp & 0xfffffff )  // 4 bytes from the bottom
-
-    // I means unsigned 4bytes, H means unsigned 2 bytes
     // first add the linkid(1 byte) and timestamp(6 bytes) that start the signature
-    this._msgbuf = this._msgbuf.concat(jspack.Pack('<BIH', [mav.signing.link_id, tlow, thigh  ] ) );
- 
-    h.update(mav.signing.secret_key);
-    h.update(new Uint8Array.from(this._msgbuf));
-    var hashDigest = h.digest();
-    sig = hashDigest.slice(0,6)
-    this._msgbuf  = this._msgbuf.concat( ... sig );
+    this._msgbuf = this._msgbuf.concat([mav.signing.link_id])
+    this._msgbuf = this._msgbuf.concat(tsbuf);
 
-    mav.signing.timestamp += 1
-} 
+    sig = mavlink20.create_signature(mav.signing.secret_key, this._msgbuf);
+    this._msgbuf = this._msgbuf.concat( ... sig );
 
+    mav.signing.timestamp += 1;
+}
 
 // This pack function builds the header and produces a complete MAVLink message,
 // including header and message CRC.
@@ -381,16 +547,16 @@ ${MAVHEAD}.messages.bad_data.prototype = new ${MAVHEAD}.message;
 //  MAVLink signing state class
 MAVLinkSigning = function MAVLinkSigning(object){
         this.secret_key = new Uint8Array();
-        this.timestamp = 1
-        this.link_id = 0
-        this.sign_outgoing = false // todo false this
-        this.allow_unsigned_callback = undefined
-        this.stream_timestamps = {}
-        this.sig_count = 0
-        this.badsig_count = 0
-        this.goodsig_count = 0
-        this.unsigned_count = 0
-        this.reject_count = 0
+        this.timestamp = 1;
+        this.link_id = 0;
+        this.sign_outgoing = false; // todo false this
+        this.allow_unsigned_callback = undefined;
+        this.stream_timestamps = {};
+        this.sig_count = 0;
+        this.badsig_count = 0;
+        this.goodsig_count = 0;
+        this.unsigned_count = 0;
+        this.reject_count = 0;
 }
 
 /* MAVLink protocol handling class */
@@ -425,8 +591,14 @@ ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
     this.signing = new MAVLinkSigning();
 }
 
-// Implements EventEmitter
-util.inherits(${MAVPROCESSOR}, events.EventEmitter);
+if (!isNode) {
+    // Browser-compatible util.inherits replacement
+    ${MAVPROCESSOR}.prototype = Object.create(events.EventEmitter.prototype);
+    ${MAVPROCESSOR}.prototype.constructor = ${MAVPROCESSOR};
+} else {
+    // Implements EventEmitter
+    util.inherits(${MAVPROCESSOR}, events.EventEmitter);
+}
 
 // If the logger exists, this function will add a message to it.
 // Assumes the logger is a winston object.
@@ -466,20 +638,35 @@ ${MAVPROCESSOR}.prototype.concat_buffer = function(A, B) {
 
 // add data to the local buffer
 ${MAVPROCESSOR}.prototype.pushBuffer = function(data) {
-    this.buf = this.concat_buffer(this.buf, new Uint8Array([data]));
-    this.total_bytes_received += 1;
+    if (typeof data.length === 'undefined') {
+       data = [data];
+    }
+    this.buf = this.concat_buffer(this.buf, data);
+    this.total_bytes_received += data.length;
 }
 
 // Decode prefix.  Elides the prefix.
 ${MAVPROCESSOR}.prototype.parsePrefix = function() {
 
     // Test for a message prefix.
-    if( this.buf.length >= 1 && this.buf[0] != this.protocol_marker ) {
+    if( this.buf.length >= 1 &&
+        this.buf[0] != ${MAVHEAD}.PROTOCOL_MARKER_V2 &&
+        this.buf[0] != ${MAVHEAD}.PROTOCOL_MARKER_V1) {
 
-        // Strip the offending initial byte and throw an error.
+        // Strip the offending initial bytes and throw an error.
         var badPrefix = this.buf[0];
-        this.bufInError = this.buf.slice(0,1);
-        this.buf = this.buf.slice(1);
+        var idx1 = this.buf.indexOf(${MAVHEAD}.PROTOCOL_MARKER_V1);
+        var idx2 = this.buf.indexOf(${MAVHEAD}.PROTOCOL_MARKER_V2);
+        if (idx1 == -1) {
+            idx1 = idx2;
+        }
+        if (idx1 == -1 && idx2 == -1) {
+            this.bufInError = this.buf;
+            this.buf = new Uint8Array();
+        } else {
+            this.bufInError = this.buf.slice(0,idx1);
+            this.buf = this.buf.slice(idx1);
+        }
         this.expected_length = ${MAVHEAD}.HEADER_LEN; //initially we 'expect' at least the length of the header, later parseLength corrects for this. 
         throw new Error("Bad prefix ("+badPrefix+")");
     }
@@ -505,17 +692,16 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
 
 }
 
-// input some data bytes, possibly returning a new message - python equiv function is called parse_char / __parse_char_legacy 
+// input some data bytes, possibly returning a new message - python equiv function is called parse_char / __parse_char_legacy
+// c can be null to process any remaining data in the input buffer from a previous call
 ${MAVPROCESSOR}.prototype.parseChar = function(c) {
-
-    if (c == null) {
-        return
-    }
 
     var m = null;
 
     try {
-        this.pushBuffer(c);
+        if (c != null) {
+            this.pushBuffer(c);
+        }
         this.parsePrefix();
         this.parseLength();
         m = this.parsePayload();
@@ -529,7 +715,7 @@ ${MAVPROCESSOR}.prototype.parseChar = function(c) {
     }
 
     // emit a packet-specific message as well as a generic message, user/s can choose to use either or both of these.
-    if(null != m) {
+    if (isNode && null != m) {
         this.emit(m._name, m);
         this.emit('message', m);
     }
@@ -587,9 +773,10 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
 
     // While more valid messages can be read from the existing buffer, add
     // them to the array of new messages and return them.
-    var ret = [m];
+    var ret = [];
+    ret.push(m);
     while(true) {
-        m = this.parseChar();
+        m = this.parseChar(null);
         if ( null === m ) {
             // No more messages left.
             return ret;
@@ -601,100 +788,90 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
 
 //check signature on incoming message , many of the comments in this file come from the python impl
 ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcComponent) {
-
-        //timestamp_buf = msgbuf[-12:-6]
-        var timestamp_buf= msgbuf.slice(-12,-6);
-
-        //link_id = msgbuf[-13]
-        var link_id = new Uint8Array.from(msgbuf.slice(-13,-12)); // just a single byte really, but returned as a buffer
-        link_id = link_id[0]; // get the first byte.
-
-        //self.mav_sign_unpacker = jspack.Unpack('<IH')
-        // (tlow, thigh) = self.mav_sign_unpacker.unpack(timestamp_buf)
-
-        // I means unsigned 4bytes, H means unsigned 2 bytes
-        var t = jspack.Unpack('<IH',new Uint8Array.from(timestamp_buf))
-        const [tlow, thigh]  = t;
-
-        // due to js not being able to shift numbers  more than 32, we'll use this instead..
-        // js stores all its numbers as a 64bit float with 53 bits of mantissa, so have room for 48 ok.
-        function shift(number, shift) {
-            return number * Math.pow(2, shift);
-        }
-        var thigh_shifted = shift(thigh,32);
-        var timestamp = tlow + thigh_shifted
-
-        // see if the timestamp is acceptable
-
-         // we'll use a STRING containing these three things in it as a unique key eg: '0,1,1'
-        stream_key = new Array(link_id,srcSystem,srcComponent).toString();
-
-        if (stream_key in this.signing.stream_timestamps){
-            if (timestamp <= this.signing.stream_timestamps[stream_key]){
-                //# reject old timestamp
-                //console.log('old timestamp')
-                return false
-            }
-        }else{
-            //# a new stream has appeared. Accept the timestamp if it is at most
-            //# one minute behind our current timestamp
-            if (timestamp + 6000*1000 < this.signing.timestamp){
-                //console.log('bad new stream ', timestamp/(100.0*1000*60*60*24*365), this.signing.timestamp/(100.0*1000*60*60*24*365))
-                return false
-            }
-            this.signing.stream_timestamps[stream_key] = timestamp;
-            //console.log('new stream',this.signing.stream_timestamps)
-        }
-
-         //   h = hashlib.new('sha256')
-         //   h.update(this.signing.secret_key)
-         //   h.update(msgbuf[:-6])
-        var crypto= require('crypto');
-        var h =  crypto.createHash('sha256');
+    var timestamp_buf = msgbuf.slice(-12,-6);
  
-        // just the last 6 of 13 available are the actual sig . ie excluding the linkid(1) and timestamp(6)
-        var sigpart = msgbuf.slice(-6);
-        sigpart = new Uint8Array.from(sigpart);
-        // not sig part 0- end-minus-6
-        var notsigpart = msgbuf.slice(0,-6);
-        notsigpart = new Uint8Array.from(notsigpart);
+    var link_id;
+    if (isNode) {
+        var link_id_buf = Buffer.from ? Buffer.from(msgbuf.slice(-13,-12)) : new Buffer(msgbuf.slice(-13,-12));
+        link_id = link_id_buf[0]; // get the first byte.
+    } else {
+        // Browser-compatible buffer handling
+        link_id = msgbuf.slice(-13,-12)[0];
+    }
 
-        h.update(this.signing.secret_key); // secret is already a Buffer
-        //var tmp = h.copy().digest();
-        h.update(notsigpart);
-        //var tmp2 = h.copy().digest()
-        var hashDigest = h.digest();
-        sig1 = hashDigest.slice(0,6)
-
-        //sig1 = str(h.digest())[:6]
-        //sig2 = str(msgbuf)[-6:]
-
-        // can't just compare sigs, need a full buffer compare like this...
-        //if (sig1 != sigpart){
-        if (Uint8Array.compare(sig1,sigpart)){
-            //console.log('sig mismatch',sig1,sigpart)
-            return false
+    function unpackUint48LE(bytes) {
+        let value = 0n;
+        for (let i = 5; i >= 0; i--) {
+            value = (value << 8n) | BigInt(bytes[i]);
         }
-        //# the timestamp we next send with is the max of the received timestamp and
-        //# our current timestamp
-        this.signing.timestamp = Math.max(this.signing.timestamp, timestamp)
-        return true
+        return value;
+    }
+    var timestamp = Number(unpackUint48LE(timestamp_buf));
+
+    // see if the timestamp is acceptable
+
+    // we'll use a STRING containing these three things in it as a unique key eg: '0,1,1'
+    stream_key = new Array(link_id,srcSystem,srcComponent).toString();
+
+    if (stream_key in this.signing.stream_timestamps){
+	if (timestamp <= this.signing.stream_timestamps[stream_key]){
+	    //# reject old timestamp
+	    //console.log('old timestamp')
+	    return false
+	}
+    }else{
+	//# a new stream has appeared. Accept the timestamp if it is at most
+	//# one minute behind our current timestamp
+    if (timestamp + 6000*1000 < this.signing.timestamp){
+	    //console.log('bad new stream ', timestamp/(100.0*1000*60*60*24*365), this.signing.timestamp/(100.0*1000*60*60*24*365))
+	    return false
+	}
+	this.signing.stream_timestamps[stream_key] = timestamp;
+	//console.log('new stream',this.signing.stream_timestamps)
+    }
+
+    // just the last 6 of 13 available are the actual sig . ie excluding the linkid(1) and timestamp(6)
+    var sigpart = msgbuf.slice(-6);
+    sigpart = Uint8Array.from(sigpart);
+    // not sig part 0- end-minus-6
+    var notsigpart = msgbuf.slice(0,-6);
+    notsigpart = Uint8Array.from(notsigpart);
+
+    var sig1 = mavlink20.create_signature(this.signing.secret_key, notsigpart);
+
+    // Browser-compatible buffer comparison
+    var signaturesMatch;
+    if (isNode) {
+        signaturesMatch = Buffer.from(sig1).equals(Buffer.from(sigpart));
+    } else {
+        // Compare arrays element by element in browser
+        signaturesMatch = sig1.length === sigpart.length && 
+                         sig1.every((val, index) => val === sigpart[index]);
+    }
+    if (!signaturesMatch) {
+        return false;
+    }
+    //# the timestamp we next send with is the max of the received timestamp and
+    //# our current timestamp
+    this.signing.timestamp = Math.max(this.signing.timestamp, timestamp+1);
+    return true
 }
 
 /* decode a buffer as a MAVLink message */
 ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
 
-    var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId, signature_len; 
+    var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId, signature_len, header_len;
 
     // decode the header
     try {
         """, {'MAVPROCESSOR': get_mavprocessor(xml),
               'MAVHEAD': get_mavhead(xml),
               'PROTOCOL_MARKER': xml.protocol_marker})
-    # Mavlink2 only
+    # Mavlink2 or mavlink1 only
     if (xml.protocol_marker == 253):
         t.write(outf, """
-unpacked = jspack.Unpack('BBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1 
+if (msgbuf[0] == 253) {
+    var unpacked = jspack.Unpack('BBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1
         magic = unpacked[0];
         mlen = unpacked[1];
         incompat_flags = unpacked[2];
@@ -704,50 +881,38 @@ unpacked = jspack.Unpack('BBBBBBBHB', msgbuf.slice(0, 10));  // the H in here ca
         srcComponent = unpacked[6];
         var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF); // first-two msgid bytes 
         var msgIDhigh = unpacked[8];   // the 3rd msgid byte 
-        msgId = msgIDlow | (msgIDhigh<<16);  // combined result. 0 - 16777215  24bit number 
-        """, {'MAVHEAD': get_mavhead(xml)})
-    # Mavlink1
+        msgId = msgIDlow | (msgIDhigh<<16);  // combined result. 0 - 16777215  24bit number
+        header_len = 10;
+} else {
+    var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
+        magic = unpacked[0];
+        mlen = unpacked[1];
+        seq = unpacked[2];
+        srcSystem = unpacked[3];
+        srcComponent = unpacked[4];
+        msgID = unpacked[5];
+        incompat_flags = 0;
+        compat_flags = 0;
+        header_len = 6;
+}
+        """)
+    # Mavlink1 only
     else:
         t.write(outf, """
-unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
+var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
         magic = unpacked[0];
         mlen = unpacked[1];
         seq = unpacked[2];
         srcSystem = unpacked[3];
         srcComponent = unpacked[4];
         msgId = unpacked[5];
-        """, {'MAVHEAD': get_mavhead(xml)})
+        header_len = 6;
+        """);
 
     t.write(outf, """
 }
     catch(e) {
         throw new Error('Unable to unpack MAVLink header: ' + e.message);
-    }
-
-    //  TODO allow full parsing of 1.0 inside the 2.0 parser, this is just a start
-    if (magic == ${MAVHEAD}.PROTOCOL_MARKER_V1){ 
-            //headerlen = 6;
-
-            // these two are in the same place in both v1 and v2 so no change needed:
-            //magic = magic;
-            //mlen = mlen;
- 
-            // grab mavlink-v1 header position info from v2 unpacked position
-            seq1 = incompat_flags;
-            srcSystem1 = compat_flags;
-            srcComponent1 = seq;
-            msgId1 = srcSystem;
-            // override the v1 vs v2 offsets so we get the correct data either way...
-            seq = seq1;
-            srcSystem = srcSystem1;
-            srcComponent = srcComponent1;
-            msgId = msgId1;
-            // don't exist in mavlink1, so zero-them
-            incompat_flags = 0;
-            compat_flags = 0;
-            signature_len = 0;
-            // todo add more v1 here and don't just return
-            return;
     }
 
     if (magic != this.protocol_marker) {
@@ -762,8 +927,8 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     }
 
     // header's declared len compared to packets actual len
-    var actual_len = (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2 + signature_len));
-    var actual_len_nosign = (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2 ));
+    var actual_len = (msgbuf.length - (header_len + 2 + signature_len));
+    var actual_len_nosign = (msgbuf.length - (header_len + 2 ));
 
     if ((mlen == actual_len) && (signature_len > 0)){
         var len_if_signed = mlen+signature_len;
@@ -775,7 +940,7 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         throw new Error("Packet appears unsigned when labeled as signed. Got actual_len "+actual_len_nosign+" expected " + len_if_signed + ", msgId=" + msgId);     
 
     } else if( mlen != actual_len) {
-          throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) + " expected " + mlen + ", msgId=" + msgId); 
+          throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (header_len + 2)) + " expected " + mlen + ", msgId=" + msgId);
 
     }
 
@@ -784,10 +949,6 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     }
 
     // here's the common chunks of packet we want to work with below..
-    //var headerBuf= msgbuf.slice(${MAVHEAD}.HEADER_LEN); // first10
-    //var sigBuf = msgbuf.slice(-signature_len); // last 13 or nothing
-    var crcBuf1 = msgbuf.slice(-2); // either last-2 or last-2-prior-to-signature
-    var crcBuf2 = msgbuf.slice(-15,-13); // either last-2 or last-2-prior-to-signature
     var payloadBuf = msgbuf.slice(${MAVHEAD}.HEADER_LEN, -(signature_len+2)); // the remaining bit between the header and the crc
     var crcCheckBuf = msgbuf.slice(1, -(signature_len+2)); // the part uses to calculate the crc - ie between the magic and signature,
 
@@ -799,12 +960,14 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     var receivedChecksum = undefined;
     if ( signature_len == 0 ) { // unsigned
         try {
+            var crcBuf1 = msgbuf.slice(-2);
             receivedChecksum = jspack.Unpack('<H', crcBuf1);
         } catch (e) {
             throw new Error("Unable to unpack MAVLink unsigned CRC: " + e.message);
         }
     } else { // signed
         try {
+            var crcBuf2 = msgbuf.slice(-15,-13);
             receivedChecksum = jspack.Unpack('<H', crcBuf2);
         } catch (e) {
             throw new Error("Unable to unpack MAVLink signed CRC: " + e.message);
@@ -962,9 +1125,23 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
 def generate_footer(outf, xml):
     t.write(outf, """
 
-// allow loading as both common.js (Node), and/or vanilla javascript in-browser
-if(typeof module === "object" && module.exports) {
-    module.exports = {${MAVHEAD}, ${MAVPROCESSOR}};
+// Browser and Node.js compatible module exports
+if (!isNode) {
+    // For browsers, attach to window or use global namespace
+    if (typeof window !== 'undefined') {
+        window.${MAVHEAD} = ${MAVHEAD};
+        window.${MAVPROCESSOR} = ${MAVPROCESSOR};
+    }
+    // Also support global assignment
+    if (typeof global !== 'undefined') {
+        global.${MAVHEAD} = ${MAVHEAD};
+        global.${MAVPROCESSOR} = ${MAVPROCESSOR};
+    }
+} else {
+    // For Node.js, use module.exports
+    if (typeof module === "object" && module.exports) {
+        module.exports = {${MAVHEAD}, ${MAVPROCESSOR}};
+    }
 }
 
 """, {'MAVHEAD': get_mavhead(xml), 'MAVPROCESSOR': get_mavprocessor(xml)})
