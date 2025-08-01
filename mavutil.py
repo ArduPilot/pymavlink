@@ -1899,15 +1899,18 @@ class mavwebsocket_client(mavfile):
                 self.sock = context.wrap_socket(raw_sock, server_hostname=self.host)
             else:
                 self.sock = raw_sock
-                
+
         except socket.error as e:
             if e.errno in [errno.ECONNREFUSED, errno.EHOSTUNREACH]:
+                self.close()
                 return
             raise
         except ssl.SSLError as e:
             print(f"SSL Error: {e}")
+            self.close()
             raise
-            
+
+        self.fd = self.sock.fileno()
         self.sock.setblocking(1)
         self.ws = WSConnection(ConnectionType.CLIENT)
         b = self.ws.send(Request(host=self.host, target=self.resource))
@@ -2002,6 +2005,7 @@ class mavwebsocket_client(mavfile):
         if self.sock:
             self.sock.close()
             self.sock = None
+        self.fd = None
 
 
 def mavlink_connection(device, baud=115200, source_system=255, source_component=0,
