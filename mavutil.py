@@ -1875,7 +1875,7 @@ class mavwebsocket_client(mavfile):
         self.sock = None
         self.use_ssl = protocol.lower() == 'wss'
         self.connect()
-        mavfile.__init__(self, self.sock.fileno(), protocol + device, source_system=source_system, source_component=source_component, use_native=use_native)
+        mavfile.__init__(self, self.sock.fileno(), device, source_system=source_system, source_component=source_component, use_native=use_native)
 
     def connect(self):
         self.close()
@@ -1942,6 +1942,8 @@ class mavwebsocket_client(mavfile):
         if self.buffer:
             out, self.buffer = self.buffer, b''
             return out
+        if n is None:
+            n = self.mav.bytes_needed()
         try:
             data = self.sock.recv(n)
         except ssl.SSLError as e:
