@@ -2331,6 +2331,8 @@ mode_mapping_acm = {
     25 : 'SYSTEMID',
     26 : 'AUTOROTATE',
     27 : 'AUTO_RTL',
+    28 : 'TURTLE',
+    29 : 'RATE_ACRO',
 }
 
 mode_mapping_rover = {
