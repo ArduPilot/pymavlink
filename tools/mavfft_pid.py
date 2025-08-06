@@ -48,7 +48,7 @@ def fft(logfile):
             sample_rate = loop_rate
         else:
             gyro_rate = 1000 * pow(2, gyro_rate)
-            sample_rate = gyro_rate / fstrate_div
+            sample_rate = min(gyro_rate / fstrate_div, 1024)
         
     mlog = mavutil.mavlink_connection(filename)
 
