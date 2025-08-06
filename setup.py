@@ -113,6 +113,35 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 ext_modules = []
 
+def test_python_h_available():
+    import tempfile
+    import distutils.ccompiler
+    import distutils.sysconfig
+    import sysconfig
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test_python_h.c")
+        with open(test_file, "w") as f:
+            f.write("#include <Python.h>\nint main() { return 0; }")
+
+        try:
+            compiler = distutils.ccompiler.new_compiler()
+            distutils.sysconfig.customize_compiler(compiler)
+
+            # Add Python include dir (e.g. /usr/include/python3.11 or C:\... on Windows)
+            python_inc = sysconfig.get_path("include")
+            compiler.add_include_dir(python_inc)
+
+            # Compile only (no linking)
+            compiler.compile([test_file], output_dir=tmpdir)
+            return True
+        except Exception as e:
+            warnings.warn(f"Disabling fast index: missing Python.h ({e})")
+            return False
+
+if build_fast_index and not test_python_h_available():
+    build_fast_index = False
+
 if build_fast_index:
     extra_compile_args = ["-g", "-Og"] if debug_build else ["-O2"]
     extra_link_args = ["-g"] if debug_build else []
