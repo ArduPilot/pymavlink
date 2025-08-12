@@ -376,7 +376,6 @@ class mavfile(object):
             return
         msg._posted = True
         msg._timestamp = time.time()
-        type = msg.get_type()
 
         if 'usec' in msg.__dict__:
             self.uptime = msg.usec * 1.0e-6
@@ -399,12 +398,14 @@ class mavfile(object):
             # we've seen a new system
             self.sysid_state[src_system] = mavfile_state()
 
-        add_message(self.sysid_state[src_system].messages, type, msg)
+        m_type = msg.get_type()
+
+        add_message(self.sysid_state[src_system].messages, m_type, msg)
 
         if src_tuple == radio_tuple:
             # as a special case radio msgs are added for all sysids
             for s in self.sysid_state.keys():
-                self.sysid_state[s].messages[type] = msg
+                self.sysid_state[s].messages[m_type] = msg
 
         if not (src_tuple == radio_tuple or msg.get_msgId() < 0):
             # Don't use unknown messages to calculate number of lost packets
@@ -422,7 +423,7 @@ class mavfile(object):
             self.mav_count += 1
         
         self.timestamp = msg._timestamp
-        if type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
+        if m_type == 'HEARTBEAT' and self.probably_vehicle_heartbeat(msg):
             if self.sysid == 0:
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
@@ -431,7 +432,7 @@ class mavfile(object):
                 self.sysid_state[src_system].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
                 self.sysid_state[src_system].mav_type = msg.type
                 self.sysid_state[src_system].mav_autopilot = msg.autopilot
-        elif type == 'HIGH_LATENCY2':
+        elif m_type == 'HIGH_LATENCY2':
             if self.sysid == 0:
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
@@ -442,16 +443,16 @@ class mavfile(object):
             self.sysid_state[src_system].mav_type = msg.type
             self.sysid_state[src_system].mav_autopilot = msg.autopilot
 
-        elif type == 'PARAM_VALUE':
+        elif m_type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
             self.param_state[src_tuple].params[msg.param_id] = msg.param_value
-        elif type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
+        elif m_type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
             self.sysid_state[src_system].flightmode = mode_string_v09(msg)
-        elif type == 'GPS_RAW':
+        elif m_type == 'GPS_RAW':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 2:
                 self.sysid_state[src_system].messages['HOME'] = msg
-        elif type == 'GPS_RAW_INT':
+        elif m_type == 'GPS_RAW_INT':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 3:
                 self.sysid_state[src_system].messages['HOME'] = msg
         for hook in self.message_hooks:
