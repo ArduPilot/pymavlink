@@ -1869,11 +1869,12 @@ class mavwebsocket_client(mavfile):
         if len(a) < 3:
             raise ValueError("WebSocket ports must be specified as protocol:host:port")
         self.host = a[1]
-        self.port = int(a[2])
+        self.host_port = int(a[2])
         if len(a) > 3:
             self.resource = a[3]
         self.sock = None
         self.use_ssl = protocol.lower() == 'wss'
+        self.port = FakeSerial()
         self.connect()
         fd = self.sock.fileno() if self.sock is not None else None
         mavfile.__init__(self, fd, device, source_system=source_system, source_component=source_component, use_native=use_native)
@@ -1889,7 +1890,7 @@ class mavwebsocket_client(mavfile):
         )
         try:
             # Create basic socket connection
-            raw_sock = socket.create_connection((self.host, self.port))
+            raw_sock = socket.create_connection((self.host, self.host_port))
             
             # Wrap with SSL if using WSS
             if self.use_ssl:
@@ -1900,6 +1901,7 @@ class mavwebsocket_client(mavfile):
                 self.sock = context.wrap_socket(raw_sock, server_hostname=self.host)
             else:
                 self.sock = raw_sock
+            self.port = self.sock
 
         except socket.error as e:
             if e.errno in [errno.ECONNREFUSED, errno.EHOSTUNREACH]:
@@ -2006,6 +2008,7 @@ class mavwebsocket_client(mavfile):
         if self.sock:
             self.sock.close()
             self.sock = None
+            self.port = FakeSerial()
         self.fd = None
 
 
