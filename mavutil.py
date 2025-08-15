@@ -95,7 +95,7 @@ def add_message(messages, mtype, msg):
         messages[mtype]._instances[instance_value] = msg
         messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
         return
-    messages[mtype]._instances[instance_value] = msg
+    messages[mtype]._instances[instance_value] = copy.copy(msg)
     prev_instances = messages[mtype]._instances
     messages[mtype] = copy.copy(msg)
     messages[mtype]._instances = prev_instances
@@ -395,15 +395,19 @@ class mavfile(object):
 
         radio_tuple = (ord('3'), ord('D'))
 
-        if not src_system in self.sysid_state:
-            # we've seen a new system
-            self.sysid_state[src_system] = mavfile_state()
+        for k in src_system, src_tuple:
+            if k not in self.sysid_state:
+                # we've seen a new system (or sysid/compid tuple)
+                self.sysid_state[k] = mavfile_state()
 
-        add_message(self.sysid_state[src_system].messages, type, msg)
+        for k in src_system, src_tuple:
+            add_message(self.sysid_state[k].messages, type, msg)
 
         if src_tuple == radio_tuple:
             # as a special case radio msgs are added for all sysids
             for s in self.sysid_state.keys():
+                if type(s) != int:
+                    continue
                 self.sysid_state[s].messages[type] = msg
 
         if not (src_tuple == radio_tuple or msg.get_msgId() < 0):
@@ -450,10 +454,10 @@ class mavfile(object):
             self.sysid_state[src_system].flightmode = mode_string_v09(msg)
         elif type == 'GPS_RAW':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 2:
-                self.sysid_state[src_system].messages['HOME'] = msg
+                self.sysid_state[src_system].messages['HOME'] = copy.copy(msg)
         elif type == 'GPS_RAW_INT':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 3:
-                self.sysid_state[src_system].messages['HOME'] = msg
+                self.sysid_state[src_system].messages['HOME'] = copy.copy(msg)
         for hook in self.message_hooks:
             hook(self, msg)
 
