@@ -149,7 +149,7 @@ def parse_args():
     parser.add_argument("-f", "--follow", action='store_true', help="keep waiting for more data at end of file (not implemented for .bin, .log, .csv")
     parser.add_argument("--condition", default=None, help="select packets by condition")
     parser.add_argument("-q", "--quiet", action='store_true', help="don't display packets")
-    parser.add_argument("-o", "--output", default=None, help="output matching packets to give file")
+    parser.add_argument("-o", "--output", default=None, help="output matching packets to given file")
     parser.add_argument("-p", "--parms", action='store_true', help="preserve parameters in output with -o")
     parser.add_argument("--format", default=None, help="Change the output format between 'standard', 'json', 'csv' and 'mat'. For the CSV output, you must supply types that you want. For MAT output, specify output file with --mat_file")
     parser.add_argument("--csv_sep", dest="csv_sep", default=",", help="Select the delimiter between columns for the output CSV file. Use 'tab' to specify tabs. Only applies when --format=csv")
