@@ -127,8 +127,6 @@ def handle_mat_output(m, m_type, MAT):
             MAT[m_type][col].append(md[col])
         else:
             MAT[m_type][col] = [md[col]]
-    # Export the .mat file
-    scipy.io.savemat(mat_file, MAT, do_compression=compress)
 
 def handle_standard_output(m, timestamp, show_source, show_seq):
     '''Handle standard format output'''
@@ -222,12 +220,13 @@ def dump_log(
         yappi.start()
 
     if format == 'mat':
+        # Scipy needed only for matlab format
+        from scipy.io import savemat
+
         # Check that the mat_file argument has been specified
         if mat_file is None:
             print("mat_file argument must be specified when mat format is selected")
             sys.exit(1)
-        # Load these modules here, as they're only needed for MAT file creation
-        import scipy.io
 
     filename = log
     mlog = mavutil.mavlink_connection(filename, planner_format=planner,
@@ -408,6 +407,9 @@ def dump_log(
                 print("lost %d messages" % (mlog.mav_loss - last_loss))
                 last_loss = mlog.mav_loss
 
+    if format == 'mat':
+        # Export the .mat file
+        savemat(mat_file, MAT, do_compression=compress)
     if show_types:
         for msgType in available_types:
             print(msgType)
