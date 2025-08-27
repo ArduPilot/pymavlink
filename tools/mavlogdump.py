@@ -235,7 +235,6 @@ def dump_log(
                                     dialect=dialect,
                                     zero_time_base=zero_time_base)
 
-    output = None
     if output:
         output = open(output, mode='wb')
 
