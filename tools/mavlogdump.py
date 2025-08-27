@@ -62,6 +62,86 @@ def match_type(mtype, patterns):
             return True
     return False
 
+def handle_json_output(m, m_type, timestamp, show_source):
+    '''Handle JSON format output'''
+    # Format our message as a Python dict, which gets us almost to proper JSON format
+    data = m.to_dict()
+
+    # Remove the mavpackettype value as we specify that later.
+    del data['mavpackettype']
+
+    # Also, if it's a BAD_DATA message, make it JSON-compatible by removing array objects
+    if 'data' in data and type(data['data']) is not dict:
+        data['data'] = list(data['data'])
+
+    # Prepare the message as a single object with 'meta' and 'data' keys holding
+    # the message's metadata and actual data respectively.
+    meta = {"type": m_type, "timestamp": timestamp}
+    if show_source:
+        meta["srcSystem"] = m.get_srcSystem()
+        meta["srcComponent"] = m.get_srcComponent()
+
+    # convert any array.array (e.g. packed-16-bit fft readings) into lists:
+    for key in data.keys():
+        if type(data[key]) == array.array:
+            data[key] = list(data[key])
+    # convert any byte-strings into utf-8 strings.  Don't die trying.
+    for key in data.keys():
+        if type(data[key]) == bytes:
+            data[key] = to_string(data[key])
+    outMsg = {"meta": meta, "data": data}
+
+    # Now print out this object with stringified properly.
+    print(json.dumps(outMsg))
+
+def handle_csv_output(m, m_type, timestamp, csv_sep, fields, isbin, islog):
+    '''Handle CSV format output'''
+    data = m.to_dict()
+    if isbin or islog:
+        csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
+    else:
+        csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
+    csv_out[0] = "{:.8f}".format(timestamp)
+    print(csv_sep.join(csv_out))
+
+def handle_mat_output(m, m_type, MAT):
+    '''Handle MAT format output'''
+    # If this packet contains data (i.e. is not a FMT
+    # packet), append the data in this packet to the
+    # corresponding list
+    if m_type == 'FMT':
+        return
+
+    # If this packet type has not yet been
+    # seen, add a new entry to the big dict
+    if m_type not in MAT:
+        MAT[m_type] = {}
+
+    md = m.to_dict()
+    del md['mavpackettype']
+    cols = md.keys()
+    for col in cols:
+        # If this column hasn't had data entered,
+        # make a new key and list
+        if col in MAT[m_type]:
+            MAT[m_type][col].append(md[col])
+        else:
+            MAT[m_type][col] = [md[col]]
+    # Export the .mat file
+    scipy.io.savemat(mat_file, MAT, do_compression=compress)
+
+def handle_standard_output(m, timestamp, show_source, show_seq):
+    '''Handle standard format output'''
+    # Otherwise we output in a standard Python dict-style format
+    s = "%s.%02u: %s" % (time.strftime("%Y-%m-%d %H:%M:%S",
+                                    time.localtime(timestamp)),
+                        int(timestamp*100.0)%100, m)
+    if show_source:
+        s += " srcSystem=%u srcComponent=%u" % (m.get_srcSystem(), m.get_srcComponent())
+    if show_seq:
+        s += " seq=%u" % m.get_seq()
+    print(s)
+
 def parse_args():
     parser = ArgumentParser(description=__doc__)
 
@@ -305,71 +385,13 @@ def dump_log(
         if quiet:
             continue
 
-        # If JSON was ordered, serve it up. Split it nicely into metadata and data.
+        # Handle different output formats
         if format == 'json':
-            # Format our message as a Python dict, which gets us almost to proper JSON format
-            data = m.to_dict()
-
-            # Remove the mavpackettype value as we specify that later.
-            del data['mavpackettype']
-
-            # Also, if it's a BAD_DATA message, make it JSON-compatible by removing array objects
-            if 'data' in data and type(data['data']) is not dict:
-                data['data'] = list(data['data'])
-
-            # Prepare the message as a single object with 'meta' and 'data' keys holding
-            # the message's metadata and actual data respectively.
-            meta = {"type": m_type, "timestamp": timestamp}
-            if show_source:
-                meta["srcSystem"] = m.get_srcSystem()
-                meta["srcComponent"] = m.get_srcComponent()
-
-            # convert any array.array (e.g. packed-16-bit fft readings) into lists:
-            for key in data.keys():
-                if type(data[key]) == array.array:
-                    data[key] = list(data[key])
-            # convert any byte-strings into utf-8 strings.  Don't die trying.
-            for key in data.keys():
-                if type(data[key]) == bytes:
-                    data[key] = to_string(data[key])
-            outMsg = {"meta": meta, "data": data}
-
-            # Now print out this object with stringified properly.
-            print(json.dumps(outMsg))
-
-        # CSV format outputs columnar data with a user-specified delimiter
+            handle_json_output(m, m_type, timestamp, show_source)
         elif format == 'csv':
-            data = m.to_dict()
-            if isbin or islog:
-                csv_out = [str(data[y]) if y != "timestamp" else "" for y in fields]
-            else:
-                csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
-            csv_out[0] = "{:.8f}".format(timestamp)
-            print(csv_sep.join(csv_out))
-
-        # MAT format outputs data to a .mat file specified through the
-        # --mat_file option
+            handle_csv_output(m, m_type, timestamp, csv_sep, fields, isbin, islog)
         elif format == 'mat':
-            # If this packet contains data (i.e. is not a FMT
-            # packet), append the data in this packet to the
-            # corresponding list
-            if m_type != 'FMT':
-
-                # If this packet type has not yet been
-                # seen, add a new entry to the big dict
-                if m_type not in MAT:
-                    MAT[m_type] = {}
-
-                md = m.to_dict()
-                del md['mavpackettype']
-                cols = md.keys()
-                for col in cols:
-                    # If this column hasn't had data entered,
-                    # make a new key and list
-                    if col in MAT[m_type]:
-                        MAT[m_type][col].append(md[col])
-                    else:
-                        MAT[m_type][col] = [md[col]]
+            handle_mat_output(m, m_type, MAT)
         elif show_types:
             # do nothing
             pass
@@ -380,23 +402,11 @@ def dump_log(
             m.dump_verbose(sys.stdout)
             print("")
         else:
-            # Otherwise we output in a standard Python dict-style format
-            s = "%s.%02u: %s" % (time.strftime("%Y-%m-%d %H:%M:%S",
-                                            time.localtime(timestamp)),
-                                int(timestamp*100.0)%100, m)
-            if show_source:
-                s += " srcSystem=%u srcComponent=%u" % (m.get_srcSystem(), m.get_srcComponent())
-            if show_seq:
-                s += " seq=%u" % m.get_seq()
-            print(s)
+            handle_standard_output(m, timestamp, show_source, show_seq)
         if show_loss:
             if last_loss != mlog.mav_loss:
                 print("lost %d messages" % (mlog.mav_loss - last_loss))
                 last_loss = mlog.mav_loss
-
-    # Export the .mat file
-    if format == 'mat':
-        scipy.io.savemat(mat_file, MAT, do_compression=compress)
 
     if show_types:
         for msgType in available_types:
