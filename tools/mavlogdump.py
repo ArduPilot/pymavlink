@@ -13,13 +13,15 @@ import os
 import struct
 import sys
 import time
+import inspect
+from argparse import ArgumentParser
+from pymavlink import mavutil
 
 try:
     from pymavlink.mavextra import *
 except:
     print("WARNING: Numpy missing, mathematical notation will not be supported..")
 
-from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 
 parser.add_argument("--no-timestamps", dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
@@ -58,11 +60,6 @@ args = parser.parse_args()
 
 if not args.mav10:
     os.environ['MAVLINK20'] = '1'
-
-import inspect
-
-from pymavlink import mavutil
-
 
 if args.profile:
     import yappi    # We do the import here so that we won't barf if run normally and yappi not available
