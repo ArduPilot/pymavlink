@@ -178,7 +178,7 @@ class MAVLogDumpTest(unittest.TestCase):
     def test_output_to_file(self):
         """Test output to file option"""
         output_file = os.path.join(self.test_dir, "direct_output.bin")
-        cmd = f"{self.mavlogdump_path} --output {output_file} {self.test_filepath} 2>/dev/null"
+        cmd = f"{self.mavlogdump_path} -q --output {output_file} {self.test_filepath} 2>/dev/null"
         result = os.system(cmd)
         
         self.assertEqual(result, 0, "Output to file should succeed")
