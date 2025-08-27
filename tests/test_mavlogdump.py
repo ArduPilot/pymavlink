@@ -46,7 +46,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} {self.test_filepath} > {output_file}"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Standard format dump should succeed")
+        self.assertEqual(result, 0, "Standard format dump should succeed")
         self.assertTrue(os.path.exists(output_file), "Output file should be created")
 
     def test_dump_json_format(self):
@@ -55,7 +55,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --format json {self.test_filepath} > {output_file}"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "JSON format dump should succeed")
+        self.assertEqual(result, 0, "JSON format dump should succeed")
         self.assertTrue(os.path.exists(output_file), "JSON output file should be created")
         
         # Verify JSON format if file has content
@@ -77,7 +77,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --format json --show-source {self.test_filepath} > {output_file}"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "JSON format with show-source should succeed")
+        self.assertEqual(result, 0, "JSON format with show-source should succeed")
         self.assertTrue(os.path.exists(output_file), "JSON output file should be created")
         
         # Verify JSON includes source info if file has content
@@ -134,7 +134,7 @@ class MAVLogDumpTest(unittest.TestCase):
         result = os.system(cmd)
         
         # MAT format requires scipy, which might not be installed
-        if result >> 8 == 0:
+        if result == 0:
             self.assertTrue(os.path.exists(mat_file), "MAT file should be created")
 
     def test_dump_mat_with_compression(self):
@@ -144,7 +144,7 @@ class MAVLogDumpTest(unittest.TestCase):
         result = os.system(cmd)
         
         # MAT format requires scipy, which might not be installed
-        if result >> 8 == 0:
+        if result == 0:
             self.assertTrue(os.path.exists(mat_file), "Compressed MAT file should be created")
 
     def test_type_filtering(self):
@@ -153,7 +153,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --types 'ATT,GPS' {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Type filtering should succeed")
+        self.assertEqual(result, 0, "Type filtering should succeed")
         self.assertTrue(os.path.exists(output_file), "Filtered output file should be created")
 
     def test_nottype_filtering(self):
@@ -162,7 +162,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --nottypes 'BAD_DATA' {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Type exclusion should succeed")
+        self.assertEqual(result, 0, "Type exclusion should succeed")
         self.assertTrue(os.path.exists(output_file), "Excluded output file should be created")
 
     def test_quiet_mode(self):
@@ -171,7 +171,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --quiet {self.test_filepath} > {output_file}"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Quiet mode should succeed")
+        self.assertEqual(result, 0, "Quiet mode should succeed")
         # In quiet mode, output should be minimal or empty
         self.assertTrue(os.path.exists(output_file), "Output file should be created even in quiet mode")
 
@@ -181,7 +181,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --output {output_file} {self.test_filepath} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Output to file should succeed")
+        self.assertEqual(result, 0, "Output to file should succeed")
         self.assertTrue(os.path.exists(output_file), "Direct output file should be created")
 
     def test_show_types(self):
@@ -189,8 +189,7 @@ class MAVLogDumpTest(unittest.TestCase):
         output_file = os.path.join(self.test_dir, "types_output.txt")
         cmd = f"{self.mavlogdump_path} --show-types {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
-        
-        self.assertEqual(result >> 8, 0, "Show types should succeed")
+        self.assertEqual(result, 0, "Show types should succeed")
         self.assertTrue(os.path.exists(output_file), "Types output file should be created")
 
     def test_reduce_option(self):
@@ -199,7 +198,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --reduce 10 {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Reduce option should succeed")
+        self.assertEqual(result, 0, "Reduce option should succeed")
         self.assertTrue(os.path.exists(output_file), "Reduced output file should be created")
 
     def test_reduce_rate_option(self):
@@ -208,7 +207,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --reduce-rate 10 {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Reduce-rate option should succeed")
+        self.assertEqual(result, 0, "Reduce-rate option should succeed")
         self.assertTrue(os.path.exists(output_file), "Rate reduced output file should be created")
 
     def test_condition_filtering(self):
@@ -218,7 +217,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --condition 'True' {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Condition filtering should succeed")
+        self.assertEqual(result, 0, "Condition filtering should succeed")
         self.assertTrue(os.path.exists(output_file), "Condition filtered output file should be created")
 
     def test_mav10_option(self):
@@ -227,7 +226,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --mav10 {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "MAV1.0 parsing should succeed")
+        self.assertEqual(result, 0, "MAV1.0 parsing should succeed")
         self.assertTrue(os.path.exists(output_file), "MAV1.0 output file should be created")
 
     def test_verbose_mode(self):
@@ -236,7 +235,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --verbose {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Verbose mode should succeed")
+        self.assertEqual(result, 0, "Verbose mode should succeed")
         self.assertTrue(os.path.exists(output_file), "Verbose output file should be created")
 
     def test_source_filtering(self):
@@ -245,7 +244,7 @@ class MAVLogDumpTest(unittest.TestCase):
         cmd = f"{self.mavlogdump_path} --source-system 1 --source-component 1 {self.test_filepath} > {output_file} 2>/dev/null"
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Source filtering should succeed")
+        self.assertEqual(result, 0, "Source filtering should succeed")
         self.assertTrue(os.path.exists(output_file), "Source filtered output file should be created")
 
     def test_combined_options(self):
@@ -255,7 +254,7 @@ class MAVLogDumpTest(unittest.TestCase):
                f"--quiet --no-bad-data {self.test_filepath} > {output_file} 2>/dev/null")
         result = os.system(cmd)
         
-        self.assertEqual(result >> 8, 0, "Combined options should succeed")
+        self.assertEqual(result, 0, "Combined options should succeed")
         self.assertTrue(os.path.exists(output_file), "Combined output file should be created")
 
     def test_import_as_module(self):
