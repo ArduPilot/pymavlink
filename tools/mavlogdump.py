@@ -15,12 +15,8 @@ import sys
 import time
 import inspect
 from argparse import ArgumentParser
+from pymavlink.DFReader import to_string
 from pymavlink import mavutil
-
-try:
-    from pymavlink.mavextra import *
-except:
-    print("WARNING: Numpy missing, mathematical notation will not be supported..")
 
 parser = ArgumentParser(description=__doc__)
 
@@ -84,6 +80,9 @@ output = None
 if args.output:
     output = open(args.output, mode='wb')
 
+if args.csv_sep == "tab":
+    args.csv_sep = "\t"
+
 types = args.types
 if types is not None:
     types = types.split(',')
@@ -141,15 +140,6 @@ def reduce_rate_msg(m, reduction_rate):
         return False
     return True
 
-if args.csv_sep == "tab":
-    args.csv_sep = ","
-
-# swiped from DFReader.py
-def to_string(s):
-    '''desperate attempt to convert a string regardless of what garbage we get'''
-    if isinstance(s, str):
-        return s
-    return s.decode(errors="backslashreplace")
 
 def match_type(mtype, patterns):
     '''return True if mtype matches pattern'''
