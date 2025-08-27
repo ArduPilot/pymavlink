@@ -153,10 +153,10 @@ def handle_standard_output(m, timestamp, show_source, show_seq, output_fh, isbin
 def handle_pretty_output(m, istlog, output_fh):
     if istlog:
         mavutil.dump_message_verbose(output_fh, m)
-        print("")
+        output_fh.write('')
     elif hasattr(m,"dump_verbose"):
         m.dump_verbose(output_fh)
-        print("")
+        output_fh.write('')
 
 def parse_args():
     parser = ArgumentParser(description=__doc__)
@@ -168,7 +168,7 @@ def parse_args():
     parser.add_argument("--condition", default=None, help="select packets by condition")
     parser.add_argument("-o", "--output_path", default=None, help="Output file path; if left undefined, writes to stdout.")
     parser.add_argument("-p", "--parms", action='store_true', help="preserve parameters in output with -o")
-    parser.add_argument("--format", default='standard', help="Change the output format between 'standard', 'json', 'csv', 'mat', and 'pretty'. For the CSV output, you must supply types that you want. For MAT output, specify output file with -o")
+    parser.add_argument("--format", default='standard', help="Change the output format between 'standard', 'json', 'csv', 'mat', 'types-only', and 'pretty'. For the CSV output, you must supply types that you want. For MAT output, specify output file with -o")
     parser.add_argument("--csv_sep", dest="csv_sep", default=",", help="Select the delimiter between columns for the output CSV file. Use 'tab' to specify tabs. Only applies when --format=csv")
     parser.add_argument("--types", default=None, help="types of messages (comma separated with wildcard)")
     parser.add_argument("--nottypes", default=None, help="types of messages not to include (comma separated with wildcard)")
@@ -178,7 +178,6 @@ def parse_args():
     parser.add_argument("--no-bad-data", action='store_true', help="Don't output corrupted messages")
     parser.add_argument("--show-source", action='store_true', help="Show source system ID and component ID")
     parser.add_argument("--show-seq", action='store_true', help="Show sequence numbers")
-    parser.add_argument("--show-types", action='store_true', help="Shows all message types available on opened log")
     parser.add_argument("--show-loss", action='store_true', help="Shows changes in lost messages")
     parser.add_argument("--source-system", type=int, default=None, help="filter by source system ID")
     parser.add_argument("--source-component", type=int, default=None, help="filter by source component ID")
@@ -210,7 +209,6 @@ def dump_log(
     no_bad_data: bool = False,
     show_source: bool = False,
     show_seq: bool = False,
-    show_types: bool = False,
     show_loss: bool = False,
     source_system: int = None,
     source_component: int = None,
@@ -380,7 +378,7 @@ def dump_log(
                 handle_mat_output(m, m_type, out_dict)
             elif format == 'pretty':
                 handle_pretty_output(m, istlog, output_fh)
-            elif show_types:
+            elif format == 'types-only':
                 # do nothing
                 pass
             else:
@@ -395,10 +393,10 @@ def dump_log(
 
         if format == 'mat':
             # Export the .mat file
-            savemat(output_fh, out_dict, do_compression=compress)
+            savemat(output_path, out_dict, do_compression=compress)
         elif format == 'json':
             output_fh.write('\n]\n')
-        if show_types:
+        elif format == 'types-only':
             for msgType in available_types:
                 output_fh.write(msgType)
 

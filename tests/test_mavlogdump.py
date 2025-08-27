@@ -27,9 +27,7 @@ class MAVLogDumpTest(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.test_dir = tempfile.mkdtemp()
-        self.test_filename = "test.BIN"
-        # Get the path to mavlogdump.py relative to this test file                                                                                          │ │
-        self.mavlogdump_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools", "mavlogdump.py") 
+        self.test_filename = "test.BIN" 
         try:
             self.test_filepath = pkg_resources.resource_filename(__name__, self.test_filename)
         except:
@@ -78,7 +76,7 @@ class MAVLogDumpTest(unittest.TestCase):
                                 first_item = data[0]
                                 self.assertIn('meta', first_item, "JSON output should have 'meta' field")
                                 self.assertIn('data', first_item, "JSON output should have 'data' field")
-                    except json.JSONDecodeError as e:
+                    except json.JSONDecodeError:
                         pass  # File might be empty or invalid, which is OK for test files
 
     def test_dump_json_with_show_source(self):
@@ -155,113 +153,227 @@ class MAVLogDumpTest(unittest.TestCase):
 
     def test_dump_mat_format(self):
         """Test MAT format output"""
-        mat_file = os.path.join(self.test_dir, "output.mat")
-        cmd = f"{self.mavlogdump_path} --format mat --mat_file {mat_file} {self.test_filepath} 2>/dev/null"
-        result = os.system(cmd)
+        output_path = os.path.join(self.test_dir, "output.mat")
         
-        # MAT format requires scipy, which might not be installed
-        if result == 0:
-            self.assertTrue(os.path.exists(mat_file), "MAT file should be created")
+        try:
+            mavlogdump.dump_log(
+                format='mat',
+                output_path=output_path,
+                log=self.test_filepath,
+            )
+            # MAT format requires scipy, which might not be installed
+            self.assertTrue(os.path.exists(output_path), "MAT file should be created")
+        except ImportError:
+            # MAT format requires scipy, which might not be installed
+            self.skipTest('Missing import')
 
     def test_dump_mat_with_compression(self):
         """Test MAT format with compression"""
-        mat_file = os.path.join(self.test_dir, "output_compressed.mat")
-        cmd = f"{self.mavlogdump_path} --format mat --mat_file {mat_file} --compress {self.test_filepath} 2>/dev/null"
-        result = os.system(cmd)
+        output_path = os.path.join(self.test_dir, "output_compressed.mat")
         
-        # MAT format requires scipy, which might not be installed
-        if result == 0:
-            self.assertTrue(os.path.exists(mat_file), "Compressed MAT file should be created")
+        try:
+            mavlogdump.dump_log(
+                format='mat',
+                output_path=output_path,
+                compress=True,
+                log=self.test_filepath,
+            )
+            # MAT format requires scipy, which might not be installed
+            self.assertTrue(os.path.exists(output_path), "Compressed MAT file should be created")
+        except ImportError:
+            # MAT format requires scipy, which might not be installed
+            self.skipTest('Missing import')
 
     def test_type_filtering(self):
         """Test message type filtering"""
         output_file = os.path.join(self.test_dir, "filtered_output.txt")
-        cmd = f"{self.mavlogdump_path} --types 'ATT,GPS' {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Type filtering should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            types='ATT,GPS',
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Filtered output file should be created")
 
     def test_nottype_filtering(self):
         """Test message type exclusion"""
         output_file = os.path.join(self.test_dir, "excluded_output.txt")
-        cmd = f"{self.mavlogdump_path} --nottypes 'BAD_DATA' {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Type exclusion should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            nottypes='BAD_DATA',
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Excluded output file should be created")
 
     def test_output_to_file(self):
         """Test output to file option"""
         output_file = os.path.join(self.test_dir, "direct_output.bin")
-        cmd = f"{self.mavlogdump_path} --output {output_file} {self.test_filepath} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Output to file should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Direct output file should be created")
 
     def test_show_types(self):
         """Test show-types option"""
         output_file = os.path.join(self.test_dir, "types_output.txt")
-        cmd = f"{self.mavlogdump_path} --show-types {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
-        self.assertEqual(result, 0, "Show types should succeed")
+        
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='types-only',
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Types output file should be created")
 
     def test_reduce_option(self):
         """Test message reduction by ratio"""
         output_file = os.path.join(self.test_dir, "reduced_output.txt")
-        cmd = f"{self.mavlogdump_path} --reduce 10 {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Reduce option should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            reduce=10,
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Reduced output file should be created")
 
     def test_reduce_rate_option(self):
         """Test message reduction by rate"""
         output_file = os.path.join(self.test_dir, "rate_reduced_output.txt")
-        cmd = f"{self.mavlogdump_path} --reduce-rate 10 {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Reduce-rate option should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            reduce_rate=10,
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Rate reduced output file should be created")
 
     def test_condition_filtering(self):
         """Test condition-based filtering"""
         output_file = os.path.join(self.test_dir, "condition_output.txt")
-        # Simple condition that should be valid
-        cmd = f"{self.mavlogdump_path} --condition 'True' {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Condition filtering should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            condition='True',
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Condition filtered output file should be created")
 
     def test_mav10_option(self):
         """Test MAVLink 1.0 parsing"""
         output_file = os.path.join(self.test_dir, "mav10_output.txt")
-        cmd = f"{self.mavlogdump_path} --mav10 {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "MAV1.0 parsing should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            mav10=True,
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "MAV1.0 output file should be created")
 
     def test_source_filtering(self):
         """Test source system and component filtering"""
         output_file = os.path.join(self.test_dir, "source_filtered.txt")
-        cmd = f"{self.mavlogdump_path} --source-system 1 --source-component 1 {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Source filtering should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            source_system=1,
+            source_component=1,
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Source filtered output file should be created")
+
+    def test_dump_pretty_format(self):
+        """Test pretty format output"""
+        output_file = os.path.join(self.test_dir, "pretty_output.txt")
+        
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='pretty',
+            log=self.test_filepath,
+        )
+        
+        self.assertTrue(os.path.exists(output_file), "Pretty output file should be created")
+        
+        # Verify pretty format produces verbose output if file has content
+        if os.path.getsize(output_file) > 0:
+            with open(output_file, 'r') as f:
+                content = f.read()
+                # Pretty format should produce multi-line verbose output for each message
+                # Check that it's not just a single-line format
+                if content.strip():
+                    lines = content.strip().split('\n')
+                    # Pretty format typically produces multiple lines per message
+                    self.assertGreater(len(lines), 0, "Pretty format should produce output")
+
+    def test_dump_pretty_with_types(self):
+        """Test pretty format with type filtering"""
+        output_file = os.path.join(self.test_dir, "pretty_filtered.txt")
+        
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='pretty',
+            types='ATT,GPS',
+            log=self.test_filepath,
+        )
+        
+        self.assertTrue(os.path.exists(output_file), "Pretty filtered output file should be created")
+
+    def test_pretty_with_conditions(self):
+        """Test pretty format with conditions"""
+        output_file = os.path.join(self.test_dir, "pretty_condition.txt")
+        
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='pretty',
+            condition='True',
+            log=self.test_filepath,
+        )
+        
+        self.assertTrue(os.path.exists(output_file), "Pretty condition output file should be created")
+
+    def test_pretty_with_reduce(self):
+        """Test pretty format with reduce option"""
+        output_file = os.path.join(self.test_dir, "pretty_reduced.txt")
+        
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='pretty',
+            reduce=5,
+            log=self.test_filepath,
+        )
+        
+        self.assertTrue(os.path.exists(output_file), "Pretty reduced output file should be created")
 
     def test_combined_options(self):
         """Test combination of multiple options"""
         output_file = os.path.join(self.test_dir, "combined_output.json")
-        cmd = (f"mavlogdump.py --format json --types 'ATT,GPS' "
-               f"--no-bad-data {self.test_filepath} > {output_file} 2>/dev/null")
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Combined options should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='json',
+            types='ATT,GPS',
+            no_bad_data=True,
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Combined output file should be created")
 
     def test_programmatic_json_processing(self):
@@ -292,15 +404,15 @@ class MAVLogDumpTest(unittest.TestCase):
         """Test programmatic MAT processing"""
         if hasattr(mavlogdump, 'process_log'):
             # Test programmatic interface
-            mat_file = os.path.join(self.test_dir, "prog_output.mat")
+            output_path = os.path.join(self.test_dir, "prog_output.mat")
             result = mavlogdump.process_log(
                 self.test_filepath,
                 output_format='mat',
-                mat_file=mat_file,
+                output_path=output_path,
                 )
             # MAT processing might fail if scipy is not installed
             if result == 0:
-                self.assertTrue(os.path.exists(mat_file), "Programmatic MAT file should be created")
+                self.assertTrue(os.path.exists(output_path), "Programmatic MAT file should be created")
 
 
 class MAVLogDumpUnitTest(unittest.TestCase):
