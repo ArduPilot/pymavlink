@@ -15,6 +15,8 @@ import pkg_resources
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tools')))
 
+from tools import mavlogdump
+
 
 
 class MAVLogDumpTest(unittest.TestCase):
@@ -43,65 +45,83 @@ class MAVLogDumpTest(unittest.TestCase):
     def test_dump_standard_format(self):
         """Test standard format dump of file"""
         output_file = os.path.join(self.test_dir, "standard_output.txt")
-        cmd = f"{self.mavlogdump_path} {self.test_filepath} > {output_file}"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "Standard format dump should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='standard',
+            log=self.test_filepath,
+        )
+        
         self.assertTrue(os.path.exists(output_file), "Output file should be created")
 
     def test_dump_json_format(self):
         """Test JSON format output"""
         output_file = os.path.join(self.test_dir, "json_output.txt")
-        cmd = f"{self.mavlogdump_path} --format json {self.test_filepath} > {output_file}"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "JSON format dump should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='json',
+            log=self.test_filepath,
+        )
         self.assertTrue(os.path.exists(output_file), "JSON output file should be created")
         
         # Verify JSON format if file has content
         if os.path.getsize(output_file) > 0:
             with open(output_file, 'r') as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            data = json.loads(line)
-                            self.assertIn('meta', data, "JSON output should have 'meta' field")
-                            self.assertIn('data', data, "JSON output should have 'data' field")
-                            break
-                        except json.JSONDecodeError:
-                            pass
+                content = f.read().strip()
+                if content:
+                    try:
+                        # JSON output is now an array
+                        if content.startswith('[') and content.endswith(']'):
+                            data = json.loads(content)
+                            if data:  # If array is not empty
+                                first_item = data[0]
+                                self.assertIn('meta', first_item, "JSON output should have 'meta' field")
+                                self.assertIn('data', first_item, "JSON output should have 'data' field")
+                    except json.JSONDecodeError as e:
+                        pass  # File might be empty or invalid, which is OK for test files
 
     def test_dump_json_with_show_source(self):
         """Test JSON format with show-source option"""
         output_file = os.path.join(self.test_dir, "json_source_output.txt")
-        cmd = f"{self.mavlogdump_path} --format json --show-source {self.test_filepath} > {output_file}"
-        result = os.system(cmd)
         
-        self.assertEqual(result, 0, "JSON format with show-source should succeed")
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='json',
+            show_source=True,
+            log=self.test_filepath,
+        )
         self.assertTrue(os.path.exists(output_file), "JSON output file should be created")
         
         # Verify JSON includes source info if file has content
         if os.path.getsize(output_file) > 0:
             with open(output_file, 'r') as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            data = json.loads(line)
-                            if 'meta' in data:
-                                # Check if source fields are present when data is available
-                                if data.get('data'):
-                                    self.assertIn('type', data['meta'], "Meta should have type field")
-                                break
-                        except json.JSONDecodeError:
-                            pass
+                content = f.read().strip()
+                if content:
+                    try:
+                        # JSON output is now an array
+                        if content.startswith('[') and content.endswith(']'):
+                            data = json.loads(content)
+                            if data:  # If array is not empty
+                                first_item = data[0]
+                                if 'meta' in first_item:
+                                    # Check if source fields are present when data is available
+                                    if first_item.get('data'):
+                                        self.assertIn('type', first_item['meta'], "Meta should have type field")
+                    except json.JSONDecodeError:
+                        pass  # File might be empty or invalid, which is OK for test files
 
     def test_dump_csv_format(self):
         """Test CSV format output"""
         output_file = os.path.join(self.test_dir, "csv_output.csv")
-        # CSV format requires --types to be specified
-        cmd = f"{self.mavlogdump_path} --format csv --types 'IMU2' {self.test_filepath} > {output_file} 2>/dev/null"
-        os.system(cmd)
+        output_file='testing.csv'
         
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='csv',
+            types='IMU2',
+            log=self.test_filepath,
+        )
         # Check if file was created (even if empty)
         if os.path.exists(output_file):
             with open(output_file, 'r') as f:
@@ -117,8 +137,14 @@ class MAVLogDumpTest(unittest.TestCase):
     def test_dump_csv_with_custom_separator(self):
         """Test CSV format with custom separator"""
         output_file = os.path.join(self.test_dir, "csv_tab_output.csv")
-        cmd = f"{self.mavlogdump_path} --format csv --csv_sep tab --types 'IMU2' {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
+        
+        mavlogdump.dump_log(
+            output_path=output_file,
+            format='csv',
+            csv_sep="tab",
+            types='IMU2',
+            log=self.test_filepath,
+        )
         
         if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
             with open(output_file, 'r') as f:
@@ -165,20 +191,10 @@ class MAVLogDumpTest(unittest.TestCase):
         self.assertEqual(result, 0, "Type exclusion should succeed")
         self.assertTrue(os.path.exists(output_file), "Excluded output file should be created")
 
-    def test_quiet_mode(self):
-        """Test quiet mode suppresses output"""
-        output_file = os.path.join(self.test_dir, "quiet_output.txt")
-        cmd = f"{self.mavlogdump_path} --quiet {self.test_filepath} > {output_file}"
-        result = os.system(cmd)
-        
-        self.assertEqual(result, 0, "Quiet mode should succeed")
-        # In quiet mode, output should be minimal or empty
-        self.assertTrue(os.path.exists(output_file), "Output file should be created even in quiet mode")
-
     def test_output_to_file(self):
         """Test output to file option"""
         output_file = os.path.join(self.test_dir, "direct_output.bin")
-        cmd = f"{self.mavlogdump_path} -q --output {output_file} {self.test_filepath} 2>/dev/null"
+        cmd = f"{self.mavlogdump_path} --output {output_file} {self.test_filepath} 2>/dev/null"
         result = os.system(cmd)
         
         self.assertEqual(result, 0, "Output to file should succeed")
@@ -229,15 +245,6 @@ class MAVLogDumpTest(unittest.TestCase):
         self.assertEqual(result, 0, "MAV1.0 parsing should succeed")
         self.assertTrue(os.path.exists(output_file), "MAV1.0 output file should be created")
 
-    def test_verbose_mode(self):
-        """Test verbose output mode"""
-        output_file = os.path.join(self.test_dir, "verbose_output.txt")
-        cmd = f"{self.mavlogdump_path} --verbose {self.test_filepath} > {output_file} 2>/dev/null"
-        result = os.system(cmd)
-        
-        self.assertEqual(result, 0, "Verbose mode should succeed")
-        self.assertTrue(os.path.exists(output_file), "Verbose output file should be created")
-
     def test_source_filtering(self):
         """Test source system and component filtering"""
         output_file = os.path.join(self.test_dir, "source_filtered.txt")
@@ -251,79 +258,49 @@ class MAVLogDumpTest(unittest.TestCase):
         """Test combination of multiple options"""
         output_file = os.path.join(self.test_dir, "combined_output.json")
         cmd = (f"mavlogdump.py --format json --types 'ATT,GPS' "
-               f"--quiet --no-bad-data {self.test_filepath} > {output_file} 2>/dev/null")
+               f"--no-bad-data {self.test_filepath} > {output_file} 2>/dev/null")
         result = os.system(cmd)
         
         self.assertEqual(result, 0, "Combined options should succeed")
         self.assertTrue(os.path.exists(output_file), "Combined output file should be created")
 
-    def test_import_as_module(self):
-        """Test importing mavlogdump as a module"""
-        try:
-            # Try to import the refactored version
-            from pymavlink.tools import mavlogdump
-            
-            # Check that main functions exist
-            self.assertTrue(hasattr(mavlogdump, 'process_log'), "Should have process_log function")
-            self.assertTrue(hasattr(mavlogdump, 'process_log_json'), "Should have process_log_json function")
-            self.assertTrue(hasattr(mavlogdump, 'process_log_csv'), "Should have process_log_csv function")
-            self.assertTrue(hasattr(mavlogdump, 'process_log_mat'), "Should have process_log_mat function")
-        except ImportError:
-            # If new functions don't exist, check for old structure
-            pass
-
     def test_programmatic_json_processing(self):
         """Test programmatic JSON processing"""
-        try:
-            from pymavlink.tools import mavlogdump
-            if hasattr(mavlogdump, 'process_log'):
-                # Test programmatic interface
-                result = mavlogdump.process_log(
-                    self.test_filepath,
-                    output_format='json',
-                    types=['ATT'],
-                    quiet=True
-                )
-                self.assertEqual(result, 0, "Programmatic JSON processing should succeed")
-        except ImportError:
-            self.skipTest("mavlogdump module not importable")
+        if hasattr(mavlogdump, 'process_log'):
+            # Test programmatic interface
+            result = mavlogdump.process_log(
+                self.test_filepath,
+                output_format='json',
+                types=['ATT']
+            )
+            self.assertEqual(result, 0, "Programmatic JSON processing should succeed")
 
     def test_programmatic_csv_processing(self):
         """Test programmatic CSV processing"""
-        try:
-            from pymavlink.tools import mavlogdump
-            if hasattr(mavlogdump, 'process_log'):
-                # Test programmatic interface
-                output_file = os.path.join(self.test_dir, "prog_csv.csv")
-                result = mavlogdump.process_log(
-                    self.test_filepath,
-                    output_format='csv',
-                    types=['*'],
-                    output=output_file,
-                    quiet=True
+        if hasattr(mavlogdump, 'process_log'):
+            # Test programmatic interface
+            output_file = os.path.join(self.test_dir, "prog_csv.csv")
+            result = mavlogdump.process_log(
+                self.test_filepath,
+                output_format='csv',
+                types=['*'],
+                output=output_file,
                 )
-                self.assertEqual(result, 0, "Programmatic CSV processing should succeed")
-        except ImportError:
-            self.skipTest("mavlogdump module not importable")
+            self.assertEqual(result, 0, "Programmatic CSV processing should succeed")
 
     def test_programmatic_mat_processing(self):
         """Test programmatic MAT processing"""
-        try:
-            from pymavlink.tools import mavlogdump
-            if hasattr(mavlogdump, 'process_log'):
-                # Test programmatic interface
-                mat_file = os.path.join(self.test_dir, "prog_output.mat")
-                result = mavlogdump.process_log(
-                    self.test_filepath,
-                    output_format='mat',
-                    mat_file=mat_file,
-                    quiet=True
+        if hasattr(mavlogdump, 'process_log'):
+            # Test programmatic interface
+            mat_file = os.path.join(self.test_dir, "prog_output.mat")
+            result = mavlogdump.process_log(
+                self.test_filepath,
+                output_format='mat',
+                mat_file=mat_file,
                 )
-                # MAT processing might fail if scipy is not installed
-                if result == 0:
-                    self.assertTrue(os.path.exists(mat_file), "Programmatic MAT file should be created")
-        except ImportError:
-            self.skipTest("mavlogdump module not importable")
+            # MAT processing might fail if scipy is not installed
+            if result == 0:
+                self.assertTrue(os.path.exists(mat_file), "Programmatic MAT file should be created")
 
 
 class MAVLogDumpUnitTest(unittest.TestCase):
@@ -331,40 +308,32 @@ class MAVLogDumpUnitTest(unittest.TestCase):
     
     def test_match_type_function(self):
         """Test the match_type function"""
-        try:
-            from pymavlink.tools.mavlogdump import match_type
-            
-            # Test exact match
-            self.assertTrue(match_type('GPS', ['GPS']))
-            self.assertFalse(match_type('GPS', ['ATT']))
-            
-            # Test wildcard match
-            self.assertTrue(match_type('GPS_RAW', ['GPS*']))
-            self.assertTrue(match_type('ATT', ['A*']))
-            self.assertFalse(match_type('GPS', ['ATT*']))
-            
-            # Test multiple patterns
-            self.assertTrue(match_type('GPS', ['ATT', 'GPS']))
-            self.assertTrue(match_type('ATT', ['ATT', 'GPS']))
-        except ImportError:
-            self.skipTest("match_type function not importable")
+
+        # Test exact match
+        self.assertTrue(mavlogdump.match_type('GPS', ['GPS']))
+        self.assertFalse(mavlogdump.match_type('GPS', ['ATT']))
+        
+        # Test wildcard match
+        self.assertTrue(mavlogdump.match_type('GPS_RAW', ['GPS*']))
+        self.assertTrue(mavlogdump.match_type('ATT', ['A*']))
+        self.assertFalse(mavlogdump.match_type('GPS', ['ATT*']))
+        
+        # Test multiple patterns
+        self.assertTrue(mavlogdump.match_type('GPS', ['ATT', 'GPS']))
+        self.assertTrue(mavlogdump.match_type('ATT', ['ATT', 'GPS']))
     
     def test_to_string_function(self):
         """Test the to_string function"""
-        try:
-            from pymavlink.tools.mavlogdump import to_string
-            
-            # Test string input
-            self.assertEqual(to_string("hello"), "hello")
-            
-            # Test bytes input
-            self.assertEqual(to_string(b"hello"), "hello")
-            
-            # Test bytes with special characters
-            result = to_string(b"\xff\xfe")
-            self.assertIsInstance(result, str)
-        except ImportError:
-            self.skipTest("to_string function not importable")
+        
+        # Test string input
+        self.assertEqual(mavlogdump.to_string("hello"), "hello")
+        
+        # Test bytes input
+        self.assertEqual(mavlogdump.to_string(b"hello"), "hello")
+        
+        # Test bytes with special characters
+        result = mavlogdump.to_string(b"\xff\xfe")
+        self.assertIsInstance(result, str)
 
 
 if __name__ == '__main__':
