@@ -75,7 +75,6 @@ if args.format == 'mat':
         sys.exit(1)
     # Load these modules here, as they're only needed for MAT file creation
     import scipy.io
-    import numpy as np
 
 filename = args.log
 mlog = mavutil.mavlink_connection(filename, planner_format=args.planner,
