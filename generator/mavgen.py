@@ -298,11 +298,13 @@ def mavgen(opts, args):
         from . import mavgen_cpp11
         mavgen_cpp11.generate(opts.output, xml)
     elif opts.language == 'ada':
-        if opts.wire_protocol != mavparse.PROTOCOL_1_0:
-            raise DeprecationWarning("Error! Mavgen_Ada only supports protocol version 1.0")
-        else:
-            from . import mavgen_ada
+        from . import mavgen_ada
+        if opts.wire_protocol == mavparse.PROTOCOL_1_0:
             mavgen_ada.generate(opts.output, xml)
+        elif opts.wire_protocol == mavparse.PROTOCOL_2_0:
+            mavgen_ada.generate_v2(opts.output, xml)
+        else:
+            raise DeprecationWarning("Error! Mavgen_Ada does not supports protocol version")
     else:
         print("Unsupported language %s" % opts.language)
 
