@@ -52,7 +52,8 @@ package body Mavlink_v2 is
          end if;
       end if;
 
-      return Self.Position >= Self.Last;
+      return Self.Position >= Self.Last
+        or else Self.Position = Self.Income_Buffer'Last;
    end Parse_Byte;
 
    -----------------------------
@@ -244,9 +245,17 @@ package body Mavlink_v2 is
    -- Get_Buffer --
    ----------------
 
-   function Get_Buffer (Self : Connection) return Data_Buffer is
+   procedure Get_Buffer
+     (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) is
    begin
-      return Self.Income_Buffer (Self.Income_Buffer'First .. Self.Position);
+      Last := Natural'Min
+        (Buffer'Length,
+         Self.Income_Buffer'First + Self.Position - 1);
+
+      Buffer (Buffer'First .. Buffer'First + Last - 1) := Self.Income_Buffer
+        (Self.Income_Buffer'First .. Self.Income_Buffer'First + Last - 1);
    end Get_Buffer;
 
    ------------------

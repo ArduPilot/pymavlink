@@ -109,7 +109,10 @@ package Mavlink_v2 is
       Signature : out Three_Boolean);
    --  Returns the message's Signature. See Get_Message_Information.
 
-   function Get_Buffer (Self : Connection) return Data_Buffer;
+   procedure Get_Buffer
+     (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural);
    --  Returns data from the internal buffer filled with Parse_Byte.
 
    procedure Drop_Message (Self : in out Connection);
