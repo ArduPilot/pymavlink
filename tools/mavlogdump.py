@@ -14,6 +14,7 @@ import struct
 import sys
 import time
 import inspect
+import math
 from argparse import ArgumentParser
 from pymavlink.DFReader import to_string
 from pymavlink import mavutil
@@ -62,7 +63,7 @@ def match_type(mtype, patterns):
             return True
     return False
 
-def handle_json_output(m, m_type, timestamp, show_source, output_fh, count):
+def handle_json_output(m, m_type, timestamp, show_source, output_fh, count, newline_delim=False):
     '''Handle JSON format output'''
     # Format our message as a Python dict, which gets us almost to proper JSON format
     data = m.to_dict()
@@ -83,17 +84,23 @@ def handle_json_output(m, m_type, timestamp, show_source, output_fh, count):
 
     # convert any array.array (e.g. packed-16-bit fft readings) into lists:
     for key in data.keys():
-        if type(data[key]) == array.array:
+        if type(data[key]) == float:
+            if math.isnan(data[key]):
+                data[key] = None
+        elif type(data[key]) == array.array:
             data[key] = list(data[key])
-    # convert any byte-strings into utf-8 strings.  Don't die trying.
-    for key in data.keys():
-        if type(data[key]) == bytes:
-            data[key] = to_string(data[key])
+        # convert any byte-strings into utf-8 strings.  Don't die trying.
+        elif type(data[key]) == bytes:
+            str_repr = to_string(data[key])
+            data[key] = str_repr
     outMsg = {"meta": meta, "data": data}
 
     # TODO: add file write
     # Now write this object stringified properly.
-    output_fh.write(f'{"," if count>0 else ""}\n\t{json.dumps(outMsg)}')
+    if newline_delim:
+        output_fh.write(f'{json.dumps(outMsg)}\n')
+    else:
+        output_fh.write(f'{"," if count>0 else ""}\n\t{json.dumps(outMsg)}')
 
 
 def handle_csv_output(m, m_type, timestamp, csv_sep, fields, isbin, islog, output_fh):
@@ -168,7 +175,7 @@ def parse_args():
     parser.add_argument("--condition", default=None, help="select packets by condition")
     parser.add_argument("-o", "--output_path", default=None, help="Output file path; if left undefined, writes to stdout.")
     parser.add_argument("-p", "--parms", action='store_true', help="preserve parameters in output with -o")
-    parser.add_argument("--format", default='standard', help="Change the output format between 'standard', 'json', 'csv', 'mat', 'types-only', and 'pretty'. For the CSV output, you must supply types that you want. For MAT output, specify output file with -o")
+    parser.add_argument("--format", default='standard', help="Change the output format between 'standard', 'json', 'ndjson', 'csv', 'mat', 'types-only', and 'pretty'. For the CSV output, you must supply types that you want. For MAT output, specify output file with -o")
     parser.add_argument("--csv_sep", dest="csv_sep", default=",", help="Select the delimiter between columns for the output CSV file. Use 'tab' to specify tabs. Only applies when --format=csv")
     parser.add_argument("--types", default=None, help="types of messages (comma separated with wildcard)")
     parser.add_argument("--nottypes", default=None, help="types of messages not to include (comma separated with wildcard)")
@@ -372,6 +379,8 @@ def dump_log(
             # Handle different output formats
             if format == 'json':
                 handle_json_output(m, m_type, timestamp, show_source, output_fh, count)
+            elif format == 'ndjson':
+                handle_json_output(m, m_type, timestamp, show_source, output_fh, count, newline_delim=True)
             elif format == 'csv':
                 handle_csv_output(m, m_type, timestamp, csv_sep, fields, isbin, islog, output_fh)
             elif format == 'mat':
