@@ -70,18 +70,6 @@ field_types = {
     'float' : 'Short_Float',
     'double' : 'Long_Float'}
 
-field_values = {
-    'uint8_t' : '1',
-    'uint16_t' : '2',
-    'uint32_t' : '3',
-    'uint64_t' : '4',
-    'int8_t' : '5',
-    'int16_t' : '6',
-    'int32_t' : '7',
-    'int64_t' : '8',
-    'float' : '9.0',
-    'double' : '10.0'}
-
 field_array_types = {
     'uint8_t' : 'Unsigned_8_Array',
     'uint16_t' : 'Unsigned_16_Array',
@@ -93,18 +81,6 @@ field_array_types = {
     'int64_t' : 'Integer_64_Array',
     'float' : 'Short_Float_Array',
     'double' : 'Long_Float_Array'}
-
-field_array_values = {
-    'uint8_t' : '(others => 1)',
-    'uint16_t' : '(others => 2)',
-    'uint32_t' : '(others => 3)',
-    'uint64_t' : '(others => 4)',
-    'int8_t' : '(others => 5)',
-    'int16_t' : '(others => 6)',
-    'int32_t' : '(others => 7)',
-    'int64_t' : '(others => 8)',
-    'float' : '(others => 9.0)',
-    'double' : '(others => 10.0)'}
 
 # Default invalid values for fields
 invalid = {
@@ -447,6 +423,52 @@ def generate(directory, xml):
 #
 
 v2 = "Mavlink_v2"
+pre_files = (
+    'mavlink_v2.gpr', 'mavlink_v2.ads', 'mavlink_v2.adb',
+    'sha_256.ads', 'sha_256.adb',
+    'raw_floats.ads', 'raw_long_floats.ads')
+
+field_v2_types = {
+    'uint8_t' : 'Interfaces.Unsigned_8',
+    'uint16_t' : 'Interfaces.Unsigned_16',
+    'uint32_t' : 'Interfaces.Unsigned_32',
+    'uint64_t' : 'Interfaces.Unsigned_64',
+    'int8_t' : 'Interfaces.Integer_8',
+    'int16_t' : 'Interfaces.Integer_16',
+    'int32_t' : 'Interfaces.Integer_32',
+    'int64_t' : 'Interfaces.Integer_64',
+    'float' : 'Raw_Float',
+    'double' : 'Raw_Long_Float'}
+
+float_types_conversions = {
+    'Raw_Float' : 'Float',
+    'Raw_Long_Float' : 'Long_Float'}
+
+field_values = {
+    'uint8_t' : '1',
+    'uint16_t' : '2',
+    'uint32_t' : '3',
+    'uint64_t' : '4',
+    'int8_t' : '5',
+    'int16_t' : '6',
+    'int32_t' : '7',
+    'int64_t' : '8',
+    'float' : 'To_Raw (9.0)',
+    'double' : 'To_Raw (10.0)'}
+
+field_array_values = {
+    'uint8_t' : '(others => 1)',
+    'uint16_t' : '(others => 2)',
+    'uint32_t' : '(others => 3)',
+    'uint64_t' : '(others => 4)',
+    'int8_t' : '(others => 5)',
+    'int16_t' : '(others => 6)',
+    'int32_t' : '(others => 7)',
+    'int64_t' : '(others => 8)',
+    'float' : '(others => To_Raw (9.0))',
+    'double' : '(others => To_Raw (10.0))'}
+
+NAN = "0"
 
 #Add with/use for includes
 def generate_includes(x, f):
@@ -456,7 +478,8 @@ def generate_includes(x, f):
 
     for i in x.include:
         n = os.path.splitext(i)[0].title() + ";"
-        f.write("with " + v2 + "." + n.ljust(n_len) + " use " + v2 + "." + n + "\n")
+        f.write("with " + v2 + "." + n.ljust(n_len) +
+                " use " + v2 + "." + n + "\n")
 
     if n_len > 0: f.write("\n")
 
@@ -478,51 +501,65 @@ def calculate_bitmask_size(bitmask):
         if i.end_marker:
             c += math.ceil(math.log2(i.value))
             break
+
         elif i.value == 0:
             continue
+
         elif not is_position(i.value):
             print("%s ignored because the composite value!" % i.name)
             continue
+
         c += 1
     return math.ceil(c / 8)
 
 # return default value
-def get_default(name, type_name):
+def get_default(value, type_name):
     global types
 
-    if name[0] == '[':
-        return "        (others => %s)" % get_default(name[1:-1], type_name)
-    elif name[:2] == '0x':
+    if value[0] == '[':
+        return "        (others => %s)" % get_default(value[1:-1], type_name)
+
+    elif value[:2] == '0x':
+        res = "16#%s#" % value[2:]
         if type_name.find("Float") != -1:
-            return type_name + "\n        (16#" + name[2:] + "#)"
-        return "16#%s#" % name[2:]
+            return "To_Raw (%s (%s))" % (float_types_conversions[type_name], res)
+        return res
+
     else:
-        if name in invalid:
+        if value in invalid:
+            res = invalid[value]
             if type_name.find("Float") != -1:
-                return type_name + "\n        (" + invalid[name] + ")"
-            return invalid[name]
-        elif name[:3].upper() == "NAN":
-            return get_default("0", type_name)
+                return "To_Raw (%s (%s))" % (float_types_conversions[type_name], res)
+            return res
+
+        elif value[:3].upper() == "NAN":
+            return get_default(NAN, type_name)
+
         else:
-            if type_name.find("Float") != -1 and name.find(".") == -1:
-                return name + ".0"
+            if type_name.find("Float") != -1:
+                if value.find(".") == -1:
+                    return "To_Raw (%s.0)" % value
+                else:
+                    return "To_Raw (%s)" % value
+
             elif type_name == "String":
-                return "Character'Val (%s)" % name
+                return "Character'Val (%s)" % value
+
             else:
                 for t in types:
                     if normalize_enum_name(t.name).title() == type_name and not t.bitmask:
-                        names = [i.name for i in t.entry if not i.end_marker]
-                        if name in names:
-                            common_prefix = os.path.commonprefix(names) if len(names) > 1 else ""
-                            return normalize_entry_name(name[len(common_prefix):]).title()
+                        values = [i.name for i in t.entry if not i.end_marker]
+                        if value in values:
+                            common_prefix = os.path.commonprefix(values) if len(values) > 1 else ""
+                            return normalize_entry_name(value[len(common_prefix):]).title()
 
-                return name
+                return value
 
 #Generate message
 def generate_message(msg, spec, body):
     name = normalize_message_name(msg.name).title()
 
-    spec.write("   %s : constant Msg_Id := %i;\n\n" % (name + "_Id", msg.id))
+    spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
 
     max_len = 0
     for field in msg.fields:
@@ -533,20 +570,24 @@ def generate_message(msg, spec, body):
         field_name = normalize_field_name(field.name).title()
         spec.write("      %s : " % field_name.ljust(max_len))
         tp = ""
+
         if field.type == 'char':
             tp = "String"
             spec.write("String (1 .. %i)" % field.array_length)
+
         else:
             if field.array_length:
                 tp = field_array_types[field.type]
                 spec.write("%s (1 .. %i)" % (tp, field.array_length))
+
             elif field.enum:
                 tp = normalize_enum_name(field.enum).title()
                 if field_name == tp:
                     tp = "Common." + tp
                 spec.write(tp)
+
             else:
-                tp = field_types[field.type]
+                tp = field_v2_types[field.type]
                 spec.write(tp)
 
         if field.invalid:
@@ -558,6 +599,7 @@ def generate_message(msg, spec, body):
         if field.units: spec.write("      --  Units: %s\n" % field.units)
         spec.write(format_comment(field.description, 6))
     spec.write("   end record;\n\n")
+
     if msg.deprecated:
         spec.write("   pragma Obsolescent (%s);\n\n" % name)
 
@@ -661,15 +703,18 @@ def generate_message(msg, spec, body):
       Drop_Message (Connect);
    end Decode;
 
-""" % (name, v2, name, name, name, str(msg.crc_extra), name, v2, name, v2, str(msg.crc_extra), name, v2, name))
+""" % (name, v2, name, name, name, str(msg.crc_extra),
+       name, v2, name,
+       v2, str(msg.crc_extra),
+       name, v2, name))
 
 def get_pakage_name(x, m, directory):
     name = os.path.splitext(os.path.basename(x.filename))[0]
     pkg_name = normalize_message_name(m.name).title()
-    if pkg_name[-1] == 's':
-        pkg_name += 'es'
-    else:
-        pkg_name += 's'
+
+    if pkg_name[-1] == 's': pkg_name += 'es'
+    else: pkg_name += 's'
+
     f_name = os.path.join(directory, "mavlink_v2-%s-message-%s" % (name, pkg_name.lower()))
     p_name = "%s.%s.Message.%s" % (v2, name.title(), pkg_name)
     return f_name, p_name
@@ -707,25 +752,28 @@ project Test is
    end Linker;
 
 end Test;""")
+
     f = open(os.path.join(dir, "test.adb"), "w")
     for x in xml:
         for m in x.message:
             f_name, p_name = get_pakage_name(x, m, directory)
             f.write("with %s;\n" % p_name)
+
     f.write("""with SHA_256;
-with Interfaces;
+with Interfaces;      use Interfaces;
 with Ada.Text_IO;
+with Raw_Floats;      use Raw_Floats;
+with Raw_Long_Floats; use Raw_Long_Floats;
 use Mavlink_v2;
-use Interfaces;
 
 procedure Test
 is
-   D1     : constant SHA_256.Data  := [16#61#, 16#62#, 16#63#];
-   R1     : constant SHA_256.State :=
+   D1 : constant SHA_256.Data  := [16#61#, 16#62#, 16#63#];
+   R1 : constant SHA_256.State :=
      [16#ba7816bf#, 16#8f01cfea#, 16#414140de#, 16#5dae2223#,
       16#b00361a3#, 16#96177a9c#, 16#b410ff61#, 16#f20015ad#];
 
-   D2     : constant SHA_256.Data :=
+   D2 : constant SHA_256.Data :=
      [16#61#, 16#62#, 16#63#, 16#64#, 16#62#, 16#63#, 16#64#, 16#65#, 16#63#,
       16#64#, 16#65#, 16#66#, 16#64#, 16#65#, 16#66#, 16#67#, 16#65#, 16#66#,
       16#67#, 16#68#, 16#66#, 16#67#, 16#68#, 16#69#, 16#67#, 16#68#, 16#69#,
@@ -733,7 +781,7 @@ is
       16#6a#, 16#6b#, 16#6c#, 16#6d#, 16#6b#, 16#6c#, 16#6d#, 16#6e#, 16#6c#,
       16#6d#, 16#6e#, 16#6f#, 16#6d#, 16#6e#, 16#6f#, 16#70#, 16#6e#, 16#6f#,
       16#70#, 16#71#];
-   R2     : constant SHA_256.State :=
+   R2 : constant SHA_256.State :=
      [16#248d6a61#, 16#d20638b8#, 16#e5c02693#, 16#0c3e6039#,
       16#a33ce459#, 16#64ff2167#, 16#f6ecedd4#, 16#19db06c1#];
 
@@ -743,10 +791,10 @@ is
       16#01#, 16#01#, 16#78#, 16#32#, 16#00#, 16#01#, 16#00#, 16#00#, 16#00#,
       16#01#, 16#08#, 16#98#, 16#01#, 16#c8#, 16#00#, 16#00#, 16#00#, 16#00#,
       16#00#];
-   R3     : constant SHA_256.State :=
+   R3 : constant SHA_256.State :=
      [16#48c298bd#, 16#a123637a#, 16#f1103486#, 16#180a716a#,
       16#9c41e4b1#, 16#42293472#, 16#ea587ff5#, 16#247d5943#];
-   T : Data_Buffer (1 .. 32) with Import, Address => R3'Address;
+   T  : Data_Buffer (1 .. 32) with Import, Address => R3'Address;
 
    procedure Do_SHA_256_Test (D : SHA_256.Data; R : SHA_256.State);
    procedure Do_SHA_256_Test (D : SHA_256.Data; R : SHA_256.State)
@@ -755,7 +803,8 @@ is
 
       Checksum : SHA_256.Context;
       Result   : SHA_256.Digest_Type;
-      Res      : SHA_256.State (1 .. 8) with Import, Address => Result'Address;
+      Res      : SHA_256.State (1 .. 8) with Import,
+        Address => Result'Address;
    begin
       SHA_256.Update (Checksum, D);
       Result := SHA_256.Digest (Checksum);
@@ -863,17 +912,23 @@ begin
                 field_name = normalize_field_name(field.name).title()
                 if field.invalid:
                     value = "<>"
+
                 else:
                     if field.type == 'char':
                         value = "(others => 'A')"
+
                     else:
                         if field.array_length:
                             value = field_array_values[field.type]
+
                         elif field.enum:
                             if field.enum in bitmasks:
                                 value = "<>"
+
                             else:
-                                value = "Mavlink_v2.%s.%s'First" % (find_package(xml, field.enum), normalize_enum_name(field.enum).title())
+                                value = "Mavlink_v2.%s.%s'First" % (
+                                    find_package(xml, field.enum),
+                                    normalize_enum_name(field.enum).title())
                         else:
                             value = field_values[field.type]
 
@@ -918,11 +973,8 @@ def generate_v2(directory, xml):
     shutil.copy(os.path.join(srcpath, "x25crc.ads"), directory)
     shutil.copy(os.path.join(srcpath, "x25crc.adb"), directory)
     srcpath = os.path.join(basepath, 'Ada', 'v2')
-    shutil.copy(os.path.join(srcpath, "mavlink_v2.gpr"), directory)
-    shutil.copy(os.path.join(srcpath, "mavlink_v2.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "mavlink_v2.adb"), directory)
-    shutil.copy(os.path.join(srcpath, "sha_256.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "sha_256.adb"), directory)
+    for f in pre_files:
+        shutil.copy(os.path.join(srcpath, f), directory)
 
     for x in xml:
         name = os.path.splitext(os.path.basename(x.filename))[0]
@@ -939,14 +991,14 @@ def generate_v2(directory, xml):
         # Generate types
         for t in x.enum:
             size = types_size[t.name]
+
             if t.bitmask:
                 bitmasks.append(t.name)
-                if size is None:
-                    size = calculate_bitmask_size(t)
+                if size is None: size = calculate_bitmask_size(t)
                 spec.write(repr_bitmask(t, size))
+
             else:
-                if size is None:
-                    size = calculate_enum_size(t)
+                if size is None: size = calculate_enum_size(t)
                 spec.write(repr_enum(t, size))
             spec.write("\n")
 
@@ -971,8 +1023,8 @@ def generate_v2(directory, xml):
 
             # not direct includes
             included = [x]
-            field_types = [field.enum for field in m.fields if field.enum]
-            for t in field_types:
+            f_types = [field.enum for field in m.fields if field.enum]
+            for t in f_types:
                 if t in types_files and types_files[t] not in included and types_files[t].filename not in x.include:
                     if len(included) == 1: spec.write("\n")
                     included.append(types_files[t])

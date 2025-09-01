@@ -1,0 +1,36 @@
+
+with Ada.Unchecked_Conversion;
+with Interfaces;
+
+package Raw_Long_Floats is
+
+   pragma Preelaborate;
+
+   type Raw_Long_Float is private;
+
+   function Is_Valid (Value : Raw_Long_Float) return Boolean;
+
+   function To_Float (Value : Raw_Long_Float) return Long_Float
+     with Pre => Is_Valid (Value);
+
+   function To_Raw (Value : Long_Float) return Raw_Long_Float;
+
+private
+   type Raw_Long_Float is new Interfaces.Unsigned_64;
+
+   function Unchecked_To_Float is new Ada.Unchecked_Conversion
+     (Raw_Long_Float, Long_Float);
+
+   function Unchecked_To_Raw is new Ada.Unchecked_Conversion
+     (Long_Float, Raw_Long_Float);
+
+   function Is_Valid (Value : Raw_Long_Float) return Boolean is
+     (Unchecked_To_Float (Value)'Valid);
+
+   function To_Float (Value : Raw_Long_Float) return Long_Float is
+     (Unchecked_To_Float (Value));
+
+   function To_Raw (Value : Long_Float) return Raw_Long_Float is
+      (Unchecked_To_Raw (Value));
+
+end Raw_Long_Floats;

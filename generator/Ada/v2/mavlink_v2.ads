@@ -1,5 +1,7 @@
 
-with Interfaces; use Interfaces;
+with Interfaces;       use Interfaces;
+with Raw_Floats;       use Raw_Floats;
+with Raw_Long_Floats;  use Raw_Long_Floats;
 with SHA_256;
 
 package Mavlink_v2 is
@@ -25,9 +27,9 @@ package Mavlink_v2 is
      with Component_Size => 32;
    type Integer_64_Array is array (Natural range <>) of Interfaces.Integer_64
      with Component_Size => 64;
-   type Short_Float_Array is array (Natural range <>) of Short_Float
+   type Short_Float_Array is array (Natural range <>) of Raw_Float
      with Component_Size => 32;
-   type Long_Float_Array is array (Natural range <>) of Long_Float
+   type Long_Float_Array is array (Natural range <>) of Raw_Long_Float
      with Component_Size => 64;
 
    Maximum_Buffer_Len : constant Positive := 280;
