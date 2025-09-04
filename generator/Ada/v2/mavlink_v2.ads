@@ -11,6 +11,8 @@ package Mavlink_v2 is
    type Msg_Id is mod 2 ** 24 with Size => 24;
    --  Message ID has 3 bytes
 
+   type Timestamp_Type is mod 2 ** 48 with Size => 48;
+
    type Unsigned_8_Array is array (Natural range <>) of Interfaces.Unsigned_8
      with Component_Size => 8;
    type Unsigned_16_Array is array (Natural range <>) of Interfaces.Unsigned_16
@@ -56,7 +58,7 @@ package Mavlink_v2 is
      (Self      : in out Connection;
       Link_Id   : Interfaces.Unsigned_8;
       Key       : Signature_Key;
-      Timestamp : Interfaces.Unsigned_64);
+      Timestamp : Timestamp_Type);
    --  Initialize signature that will be used to generate SHA256 signature
    --  for packets
 
@@ -75,7 +77,7 @@ package Mavlink_v2 is
       Comp_Id   : out Interfaces.Unsigned_8;
       Id        : out Msg_Id;
       Link_Id   : out Interfaces.Unsigned_8;
-      Timestamp : out Interfaces.Unsigned_64;
+      Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean);
    --  Returns information about the current message in the buffer.
    --  Should be called only after Parse_Byte returned True.
@@ -107,7 +109,7 @@ package Mavlink_v2 is
    procedure Check_Message_Signature
      (Self      : Connection;
       Link_Id   : out Interfaces.Unsigned_8;
-      Timestamp : out Interfaces.Unsigned_64;
+      Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean);
    --  Returns the message's Signature. See Get_Message_Information.
 
@@ -131,7 +133,7 @@ private
       Use_Signature : Boolean                := False;
       Link_Id       : Interfaces.Unsigned_8  := 0;
       Key           : SHA_256.Context;
-      Timestamp     : Interfaces.Unsigned_64 := 0;
+      Timestamp     : Timestamp_Type         := 0;
 
       -- Income
       Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
@@ -165,11 +167,9 @@ private
       Id_High   at 9 range 0 .. 7;
    end record;
 
-   type Timestamp_Type is mod 2 ** 48 with Size => 48;
-
    type Signature is record
       Link_Id   : Interfaces.Unsigned_8;
-      Timestamp : Timestamp_Type;
+      Timestamp : Data_Buffer (1 .. 6);
       Sig       : Data_Buffer (1 .. 6);
    end record;
 

@@ -12,7 +12,7 @@ package body Mavlink_v2 is
      (Self      : in out Connection;
       Link_Id   : Interfaces.Unsigned_8;
       Key       : Signature_Key;
-      Timestamp : Interfaces.Unsigned_64) is
+      Timestamp : Timestamp_Type) is
    begin
       Self.Link_Id := Link_Id;
 
@@ -67,7 +67,7 @@ package body Mavlink_v2 is
       Comp_Id   : out Interfaces.Unsigned_8;
       Id        : out Msg_Id;
       Link_Id   : out Interfaces.Unsigned_8;
-      Timestamp : out Interfaces.Unsigned_64;
+      Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean)
    is
       Header : constant V2_Header with Import,
@@ -164,7 +164,7 @@ package body Mavlink_v2 is
    procedure Check_Message_Signature
      (Self      : Connection;
       Link_Id   : out Interfaces.Unsigned_8;
-      Timestamp : out Interfaces.Unsigned_64;
+      Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean)
    is
       Header : constant V2_Header with Import,
@@ -179,8 +179,15 @@ package body Mavlink_v2 is
               Address => Self.Income_Buffer (Last_Data + 3)'Address;
          begin
             Link_Id   := Sig.Link_Id;
-            Timestamp :=
-              Interfaces.Unsigned_64 (Sig.Timestamp) and 16#FFFF_FFFF_FFFF#;
+
+            Timestamp := 0;
+            for Index in reverse Sig.Timestamp'First .. Sig.Timestamp'Last loop
+               Timestamp := Timestamp + Timestamp_Type (Sig.Timestamp (Index));
+               if Index > Sig.Timestamp'First then
+                  Timestamp := Timestamp_Type
+                    (Shift_Left (Unsigned_64 (Timestamp), 8));
+               end if;
+            end loop;
 
             Signature :=
               (if Sig.Sig = Calc_SHA (Self, Self.Income_Buffer
@@ -325,11 +332,16 @@ package body Mavlink_v2 is
       if Self.Use_Signature then
          declare
             S : Signature with Import, Address => Buffer (Last + 1)'Address;
+            T : Timestamp_Type := Self.Timestamp;
          begin
-            S.Link_Id   := Self.Link_Id;
-            S.Timestamp := Timestamp_Type
-              ((Self.Timestamp and 16#FFFF_FFFF_FFFF#));
-            S.Sig       := Calc_SHA (Self, Buffer (Buffer'First .. Last + 7));
+            S.Link_Id := Self.Link_Id;
+
+            for Index in S.Timestamp'Range loop
+               S.Timestamp (Index) := Unsigned_8 (T and 16#FF#);
+               T := Timestamp_Type (Shift_Right (Unsigned_64 (T), 8));
+            end loop;
+
+            S.Sig := Calc_SHA (Self, Buffer (Buffer'First .. Last + 7));
          end;
 
          Self.Timestamp := Self.Timestamp + 1;

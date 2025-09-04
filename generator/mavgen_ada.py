@@ -831,7 +831,7 @@ is
    Comp_Id     : Interfaces.Unsigned_8;
    Id          : Msg_Id;
    Link_Id     : Interfaces.Unsigned_8;
-   Timestamp   : Interfaces.Unsigned_64;
+   Timestamp   : Timestamp_Type;
    Signature   : Three_Boolean;
    Buffer      : Data_Buffer (1 .. Mavlink_v2.Maximum_Buffer_Len);
    Last        : Positive;
