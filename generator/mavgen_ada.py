@@ -630,13 +630,13 @@ def generate_message(msg, spec, body):
 
    procedure Encode
      (Message : %s;
-      Connect : in out %s.In_Out_Connection;
+      Connect : in out %s.Connection;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.In_Out_Connection;
+      Connect   : in out %s.Connection;
       CRC_Valid : out Boolean);
    --  Get the message from the Connect and delete it
    --  from the Connect's buffer. CRC_Valid is set to
@@ -644,11 +644,11 @@ def generate_message(msg, spec, body):
 
    procedure Decode
      (Message : out %s;
-      Connect : in out %s.In_Out_Connection);
+      Connect : in out %s.Connection);
    --  Same as Above but does not check CRC
 
    function Check_CRC
-     (Connect : in out %s.In_Out_Connection)
+     (Connect : in out %s.Connection)
       return Boolean;
    --  Returns True if CRC is valid
 
@@ -675,7 +675,7 @@ def generate_message(msg, spec, body):
 
    procedure Encode
      (Message : %s;
-      Connect : in out %s.In_Out_Connection;
+      Connect : in out %s.Connection;
       Buffer  : out Data_Buffer;
       Last    : out Positive)
    is
@@ -693,7 +693,7 @@ def generate_message(msg, spec, body):
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.In_Out_Connection;
+      Connect   : in out %s.Connection;
       CRC_Valid : out Boolean)
    is
       Data  : constant Data_Buffer := Get_Message_Data (Connect);
@@ -710,14 +710,14 @@ def generate_message(msg, spec, body):
    end Decode;
 
    function Check_CRC
-     (Connect : in out %s.In_Out_Connection) return Boolean is
+     (Connect : in out %s.Connection) return Boolean is
    begin
       return Is_CRC_Valid (Connect, %s);
    end Check_CRC;
 
    procedure Decode
      (Message : out %s;
-      Connect : in out %s.In_Out_Connection)
+      Connect : in out %s.Connection)
    is
       Data  : constant Data_Buffer := Get_Message_Data (Connect);
       Buf   : Data_Buffer
@@ -846,7 +846,7 @@ is
       200, 0, 0, 0, 0, 0, --  Timestamp
       189, 152, 194, 72,  122, 99]; --  SHA
 
-   In_Connect  : Mavlink_v2.In_Out_Connection (1, 1);
+   In_Connect  : Mavlink_v2.Connection (1, 1);
    Out_Connect : Mavlink_v2.Out_Connection (1, 1);
    Pass        : constant String := "long_password";
    Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,

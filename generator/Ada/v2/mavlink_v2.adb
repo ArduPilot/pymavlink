@@ -9,7 +9,7 @@ package body Mavlink_v2 is
    --------------------------
 
    procedure Initialize_Signature
-     (Self      : in out In_Out_Connection;
+     (Self      : in out Connection;
       Link_Id   : Interfaces.Unsigned_8;
       Key       : Signature_Key;
       Timestamp : Timestamp_Type) is
@@ -47,7 +47,7 @@ package body Mavlink_v2 is
    ----------------
 
    function Parse_Byte
-     (Self  : in out In_Out_Connection;
+     (Self  : in out Connection;
       Value : Interfaces.Unsigned_8)
       return Boolean
    is
@@ -80,7 +80,7 @@ package body Mavlink_v2 is
    -----------------------------
 
    procedure Get_Message_Information
-     (Self      : In_Out_Connection;
+     (Self      : Connection;
       Seq       : out Interfaces.Unsigned_8;
       Sys_Id    : out Interfaces.Unsigned_8;
       Comp_Id   : out Interfaces.Unsigned_8;
@@ -104,7 +104,7 @@ package body Mavlink_v2 is
    -- Get_Message_Id --
    --------------------
 
-   function Get_Message_Id (Self : In_Out_Connection) return Msg_Id
+   function Get_Message_Id (Self : Connection) return Msg_Id
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -120,7 +120,7 @@ package body Mavlink_v2 is
    -------------------------
 
    function Get_Message_Sequnce
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -133,7 +133,7 @@ package body Mavlink_v2 is
    ---------------------------
 
    function Get_Message_System_Id
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -146,7 +146,7 @@ package body Mavlink_v2 is
    ------------------------------
 
    function Get_Message_Component_Id
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -159,7 +159,7 @@ package body Mavlink_v2 is
    -------------------------
 
    function Get_Message_Link_Id
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -181,7 +181,7 @@ package body Mavlink_v2 is
    -----------------------------
 
    procedure Check_Message_Signature
-     (Self      : In_Out_Connection;
+     (Self      : Connection;
       Link_Id   : out Interfaces.Unsigned_8;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean)
@@ -226,7 +226,7 @@ package body Mavlink_v2 is
    -- Get_Message_Data --
    ----------------------
 
-   function Get_Message_Data (Self : In_Out_Connection) return Data_Buffer
+   function Get_Message_Data (Self : Connection) return Data_Buffer
    is
       Header    : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -244,7 +244,7 @@ package body Mavlink_v2 is
    ------------------
 
    function Is_CRC_Valid
-     (Self   : In_Out_Connection;
+     (Self   : Connection;
       Extras : Interfaces.Unsigned_8)
       return Boolean
    is
@@ -272,7 +272,7 @@ package body Mavlink_v2 is
    ----------------
 
    procedure Get_Buffer
-     (Self   : In_Out_Connection;
+     (Self   : Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural) is
    begin
@@ -288,7 +288,7 @@ package body Mavlink_v2 is
    -- Drop_Message --
    ------------------
 
-   procedure Drop_Message (Self : in out In_Out_Connection)
+   procedure Drop_Message (Self : in out Connection)
    is
       Len : constant Natural := Self.Position - Self.Last;
    begin
@@ -305,7 +305,7 @@ package body Mavlink_v2 is
    ------------
 
    procedure Encode
-     (Self   : in out In_Out_Connection;
+     (Self   : in out Connection;
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;

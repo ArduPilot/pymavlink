@@ -45,17 +45,17 @@ package Mavlink_v2 is
 
    Maximum_Buffer_Len : constant Positive := 280;
 
-   -----------------------
-   -- In_Out_Connection --
-   -----------------------
+   ----------------
+   -- Connection --
+   ----------------
 
-   type In_Out_Connection
+   type Connection
      (System_Id    : Interfaces.Unsigned_8;
       Component_Id : Interfaces.Unsigned_8)
    is private;
 
    procedure Initialize_Signature
-     (Self      : in out In_Out_Connection;
+     (Self      : in out Connection;
       Link_Id   : Interfaces.Unsigned_8;
       Key       : Signature_Key;
       Timestamp : Timestamp_Type);
@@ -63,7 +63,7 @@ package Mavlink_v2 is
    --  for packets
 
    function Parse_Byte
-     (Self  : in out In_Out_Connection;
+     (Self  : in out Connection;
       Value : Interfaces.Unsigned_8)
       return Boolean;
    --  Add the Value to the buffer and return True if a message has been read
@@ -71,7 +71,7 @@ package Mavlink_v2 is
 
    --  Get the message's information that is in the connection's buffer --
    procedure Get_Message_Information
-     (Self      : In_Out_Connection;
+     (Self      : Connection;
       Seq       : out Interfaces.Unsigned_8;
       Sys_Id    : out Interfaces.Unsigned_8;
       Comp_Id   : out Interfaces.Unsigned_8;
@@ -86,40 +86,40 @@ package Mavlink_v2 is
    --  set to True/False depends on whether the checksum is valid for the
    --  message.
 
-   function Get_Message_Id (Self : In_Out_Connection) return Msg_Id;
+   function Get_Message_Id (Self : Connection) return Msg_Id;
    --  Returns message's ID
 
    function Get_Message_Sequnce
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Interfaces.Unsigned_8;
    --  Returns message's Seq
 
    function Get_Message_System_Id
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Interfaces.Unsigned_8;
    --  Returns message's Sys_Id
 
    function Get_Message_Component_Id
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Interfaces.Unsigned_8;
    --  Returns message's Comp_Id
 
    function Get_Message_Link_Id
-     (Self : In_Out_Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Interfaces.Unsigned_8;
    --  Returns message's Link_Id. Returns 0 if the message does not have
    --  the Signature.
 
    procedure Check_Message_Signature
-     (Self      : In_Out_Connection;
+     (Self      : Connection;
       Link_Id   : out Interfaces.Unsigned_8;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean);
    --  Returns the message's Signature. See Get_Message_Information.
 
    procedure Get_Buffer
-     (Self   : In_Out_Connection;
+     (Self   : Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural);
    --  Returns data from the internal buffer filled with Parse_Byte.
 
-   procedure Drop_Message (Self : in out In_Out_Connection);
+   procedure Drop_Message (Self : in out Connection);
    --  Delete current message from the buffer.
    --  Should be called only after Parse_Byte returned True
 
@@ -150,7 +150,7 @@ private
       Timestamp     : Timestamp_Type         := 0;
    end record;
 
-   type In_Out_Connection
+   type Connection
      (System_Id    : Interfaces.Unsigned_8;
       Component_Id : Interfaces.Unsigned_8)
    is record
@@ -208,7 +208,7 @@ private
    end record;
 
    procedure Encode
-     (Self   : in out In_Out_Connection;
+     (Self   : in out Connection;
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
@@ -230,10 +230,10 @@ private
       Buffer       : in out Data_Buffer;
       Last         : in out Positive);
 
-   function Get_Message_Data (Self : In_Out_Connection) return Data_Buffer;
+   function Get_Message_Data (Self : Connection) return Data_Buffer;
 
    function Is_CRC_Valid
-     (Self   : In_Out_Connection;
+     (Self   : Connection;
       Extras : Interfaces.Unsigned_8)
       return Boolean;
 
