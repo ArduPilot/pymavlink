@@ -9,18 +9,37 @@ package body Mavlink_v2 is
    --------------------------
 
    procedure Initialize_Signature
-     (Self      : in out Connection;
+     (Self      : in out In_Out_Connection;
       Link_Id   : Interfaces.Unsigned_8;
       Key       : Signature_Key;
       Timestamp : Timestamp_Type) is
    begin
-      Self.Link_Id := Link_Id;
+      Self.Settings.Link_Id := Link_Id;
 
-      Self.Key := SHA_256.Initial_Context;
-      SHA_256.Update (Self.Key, SHA_256.Data (Key));
+      Self.Settings.Key := SHA_256.Initial_Context;
+      SHA_256.Update (Self.Settings.Key, SHA_256.Data (Key));
 
-      Self.Timestamp     := Timestamp;
-      Self.Use_Signature := True;
+      Self.Settings.Timestamp     := Timestamp;
+      Self.Settings.Use_Signature := True;
+   end Initialize_Signature;
+
+   --------------------------
+   -- Initialize_Signature --
+   --------------------------
+
+   procedure Initialize_Signature
+     (Self      : in out Out_Connection;
+      Link_Id   : Interfaces.Unsigned_8;
+      Key       : Signature_Key;
+      Timestamp : Timestamp_Type) is
+   begin
+      Self.Settings.Link_Id := Link_Id;
+
+      Self.Settings.Key := SHA_256.Initial_Context;
+      SHA_256.Update (Self.Settings.Key, SHA_256.Data (Key));
+
+      Self.Settings.Timestamp     := Timestamp;
+      Self.Settings.Use_Signature := True;
    end Initialize_Signature;
 
    ----------------
@@ -28,7 +47,7 @@ package body Mavlink_v2 is
    ----------------
 
    function Parse_Byte
-     (Self  : in out Connection;
+     (Self  : in out In_Out_Connection;
       Value : Interfaces.Unsigned_8)
       return Boolean
    is
@@ -61,7 +80,7 @@ package body Mavlink_v2 is
    -----------------------------
 
    procedure Get_Message_Information
-     (Self      : Connection;
+     (Self      : In_Out_Connection;
       Seq       : out Interfaces.Unsigned_8;
       Sys_Id    : out Interfaces.Unsigned_8;
       Comp_Id   : out Interfaces.Unsigned_8;
@@ -85,7 +104,7 @@ package body Mavlink_v2 is
    -- Get_Message_Id --
    --------------------
 
-   function Get_Message_Id (Self : Connection) return Msg_Id
+   function Get_Message_Id (Self : In_Out_Connection) return Msg_Id
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -101,7 +120,7 @@ package body Mavlink_v2 is
    -------------------------
 
    function Get_Message_Sequnce
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : In_Out_Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -114,7 +133,7 @@ package body Mavlink_v2 is
    ---------------------------
 
    function Get_Message_System_Id
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : In_Out_Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -127,7 +146,7 @@ package body Mavlink_v2 is
    ------------------------------
 
    function Get_Message_Component_Id
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : In_Out_Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -140,7 +159,7 @@ package body Mavlink_v2 is
    -------------------------
 
    function Get_Message_Link_Id
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : In_Out_Connection) return Interfaces.Unsigned_8
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -162,7 +181,7 @@ package body Mavlink_v2 is
    -----------------------------
 
    procedure Check_Message_Signature
-     (Self      : Connection;
+     (Self      : In_Out_Connection;
       Link_Id   : out Interfaces.Unsigned_8;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean)
@@ -190,7 +209,7 @@ package body Mavlink_v2 is
             end loop;
 
             Signature :=
-              (if Sig.Sig = Calc_SHA (Self, Self.Income_Buffer
+              (if Sig.Sig = Calc_SHA (Self.Settings, Self.Income_Buffer
                (Self.Income_Buffer'First .. Last_Data + 2 + 7))
                then True
                else False);
@@ -207,7 +226,7 @@ package body Mavlink_v2 is
    -- Get_Message_Data --
    ----------------------
 
-   function Get_Message_Data (Self : Connection) return Data_Buffer
+   function Get_Message_Data (Self : In_Out_Connection) return Data_Buffer
    is
       Header    : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -225,7 +244,7 @@ package body Mavlink_v2 is
    ------------------
 
    function Is_CRC_Valid
-     (Self   : Connection;
+     (Self   : In_Out_Connection;
       Extras : Interfaces.Unsigned_8)
       return Boolean
    is
@@ -253,7 +272,7 @@ package body Mavlink_v2 is
    ----------------
 
    procedure Get_Buffer
-     (Self   : Connection;
+     (Self   : In_Out_Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural) is
    begin
@@ -269,7 +288,7 @@ package body Mavlink_v2 is
    -- Drop_Message --
    ------------------
 
-   procedure Drop_Message (Self : in out Connection)
+   procedure Drop_Message (Self : in out In_Out_Connection)
    is
       Len : constant Natural := Self.Position - Self.Last;
    begin
@@ -286,11 +305,43 @@ package body Mavlink_v2 is
    ------------
 
    procedure Encode
-     (Self   : in out Connection;
+     (Self   : in out In_Out_Connection;
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive)
+      Last   : in out Positive) is
+   begin
+      Encode (Self.System_Id, Self.Component_Id, Id, Extras, Self.Settings,
+              Buffer, Last);
+   end Encode;
+
+   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
+     (Self   : in out Out_Connection;
+      Id     : Msg_Id;
+      Extras : Interfaces.Unsigned_8;
+      Buffer : in out Data_Buffer;
+      Last   : in out Positive) is
+   begin
+      Encode (Self.System_Id, Self.Component_Id, Id, Extras, Self.Settings,
+              Buffer, Last);
+   end Encode;
+
+   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
+     (System_Id    : Interfaces.Unsigned_8;
+      Component_Id : Interfaces.Unsigned_8;
+      Id           : Msg_Id;
+      Extras       : Interfaces.Unsigned_8;
+      Settings     : in out Settings_Data;
+      Buffer       : in out Data_Buffer;
+      Last         : in out Positive)
    is
       Local : V2_Header with Import,
         Address => Buffer (Buffer'First)'Address;
@@ -306,13 +357,13 @@ package body Mavlink_v2 is
       Local.Stx       := 16#FD#;
       Local.Len       := Unsigned_8
         (Last - (Buffer'First + Message_Data_Position_In_Buffer - 1));
-      Local.Inc_Flags := (if Self.Use_Signature then 1 else 0);
+      Local.Inc_Flags := (if Settings.Use_Signature then 1 else 0);
       Local.Cmp_Flags := 0;
-      Local.Seq       := Self.Sequence_Id;
-      Local.Sys_Id    := Self.System_Id;
-      Local.Comp_Id   := Self.Component_Id;
+      Local.Seq       := Settings.Sequence_Id;
+      Local.Sys_Id    := System_Id;
+      Local.Comp_Id   := Component_Id;
 
-      Self.Sequence_Id := Self.Sequence_Id + 1;
+      Settings.Sequence_Id := Settings.Sequence_Id + 1;
 
       Local.Id_Low := Unsigned_8 (L_Id and 16#FF#);
       L_Id := Shift_Right (L_Id, 8);
@@ -329,22 +380,22 @@ package body Mavlink_v2 is
       Buffer (Last + 2) := CRC.Low;
       Last := Last + 2;
 
-      if Self.Use_Signature then
+      if Settings.Use_Signature then
          declare
             S : Signature with Import, Address => Buffer (Last + 1)'Address;
-            T : Timestamp_Type := Self.Timestamp;
+            T : Timestamp_Type := Settings.Timestamp;
          begin
-            S.Link_Id := Self.Link_Id;
+            S.Link_Id := Settings.Link_Id;
 
             for Index in S.Timestamp'Range loop
                S.Timestamp (Index) := Unsigned_8 (T and 16#FF#);
                T := Timestamp_Type (Shift_Right (Unsigned_64 (T), 8));
             end loop;
 
-            S.Sig := Calc_SHA (Self, Buffer (Buffer'First .. Last + 7));
+            S.Sig := Calc_SHA (Settings, Buffer (Buffer'First .. Last + 7));
          end;
 
-         Self.Timestamp := Self.Timestamp + 1;
+         Settings.Timestamp := Settings.Timestamp + 1;
          Last := Last + 13;
       end if;
    end Encode;
@@ -354,12 +405,12 @@ package body Mavlink_v2 is
    --------------
 
    function Calc_SHA
-     (Self   : Connection;
-      Buffer : Data_Buffer)
+     (Settings : Settings_Data;
+      Buffer   : Data_Buffer)
       return Data_Buffer
    is
       use SHA_256;
-      SHA    : Context := Self.Key;
+      SHA    : Context := Settings.Key;
       Result : Digest_Type;
    begin
       Update (SHA, Data (Buffer));

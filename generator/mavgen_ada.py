@@ -623,14 +623,20 @@ def generate_message(msg, spec, body):
 
     spec.write("""   procedure Encode
      (Message : %s;
-      Connect : in out %s.Connection;
+      Connect : in out %s.Out_Connection;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
    --  Put the message in the buffer ready for send
 
+   procedure Encode
+     (Message : %s;
+      Connect : in out %s.In_Out_Connection;
+      Buffer  : out Data_Buffer;
+      Last    : out Positive);
+
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.Connection;
+      Connect   : in out %s.In_Out_Connection;
       CRC_Valid : out Boolean);
    --  Get the message from the Connect and delete it
    --  from the Connect's buffer. CRC_Valid is set to
@@ -638,18 +644,38 @@ def generate_message(msg, spec, body):
 
    procedure Decode
      (Message : out %s;
-      Connect : in out %s.Connection);
+      Connect : in out %s.In_Out_Connection);
    --  Same as Above but does not check CRC
 
-   function Check_CRC (Connect : in out %s.Connection) return Boolean;
+   function Check_CRC
+     (Connect : in out %s.In_Out_Connection)
+      return Boolean;
    --  Returns True if CRC is valid
 
-""" % (name, v2, name, v2, name, v2, v2))
+""" % (name, v2, name, v2, name, v2, name, v2, v2))
 
     # Body
     body.write("""   procedure Encode
      (Message : %s;
-      Connect : in out %s.Connection;
+      Connect : in out %s.Out_Connection;
+      Buffer  : out Data_Buffer;
+      Last    : out Positive)
+   is
+      Local : Data_Buffer (1 .. %s'Value_Size / 8)
+        with Import, Address => Message'Address,
+        Convention => Ada;
+
+   begin
+      Last  := Buffer'First +
+        Message_Data_Position_In_Buffer +
+        (%s'Value_Size / 8) - 1;
+      Buffer (Buffer'First + Message_Data_Position_In_Buffer .. Last) := Local;
+      Encode (Connect, %s_Id, %s, Buffer, Last);
+   end Encode;
+
+   procedure Encode
+     (Message : %s;
+      Connect : in out %s.In_Out_Connection;
       Buffer  : out Data_Buffer;
       Last    : out Positive)
    is
@@ -667,7 +693,7 @@ def generate_message(msg, spec, body):
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.Connection;
+      Connect   : in out %s.In_Out_Connection;
       CRC_Valid : out Boolean)
    is
       Data  : constant Data_Buffer := Get_Message_Data (Connect);
@@ -684,14 +710,14 @@ def generate_message(msg, spec, body):
    end Decode;
 
    function Check_CRC
-     (Connect : in out %s.Connection) return Boolean is
+     (Connect : in out %s.In_Out_Connection) return Boolean is
    begin
       return Is_CRC_Valid (Connect, %s);
    end Check_CRC;
 
    procedure Decode
      (Message : out %s;
-      Connect : in out %s.Connection)
+      Connect : in out %s.In_Out_Connection)
    is
       Data  : constant Data_Buffer := Get_Message_Data (Connect);
       Buf   : Data_Buffer
@@ -704,6 +730,7 @@ def generate_message(msg, spec, body):
    end Decode;
 
 """ % (name, v2, name, name, name, str(msg.crc_extra),
+       name, v2, name, name, name, str(msg.crc_extra),
        name, v2, name,
        v2, str(msg.crc_extra),
        name, v2, name))
@@ -819,8 +846,8 @@ is
       200, 0, 0, 0, 0, 0, --  Timestamp
       189, 152, 194, 72,  122, 99]; --  SHA
 
-   In_Connect  : Mavlink_v2.Connection (1, 1);
-   Out_Connect : Mavlink_v2.Connection (1, 1);
+   In_Connect  : Mavlink_v2.In_Out_Connection (1, 1);
+   Out_Connect : Mavlink_v2.Out_Connection (1, 1);
    Pass        : constant String := "long_password";
    Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
      Address => Pass'Address;
