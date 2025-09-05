@@ -12,6 +12,10 @@
 
 #include "mavlink_sha256.h"
 
+#ifndef MAVLINK_SIGNING_TIMESTAMP_LIMIT
+#define MAVLINK_SIGNING_TIMESTAMP_LIMIT 60
+#endif
+
 #ifdef MAVLINK_USE_CXX_NAMESPACE
 namespace mavlink {
 #endif
@@ -174,8 +178,8 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
                         signing->last_status = MAVLINK_SIGNING_STATUS_TOO_MANY_STREAMS;
                         return false;
 		}
-		// new stream. Only accept if timestamp is not more than 1 minute old
-		if (tstamp.t64 + 6000*1000UL < signing->timestamp) {
+        // new stream. Only accept if timestamp is not more than 1 minute old by default
+        if (tstamp.t64 + MAVLINK_SIGNING_TIMESTAMP_LIMIT*100000UL < signing->timestamp) {
                         signing->last_status = MAVLINK_SIGNING_STATUS_OLD_TIMESTAMP;
                         return false;
 		}
