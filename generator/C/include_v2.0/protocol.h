@@ -17,6 +17,18 @@
 #define MAVLINK_STACK_BUFFER 0
 #endif
 
+/* aligned buffer macro for platforms that require it */
+#ifndef MAVLINK_ALIGNED_BUF
+  #if defined(__GNUC__) && (defined(__arm__) || defined(__XTENSA__))
+    // ESP32 (Xtensa) and ARM platforms need aligned buffers for float/int access
+    #include <stdalign.h>
+    #define MAVLINK_ALIGNED_BUF(name, size) alignas(4) char name[size]
+  #else
+    // Default: no special alignment needed
+    #define MAVLINK_ALIGNED_BUF(name, size) char name[size]
+  #endif
+#endif
+
 #ifndef MAVLINK_AVOID_GCC_STACK_BUG
 # define MAVLINK_AVOID_GCC_STACK_BUG defined(__GNUC__)
 #endif
