@@ -21,7 +21,9 @@ package SHA_256 is
 
    subtype Digest_Type is Data (1 .. 32);
 
-   function Digest (Self : in out Context) return Digest_Type;
+   procedure Digest
+     (Self : in out Context;
+      Res  : out Digest_Type);
 
 private
 

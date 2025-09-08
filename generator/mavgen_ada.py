@@ -559,6 +559,7 @@ def get_default(value, type_name):
 def generate_message(msg, spec, body):
     name = normalize_message_name(msg.name).title()
 
+    spec.write("   pragma Preelaborate;\n\n")
     spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
 
     max_len = 0
@@ -696,13 +697,15 @@ def generate_message(msg, spec, body):
       Connect   : in out %s.Connection;
       CRC_Valid : out Boolean)
    is
-      Data  : constant Data_Buffer := Get_Message_Data (Connect);
+      Data  : Data_Buffer (1 .. Maximum_Buffer_Len);
+      Last  : Natural;
       Buf   : Data_Buffer
         (1 .. %s'Size / 8) := (others => 0)
         with Address => Message'Address,
         Convention   => Ada;
    begin
-      Buf (1 .. Data'Length) := Data;
+      Get_Message_Data (Connect, Data, Last);
+      Buf (1 .. Last) := Data (1 .. Last);
       
       CRC_Valid := Check_CRC (Connect);
 
@@ -719,13 +722,15 @@ def generate_message(msg, spec, body):
      (Message : out %s;
       Connect : in out %s.Connection)
    is
-      Data  : constant Data_Buffer := Get_Message_Data (Connect);
+      Data  : Data_Buffer (1 .. Maximum_Buffer_Len);
+      Last  : Natural;
       Buf   : Data_Buffer
         (1 .. %s'Size / 8) := (others => 0)
         with Address => Message'Address,
         Convention   => Ada;
    begin
-      Buf (1 .. Data'Length) := Data;
+      Get_Message_Data (Connect, Data, Last);
+      Buf (1 .. Last) := Data (1 .. Last);
       Drop_Message (Connect);
    end Decode;
 
@@ -834,7 +839,7 @@ is
         Address => Result'Address;
    begin
       SHA_256.Update (Checksum, D);
-      Result := SHA_256.Digest (Checksum);
+      SHA_256.Digest (Checksum, Result);
       pragma Assert (Res = R);
    end Do_SHA_256_Test;
 
@@ -1010,10 +1015,12 @@ def generate_v2(directory, xml):
         # Create spec file
         spec = open(os.path.join(directory, "mavlink_v2-" + name + ".ads"), "w")
         spec.write(GEN)
+        spec.write("pragma Ada_2022;\n\n")
 
         generate_includes (x, spec)
 
         spec.write("package %s.%s is\n\n" % (v2, name.title()))
+        spec.write("   pragma Preelaborate;\n\n")
 
         # Generate types
         for t in x.enum:
@@ -1036,7 +1043,7 @@ def generate_v2(directory, xml):
         p_name = "%s.%s.Message" % (v2, name.title())
         spec = open(f_name + ".ads", "w")
         spec.write(GEN)
-        spec.write("\npackage %s is\n\nend %s;\n" % (p_name, p_name))
+        spec.write("\npragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\nend %s;\n" % (p_name, p_name))
 
         #Generate messages
         for m in x.message:

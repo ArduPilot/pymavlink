@@ -251,7 +251,9 @@ package body SHA_256 is
    -- Digest --
    ------------
 
-   function Digest (Self : in out Context) return Digest_Type
+   procedure Digest
+     (Self : in out Context;
+      Res  : out Digest_Type)
    is
       Message_Length : Interfaces.Unsigned_64 := Self.Length;
       Zeroes         : Natural :=
@@ -301,8 +303,7 @@ package body SHA_256 is
          end if;
 
          --  Return truncated hash
-         return R_SEA (R_SEA'First .. R_SEA'First + Digest_Type'Length - 1);
+         Res := R_SEA (R_SEA'First .. R_SEA'First + Digest_Type'Length - 1);
       end;
    end Digest;
-
 end SHA_256;

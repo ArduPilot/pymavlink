@@ -191,11 +191,12 @@ package body Mavlink_v2 is
    begin
       if (Header.Inc_Flags and 1) > 0 then
          declare
-            Last_Data : constant Positive := Self.Income_Buffer'First +
+            Last_Data   : constant Positive := Self.Income_Buffer'First +
               Message_Data_Position_In_Buffer +
                 Natural (Header.Len - 1);
-            Sig       : constant Mavlink_v2.Signature with Import,
+            Sig         : constant Mavlink_v2.Signature with Import,
               Address => Self.Income_Buffer (Last_Data + 3)'Address;
+            Message_SHA : SHA_Digest;
          begin
             Link_Id   := Sig.Link_Id;
 
@@ -208,11 +209,11 @@ package body Mavlink_v2 is
                end if;
             end loop;
 
-            Signature :=
-              (if Sig.Sig = Calc_SHA (Self.Settings, Self.Income_Buffer
-               (Self.Income_Buffer'First .. Last_Data + 2 + 7))
-               then True
-               else False);
+            Calc_SHA (Self.Settings, Self.Income_Buffer
+                      (Self.Income_Buffer'First .. Last_Data + 2 + 7),
+                      Message_SHA);
+
+            Signature := (if Sig.Sig = Message_SHA then True else False);
          end;
 
       else
@@ -221,23 +222,6 @@ package body Mavlink_v2 is
          Signature := Unknown;
       end if;
    end Check_Message_Signature;
-
-   ----------------------
-   -- Get_Message_Data --
-   ----------------------
-
-   function Get_Message_Data (Self : Connection) return Data_Buffer
-   is
-      Header    : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
-      Last_Data : constant Positive := Self.Income_Buffer'First +
-        Message_Data_Position_In_Buffer +
-          Natural (Header.Len - 1);
-   begin
-      return Self.Income_Buffer
-        (Self.Income_Buffer'First + Message_Data_Position_In_Buffer ..
-           Last_Data);
-   end Get_Message_Data;
 
    ------------------
    -- Is_CRC_Valid --
@@ -392,7 +376,7 @@ package body Mavlink_v2 is
                T := Timestamp_Type (Shift_Right (Unsigned_64 (T), 8));
             end loop;
 
-            S.Sig := Calc_SHA (Settings, Buffer (Buffer'First .. Last + 7));
+            Calc_SHA (Settings, Buffer (Buffer'First .. Last + 7), S.Sig);
          end;
 
          Settings.Timestamp := Settings.Timestamp + 1;
@@ -404,18 +388,39 @@ package body Mavlink_v2 is
    -- Calc_SHA --
    --------------
 
-   function Calc_SHA
+   procedure Calc_SHA
      (Settings : Settings_Data;
-      Buffer   : Data_Buffer)
-      return Data_Buffer
+      Buffer   : Data_Buffer;
+      Result   : out SHA_Digest)
    is
       use SHA_256;
-      SHA    : Context := Settings.Key;
-      Result : Digest_Type;
+      SHA : Context := Settings.Key;
+      D   : Digest_Type;
    begin
       Update (SHA, Data (Buffer));
-      Result := Digest (SHA);
-      return Data_Buffer (Result (Result'First .. Result'First + 5));
+      Digest (SHA, D);
+      Result := SHA_Digest (D (D'First .. D'First + 5));
    end Calc_SHA;
+
+   ----------------------
+   -- Get_Message_Data --
+   ----------------------
+
+   procedure Get_Message_Data
+     (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural)
+   is
+      Header    : constant V2_Header with Import,
+        Address => Self.Income_Buffer'Address;
+      Last_Data : constant Positive := Self.Income_Buffer'First +
+        Message_Data_Position_In_Buffer +
+          Natural (Header.Len - 1);
+   begin
+      Last := Buffer'First + Natural (Header.Len - 1);
+      Buffer (Buffer'First .. Last) := Self.Income_Buffer
+        (Self.Income_Buffer'First + Message_Data_Position_In_Buffer ..
+           Last_Data);
+   end Get_Message_Data;
 
 end Mavlink_v2;

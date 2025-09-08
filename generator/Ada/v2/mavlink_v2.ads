@@ -1,4 +1,6 @@
 
+pragma Ada_2022;
+
 with Interfaces;       use Interfaces;
 with Raw_Floats;       use Raw_Floats;
 with Raw_Long_Floats;  use Raw_Long_Floats;
@@ -195,10 +197,12 @@ private
       Id_High   at 9 range 0 .. 7;
    end record;
 
+   type SHA_Digest is array (1 .. 6) of Interfaces.Unsigned_8;
+
    type Signature is record
       Link_Id   : Interfaces.Unsigned_8;
       Timestamp : Data_Buffer (1 .. 6);
-      Sig       : Data_Buffer (1 .. 6);
+      Sig       : SHA_Digest;
    end record;
 
    for Signature use record
@@ -230,17 +234,20 @@ private
       Buffer       : in out Data_Buffer;
       Last         : in out Positive);
 
-   function Get_Message_Data (Self : Connection) return Data_Buffer;
-
    function Is_CRC_Valid
      (Self   : Connection;
       Extras : Interfaces.Unsigned_8)
       return Boolean;
 
-   function Calc_SHA
+   procedure Calc_SHA
      (Settings : Settings_Data;
-      Buffer   : Data_Buffer)
-      return Data_Buffer;
+      Buffer   : Data_Buffer;
+      Result   : out SHA_Digest);
+
+   procedure Get_Message_Data
+     (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural);
 
    --  Positions of the messages parts minus 1, to use in construction like
    --  Buff'First + Position
