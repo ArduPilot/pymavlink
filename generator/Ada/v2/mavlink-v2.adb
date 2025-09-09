@@ -1,8 +1,8 @@
 pragma Ada_2022;
 
-with X25CRC;
+with Mavlink.X25CRC;
 
-package body Mavlink_v2 is
+package body Mavlink.V2 is
 
    --------------------------
    -- Initialize_Signature --
@@ -163,7 +163,7 @@ package body Mavlink_v2 is
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
-      Sig    : constant Mavlink_v2.Signature with Import,
+      Sig    : constant Mavlink.V2.Signature with Import,
         Address => Self.Income_Buffer
           (Self.Income_Buffer'First +
              Message_Data_Position_In_Buffer +
@@ -194,7 +194,7 @@ package body Mavlink_v2 is
             Last_Data   : constant Positive := Self.Income_Buffer'First +
               Message_Data_Position_In_Buffer +
                 Natural (Header.Len - 1);
-            Sig         : constant Mavlink_v2.Signature with Import,
+            Sig         : constant Mavlink.V2.Signature with Import,
               Address => Self.Income_Buffer (Last_Data + 3)'Address;
             Message_SHA : SHA_Digest;
          begin
@@ -423,4 +423,4 @@ package body Mavlink_v2 is
            Last_Data);
    end Get_Message_Data;
 
-end Mavlink_v2;
+end Mavlink.V2;

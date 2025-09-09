@@ -422,11 +422,12 @@ def generate(directory, xml):
 # Generate V2
 #
 
-v2 = "Mavlink_v2"
+v2 = "Mavlink.V2"
 pre_files = (
-    'mavlink_v2.gpr', 'mavlink_v2.ads', 'mavlink_v2.adb',
-    'sha_256.ads', 'sha_256.adb',
-    'raw_floats.ads', 'raw_long_floats.ads')
+    'mavlink_v2.gpr',
+    'mavlink.ads', 'mavlink-v2.ads', 'mavlink-v2.adb',
+    'mavlink-sha_256.ads', 'mavlink-sha_256.adb',
+    'mavlink-raw_floats.ads', 'mavlink-raw_long_floats.ads')
 
 field_v2_types = {
     'uint8_t' : 'Interfaces.Unsigned_8',
@@ -453,8 +454,8 @@ field_values = {
     'int16_t' : '6',
     'int32_t' : '7',
     'int64_t' : '8',
-    'float' : 'To_Raw (9.0)',
-    'double' : 'To_Raw (10.0)'}
+    'float' : 'To_Raw (9.9)',
+    'double' : 'To_Raw (10.10)'}
 
 field_array_values = {
     'uint8_t' : '(others => 1)',
@@ -465,8 +466,8 @@ field_array_values = {
     'int16_t' : '(others => 6)',
     'int32_t' : '(others => 7)',
     'int64_t' : '(others => 8)',
-    'float' : '(others => To_Raw (9.0))',
-    'double' : '(others => To_Raw (10.0))'}
+    'float' : '(others => To_Raw (9.9))',
+    'double' : '(others => To_Raw (10.10))'}
 
 NAN = "0"
 
@@ -747,7 +748,7 @@ def get_pakage_name(x, m, directory):
     if pkg_name[-1] == 's': pkg_name += 'es'
     else: pkg_name += 's'
 
-    f_name = os.path.join(directory, "mavlink_v2-%s-message-%s" % (name, pkg_name.lower()))
+    f_name = os.path.join(directory, "mavlink-v2-%s-message-%s" % (name, pkg_name.lower()))
     p_name = "%s.%s.Message.%s" % (v2, name.title(), pkg_name)
     return f_name, p_name
 
@@ -791,21 +792,23 @@ end Test;""")
             f_name, p_name = get_pakage_name(x, m, directory)
             f.write("with %s;\n" % p_name)
 
-    f.write("""with SHA_256;
-with Interfaces;      use Interfaces;
-with Ada.Text_IO;
-with Raw_Floats;      use Raw_Floats;
-with Raw_Long_Floats; use Raw_Long_Floats;
-use Mavlink_v2;
+    f.write("""\nwith Ada.Text_IO;
+with Interfaces;              use Interfaces;
+
+with Mavlink.Raw_Floats;      use Mavlink.Raw_Floats;
+with Mavlink.Raw_Long_Floats; use Mavlink.Raw_Long_Floats;
+with Mavlink.SHA_256;
+
+use Mavlink.V2;
 
 procedure Test
 is
-   D1 : constant SHA_256.Data  := [16#61#, 16#62#, 16#63#];
-   R1 : constant SHA_256.State :=
+   D1 : constant Mavlink.SHA_256.Data  := [16#61#, 16#62#, 16#63#];
+   R1 : constant Mavlink.SHA_256.State :=
      [16#ba7816bf#, 16#8f01cfea#, 16#414140de#, 16#5dae2223#,
       16#b00361a3#, 16#96177a9c#, 16#b410ff61#, 16#f20015ad#];
 
-   D2 : constant SHA_256.Data :=
+   D2 : constant Mavlink.SHA_256.Data :=
      [16#61#, 16#62#, 16#63#, 16#64#, 16#62#, 16#63#, 16#64#, 16#65#, 16#63#,
       16#64#, 16#65#, 16#66#, 16#64#, 16#65#, 16#66#, 16#67#, 16#65#, 16#66#,
       16#67#, 16#68#, 16#66#, 16#67#, 16#68#, 16#69#, 16#67#, 16#68#, 16#69#,
@@ -813,33 +816,33 @@ is
       16#6a#, 16#6b#, 16#6c#, 16#6d#, 16#6b#, 16#6c#, 16#6d#, 16#6e#, 16#6c#,
       16#6d#, 16#6e#, 16#6f#, 16#6d#, 16#6e#, 16#6f#, 16#70#, 16#6e#, 16#6f#,
       16#70#, 16#71#];
-   R2 : constant SHA_256.State :=
+   R2 : constant Mavlink.SHA_256.State :=
      [16#248d6a61#, 16#d20638b8#, 16#e5c02693#, 16#0c3e6039#,
       16#a33ce459#, 16#64ff2167#, 16#f6ecedd4#, 16#19db06c1#];
 
-   D3 : constant SHA_256.Data :=
+   D3 : constant Mavlink.SHA_256.Data :=
      [16#6C#, 16#6F#, 16#6E#, 16#67#, 16#5F#, 16#70#, 16#61#, 16#73#, 16#73#,
       16#77#, 16#6F#, 16#72#, 16#64#, 16#fd#, 16#05#, 16#01#, 16#00#, 16#00#,
       16#01#, 16#01#, 16#78#, 16#32#, 16#00#, 16#01#, 16#00#, 16#00#, 16#00#,
       16#01#, 16#08#, 16#98#, 16#01#, 16#c8#, 16#00#, 16#00#, 16#00#, 16#00#,
       16#00#];
-   R3 : constant SHA_256.State :=
+   R3 : constant Mavlink.SHA_256.State :=
      [16#48c298bd#, 16#a123637a#, 16#f1103486#, 16#180a716a#,
       16#9c41e4b1#, 16#42293472#, 16#ea587ff5#, 16#247d5943#];
    T  : Data_Buffer (1 .. 32) with Import, Address => R3'Address;
 
-   procedure Do_SHA_256_Test (D : SHA_256.Data; R : SHA_256.State);
-   procedure Do_SHA_256_Test (D : SHA_256.Data; R : SHA_256.State)
+   procedure Do_SHA_256_Test (D : Mavlink.SHA_256.Data; R : Mavlink.SHA_256.State);
+   procedure Do_SHA_256_Test (D : Mavlink.SHA_256.Data; R : Mavlink.SHA_256.State)
    is
-      use type SHA_256.State;
+      use type Mavlink.SHA_256.State;
 
-      Checksum : SHA_256.Context;
-      Result   : SHA_256.Digest_Type;
-      Res      : SHA_256.State (1 .. 8) with Import,
+      Checksum : Mavlink.SHA_256.Context;
+      Result   : Mavlink.SHA_256.Digest_Type;
+      Res      : Mavlink.SHA_256.State (1 .. 8) with Import,
         Address => Result'Address;
    begin
-      SHA_256.Update (Checksum, D);
-      SHA_256.Digest (Checksum, Result);
+      Mavlink.SHA_256.Update (Checksum, D);
+      Mavlink.SHA_256.Digest (Checksum, Result);
       pragma Assert (Res = R);
    end Do_SHA_256_Test;
 
@@ -851,8 +854,8 @@ is
       200, 0, 0, 0, 0, 0, --  Timestamp
       189, 152, 194, 72,  122, 99]; --  SHA
 
-   In_Connect  : Mavlink_v2.Connection (1, 1);
-   Out_Connect : Mavlink_v2.Out_Connection (1, 1);
+   In_Connect  : Mavlink.V2.Connection (1, 1);
+   Out_Connect : Mavlink.V2.Out_Connection (1, 1);
    Pass        : constant String := "long_password";
    Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
      Address => Pass'Address;
@@ -865,7 +868,7 @@ is
    Link_Id     : Interfaces.Unsigned_8;
    Timestamp   : Timestamp_Type;
    Signature   : Three_Boolean;
-   Buffer      : Data_Buffer (1 .. Mavlink_v2.Maximum_Buffer_Len);
+   Buffer      : Data_Buffer (1 .. Mavlink.V2.Maximum_Buffer_Len);
    Last        : Positive;
 
 begin
@@ -893,7 +896,7 @@ begin
    pragma Assert (Comp_Id = 1);
    pragma Assert
      (Id =
-        Mavlink_v2.Common.Message.Hygrometer_Sensors.Hygrometer_Sensor_Id);
+        Mavlink.V2.Common.Message.Hygrometer_Sensors.Hygrometer_Sensor_Id);
    pragma Assert (Link_Id = 1);
    pragma Assert (Timestamp = 200);
    pragma Assert (Signature = True);
@@ -901,7 +904,7 @@ begin
 
    -- In / Out
    declare
-      use Mavlink_v2.Common.Message.Hygrometer_Sensors;
+      use Mavlink.V2.Common.Message.Hygrometer_Sensors;
       M : constant Hygrometer_Sensor :=
         (Id => 1, Temperature => 1, Humidity => 0);
       O : Hygrometer_Sensor;
@@ -958,7 +961,7 @@ begin
                                 value = "<>"
 
                             else:
-                                value = "Mavlink_v2.%s.%s'First" % (
+                                value = "Mavlink.V2.%s.%s'First" % (
                                     find_package(xml, field.enum),
                                     normalize_enum_name(field.enum).title())
                         else:
@@ -1002,8 +1005,8 @@ def generate_v2(directory, xml):
 
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'Ada')
-    shutil.copy(os.path.join(srcpath, "x25crc.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "x25crc.adb"), directory)
+    shutil.copy(os.path.join(srcpath, "mavlink-x25crc.ads"), directory)
+    shutil.copy(os.path.join(srcpath, "mavlink-x25crc.adb"), directory)
     srcpath = os.path.join(basepath, 'Ada', 'v2')
     for f in pre_files:
         shutil.copy(os.path.join(srcpath, f), directory)
@@ -1013,7 +1016,7 @@ def generate_v2(directory, xml):
         print("Generate " + name.title())
 
         # Create spec file
-        spec = open(os.path.join(directory, "mavlink_v2-" + name + ".ads"), "w")
+        spec = open(os.path.join(directory, "mavlink-v2-" + name + ".ads"), "w")
         spec.write(GEN)
         spec.write("pragma Ada_2022;\n\n")
 
@@ -1039,7 +1042,7 @@ def generate_v2(directory, xml):
         spec.write("end %s.%s;\n" % (v2, name.title()))
 
         # Mavlink.Common.Message
-        f_name = os.path.join(directory, "mavlink_v2-%s-message" % name)
+        f_name = os.path.join(directory, "mavlink-v2-%s-message" % name)
         p_name = "%s.%s.Message" % (v2, name.title())
         spec = open(f_name + ".ads", "w")
         spec.write(GEN)

@@ -1,8 +1,10 @@
 
+pragma Ada_2022;
+
 with Interfaces; use Interfaces;
 with System;
 
-package SHA_256 is
+package Mavlink.SHA_256 is
 
    pragma Preelaborate;
 
@@ -48,4 +50,4 @@ private
 
    procedure Transform (Self : in out Context);
 
-end SHA_256;
+end Mavlink.SHA_256;

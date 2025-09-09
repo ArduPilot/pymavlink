@@ -1,6 +1,5 @@
-pragma Ada_2022;
 
-package body SHA_256 is
+package body Mavlink.SHA_256 is
 
    use type System.Bit_Order;
 
@@ -306,4 +305,5 @@ package body SHA_256 is
          Res := R_SEA (R_SEA'First .. R_SEA'First + Digest_Type'Length - 1);
       end;
    end Digest;
-end SHA_256;
+
+end Mavlink.SHA_256;

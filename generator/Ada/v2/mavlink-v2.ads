@@ -1,17 +1,33 @@
 
 pragma Ada_2022;
 
-with Interfaces;       use Interfaces;
-with Raw_Floats;       use Raw_Floats;
-with Raw_Long_Floats;  use Raw_Long_Floats;
-with SHA_256;
+with Interfaces;               use Interfaces;
+with Mavlink.Raw_Floats;       use Mavlink.Raw_Floats;
+with Mavlink.Raw_Long_Floats;  use Mavlink.Raw_Long_Floats;
 
-package Mavlink_v2 is
+private with Mavlink.SHA_256;
+
+package Mavlink.V2 is
 
    pragma Preelaborate;
 
    type Msg_Id is mod 2 ** 24 with Size => 24;
    --  Message ID has 3 bytes
+
+   type Data_Buffer is array (Positive range <>) of
+     aliased Interfaces.Unsigned_8;
+
+   Maximum_Buffer_Len : constant Positive := 280;
+
+   type Timestamp_Type is mod 2 ** 48 with Size => 48;
+
+   subtype Signature_Index is Positive range 1 .. 32;
+   type Signature_Key is array (Signature_Index range <>) of
+     Interfaces.Unsigned_8;
+
+   type Three_Boolean is (False, True, Unknown);
+
+   -- Arrays --
 
    type Unsigned_8_Array is array (Natural range <>) of Interfaces.Unsigned_8
      with Component_Size => 8;
@@ -33,19 +49,6 @@ package Mavlink_v2 is
      with Component_Size => 32;
    type Long_Float_Array is array (Natural range <>) of Raw_Long_Float
      with Component_Size => 64;
-
-   type Data_Buffer is array (Positive range <>) of
-     aliased Interfaces.Unsigned_8;
-
-   type Timestamp_Type is mod 2 ** 48 with Size => 48;
-
-   subtype Signature_Index is Positive range 1 .. 32;
-   type Signature_Key is array (Signature_Index range <>) of
-     Interfaces.Unsigned_8;
-
-   type Three_Boolean is (False, True, Unknown);
-
-   Maximum_Buffer_Len : constant Positive := 280;
 
    ----------------
    -- Connection --
@@ -144,33 +147,6 @@ package Mavlink_v2 is
 
 private
 
-   type Settings_Data is record
-      Sequence_Id   : Interfaces.Unsigned_8  := 0;
-      Use_Signature : Boolean                := False;
-      Link_Id       : Interfaces.Unsigned_8  := 0;
-      Key           : SHA_256.Context;
-      Timestamp     : Timestamp_Type         := 0;
-   end record;
-
-   type Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
-   is record
-      Settings      : Settings_Data;
-
-      -- Income
-      Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
-      Position      : Natural := 0;
-      Last          : Natural := 0;
-   end record;
-
-   type Out_Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
-   is record
-      Settings : Settings_Data;
-   end record;
-
    type V2_Header is record
       Stx       : Interfaces.Unsigned_8;
       Len       : Interfaces.Unsigned_8;
@@ -211,6 +187,30 @@ private
       Sig       at 7 range 0 .. 47;
    end record;
 
+   -- Settings_Data --
+
+   type Settings_Data is record
+      Sequence_Id   : Interfaces.Unsigned_8  := 0;
+      Use_Signature : Boolean                := False;
+      Link_Id       : Interfaces.Unsigned_8  := 0;
+      Key           : SHA_256.Context;
+      Timestamp     : Timestamp_Type         := 0;
+   end record;
+
+   -- Connection --
+
+   type Connection
+     (System_Id    : Interfaces.Unsigned_8;
+      Component_Id : Interfaces.Unsigned_8)
+   is record
+      Settings      : Settings_Data;
+
+      -- Income
+      Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
+      Position      : Natural := 0;
+      Last          : Natural := 0;
+   end record;
+
    procedure Encode
      (Self   : in out Connection;
       Id     : Msg_Id;
@@ -218,12 +218,33 @@ private
       Buffer : in out Data_Buffer;
       Last   : in out Positive);
 
+   function Is_CRC_Valid
+     (Self   : Connection;
+      Extras : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Message_Data
+     (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural);
+
+   -- Out_Connection --
+
+   type Out_Connection
+     (System_Id    : Interfaces.Unsigned_8;
+      Component_Id : Interfaces.Unsigned_8)
+   is record
+      Settings : Settings_Data;
+   end record;
+
    procedure Encode
      (Self   : in out Out_Connection;
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
       Last   : in out Positive);
+
+   -- Utils --
 
    procedure Encode
      (System_Id    : Interfaces.Unsigned_8;
@@ -234,23 +255,13 @@ private
       Buffer       : in out Data_Buffer;
       Last         : in out Positive);
 
-   function Is_CRC_Valid
-     (Self   : Connection;
-      Extras : Interfaces.Unsigned_8)
-      return Boolean;
-
    procedure Calc_SHA
      (Settings : Settings_Data;
       Buffer   : Data_Buffer;
       Result   : out SHA_Digest);
 
-   procedure Get_Message_Data
-     (Self   : Connection;
-      Buffer : out Data_Buffer;
-      Last   : out Natural);
-
    --  Positions of the messages parts minus 1, to use in construction like
    --  Buff'First + Position
    Message_Data_Position_In_Buffer : constant Positive := 10;
 
-end Mavlink_v2;
+end Mavlink.V2;
