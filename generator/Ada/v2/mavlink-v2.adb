@@ -53,16 +53,23 @@ package body Mavlink.V2 is
    is
       Header : V2_Header with Import, Address => Self.Income_Buffer'Address;
    begin
+      if Self.Position = 0
+        and then Value /= Version_2_Code
+      then
+         return False;
+      end if;
+
       Self.Position := Self.Position + 1;
       Self.Income_Buffer (Self.Position) := Value;
 
-      if Self.Position <= Message_Data_Position_In_Buffer then
+      if Self.Position < Packet_Payload_First then
+         --  no header yet
          return False;
       end if;
 
       if Self.Last = 0 then
          Self.Last := Self.Income_Buffer'First +
-           Message_Data_Position_In_Buffer + --  header
+           Packet_Payload_First + --  header
              Natural (Header.Len - 1) + --  data len
            2; --  x25crc checksum
 
@@ -71,7 +78,7 @@ package body Mavlink.V2 is
          end if;
       end if;
 
-      return Self.Position >= Self.Last
+      return Self.Position = Self.Last
         or else Self.Position = Self.Income_Buffer'Last;
    end Parse_Byte;
 
@@ -166,7 +173,7 @@ package body Mavlink.V2 is
       Sig    : constant Mavlink.V2.Signature with Import,
         Address => Self.Income_Buffer
           (Self.Income_Buffer'First +
-             Message_Data_Position_In_Buffer +
+             Packet_Payload_First +
                Natural (Header.Len - 1) + 3)'Address;
    begin
       if (Header.Inc_Flags and 1) > 0 then
@@ -192,7 +199,7 @@ package body Mavlink.V2 is
       if (Header.Inc_Flags and 1) > 0 then
          declare
             Last_Data   : constant Positive := Self.Income_Buffer'First +
-              Message_Data_Position_In_Buffer +
+              Packet_Payload_First +
                 Natural (Header.Len - 1);
             Sig         : constant Mavlink.V2.Signature with Import,
               Address => Self.Income_Buffer (Last_Data + 3)'Address;
@@ -235,7 +242,7 @@ package body Mavlink.V2 is
       Header    : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
       Last_Data : constant Positive := Self.Income_Buffer'First +
-        Message_Data_Position_In_Buffer +
+        Packet_Payload_First +
           Natural (Header.Len - 1);
 
       CRC : X25CRC.Checksum;
@@ -258,14 +265,14 @@ package body Mavlink.V2 is
    procedure Get_Buffer
      (Self   : Connection;
       Buffer : out Data_Buffer;
-      Last   : out Natural) is
+      Last   : out Natural)
+   is
+      Len : constant Natural := Natural'Min
+        (Buffer'Length, Self.Income_Buffer'First + Self.Position - 1);
    begin
-      Last := Natural'Min
-        (Buffer'Length,
-         Self.Income_Buffer'First + Self.Position - 1);
-
-      Buffer (Buffer'First .. Buffer'First + Last - 1) := Self.Income_Buffer
-        (Self.Income_Buffer'First .. Self.Income_Buffer'First + Last - 1);
+      Last := Buffer'First + Len - 1;
+      Buffer (Buffer'First .. Last) := Self.Income_Buffer
+        (Self.Income_Buffer'First .. Self.Income_Buffer'First + Len - 1);
    end Get_Buffer;
 
    ------------------
@@ -327,33 +334,33 @@ package body Mavlink.V2 is
       Buffer       : in out Data_Buffer;
       Last         : in out Positive)
    is
-      Local : V2_Header with Import,
+      Header : V2_Header with Import,
         Address => Buffer (Buffer'First)'Address;
       L_Id  : Unsigned_64 := Unsigned_64 (Id);
       CRC   : X25CRC.Checksum;
    begin
       --  Truncate the message
-      while Last > Buffer'First + Message_Data_Position_In_Buffer loop
+      while Last > Buffer'First + Packet_Payload_First loop
          exit when Buffer (Last) /= 0;
          Last := Last - 1;
       end loop;
 
-      Local.Stx       := 16#FD#;
-      Local.Len       := Unsigned_8
-        (Last - (Buffer'First + Message_Data_Position_In_Buffer - 1));
-      Local.Inc_Flags := (if Settings.Use_Signature then 1 else 0);
-      Local.Cmp_Flags := 0;
-      Local.Seq       := Settings.Sequence_Id;
-      Local.Sys_Id    := System_Id;
-      Local.Comp_Id   := Component_Id;
+      Header.Stx       := Version_2_Code;
+      Header.Len       := Unsigned_8
+        (Last - (Buffer'First + Packet_Payload_First - 1));
+      Header.Inc_Flags := (if Settings.Use_Signature then 1 else 0);
+      Header.Cmp_Flags := 0;
+      Header.Seq       := Settings.Sequence_Id;
+      Header.Sys_Id    := System_Id;
+      Header.Comp_Id   := Component_Id;
 
       Settings.Sequence_Id := Settings.Sequence_Id + 1;
 
-      Local.Id_Low := Unsigned_8 (L_Id and 16#FF#);
+      Header.Id_Low := Unsigned_8 (L_Id and 16#FF#);
       L_Id := Shift_Right (L_Id, 8);
-      Local.Id_Mid := Unsigned_8 (L_Id and 16#FF#);
+      Header.Id_Mid := Unsigned_8 (L_Id and 16#FF#);
       L_Id := Shift_Right (L_Id, 8);
-      Local.Id_High := Unsigned_8 (L_Id and 16#FF#);
+      Header.Id_High := Unsigned_8 (L_Id and 16#FF#);
 
       for B of Buffer (Buffer'First + 1 .. Last) loop
          X25CRC.Update (CRC, B);
@@ -414,12 +421,12 @@ package body Mavlink.V2 is
       Header    : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
       Last_Data : constant Positive := Self.Income_Buffer'First +
-        Message_Data_Position_In_Buffer +
+        Packet_Payload_First +
           Natural (Header.Len - 1);
    begin
       Last := Buffer'First + Natural (Header.Len - 1);
       Buffer (Buffer'First .. Last) := Self.Income_Buffer
-        (Self.Income_Buffer'First + Message_Data_Position_In_Buffer ..
+        (Self.Income_Buffer'First + Packet_Payload_First ..
            Last_Data);
    end Get_Message_Data;
 

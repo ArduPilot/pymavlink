@@ -27,6 +27,8 @@ package Mavlink.V2 is
 
    type Three_Boolean is (False, True, Unknown);
 
+   Version_2_Code : constant Interfaces.Unsigned_8 := 16#FD#;
+
    -- Arrays --
 
    type Unsigned_8_Array is array (Natural range <>) of Interfaces.Unsigned_8
@@ -261,7 +263,7 @@ private
       Result   : out SHA_Digest);
 
    --  Positions of the messages parts minus 1, to use in construction like
-   --  Buff'First + Position
-   Message_Data_Position_In_Buffer : constant Positive := 10;
+   --  Buff'First + Packet_Payload_First
+   Packet_Payload_First : constant Positive := 10;
 
 end Mavlink.V2;

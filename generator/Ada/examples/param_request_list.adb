@@ -1,64 +1,85 @@
 --  Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params
 --  Copyright Fil Andrii root.fi36@gmail.com 2022
 
-with Ada.Streams;
-with GNAT.Serial_Communications;
-with Ada.Text_IO;
-with Interfaces;
 with Ada.Numerics.Generic_Elementary_Functions;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Maps;
+with Ada.Streams;
+with Ada.Text_IO;
 
-with MAVLink;
-with MAVLink.Connection;
-with MAVLink.Messages;
-with MAVLink.Types;
+with GNAT.Serial_Communications;
+with Interfaces;
+
+with MAVLink.V1;
+with Mavlink.V1.Common.Message.Param_Request_Lists;
+with Mavlink.V1.Common.Message.Param_Values;
 
 procedure Param_Request_List is
    use type Ada.Streams.Stream_Element_Offset;
    use type Interfaces.Unsigned_8;
-   package Short_Float_Text_IO is new Ada.Text_IO.Float_IO(Short_Float);
+   use type Interfaces.IEEE_Float_32;
 
-   Ser : GNAT.Serial_Communications.Serial_Port;
-   Input : Ada.Streams.Stream_Element_Array(1..1024);
-   Input_Last : Ada.Streams.Stream_Element_Offset;
-   Output : Ada.Streams.Stream_Element_Array(1..1024);
-   Output_Last : Ada.Streams.Stream_Element_Offset := Output'First;
+   package IEEE_Text_IO is new Ada.Text_IO.Float_IO (Interfaces.IEEE_Float_32);
 
-   Mav_Conn : MAVLink.Connection.Connection (System_Id => 250);
+   Ser         : GNAT.Serial_Communications.Serial_Port;
+   Input       : Ada.Streams.Stream_Element_Array (1 .. 1024);
+   Input_Last  : Ada.Streams.Stream_Element_Offset;
+   Output      : MAVLink.V1.Data_Buffer (1 .. 1024);
+   Output_Last : Natural := Output'First;
+
+   Mav_Conn    : MAVLink.V1.Connection (System_Id => 250, Component_Id => 1);
 
    procedure Handler_Param_Value is
-      Param_Value : MAVLink.Messages.Param_Value;
+      Param_Value : Mavlink.V1.Common.Message.Param_Values.Param_Value;
    begin
-      Mav_Conn.Unpack (Param_Value);
+      Mavlink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
       Ada.Text_IO.Put (Param_Value.Param_Id & " = ");
-      Short_Float_Text_IO.Put (Param_Value.Param_Value, Aft => 4, Exp => 0);
+      IEEE_Text_IO.Put (Param_Value.Param_Value, Aft => 4, Exp => 0);
       Ada.Text_IO.New_Line;
    end Handler_Param_Value;
 
-   Param_Request_List : MAVLink.Messages.Param_Request_List;
+   Param_Request_List : Mavlink.V1.Common.Message.
+     Param_Request_Lists.Param_Request_List;
 
 begin
-   Ada.Text_IO.Put_Line ("Connects to ardupilot (baud rate 115200) via ttyUSB0 and read all params");
+   Ada.Text_IO.Put_Line
+     ("Connects to ardupilot (baud rate 115200) via"
+      & " ttyUSB0 and read all params");
 
    GNAT.Serial_Communications.Open (Port => Ser, Name => "/dev/ttyUSB0");
-   GNAT.Serial_Communications.Set (Port => Ser, Rate => GNAT.Serial_Communications.B115200, Block => True, Timeout => 0.0);
+
+   GNAT.Serial_Communications.Set
+     (Port  => Ser,
+      Rate  => GNAT.Serial_Communications.B115200,
+      Block => True, Timeout => 0.0);
 
    Param_Request_List.Target_System := 1;
    Param_Request_List.Target_Component := 0;
 
-   for B of Mav_Conn.Pack (Param_Request_List) loop
-      Output (Output_Last) := Ada.Streams.Stream_Element (B);
-      Output_Last := Output_Last + 1;
-   end loop;
-   GNAT.Serial_Communications.Write (Port => Ser, Buffer => Output (Output'First .. Output_Last));
+   Mavlink.V1.Common.Message.Param_Request_Lists.Encode
+     (Param_Request_List, Mav_Conn, Output, Output_Last);
+
+   declare
+      Buffer : Ada.Streams.Stream_Element_Array
+        (Ada.Streams.Stream_Element_Offset (Output'First) ..
+             Ada.Streams.Stream_Element_Offset (Output_Last))
+        with Import, Address => Output'Address;
+   begin
+      GNAT.Serial_Communications.Write
+        (Port   => Ser,
+         Buffer => Buffer);
+   end;
 
    loop
-      GNAT.Serial_Communications.Read (Port => Ser, Buffer => Input, Last => Input_Last);
+      GNAT.Serial_Communications.Read
+        (Port => Ser, Buffer => Input, Last => Input_Last);
+
       for B of Input (Input'First .. Input_Last) loop
-         if Mav_Conn.Parse_Byte(Interfaces.Unsigned_8(B)) then
-            if Mav_Conn.Get_Msg_Id = MAVLink.Messages.Param_Value_Id then
+         if MAVLink.V1.Parse_Byte (Mav_Conn, Interfaces.Unsigned_8 (B)) then
+            if MAVLink.V1.Get_Msg_Id (Mav_Conn) =
+              Mavlink.V1.Common.Message.Param_Values.Param_Value_Id
+            then
                Handler_Param_Value;
             end if;
          end if;

@@ -15,6 +15,15 @@ import shutil
 from operator import attrgetter
 from . import mavparse
 
+v1 = "Mavlink.V1"
+v2 = "Mavlink.V2"
+
+NAN = "0"
+
+copy = """--  Copyright Fil Andrii root.fi36@gmail.com 2022-2025
+
+"""
+
 reserved_words = (
     'abort', 'else', 'new', 'return', 'abs', 'elsif', 'not', 'reverse', 'abstract', 'end', 'null',
     'accept', 'entry', 'select', 'access', 'exception', 'of', 'separate', 'aliased', 'exit', 'or',
@@ -67,8 +76,8 @@ field_types = {
     'int16_t' : 'Interfaces.Integer_16',
     'int32_t' : 'Interfaces.Integer_32',
     'int64_t' : 'Interfaces.Integer_64',
-    'float' : 'Short_Float',
-    'double' : 'Long_Float'}
+    'float' : 'Interfaces.IEEE_Float_32',
+    'double' : 'Raw_Long_Float'}
 
 field_array_types = {
     'uint8_t' : 'Unsigned_8_Array',
@@ -82,6 +91,74 @@ field_array_types = {
     'float' : 'Short_Float_Array',
     'double' : 'Long_Float_Array'}
 
+array_to_float_v1 = {
+    'Short_Float_Array' : 'Interfaces.IEEE_Float_32',
+    'Long_Float_Array' : 'Raw_Long_Float'}
+
+field_values_v1 = {
+    'uint8_t' : '1',
+    'uint16_t' : '2',
+    'uint32_t' : '3',
+    'uint64_t' : '4',
+    'int8_t' : '5',
+    'int16_t' : '6',
+    'int32_t' : '7',
+    'int64_t' : '8',
+    'float' : '9.9',
+    'double' : 'To_Raw (10.10)'}
+
+field_array_values_v1 = {
+    'uint8_t' : '(others => 1)',
+    'uint16_t' : '(others => 2)',
+    'uint32_t' : '(others => 3)',
+    'uint64_t' : '(others => 4)',
+    'int8_t' : '(others => 5)',
+    'int16_t' : '(others => 6)',
+    'int32_t' : '(others => 7)',
+    'int64_t' : '(others => 8)',
+    'float' : '(others => 9.9)',
+    'double' : '(others => To_Raw (10.10))'}
+
+field_v2_types = {
+    'uint8_t' : 'Interfaces.Unsigned_8',
+    'uint16_t' : 'Interfaces.Unsigned_16',
+    'uint32_t' : 'Interfaces.Unsigned_32',
+    'uint64_t' : 'Interfaces.Unsigned_64',
+    'int8_t' : 'Interfaces.Integer_8',
+    'int16_t' : 'Interfaces.Integer_16',
+    'int32_t' : 'Interfaces.Integer_32',
+    'int64_t' : 'Interfaces.Integer_64',
+    'float' : 'Raw_Float',
+    'double' : 'Raw_Long_Float'}
+
+array_to_float_v2 = {
+    'Short_Float_Array' : 'Raw_Float',
+    'Long_Float_Array' : 'Raw_Long_Float'}
+
+field_values_v2 = {
+    'uint8_t' : '1',
+    'uint16_t' : '2',
+    'uint32_t' : '3',
+    'uint64_t' : '4',
+    'int8_t' : '5',
+    'int16_t' : '6',
+    'int32_t' : '7',
+    'int64_t' : '8',
+    'float' : 'To_Raw (9.9)',
+    'double' : 'To_Raw (10.10)'}
+
+field_array_values_v2 = {
+    'uint8_t' : '(others => 1)',
+    'uint16_t' : '(others => 2)',
+    'uint32_t' : '(others => 3)',
+    'uint64_t' : '(others => 4)',
+    'int8_t' : '(others => 5)',
+    'int16_t' : '(others => 6)',
+    'int32_t' : '(others => 7)',
+    'int64_t' : '(others => 8)',
+    'float' : '(others => To_Raw (9.9))',
+    'double' : '(others => To_Raw (10.10))'}
+
 # Default invalid values for fields
 invalid = {
     'UINT8_MAX'  : "Interfaces.Unsigned_8'Last",
@@ -92,9 +169,19 @@ invalid = {
     'INT32_MAX'  : "Interfaces.Integer_32'Last"
 }
 
+float_types_conversions = {
+    'Raw_Float' : 'Float',
+    'Raw_Long_Float' : 'Long_Float',
+    'Interfaces.IEEE_Float_32' : 'Interfaces.IEEE_Float_32'}
+
 GEN = """-------------------------------------------
 --  DO NOT EDIT. This file is generated. --
 -------------------------------------------\n\n"""
+
+types = []
+filelist = []
+types_size = {}
+types_files = {}
 
 # format text as a comment with lines < 79
 def format_comment(text, tab):
@@ -122,102 +209,19 @@ def get_deprecated(deprecated, tab):
     s += "".ljust(tab) + "------------\n"
     return s
 
-def generate_mavlink_messages(outf, msgs):
-    outf.write("""--  Defines MAVLink messages
---  Copyright Fil Andrii root.fi36@gmail.com 2022
+# Returns package filename and name for the message
+def get_pakage_name(x, m, directory, ver, f_ver):
+    name = os.path.splitext(os.path.basename(x.filename))[0]
+    pkg_name = normalize_message_name(m.name).title()
 
-with Interfaces;
-with MAVLink.Types; use MAVLink.Types;
+    if pkg_name[-1] == 's': pkg_name += 'es'
+    else: pkg_name += 's'
 
-package MAVLink.Messages is
+    f_name = os.path.join(directory, "mavlink-%s-%s-message-%s" % (f_ver, name, pkg_name.lower()))
+    p_name = "%s.%s.Message.%s" % (ver, name.title(), pkg_name)
+    return f_name, p_name
 
-   pragma Pure;
-
-   type Message
-     (Message_Id : Msg_Id;
-      Payload_Length : Interfaces.Unsigned_8) is abstract tagged record
-      Sequence     : Interfaces.Unsigned_8;
-      System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8;
-   end record with Alignment => Message_Alignment, Size => Message_Size * 8;
-   for Message use record
-      Payload_Length at Tag_Length + 0 range 0 .. 7;
-      Sequence       at Tag_Length + 1 range 0 .. 7;
-      System_Id      at Tag_Length + 2 range 0 .. 7;
-      Component_Id   at Tag_Length + 3 range 0 .. 7;
-      Message_Id     at Tag_Length + 4 range 0 .. 7;
-   end record;\n\n""")
-
-    max_len = 0
-    for m in msgs:
-        name_len = len(normalize_message_name(m.name))
-        if name_len > max_len:
-            max_len = name_len
-    max_len += 3
-
-    s = ""
-    for m in msgs:
-        name = normalize_message_name(m.name).title()
-        s += "   %s : constant Msg_Id := %i;\n" % ((name + "_Id").ljust(max_len), m.id)
-    outf.write(s)
-    outf.write("\n")
-
-    s = ""
-    for m in msgs:
-        message_name = normalize_message_name(m.name).title()
-        max_len = 0
-        payload_length = 0
-        for field in m.fields:
-            payload_length += (field.array_length or 1) * field.type_length
-            field_name_len = len(normalize_field_name(field.name))
-            if field_name_len > max_len:
-                max_len = field_name_len
-        s += "   type %s is new Message\n" % message_name
-        s += "     (Message_Id => %s_Id,\n      Payload_Length => %i) with record\n" % (message_name, payload_length)
-        for field in m.fields:
-            field_name = normalize_field_name(field.name).title()
-            s += "      %s : " % field_name.ljust(max_len)
-            if field.type == 'char':
-                s += "String (1..%i)" % field.array_length
-            else:
-                if field.array_length:
-                    s += "%s (1..%i)" % (field_array_types[field.type], field.array_length)
-                elif field.enum:
-                    s += "Types." + normalize_enum_name(field.enum).title()
-                else:
-                    s += field_types[field.type]
-            s += ";\n"
-        s += "   end record;\n"
-
-        offset = 0
-        s += "   for %s use record\n" % message_name
-        for field in m.ordered_fields:
-            field_name = normalize_field_name(field.name).title()
-            field_size = (field.array_length or 1) * field.type_length * 8
-            s += "      %s at Message_Size + %i range 0 .. %i;\n" % (field_name.ljust(max_len), offset, field_size - 1)
-            offset += field_size / 8
-        s += "   end record;\n\n"
-    outf.write(s)
-
-    s = """   CRC_Extras : constant array (Interfaces.Unsigned_8'Range) of
-     Interfaces.Unsigned_8 := \n     (""";
-    
-    item_len = 0
-    l = 6
-    for m in msgs:
-        item = "%s => %s," % (str(m.id).ljust(3), str(m.crc_extra))
-        item = item.ljust(12)
-        item_len = len(item)
-        if l + item_len > 79:
-            s += "\n      "
-            l = 6
-        l += item_len
-        s += item
-    s += "\n      others => 0) with Size => 2048;\n"
-    outf.write(s)
-
-    outf.write("\nend MAVLink.Messages;")
-
+# Generate record type
 def repr_bitmask(enum, size):
     enum_name = normalize_enum_name(enum.name).title()
     s = "   type %s is record\n" % enum_name
@@ -278,6 +282,7 @@ def repr_bitmask(enum, size):
 """.format (enum_name, parts)
     return s
 
+# Generate enumeration type
 def repr_enum(enum, size):
     enum_name = normalize_enum_name(enum.name).title()
     s = "   type %s is new Interfaces.Unsigned_%i;\n" % (enum_name, size * 8)
@@ -341,38 +346,84 @@ def repr_enum(enum, size):
 
     return s
 
-def generate_mavlink_types(outf, types, types_size):
-    outf.write("""--  Defines MAVLink types
---  Copyright Fil Andrii root.fi36@gmail.com 2022-2025
+#Add with/use for includes
+def generate_includes(x, f, ver):
+    n_len = 0
+    for i in x.include:
+        n_len = max (len(os.path.splitext(i)[0]), n_len);
 
-pragma Ada_2022;
+    for i in x.include:
+        n = os.path.splitext(i)[0].title() + ";"
+        f.write("with " + ver + "." + n.ljust(n_len) +
+                " use " + ver + "." + n + "\n")
 
-package MAVLink.Types is
+    if n_len > 0: f.write("\n")
 
-   pragma Pure;\n\n""")
+# Create file for the types package
+def create_types_spec (directory, file_prefix, ver, x, header=None):
+    dialect = os.path.splitext(os.path.basename(x.filename))[0]
+    print("Generate " + dialect.title())
 
-    for t in types:
-        size = types_size[t.name]
-        if size is not None:
-            if t.bitmask:
-                outf.write(repr_bitmask(t, size))
-            else:
-                outf.write(repr_enum(t, size))
-            outf.write("\n")
-    outf.write("end MAVLink.Types;")
+    # Create file
+    spec = open(os.path.join(directory, file_prefix + dialect + ".ads"), "w")
+    spec.write(GEN)
+    if header: spec.write(header)
+    spec.write("pragma Ada_2022;\n\n")
 
-msgs = []
-types = []
-filelist = []
-types_size = {}
-types_files = {}
+    generate_includes (x, spec, ver)
 
+    spec.write("package %s.%s is\n\n" % (ver, dialect.title()))
+    spec.write("   pragma Preelaborate;\n\n")
+    return spec
+
+# Create dialect common message package
+def generate_common_messages_pkg (directory, pkg, p_name, header=None):
+    f_name = os.path.join(directory, pkg)
+    spec = open(f_name + ".ads", "w")
+    spec.write(GEN)
+    if header: spec.write(header)
+    spec.write("pragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\nend %s;\n" % (p_name, p_name))
+
+# Create file for the message spec
+def create_message_pkg (x, f_name, p_name, ver, m, header=None):
+    global types_files
+
+    spec = open(f_name + ".ads", "w")
+    spec.write(GEN)
+    if header: spec.write(header)
+    if m.deprecated:
+        spec.write(get_deprecated(m.deprecated, 0))
+    spec.write(format_comment (m.description, 0))
+
+    # indirect includes
+    included = [x]
+    f_types = [field.enum for field in m.fields if field.enum]
+    for t in f_types:
+        if t in types_files and types_files[t] not in included and types_files[t].filename not in x.include:
+            if len(included) == 1: spec.write("\n")
+            included.append(types_files[t])
+            inc = os.path.splitext(os.path.basename(types_files[t].filename))[0].title()
+            spec.write("with %s.%s; use %s.%s;\n" % (ver, inc, ver, inc))
+
+    spec.write("\npackage %s is\n\n" % p_name)
+    spec.write("   pragma Preelaborate;\n\n")
+    return spec
+
+# Create file for the message body
+def create_message_body (f_name, p_name):
+    body = open(f_name + ".adb", "w")
+    body.write(GEN)
+    body.write("pragma Ada_2022;\n\npackage body %s is\n\n" % p_name)
+    return body
+
+# Prepare information about types
 def calculate_types_size(xml):
-    global msgs
     global types
     global filelist
     global types_size
     global types_files
+
+    msgs = []
 
     for x in xml:
         msgs.extend(x.message)
@@ -392,152 +443,55 @@ def calculate_types_size(xml):
                 else:
                     assert types_size[f.enum] == f.type_length, "Different size for one enum"
 
-def generate(directory, xml):
-    '''generate complete Ada implementation'''
-    mavparse.mkdir_p(directory)
+# Generate v1 types
+def generate_v1_types(directory, x, types_size):
+    dialect = os.path.splitext(os.path.basename(x.filename))[0].title()
+    outf = create_types_spec (directory, "mavlink-v1-", v1, x, copy)
 
-    global msgs
-    global types
-    global filelist
-    global types_size
-    calculate_types_size(xml)
+    for t in x.enum:
+        size = types_size[t.name]
+        if size is not None:
+            if t.bitmask:
+                outf.write(repr_bitmask(t, size))
+            else:
+                outf.write(repr_enum(t, size))
+            outf.write("\n")
+    outf.write("end %s.%s;\n" % (v1, dialect.title()))
 
-    basepath = os.path.dirname(os.path.realpath(__file__))
-    srcpath = os.path.join(basepath, 'Ada')
-    shutil.copy(os.path.join(srcpath, "x25crc.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "x25crc.adb"), directory)
-    shutil.copy(os.path.join(srcpath, "mavlink.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "mavlink-connection.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "mavlink-connection.adb"), directory)
-    shutil.copytree(os.path.join(srcpath, "examples"), os.path.join(directory, "examples"), dirs_exist_ok=True)
-
-    print("Generate MAVLink.Types")
-    with open(os.path.join(directory, "mavlink-types.ads"), "w") as f:
-        generate_mavlink_types(f, types, types_size)
-    print("Generate MAVLink.Messages")
-    with open(os.path.join(directory, "mavlink-messages.ads"), "w") as f:
-        generate_mavlink_messages(f, msgs)
-
-#
-# Generate V2
-#
-
-v2 = "Mavlink.V2"
-pre_files = (
-    'mavlink_v2.gpr',
-    'mavlink.ads', 'mavlink-v2.ads', 'mavlink-v2.adb',
-    'mavlink-sha_256.ads', 'mavlink-sha_256.adb',
-    'mavlink-raw_floats.ads', 'mavlink-raw_long_floats.ads')
-
-field_v2_types = {
-    'uint8_t' : 'Interfaces.Unsigned_8',
-    'uint16_t' : 'Interfaces.Unsigned_16',
-    'uint32_t' : 'Interfaces.Unsigned_32',
-    'uint64_t' : 'Interfaces.Unsigned_64',
-    'int8_t' : 'Interfaces.Integer_8',
-    'int16_t' : 'Interfaces.Integer_16',
-    'int32_t' : 'Interfaces.Integer_32',
-    'int64_t' : 'Interfaces.Integer_64',
-    'float' : 'Raw_Float',
-    'double' : 'Raw_Long_Float'}
-
-float_types_conversions = {
-    'Raw_Float' : 'Float',
-    'Raw_Long_Float' : 'Long_Float'}
-
-field_values = {
-    'uint8_t' : '1',
-    'uint16_t' : '2',
-    'uint32_t' : '3',
-    'uint64_t' : '4',
-    'int8_t' : '5',
-    'int16_t' : '6',
-    'int32_t' : '7',
-    'int64_t' : '8',
-    'float' : 'To_Raw (9.9)',
-    'double' : 'To_Raw (10.10)'}
-
-field_array_values = {
-    'uint8_t' : '(others => 1)',
-    'uint16_t' : '(others => 2)',
-    'uint32_t' : '(others => 3)',
-    'uint64_t' : '(others => 4)',
-    'int8_t' : '(others => 5)',
-    'int16_t' : '(others => 6)',
-    'int32_t' : '(others => 7)',
-    'int64_t' : '(others => 8)',
-    'float' : '(others => To_Raw (9.9))',
-    'double' : '(others => To_Raw (10.10))'}
-
-NAN = "0"
-
-#Add with/use for includes
-def generate_includes(x, f):
-    n_len = 0
-    for i in x.include:
-        n_len = max (len(os.path.splitext(i)[0]), n_len);
-
-    for i in x.include:
-        n = os.path.splitext(i)[0].title() + ";"
-        f.write("with " + v2 + "." + n.ljust(n_len) +
-                " use " + v2 + "." + n + "\n")
-
-    if n_len > 0: f.write("\n")
-
-# calculate size of enum type based on the max value
-def calculate_enum_size(enum):
-    max_value = 0
-    for i in enum.entry:
-        if i.end_marker: break
-        max_value = max(max_value, i.value)
-
-    size = math.ceil(math.ceil(math.log2(max_value)) / 8)
-    if size < 1: size = 1
-    return size
-
-# calculate size of bitmask type based on the fields count
-def calculate_bitmask_size(bitmask):
-    c = 0
-    for i in bitmask.entry:
-        if i.end_marker:
-            c += math.ceil(math.log2(i.value))
-            break
-
-        elif i.value == 0:
-            continue
-
-        elif not is_position(i.value):
-            print("%s ignored because the composite value!" % i.name)
-            continue
-
-        c += 1
-    return math.ceil(c / 8)
-
-# return default value
-def get_default(value, type_name):
+# return default value for record field
+def get_default(value, type_name, array_to_float):
     global types
 
     if value[0] == '[':
-        return "        (others => %s)" % get_default(value[1:-1], type_name)
+        if type_name in array_to_float:
+            return "(others => %s)" % get_default(value[1:-1], array_to_float[type_name], array_to_float)
+        else:
+            return "(others => %s)" % get_default(value[1:-1], type_name, array_to_float)
 
     elif value[:2] == '0x':
         res = "16#%s#" % value[2:]
-        if type_name.find("Float") != -1:
-            return "To_Raw (%s (%s))" % (float_types_conversions[type_name], res)
+        if type_name.find("IEEE") != -1: return "%s (%s)" % (type_name, res)
+        if type_name.find("Float") != -1: return "To_Raw (%s (%s))" % (float_types_conversions[type_name], res)
         return res
 
     else:
         if value in invalid:
             res = invalid[value]
-            if type_name.find("Float") != -1:
-                return "To_Raw (%s (%s))" % (float_types_conversions[type_name], res)
+            if type_name.find("IEEE") != -1: return "%s (%s)" % (type_name, res)
+            if type_name.find("Float") != -1: return "To_Raw (%s (%s))" % (float_types_conversions[type_name], res)
             return res
 
         elif value[:3].upper() == "NAN":
-            return get_default(NAN, type_name)
+            return get_default(NAN, type_name, array_to_float)
 
         else:
-            if type_name.find("Float") != -1:
+            if type_name.find("IEEE") != -1:
+                if value.find(".") == -1:
+                    return "%s.0" % value
+                else:
+                    return value
+
+            elif type_name.find("Float") != -1:
                 if value.find(".") == -1:
                     return "To_Raw (%s.0)" % value
                 else:
@@ -556,55 +510,8 @@ def get_default(value, type_name):
 
                 return value
 
-#Generate message
-def generate_message(msg, spec, body):
+def generate_message_representation(msg, spec, max_len):
     name = normalize_message_name(msg.name).title()
-
-    spec.write("   pragma Preelaborate;\n\n")
-    spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
-
-    max_len = 0
-    for field in msg.fields:
-        max_len = max(max_len, len(normalize_field_name(field.name)))
-
-    spec.write("   type %s is record\n" % name)
-    for field in msg.fields:
-        field_name = normalize_field_name(field.name).title()
-        spec.write("      %s : " % field_name.ljust(max_len))
-        tp = ""
-
-        if field.type == 'char':
-            tp = "String"
-            spec.write("String (1 .. %i)" % field.array_length)
-
-        else:
-            if field.array_length:
-                tp = field_array_types[field.type]
-                spec.write("%s (1 .. %i)" % (tp, field.array_length))
-
-            elif field.enum:
-                tp = normalize_enum_name(field.enum).title()
-                if field_name == tp:
-                    tp = "Common." + tp
-                spec.write(tp)
-
-            else:
-                tp = field_v2_types[field.type]
-                spec.write(tp)
-
-        if field.invalid:
-            s = get_default(field.invalid, tp)
-            if s != "":
-                spec.write(" :=\n        %s" % s)
-
-        spec.write(";\n")
-        if field.units: spec.write("      --  Units: %s\n" % field.units)
-        spec.write(format_comment(field.description, 6))
-    spec.write("   end record;\n\n")
-
-    if msg.deprecated:
-        spec.write("   pragma Obsolescent (%s);\n\n" % name)
-
     offset = 0
     max_offset = 0
     for field in msg.ordered_fields:
@@ -623,6 +530,7 @@ def generate_message(msg, spec, body):
         offset += field_size / 8
     spec.write("   end record;\n\n")
 
+def generate_message_methods(name, rev, spec):
     spec.write("""   procedure Encode
      (Message : %s;
       Connect : in out %s.Out_Connection;
@@ -654,9 +562,10 @@ def generate_message(msg, spec, body):
       return Boolean;
    --  Returns True if CRC is valid
 
-""" % (name, v2, name, v2, name, v2, name, v2, v2))
+""" % (name, rev, name, rev, name, rev, name, rev, rev))
 
-    # Body
+# Generate message body
+def generate_message_body(name, rev, extra, body, is_v1):
     body.write("""   procedure Encode
      (Message : %s;
       Connect : in out %s.Out_Connection;
@@ -668,10 +577,10 @@ def generate_message(msg, spec, body):
         Convention => Ada;
 
    begin
-      Last  := Buffer'First +
-        Message_Data_Position_In_Buffer +
+      Last := Buffer'First +
+        Packet_Payload_First +
         (%s'Value_Size / 8) - 1;
-      Buffer (Buffer'First + Message_Data_Position_In_Buffer .. Last) := Local;
+      Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
       Encode (Connect, %s_Id, %s, Buffer, Last);
    end Encode;
 
@@ -686,32 +595,12 @@ def generate_message(msg, spec, body):
         Convention => Ada;
 
    begin
-      Last  := Buffer'First +
-        Message_Data_Position_In_Buffer +
+      Last := Buffer'First +
+        Packet_Payload_First +
         (%s'Value_Size / 8) - 1;
-      Buffer (Buffer'First + Message_Data_Position_In_Buffer .. Last) := Local;
+      Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
       Encode (Connect, %s_Id, %s, Buffer, Last);
    end Encode;
-
-   procedure Decode
-     (Message   : out %s;
-      Connect   : in out %s.Connection;
-      CRC_Valid : out Boolean)
-   is
-      Data  : Data_Buffer (1 .. Maximum_Buffer_Len);
-      Last  : Natural;
-      Buf   : Data_Buffer
-        (1 .. %s'Size / 8) := (others => 0)
-        with Address => Message'Address,
-        Convention   => Ada;
-   begin
-      Get_Message_Data (Connect, Data, Last);
-      Buf (1 .. Last) := Data (1 .. Last);
-      
-      CRC_Valid := Check_CRC (Connect);
-
-      Drop_Message (Connect);
-   end Decode;
 
    function Check_CRC
      (Connect : in out %s.Connection) return Boolean is
@@ -720,12 +609,65 @@ def generate_message(msg, spec, body):
    end Check_CRC;
 
    procedure Decode
+     (Message   : out %s;
+      Connect   : in out %s.Connection;
+      CRC_Valid : out Boolean)
+   is
+""" % (name, rev, name, name, name, extra,
+       name, rev, name, name, name, extra,
+       rev, extra,
+       name, rev))
+
+    if is_v1:
+        body.write("""      Buf : Data_Buffer
+        (1 .. %s'Size / 8) := (others => 0)
+        with Address => Message'Address,
+        Convention   => Ada;
+   begin
+      pragma Assert
+        (Get_Msg_Len (Connect) =
+             Unsigned_8 (Integer (%s'Value_Size) / 8));
+      Get_Message_Data (Connect, Buf);
+      CRC_Valid := Check_CRC (Connect);
+""" % (name, name))
+    else:
+        body.write("""      Data : Data_Buffer (1 .. %s'Value_Size / 8);
+      Last : Natural;
+      Buf  : Data_Buffer
+        (1 .. %s'Size / 8) := (others => 0)
+        with Address => Message'Address,
+        Convention   => Ada;
+   begin
+      Get_Message_Data (Connect, Data, Last);
+      Buf (1 .. Last) := Data (1 .. Last);
+
+      CRC_Valid := Check_CRC (Connect);
+
+      Drop_Message (Connect);
+""" % (name, name))
+
+    body.write("""   end Decode;
+
+   procedure Decode
      (Message : out %s;
       Connect : in out %s.Connection)
    is
-      Data  : Data_Buffer (1 .. Maximum_Buffer_Len);
-      Last  : Natural;
-      Buf   : Data_Buffer
+""" % (name, rev))
+    if is_v1:
+        body.write("""      Buf : Data_Buffer
+        (1 .. %s'Size / 8) := (others => 0)
+        with Address => Message'Address,
+        Convention   => Ada;
+   begin
+      pragma Assert
+        (Get_Msg_Len (Connect) =
+             Unsigned_8 (Integer (%s'Value_Size / 8)));
+      Get_Message_Data (Connect, Buf);
+""" % (name, name))
+    else:
+        body.write("""      Data : Data_Buffer (1 .. %s'Value_Size / 8);
+      Last : Natural;
+      Buf  : Data_Buffer
         (1 .. %s'Size / 8) := (others => 0)
         with Address => Message'Address,
         Convention   => Ada;
@@ -733,39 +675,68 @@ def generate_message(msg, spec, body):
       Get_Message_Data (Connect, Data, Last);
       Buf (1 .. Last) := Data (1 .. Last);
       Drop_Message (Connect);
-   end Decode;
+""" % (name, name))
+    body.write("   end Decode;\n\n")
 
-""" % (name, v2, name, name, name, str(msg.crc_extra),
-       name, v2, name, name, name, str(msg.crc_extra),
-       name, v2, name,
-       v2, str(msg.crc_extra),
-       name, v2, name))
+# Generate message for the V1
+def generate_v1_message(msg, spec, body):
+    name = normalize_message_name(msg.name).title()
 
-def get_pakage_name(x, m, directory):
-    name = os.path.splitext(os.path.basename(x.filename))[0]
-    pkg_name = normalize_message_name(m.name).title()
+    spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
 
-    if pkg_name[-1] == 's': pkg_name += 'es'
-    else: pkg_name += 's'
+    max_len = 0
+    payload_length = 0
+    for field in msg.fields:
+        payload_length += (field.array_length or 1) * field.type_length
+        field_name_len = len(normalize_field_name(field.name))
+        if field_name_len > max_len:
+            max_len = field_name_len
 
-    f_name = os.path.join(directory, "mavlink-v2-%s-message-%s" % (name, pkg_name.lower()))
-    p_name = "%s.%s.Message.%s" % (v2, name.title(), pkg_name)
-    return f_name, p_name
+    spec.write("   %s_Len : constant Interfaces.Unsigned_8 := %i;\n\n" % (name, payload_length))
 
-def find_package(xml, name):
-    for x in xml:
-        for t in x.enum:
-            if not t.bitmask and t.name == name:
-                return os.path.splitext(os.path.basename(x.filename))[0].title()
-    return ""
+    spec.write("   type %s is record\n" % name)
+    for field in msg.fields:
+        field_name = normalize_field_name(field.name).title()
+        spec.write("      %s : " % field_name.ljust(max_len))
+        if field.type == 'char':
+            tp = "String"
+            spec.write("String (1 .. %i)" % field.array_length)
+        else:
+            if field.array_length:
+                tp = field_array_types[field.type]
+                spec.write("%s (1 .. %i)" % (tp, field.array_length))
+            elif field.enum:
+                tp = normalize_enum_name(field.enum).title()
+                if field_name == tp: tp = "Common." + tp
+                spec.write(tp)
+            else:
+                tp = field_types[field.type]
+                spec.write(tp)
+
+        if field.invalid:
+            s = get_default(field.invalid, tp, array_to_float_v1)
+            if s != "":
+                spec.write(" :=\n        %s" % s)
+
+        spec.write(";\n")
+        if field.units: spec.write("      --  Units: %s\n" % field.units)
+        spec.write(format_comment(field.description, 6))
+    spec.write("   end record;\n\n")
+
+    if msg.deprecated:
+        spec.write("   pragma Obsolescent (%s);\n\n" % name)
+
+    generate_message_representation(msg, spec, max_len)
+    generate_message_methods(name, v1, spec)
+    generate_message_body(name, v1, str(msg.crc_extra), body, True)
 
 # Generate test project
-def generate_test(directory, xml, bitmasks):
+def generate_test_project(directory, ver):
     dir = os.path.join(directory, 'tests')
     mavparse.mkdir_p(dir)
 
     f = open(os.path.join(dir, "test.gpr"), "w")
-    f.write("""with "../mavlink_v2.gpr";
+    f.write("""with "../mavlink_%s.gpr";
 project Test is
 
    for Source_Dirs use (".");
@@ -784,12 +755,265 @@ project Test is
       for Switches ("ada") use ("-g");
    end Linker;
 
-end Test;""")
+end Test;""" % ver)
+
+# Generate test project for V1
+def generate_test_v1(directory, xml, bitmasks):
+    dir = os.path.join(directory, 'tests')
+    generate_test_project(directory, "v1")
 
     f = open(os.path.join(dir, "test.adb"), "w")
     for x in xml:
         for m in x.message:
-            f_name, p_name = get_pakage_name(x, m, directory)
+            f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
+            f.write("with %s;\n" % p_name)
+
+    f.write("""\nwith Ada.Text_IO;
+with Interfaces;              use Interfaces;
+with Mavlink.Raw_Long_Floats;      use Mavlink.Raw_Long_Floats;
+
+use Mavlink.V1;
+
+procedure Test
+is
+   In_Connect  : Mavlink.V1.Connection (1, 1);
+   Out_Connect : Mavlink.V1.Out_Connection (1, 1);
+   Res         : Boolean;
+   Buffer      : Data_Buffer (1 .. Mavlink.V1.Maximum_Buffer_Len);
+   Last        : Positive;
+
+begin
+""")
+    for x in xml:
+        for m in x.message:
+            msg = normalize_message_name(m.name).title()
+            f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
+            f.write("""   declare
+      use %s;
+      I : %s;
+      O : %s :=
+         (""" % (p_name, msg, msg))
+            first = True
+            for field in m.fields:
+                field_name = normalize_field_name(field.name).title()
+                if field.invalid:
+                    value = "<>"
+
+                else:
+                    if field.type == 'char':
+                        value = "(others => 'A')"
+
+                    else:
+                        if field.array_length:
+                            value = field_array_values_v1[field.type]
+
+                        elif field.enum:
+                            if field.enum in bitmasks:
+                                value = "<>"
+
+                            else:
+                                value = "Mavlink.V1.%s.%s'First" % (
+                                    find_package(xml, field.enum),
+                                    normalize_enum_name(field.enum).title())
+                        else:
+                            value = field_values_v1[field.type]
+
+                if first:
+                    first = False
+                    f.write("%s => %s" % (field_name, value))
+                else:
+                    f.write(",\n          %s => %s" % (field_name, value))
+
+            f.write(""");
+   begin
+      Encode (O, Out_Connect, Buffer, Last);
+
+      for Index in Buffer'First .. Last loop
+         Res := Parse_Byte (In_Connect, Buffer (Index));
+      end loop;
+      pragma Assert (Res);
+
+      Decode (I, In_Connect, Res);
+      pragma Assert (Res);
+      pragma Assert (I = O);
+   end;
+
+""")
+    f.write("""   begin
+      pragma Warnings (Off);
+      --  Should be raised to ensure we compiled
+      --  with Asserts
+      pragma Assert (0 = 1);
+   exception
+      when others =>
+         Ada.Text_IO.Put_Line ("Ok");
+   end;
+end Test;""")
+
+#
+# Generate V1
+#
+pre_files_v1 = (
+    'mavlink_v1.gpr',
+    'mavlink.ads', 'mavlink-v1.ads', 'mavlink-v1.adb',
+    'mavlink-x25crc.ads', 'mavlink-x25crc.adb',
+    'mavlink-raw_long_floats.ads')
+
+def generate(directory, xml):
+    '''generate complete Ada implementation'''
+    mavparse.mkdir_p(directory)
+
+    global types_size
+    bitmasks = []
+    calculate_types_size(xml)
+
+    basepath = os.path.dirname(os.path.realpath(__file__))
+    srcpath = os.path.join(basepath, 'Ada')
+    for f in pre_files_v1:
+        shutil.copy(os.path.join(srcpath, f), directory)
+
+    shutil.copytree(os.path.join(srcpath, "examples"), os.path.join(directory, "examples"), dirs_exist_ok=True)
+
+    for x in xml:
+        for t in x.enum:
+            if t.bitmask: bitmasks.append(t.name)
+
+        dialect = os.path.splitext(os.path.basename(x.filename))[0]
+        generate_v1_types(directory, x, types_size)
+        generate_common_messages_pkg (directory, "mavlink-v1-%s-message" % dialect, "%s.%s.Message" % (v1, dialect.title()), copy)
+
+        #Generate messages
+        for m in x.message:
+            f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
+
+            spec = create_message_pkg (x, f_name, p_name, v1, m, copy)
+            body = create_message_body (f_name, p_name)
+            generate_v1_message(m, spec, body)
+            spec.write("end %s;\n" % p_name)
+            body.write("end %s;\n" % p_name)
+    generate_test_v1(directory, xml, bitmasks)
+
+#
+# Generate V2
+#
+
+# calculate size of enum type based on the max value
+def calculate_enum_size(enum):
+    max_value = 0
+    for i in enum.entry:
+        if i.end_marker: break
+        max_value = max(max_value, i.value)
+
+    size = math.ceil(math.ceil(math.log2(max_value)) / 8)
+    if size < 1: size = 1
+    return size
+
+# calculate size of bitmask type based on the fields count
+def calculate_bitmask_size(bitmask):
+    c = 0
+    for i in bitmask.entry:
+        if i.end_marker:
+            c += math.ceil(math.log2(i.value))
+            break
+
+        elif i.value == 0:
+            continue
+
+        elif not is_position(i.value):
+            print("%s ignored because the composite value!" % i.name)
+            continue
+
+        c += 1
+    return math.ceil(c / 8)
+
+# generate types and place them into Mavlink.`dialect` package
+def generate_v2_types (directory, x, types_size):
+    name = os.path.splitext(os.path.basename(x.filename))[0].title()
+    spec = create_types_spec (directory, "mavlink-v2-", v2, x)
+
+    # Generate types
+    for t in x.enum:
+        size = types_size[t.name]
+
+        if t.bitmask:
+            if size is None: size = calculate_bitmask_size(t)
+            spec.write(repr_bitmask(t, size))
+
+        else:
+            if size is None: size = calculate_enum_size(t)
+            spec.write(repr_enum(t, size))
+        spec.write("\n")
+
+    spec.write("end %s.%s;\n" % (v2, name))
+
+#Generate message
+def generate_v2_message(msg, spec, body):
+    name = normalize_message_name(msg.name).title()
+
+    spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
+
+    max_len = 0
+    for field in msg.fields:
+        max_len = max(max_len, len(normalize_field_name(field.name)))
+
+    spec.write("   type %s is record\n" % name)
+    for field in msg.fields:
+        field_name = normalize_field_name(field.name).title()
+        spec.write("      %s : " % field_name.ljust(max_len))
+        tp = ""
+
+        if field.type == 'char':
+            tp = "String"
+            spec.write("String (1 .. %i)" % field.array_length)
+
+        else:
+            if field.array_length:
+                tp = field_array_types[field.type]
+                spec.write("%s (1 .. %i)" % (tp, field.array_length))
+
+            elif field.enum:
+                tp = normalize_enum_name(field.enum).title()
+                if field_name == tp: tp = "Common." + tp
+                spec.write(tp)
+
+            else:
+                tp = field_v2_types[field.type]
+                spec.write(tp)
+
+        if field.invalid:
+            s = get_default(field.invalid, tp, array_to_float_v2)
+            if s != "":
+                spec.write(" :=\n        %s" % s)
+
+        spec.write(";\n")
+        if field.units: spec.write("      --  Units: %s\n" % field.units)
+        spec.write(format_comment(field.description, 6))
+    spec.write("   end record;\n\n")
+
+    if msg.deprecated:
+        spec.write("   pragma Obsolescent (%s);\n\n" % name)
+
+    generate_message_representation(msg, spec, max_len)
+    generate_message_methods(name, v2, spec)
+    generate_message_body(name, v2, str(msg.crc_extra), body, False)
+
+# Find package name
+def find_package(xml, name):
+    for x in xml:
+        for t in x.enum:
+            if not t.bitmask and t.name == name:
+                return os.path.splitext(os.path.basename(x.filename))[0].title()
+    return ""
+
+# Generate test project for V2
+def generate_test_v2(directory, xml, bitmasks):
+    dir = os.path.join(directory, 'tests')
+    generate_test_project(directory, "v2")
+
+    f = open(os.path.join(dir, "test.adb"), "w")
+    for x in xml:
+        for m in x.message:
+            f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
             f.write("with %s;\n" % p_name)
 
     f.write("""\nwith Ada.Text_IO;
@@ -936,7 +1160,7 @@ begin
     for x in xml:
         for m in x.message:
             msg = normalize_message_name(m.name).title()
-            f_name, p_name = get_pakage_name(x, m, directory)
+            f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
             f.write("""   declare
       use %s;
       I : %s;
@@ -954,7 +1178,7 @@ begin
 
                     else:
                         if field.array_length:
-                            value = field_array_values[field.type]
+                            value = field_array_values_v2[field.type]
 
                         elif field.enum:
                             if field.enum in bitmasks:
@@ -965,7 +1189,7 @@ begin
                                     find_package(xml, field.enum),
                                     normalize_enum_name(field.enum).title())
                         else:
-                            value = field_values[field.type]
+                            value = field_values_v2[field.type]
 
                 if first: 
                     first = False
@@ -988,95 +1212,67 @@ begin
    end;
 
 """)
-    f.write("end Test;")
+    f.write("""   begin
+      pragma Warnings (Off);
+      --  Should be raised to ensure we compiled
+      --  with Asserts
+      pragma Assert (0 = 1);
+   exception
+      when others =>
+         Ada.Text_IO.Put_Line ("Ok");
+   end;
+end Test;""")
 
 # Generate V2
+pre_files_v1_for_v2 = (
+    'mavlink-x25crc.ads',
+    'mavlink-x25crc.adb',
+    'mavlink-raw_long_floats.ads'
+)
+
+pre_files_v2 = (
+    'mavlink_v2.gpr',
+    'mavlink.ads', 'mavlink-v2.ads', 'mavlink-v2.adb',
+    'mavlink-sha_256.ads', 'mavlink-sha_256.adb',
+    'mavlink-raw_floats.ads'
+)
+
 def generate_v2(directory, xml):
     '''generate complete Ada implementation for v2'''
     mavparse.mkdir_p(directory)
 
-    global msgs
-    global types
-    global filelist
     global types_size
-    global types_files
     bitmasks = []
     calculate_types_size(xml)
 
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'Ada')
-    shutil.copy(os.path.join(srcpath, "mavlink-x25crc.ads"), directory)
-    shutil.copy(os.path.join(srcpath, "mavlink-x25crc.adb"), directory)
+    for f in pre_files_v1_for_v2:
+        shutil.copy(os.path.join(srcpath, f), directory)
+
     srcpath = os.path.join(basepath, 'Ada', 'v2')
-    for f in pre_files:
+    for f in pre_files_v2:
         shutil.copy(os.path.join(srcpath, f), directory)
 
     for x in xml:
-        name = os.path.splitext(os.path.basename(x.filename))[0]
-        print("Generate " + name.title())
-
-        # Create spec file
-        spec = open(os.path.join(directory, "mavlink-v2-" + name + ".ads"), "w")
-        spec.write(GEN)
-        spec.write("pragma Ada_2022;\n\n")
-
-        generate_includes (x, spec)
-
-        spec.write("package %s.%s is\n\n" % (v2, name.title()))
-        spec.write("   pragma Preelaborate;\n\n")
-
-        # Generate types
         for t in x.enum:
-            size = types_size[t.name]
+            if t.bitmask: bitmasks.append(t.name)
 
-            if t.bitmask:
-                bitmasks.append(t.name)
-                if size is None: size = calculate_bitmask_size(t)
-                spec.write(repr_bitmask(t, size))
+        # Mavlink.`dialect`
+        dialect = os.path.splitext(os.path.basename(x.filename))[0]
+        generate_v2_types (directory, x, types_size)
 
-            else:
-                if size is None: size = calculate_enum_size(t)
-                spec.write(repr_enum(t, size))
-            spec.write("\n")
-
-        spec.write("end %s.%s;\n" % (v2, name.title()))
-
-        # Mavlink.Common.Message
-        f_name = os.path.join(directory, "mavlink-v2-%s-message" % name)
-        p_name = "%s.%s.Message" % (v2, name.title())
-        spec = open(f_name + ".ads", "w")
-        spec.write(GEN)
-        spec.write("\npragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\nend %s;\n" % (p_name, p_name))
+        # Mavlink.`dialect`.Message
+        generate_common_messages_pkg (directory, "mavlink-v2-%s-message" % dialect, "%s.%s.Message" % (v2, dialect.title()))
 
         #Generate messages
         for m in x.message:
-            f_name, p_name = get_pakage_name(x, m, directory)
+            f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
 
-            spec = open(f_name + ".ads", "w")
-            spec.write(GEN)
-            if m.deprecated:
-                spec.write(get_deprecated(m.deprecated, 0))
-            spec.write(format_comment (m.description, 0))
-
-            # not direct includes
-            included = [x]
-            f_types = [field.enum for field in m.fields if field.enum]
-            for t in f_types:
-                if t in types_files and types_files[t] not in included and types_files[t].filename not in x.include:
-                    if len(included) == 1: spec.write("\n")
-                    included.append(types_files[t])
-                    inc = os.path.splitext(os.path.basename(types_files[t].filename))[0].title()
-                    spec.write("with %s.%s; use %s.%s;\n" % (v2, inc, v2, inc))
-
-            spec.write("\npackage %s is\n\n" % p_name)
-
-            body = open(f_name + ".adb", "w")
-            body.write(GEN)
-            body.write("pragma Ada_2022;\n\npackage body %s is\n\n" % p_name)
-
-            generate_message(m, spec, body)
-
+            spec = create_message_pkg (x, f_name, p_name, v2, m)
+            body = create_message_body (f_name, p_name)
+            generate_v2_message(m, spec, body)
             spec.write("end %s;\n" % p_name)
             body.write("end %s;\n" % p_name)
 
-    generate_test(directory, xml, bitmasks)
+    generate_test_v2(directory, xml, bitmasks)
