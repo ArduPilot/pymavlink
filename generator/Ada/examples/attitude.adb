@@ -28,6 +28,8 @@ procedure Attitude is
       Attitude  : Mavlink.V1.Common.Message.Attitudes.Attitude;
       K_Rad2Deg : Interfaces.IEEE_Float_32 := 180.0 / Ada.Numerics.Pi;
    begin
+      pragma Assert (Mavlink.V1.Common.Message.Attitudes.Check_CRC (Mav_Conn));
+
       Mavlink.V1.Common.Message.Attitudes.Decode (Attitude, Mav_Conn);
 
       Ada.Text_IO.Put ("Pitch: ");

@@ -33,6 +33,9 @@ procedure Param_Set_SR0_PARAMS is
    function Handler_Param_Value return Boolean is
       Param_Value : Mavlink.V1.Common.Message.Param_Values.Param_Value;
    begin
+      pragma Assert
+        (Mavlink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
+
       Mavlink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
 
       if Ada.Strings.Fixed.Trim

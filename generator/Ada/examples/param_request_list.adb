@@ -33,6 +33,9 @@ procedure Param_Request_List is
    procedure Handler_Param_Value is
       Param_Value : Mavlink.V1.Common.Message.Param_Values.Param_Value;
    begin
+      pragma Assert
+        (Mavlink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
+
       Mavlink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
       Ada.Text_IO.Put (Param_Value.Param_Id & " = ");
       IEEE_Text_IO.Put (Param_Value.Param_Value, Aft => 4, Exp => 0);

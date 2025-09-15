@@ -54,6 +54,9 @@ package MAVLink.V1 is
 
    function Parse_Byte
      (Conn : in out Connection; Val : Interfaces.Unsigned_8) return Boolean;
+   --  Returns True when the full message has been loaded to the internal
+   --  buffer. After this, you can use Check_CRC and Decode from the
+   --  corresponding message according to the Get_Msg_Id result.
 
    function Get_Target_System_Id
      (Conn : Connection) return Interfaces.Unsigned_8;
@@ -161,7 +164,6 @@ private
       Component_Id : Interfaces.Unsigned_8)
    is record
       Out_Sequency : Interfaces.Unsigned_8 := 0;
-      Checksum     : X25CRC.Checksum;
    end record;
 
    procedure Encode

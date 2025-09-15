@@ -394,6 +394,7 @@ def create_message_pkg (x, f_name, p_name, ver, m, header=None):
     if m.deprecated:
         spec.write(get_deprecated(m.deprecated, 0))
     spec.write(format_comment (m.description, 0))
+    spec.write("pragma Ada_2022;\n\n")
 
     # indirect includes
     included = [x]
@@ -413,7 +414,7 @@ def create_message_pkg (x, f_name, p_name, ver, m, header=None):
 def create_message_body (f_name, p_name):
     body = open(f_name + ".adb", "w")
     body.write(GEN)
-    body.write("pragma Ada_2022;\n\npackage body %s is\n\n" % p_name)
+    body.write("package body %s is\n\n" % p_name)
     return body
 
 # Prepare information about types
