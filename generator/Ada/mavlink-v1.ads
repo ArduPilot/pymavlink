@@ -119,7 +119,7 @@ private
      (System_Id    : Interfaces.Unsigned_8;
       Component_Id : Interfaces.Unsigned_8)
    is record
-      In_Buf       : Data_Buffer (1 .. Maximum_Buffer_Len) := (others => 0);
+      In_Buf       : Data_Buffer (1 .. Maximum_Buffer_Len) := [others => 0];
       In_Ptr       : Natural := 0;
       Len          : Natural := 0;
       Out_Sequency : Interfaces.Unsigned_8 := 0;

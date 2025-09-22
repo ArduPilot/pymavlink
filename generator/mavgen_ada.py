@@ -108,16 +108,16 @@ field_values_v1 = {
     'double' : 'To_Raw (10.10)'}
 
 field_array_values_v1 = {
-    'uint8_t' : '(others => 1)',
-    'uint16_t' : '(others => 2)',
-    'uint32_t' : '(others => 3)',
-    'uint64_t' : '(others => 4)',
-    'int8_t' : '(others => 5)',
-    'int16_t' : '(others => 6)',
-    'int32_t' : '(others => 7)',
-    'int64_t' : '(others => 8)',
-    'float' : '(others => 9.9)',
-    'double' : '(others => To_Raw (10.10))'}
+    'uint8_t' : '[others => 1]',
+    'uint16_t' : '[others => 2]',
+    'uint32_t' : '[others => 3]',
+    'uint64_t' : '[others => 4]',
+    'int8_t' : '[others => 5]',
+    'int16_t' : '[others => 6]',
+    'int32_t' : '[others => 7]',
+    'int64_t' : '[others => 8]',
+    'float' : '[others => 9.9]',
+    'double' : '[others => To_Raw (10.10)]'}
 
 field_v2_types = {
     'uint8_t' : 'Interfaces.Unsigned_8',
@@ -148,16 +148,16 @@ field_values_v2 = {
     'double' : 'To_Raw (10.10)'}
 
 field_array_values_v2 = {
-    'uint8_t' : '(others => 1)',
-    'uint16_t' : '(others => 2)',
-    'uint32_t' : '(others => 3)',
-    'uint64_t' : '(others => 4)',
-    'int8_t' : '(others => 5)',
-    'int16_t' : '(others => 6)',
-    'int32_t' : '(others => 7)',
-    'int64_t' : '(others => 8)',
-    'float' : '(others => To_Raw (9.9))',
-    'double' : '(others => To_Raw (10.10))'}
+    'uint8_t' : '[others => 1]',
+    'uint16_t' : '[others => 2]',
+    'uint32_t' : '[others => 3]',
+    'uint64_t' : '[others => 4]',
+    'int8_t' : '[others => 5]',
+    'int16_t' : '[others => 6]',
+    'int32_t' : '[others => 7]',
+    'int64_t' : '[others => 8]',
+    'float' : '[others => To_Raw (9.9)]',
+    'double' : '[others => To_Raw (10.10)]'}
 
 # Default invalid values for fields
 invalid = {
@@ -209,9 +209,23 @@ def get_deprecated(deprecated, tab):
     s += "".ljust(tab) + "------------\n"
     return s
 
+def pkg_name(x):
+    name = os.path.splitext(os.path.basename(x.filename))[0].lower().title()
+    if name == "All":
+        return "For_All"
+    else:
+        return name
+
+def file_name(x):
+    name = os.path.splitext(os.path.basename(x.filename))[0].lower()
+    if name == "all":
+        return "for_all"
+    else:
+        return name
+
 # Returns package filename and name for the message
 def get_pakage_name(x, m, directory, ver, f_ver):
-    name = os.path.splitext(os.path.basename(x.filename))[0]
+    name = file_name(x)
     pkg_name = normalize_message_name(m.name).title()
 
     if pkg_name[-1] == 's': pkg_name += 'es'
@@ -220,6 +234,16 @@ def get_pakage_name(x, m, directory, ver, f_ver):
     f_name = os.path.join(directory, "mavlink-%s-%s-message-%s" % (f_ver, name, pkg_name.lower()))
     p_name = "%s.%s.Message.%s" % (ver, name.title(), pkg_name)
     return f_name, p_name
+
+# Returns package name where the tp type declared
+def find_pkg (xml, tp, ver):
+    pkg = ""
+    for x in xml:
+        for t in x.enum:
+            if normalize_enum_name(t.name).title() == tp:
+                pkg = pkg_name(x)
+
+    return "%s.%s.%s" % (ver, pkg, tp)
 
 # Generate record type
 def repr_bitmask(enum, size):
@@ -284,6 +308,8 @@ def repr_bitmask(enum, size):
 
 # Generate enumeration type
 def repr_enum(enum, size):
+    global types_files
+
     enum_name = normalize_enum_name(enum.name).title()
     s = "   type %s is new Interfaces.Unsigned_%i;\n" % (enum_name, size * 8)
     if enum.deprecated:
@@ -303,6 +329,7 @@ def repr_enum(enum, size):
         if i.end_marker:
             break
         name = i.name[len(common_prefix):] # strip common prefix
+        if name in types_files: name = i.name
         name = normalize_entry_name(name).title()
 
         if first == "":
@@ -361,7 +388,7 @@ def generate_includes(x, f, ver):
 
 # Create file for the types package
 def create_types_spec (directory, file_prefix, ver, x, header=None):
-    dialect = os.path.splitext(os.path.basename(x.filename))[0]
+    dialect = file_name(x)
     print("Generate " + dialect.title())
 
     # Create file
@@ -446,7 +473,7 @@ def calculate_types_size(xml):
 
 # Generate v1 types
 def generate_v1_types(directory, x, types_size):
-    dialect = os.path.splitext(os.path.basename(x.filename))[0].title()
+    dialect = pkg_name(x)
     outf = create_types_spec (directory, "mavlink-v1-", v1, x, copy)
 
     for t in x.enum:
@@ -465,9 +492,9 @@ def get_default(value, type_name, array_to_float):
 
     if value[0] == '[':
         if type_name in array_to_float:
-            return "(others => %s)" % get_default(value[1:-1], array_to_float[type_name], array_to_float)
+            return "[others => %s]" % get_default(value[1:-1], array_to_float[type_name], array_to_float)
         else:
-            return "(others => %s)" % get_default(value[1:-1], type_name, array_to_float)
+            return "[others => %s]" % get_default(value[1:-1], type_name, array_to_float)
 
     elif value[:2] == '0x':
         res = "16#%s#" % value[2:]
@@ -635,7 +662,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
         body.write("""      Data : Data_Buffer (1 .. %s'Value_Size / 8);
       Last : Natural;
       Buf  : Data_Buffer
-        (1 .. %s'Size / 8) := (others => 0)
+        (1 .. %s'Size / 8) := [others => 0]
         with Address => Message'Address,
         Convention   => Ada;
    begin
@@ -656,7 +683,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
 """ % (name, rev))
     if is_v1:
         body.write("""      Buf : Data_Buffer
-        (1 .. %s'Size / 8) := (others => 0)
+        (1 .. %s'Size / 8) := [others => 0]
         with Address => Message'Address,
         Convention   => Ada;
    begin
@@ -669,7 +696,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
         body.write("""      Data : Data_Buffer (1 .. %s'Value_Size / 8);
       Last : Natural;
       Buf  : Data_Buffer
-        (1 .. %s'Size / 8) := (others => 0)
+        (1 .. %s'Size / 8) := [others => 0]
         with Address => Message'Address,
         Convention   => Ada;
    begin
@@ -680,7 +707,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
     body.write("   end Decode;\n\n")
 
 # Generate message for the V1
-def generate_v1_message(msg, spec, body):
+def generate_v1_message(msg, spec, body, xml):
     name = normalize_message_name(msg.name).title()
 
     spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
@@ -708,7 +735,7 @@ def generate_v1_message(msg, spec, body):
                 spec.write("%s (1 .. %i)" % (tp, field.array_length))
             elif field.enum:
                 tp = normalize_enum_name(field.enum).title()
-                if field_name == tp: tp = "Common." + tp
+                if field_name == tp: tp = find_pkg (xml, tp, v1)
                 spec.write(tp)
             else:
                 tp = field_types[field.type]
@@ -765,6 +792,7 @@ def generate_test_v1(directory, xml, bitmasks):
 
     f = open(os.path.join(dir, "test.adb"), "w")
     for x in xml:
+        f.write("with %s.%s;\n" % (v1, pkg_name(x)))
         for m in x.message:
             f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
             f.write("with %s;\n" % p_name)
@@ -802,7 +830,7 @@ begin
 
                 else:
                     if field.type == 'char':
-                        value = "(others => 'A')"
+                        value = "[others => 'A']"
 
                     else:
                         if field.array_length:
@@ -879,7 +907,7 @@ def generate(directory, xml):
         for t in x.enum:
             if t.bitmask: bitmasks.append(t.name)
 
-        dialect = os.path.splitext(os.path.basename(x.filename))[0]
+        dialect = file_name(x)
         generate_v1_types(directory, x, types_size)
         generate_common_messages_pkg (directory, "mavlink-v1-%s-message" % dialect, "%s.%s.Message" % (v1, dialect.title()), copy)
 
@@ -889,7 +917,7 @@ def generate(directory, xml):
 
             spec = create_message_pkg (x, f_name, p_name, v1, m, copy)
             body = create_message_body (f_name, p_name)
-            generate_v1_message(m, spec, body)
+            generate_v1_message(m, spec, body, xml)
             spec.write("end %s;\n" % p_name)
             body.write("end %s;\n" % p_name)
     generate_test_v1(directory, xml, bitmasks)
@@ -905,7 +933,7 @@ def calculate_enum_size(enum):
         if i.end_marker: break
         max_value = max(max_value, i.value)
 
-    size = math.ceil(math.ceil(math.log2(max_value)) / 8)
+    size = math.ceil(math.ceil(math.log2(max_value + 1)) / 8)
     if size < 1: size = 1
     return size
 
@@ -929,7 +957,7 @@ def calculate_bitmask_size(bitmask):
 
 # generate types and place them into Mavlink.`dialect` package
 def generate_v2_types (directory, x, types_size):
-    name = os.path.splitext(os.path.basename(x.filename))[0].title()
+    name = pkg_name(x)
     spec = create_types_spec (directory, "mavlink-v2-", v2, x)
 
     # Generate types
@@ -948,7 +976,7 @@ def generate_v2_types (directory, x, types_size):
     spec.write("end %s.%s;\n" % (v2, name))
 
 #Generate message
-def generate_v2_message(msg, spec, body):
+def generate_v2_message(msg, spec, body, xml):
     name = normalize_message_name(msg.name).title()
 
     spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
@@ -974,7 +1002,7 @@ def generate_v2_message(msg, spec, body):
 
             elif field.enum:
                 tp = normalize_enum_name(field.enum).title()
-                if field_name == tp: tp = "Common." + tp
+                if field_name == tp: tp = find_pkg (xml, tp, v2)
                 spec.write(tp)
 
             else:
@@ -1003,11 +1031,12 @@ def find_package(xml, name):
     for x in xml:
         for t in x.enum:
             if not t.bitmask and t.name == name:
-                return os.path.splitext(os.path.basename(x.filename))[0].title()
+                return pkg_name(x)
     return ""
 
 # Generate test project for V2
 def generate_test_v2(directory, xml, bitmasks):
+    Has_Common = False
     dir = os.path.join(directory, 'tests')
     generate_test_project(directory, "v2")
 
@@ -1027,7 +1056,14 @@ with Mavlink.SHA_256;
 use Mavlink.V2;
 
 procedure Test
-is
+is""");
+
+    for x in xml:
+        if x.filename == "common.xml":
+            Has_Common = True
+
+    if Has_Common:
+        f.write("""
    D1 : constant Mavlink.SHA_256.Data  := [16#61#, 16#62#, 16#63#];
    R1 : constant Mavlink.SHA_256.State :=
      [16#ba7816bf#, 16#8f01cfea#, 16#414140de#, 16#5dae2223#,
@@ -1158,6 +1194,22 @@ begin
    end;
 
 """)
+    else:
+        f.write("""
+   In_Connect  : Mavlink.V2.Connection (1, 1);
+   Out_Connect : Mavlink.V2.Out_Connection (1, 1);
+   Pass        : constant String := "long_password";
+   Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
+     Address => Pass'Address;
+   Res         : Boolean;
+   Buffer      : Data_Buffer (1 .. Mavlink.V2.Maximum_Buffer_Len);
+   Last        : Positive;
+
+begin
+   Initialize_Signature (In_Connect,  1, Pass_Data, 200);
+   Initialize_Signature (Out_Connect, 1, Pass_Data, 200);
+""")
+
     for x in xml:
         for m in x.message:
             msg = normalize_message_name(m.name).title()
@@ -1175,7 +1227,7 @@ begin
 
                 else:
                     if field.type == 'char':
-                        value = "(others => 'A')"
+                        value = "[others => 'A']"
 
                     else:
                         if field.array_length:
@@ -1260,7 +1312,7 @@ def generate_v2(directory, xml):
             if t.bitmask: bitmasks.append(t.name)
 
         # Mavlink.`dialect`
-        dialect = os.path.splitext(os.path.basename(x.filename))[0]
+        dialect = file_name(x)
         generate_v2_types (directory, x, types_size)
 
         # Mavlink.`dialect`.Message
@@ -1272,7 +1324,7 @@ def generate_v2(directory, xml):
 
             spec = create_message_pkg (x, f_name, p_name, v2, m)
             body = create_message_body (f_name, p_name)
-            generate_v2_message(m, spec, body)
+            generate_v2_message(m, spec, body, xml)
             spec.write("end %s;\n" % p_name)
             body.write("end %s;\n" % p_name)
 
