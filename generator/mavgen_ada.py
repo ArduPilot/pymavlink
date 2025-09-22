@@ -648,7 +648,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
 
     if is_v1:
         body.write("""      Buf : Data_Buffer
-        (1 .. %s'Size / 8) := (others => 0)
+        (1 .. %s'Size / 8) := [others => 0]
         with Address => Message'Address,
         Convention   => Ada;
    begin
