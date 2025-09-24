@@ -4,9 +4,9 @@
 pragma Ada_2022;
 
 with Interfaces;              use Interfaces;
-with Mavlink.Raw_Long_Floats; use Mavlink.Raw_Long_Floats;
+with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
 
-private with Mavlink.X25CRC;
+private with MAVLink.X25CRC;
 
 package MAVLink.V1 is
 

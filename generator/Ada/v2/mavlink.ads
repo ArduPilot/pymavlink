@@ -1,8 +1,8 @@
 
 pragma Ada_2022;
 
-package Mavlink is
+package MAVLink is
 
    pragma Pure;
 
-end Mavlink;
+end MAVLink;

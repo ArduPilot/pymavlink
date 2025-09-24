@@ -4,7 +4,7 @@ pragma Ada_2022;
 with Ada.Unchecked_Conversion;
 with Interfaces;
 
-package Mavlink.Raw_Long_Floats is
+package MAVLink.Raw_Long_Floats is
 
    pragma Preelaborate;
 
@@ -35,4 +35,4 @@ private
    function To_Raw (Value : Long_Float) return Raw_Long_Float is
       (Unchecked_To_Raw (Value));
 
-end Mavlink.Raw_Long_Floats;
+end MAVLink.Raw_Long_Floats;

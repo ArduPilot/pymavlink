@@ -2,12 +2,12 @@
 pragma Ada_2022;
 
 with Interfaces;               use Interfaces;
-with Mavlink.Raw_Floats;       use Mavlink.Raw_Floats;
-with Mavlink.Raw_Long_Floats;  use Mavlink.Raw_Long_Floats;
+with MAVLink.Raw_Floats;       use MAVLink.Raw_Floats;
+with MAVLink.Raw_Long_Floats;  use MAVLink.Raw_Long_Floats;
 
-private with Mavlink.SHA_256;
+private with MAVLink.SHA_256;
 
-package Mavlink.V2 is
+package MAVLink.V2 is
 
    pragma Preelaborate;
 
@@ -266,4 +266,4 @@ private
    --  Buff'First + Packet_Payload_First
    Packet_Payload_First : constant Positive := 10;
 
-end Mavlink.V2;
+end MAVLink.V2;

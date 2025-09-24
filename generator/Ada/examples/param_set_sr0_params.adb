@@ -12,8 +12,8 @@ with GNAT.Serial_Communications;
 with Interfaces;
 
 with MAVLink.V1;
-with Mavlink.V1.Common.Message.Param_Sets;
-with Mavlink.V1.Common.Message.Param_Values;
+with MAVLink.V1.Common.Message.Param_Sets;
+with MAVLink.V1.Common.Message.Param_Values;
 
 procedure Param_Set_SR0_PARAMS is
    use type Ada.Streams.Stream_Element_Offset;
@@ -31,12 +31,12 @@ procedure Param_Set_SR0_PARAMS is
    Mav_Conn    : MAVLink.V1.Connection (System_Id => 250, Component_Id => 1);
 
    function Handler_Param_Value return Boolean is
-      Param_Value : Mavlink.V1.Common.Message.Param_Values.Param_Value;
+      Param_Value : MAVLink.V1.Common.Message.Param_Values.Param_Value;
    begin
       pragma Assert
-        (Mavlink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
+        (MAVLink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
 
-      Mavlink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
+      MAVLink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
 
       if Ada.Strings.Fixed.Trim
         (Source => Param_Value.Param_Id,
@@ -52,7 +52,7 @@ procedure Param_Set_SR0_PARAMS is
       return False;
    end Handler_Param_Value;
 
-   Param_Set : Mavlink.V1.Common.Message.Param_Sets.Param_Set;
+   Param_Set : MAVLink.V1.Common.Message.Param_Sets.Param_Set;
 
 begin
    Ada.Text_IO.Put_Line
@@ -77,7 +77,7 @@ begin
    Param_Set.Param_Value := 11.0;
    Param_Set.Param_Type := MAVLink.V1.Common.Real32;
 
-   Mavlink.V1.Common.Message.Param_Sets.Encode
+   MAVLink.V1.Common.Message.Param_Sets.Encode
      (Param_Set, Mav_Conn, Output, Output_Last);
 
    declare
@@ -100,7 +100,7 @@ begin
       for B of Input (Input'First .. Input_Last) loop
          if MAVLink.V1.Parse_Byte(Mav_Conn, Interfaces.Unsigned_8 (B)) then
             if MAVLink.V1.Get_Msg_Id (Mav_Conn) =
-              Mavlink.V1.Common.Message.Param_Values.Param_Value_Id
+              MAVLink.V1.Common.Message.Param_Values.Param_Value_Id
             then
                if Handler_Param_Value then
                   exit Main_Loop;

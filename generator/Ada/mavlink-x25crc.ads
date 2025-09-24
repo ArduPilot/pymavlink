@@ -3,7 +3,7 @@
 
 with Interfaces; use Interfaces;
 
-package Mavlink.X25CRC is
+package MAVLink.X25CRC is
 
    pragma Pure (X25CRC);
 
@@ -25,4 +25,4 @@ package Mavlink.X25CRC is
    procedure Reset (Element : in out Checksum);
    procedure Update (Element : in out Checksum; Value : Unsigned_8);
 
-end Mavlink.X25CRC;
+end MAVLink.X25CRC;

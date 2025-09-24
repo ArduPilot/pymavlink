@@ -1,7 +1,7 @@
 --  Package body for crc checksum
 --  Copyright Fil Andrii root.fi36@gmail.com 2022
 
-package body Mavlink.X25CRC is
+package body MAVLink.X25CRC is
 
    procedure Reset (Element : in out Checksum) is
    begin
@@ -21,4 +21,4 @@ package body Mavlink.X25CRC is
         Shift_Left (Tmp, 3) xor Shift_Right (Tmp, 4);
    end Update;
 
-end Mavlink.X25CRC;
+end MAVLink.X25CRC;

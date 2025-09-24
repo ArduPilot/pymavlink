@@ -12,8 +12,8 @@ with GNAT.Serial_Communications;
 with Interfaces;
 
 with MAVLink.V1;
-with Mavlink.V1.Common.Message.Param_Request_Lists;
-with Mavlink.V1.Common.Message.Param_Values;
+with MAVLink.V1.Common.Message.Param_Request_Lists;
+with MAVLink.V1.Common.Message.Param_Values;
 
 procedure Param_Request_List is
    use type Ada.Streams.Stream_Element_Offset;
@@ -31,18 +31,18 @@ procedure Param_Request_List is
    Mav_Conn    : MAVLink.V1.Connection (System_Id => 250, Component_Id => 1);
 
    procedure Handler_Param_Value is
-      Param_Value : Mavlink.V1.Common.Message.Param_Values.Param_Value;
+      Param_Value : MAVLink.V1.Common.Message.Param_Values.Param_Value;
    begin
       pragma Assert
-        (Mavlink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
+        (MAVLink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
 
-      Mavlink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
+      MAVLink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
       Ada.Text_IO.Put (Param_Value.Param_Id & " = ");
       IEEE_Text_IO.Put (Param_Value.Param_Value, Aft => 4, Exp => 0);
       Ada.Text_IO.New_Line;
    end Handler_Param_Value;
 
-   Param_Request_List : Mavlink.V1.Common.Message.
+   Param_Request_List : MAVLink.V1.Common.Message.
      Param_Request_Lists.Param_Request_List;
 
 begin
@@ -60,7 +60,7 @@ begin
    Param_Request_List.Target_System := 1;
    Param_Request_List.Target_Component := 0;
 
-   Mavlink.V1.Common.Message.Param_Request_Lists.Encode
+   MAVLink.V1.Common.Message.Param_Request_Lists.Encode
      (Param_Request_List, Mav_Conn, Output, Output_Last);
 
    declare
@@ -81,7 +81,7 @@ begin
       for B of Input (Input'First .. Input_Last) loop
          if MAVLink.V1.Parse_Byte (Mav_Conn, Interfaces.Unsigned_8 (B)) then
             if MAVLink.V1.Get_Msg_Id (Mav_Conn) =
-              Mavlink.V1.Common.Message.Param_Values.Param_Value_Id
+              MAVLink.V1.Common.Message.Param_Values.Param_Value_Id
             then
                Handler_Param_Value;
             end if;

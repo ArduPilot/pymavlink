@@ -15,8 +15,8 @@ import shutil
 from operator import attrgetter
 from . import mavparse
 
-v1 = "Mavlink.V1"
-v2 = "Mavlink.V2"
+v1 = "MAVLink.V1"
+v2 = "MAVLink.V2"
 
 NAN = "0"
 
@@ -799,16 +799,16 @@ def generate_test_v1(directory, xml, bitmasks):
 
     f.write("""\nwith Ada.Text_IO;
 with Interfaces;              use Interfaces;
-with Mavlink.Raw_Long_Floats;      use Mavlink.Raw_Long_Floats;
+with MAVLink.Raw_Long_Floats;      use MAVLink.Raw_Long_Floats;
 
-use Mavlink.V1;
+use MAVLink.V1;
 
 procedure Test
 is
-   In_Connect  : Mavlink.V1.Connection (1, 1);
-   Out_Connect : Mavlink.V1.Out_Connection (1, 1);
+   In_Connect  : MAVLink.V1.Connection (1, 1);
+   Out_Connect : MAVLink.V1.Out_Connection (1, 1);
    Res         : Boolean;
-   Buffer      : Data_Buffer (1 .. Mavlink.V1.Maximum_Buffer_Len);
+   Buffer      : Data_Buffer (1 .. MAVLink.V1.Maximum_Buffer_Len);
    Last        : Positive;
 
 begin
@@ -841,7 +841,7 @@ begin
                                 value = "<>"
 
                             else:
-                                value = "Mavlink.V1.%s.%s'First" % (
+                                value = "MAVLink.V1.%s.%s'First" % (
                                     find_package(xml, field.enum),
                                     normalize_enum_name(field.enum).title())
                         else:
@@ -1049,11 +1049,11 @@ def generate_test_v2(directory, xml, bitmasks):
     f.write("""\nwith Ada.Text_IO;
 with Interfaces;              use Interfaces;
 
-with Mavlink.Raw_Floats;      use Mavlink.Raw_Floats;
-with Mavlink.Raw_Long_Floats; use Mavlink.Raw_Long_Floats;
-with Mavlink.SHA_256;
+with MAVLink.Raw_Floats;      use MAVLink.Raw_Floats;
+with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
+with MAVLink.SHA_256;
 
-use Mavlink.V2;
+use MAVLink.V2;
 
 procedure Test
 is""");
@@ -1064,12 +1064,12 @@ is""");
 
     if Has_Common:
         f.write("""
-   D1 : constant Mavlink.SHA_256.Data  := [16#61#, 16#62#, 16#63#];
-   R1 : constant Mavlink.SHA_256.State :=
+   D1 : constant MAVLink.SHA_256.Data  := [16#61#, 16#62#, 16#63#];
+   R1 : constant MAVLink.SHA_256.State :=
      [16#ba7816bf#, 16#8f01cfea#, 16#414140de#, 16#5dae2223#,
       16#b00361a3#, 16#96177a9c#, 16#b410ff61#, 16#f20015ad#];
 
-   D2 : constant Mavlink.SHA_256.Data :=
+   D2 : constant MAVLink.SHA_256.Data :=
      [16#61#, 16#62#, 16#63#, 16#64#, 16#62#, 16#63#, 16#64#, 16#65#, 16#63#,
       16#64#, 16#65#, 16#66#, 16#64#, 16#65#, 16#66#, 16#67#, 16#65#, 16#66#,
       16#67#, 16#68#, 16#66#, 16#67#, 16#68#, 16#69#, 16#67#, 16#68#, 16#69#,
@@ -1077,33 +1077,33 @@ is""");
       16#6a#, 16#6b#, 16#6c#, 16#6d#, 16#6b#, 16#6c#, 16#6d#, 16#6e#, 16#6c#,
       16#6d#, 16#6e#, 16#6f#, 16#6d#, 16#6e#, 16#6f#, 16#70#, 16#6e#, 16#6f#,
       16#70#, 16#71#];
-   R2 : constant Mavlink.SHA_256.State :=
+   R2 : constant MAVLink.SHA_256.State :=
      [16#248d6a61#, 16#d20638b8#, 16#e5c02693#, 16#0c3e6039#,
       16#a33ce459#, 16#64ff2167#, 16#f6ecedd4#, 16#19db06c1#];
 
-   D3 : constant Mavlink.SHA_256.Data :=
+   D3 : constant MAVLink.SHA_256.Data :=
      [16#6C#, 16#6F#, 16#6E#, 16#67#, 16#5F#, 16#70#, 16#61#, 16#73#, 16#73#,
       16#77#, 16#6F#, 16#72#, 16#64#, 16#fd#, 16#05#, 16#01#, 16#00#, 16#00#,
       16#01#, 16#01#, 16#78#, 16#32#, 16#00#, 16#01#, 16#00#, 16#00#, 16#00#,
       16#01#, 16#08#, 16#98#, 16#01#, 16#c8#, 16#00#, 16#00#, 16#00#, 16#00#,
       16#00#];
-   R3 : constant Mavlink.SHA_256.State :=
+   R3 : constant MAVLink.SHA_256.State :=
      [16#48c298bd#, 16#a123637a#, 16#f1103486#, 16#180a716a#,
       16#9c41e4b1#, 16#42293472#, 16#ea587ff5#, 16#247d5943#];
    T  : Data_Buffer (1 .. 32) with Import, Address => R3'Address;
 
-   procedure Do_SHA_256_Test (D : Mavlink.SHA_256.Data; R : Mavlink.SHA_256.State);
-   procedure Do_SHA_256_Test (D : Mavlink.SHA_256.Data; R : Mavlink.SHA_256.State)
+   procedure Do_SHA_256_Test (D : MAVLink.SHA_256.Data; R : MAVLink.SHA_256.State);
+   procedure Do_SHA_256_Test (D : MAVLink.SHA_256.Data; R : MAVLink.SHA_256.State)
    is
-      use type Mavlink.SHA_256.State;
+      use type MAVLink.SHA_256.State;
 
-      Checksum : Mavlink.SHA_256.Context;
-      Result   : Mavlink.SHA_256.Digest_Type;
-      Res      : Mavlink.SHA_256.State (1 .. 8) with Import,
+      Checksum : MAVLink.SHA_256.Context;
+      Result   : MAVLink.SHA_256.Digest_Type;
+      Res      : MAVLink.SHA_256.State (1 .. 8) with Import,
         Address => Result'Address;
    begin
-      Mavlink.SHA_256.Update (Checksum, D);
-      Mavlink.SHA_256.Digest (Checksum, Result);
+      MAVLink.SHA_256.Update (Checksum, D);
+      MAVLink.SHA_256.Digest (Checksum, Result);
       pragma Assert (Res = R);
    end Do_SHA_256_Test;
 
@@ -1115,8 +1115,8 @@ is""");
       200, 0, 0, 0, 0, 0, --  Timestamp
       189, 152, 194, 72,  122, 99]; --  SHA
 
-   In_Connect  : Mavlink.V2.Connection (1, 1);
-   Out_Connect : Mavlink.V2.Out_Connection (1, 1);
+   In_Connect  : MAVLink.V2.Connection (1, 1);
+   Out_Connect : MAVLink.V2.Out_Connection (1, 1);
    Pass        : constant String := "long_password";
    Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
      Address => Pass'Address;
@@ -1129,7 +1129,7 @@ is""");
    Link_Id     : Interfaces.Unsigned_8;
    Timestamp   : Timestamp_Type;
    Signature   : Three_Boolean;
-   Buffer      : Data_Buffer (1 .. Mavlink.V2.Maximum_Buffer_Len);
+   Buffer      : Data_Buffer (1 .. MAVLink.V2.Maximum_Buffer_Len);
    Last        : Positive;
 
 begin
@@ -1157,7 +1157,7 @@ begin
    pragma Assert (Comp_Id = 1);
    pragma Assert
      (Id =
-        Mavlink.V2.Common.Message.Hygrometer_Sensors.Hygrometer_Sensor_Id);
+        MAVLink.V2.Common.Message.Hygrometer_Sensors.Hygrometer_Sensor_Id);
    pragma Assert (Link_Id = 1);
    pragma Assert (Timestamp = 200);
    pragma Assert (Signature = True);
@@ -1165,7 +1165,7 @@ begin
 
    -- In / Out
    declare
-      use Mavlink.V2.Common.Message.Hygrometer_Sensors;
+      use MAVLink.V2.Common.Message.Hygrometer_Sensors;
       M : constant Hygrometer_Sensor :=
         (Id => 1, Temperature => 1, Humidity => 0);
       O : Hygrometer_Sensor;
@@ -1196,13 +1196,13 @@ begin
 """)
     else:
         f.write("""
-   In_Connect  : Mavlink.V2.Connection (1, 1);
-   Out_Connect : Mavlink.V2.Out_Connection (1, 1);
+   In_Connect  : MAVLink.V2.Connection (1, 1);
+   Out_Connect : MAVLink.V2.Out_Connection (1, 1);
    Pass        : constant String := "long_password";
    Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
      Address => Pass'Address;
    Res         : Boolean;
-   Buffer      : Data_Buffer (1 .. Mavlink.V2.Maximum_Buffer_Len);
+   Buffer      : Data_Buffer (1 .. MAVLink.V2.Maximum_Buffer_Len);
    Last        : Positive;
 
 begin
@@ -1238,7 +1238,7 @@ begin
                                 value = "<>"
 
                             else:
-                                value = "Mavlink.V2.%s.%s'First" % (
+                                value = "MAVLink.V2.%s.%s'First" % (
                                     find_package(xml, field.enum),
                                     normalize_enum_name(field.enum).title())
                         else:

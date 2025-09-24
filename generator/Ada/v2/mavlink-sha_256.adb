@@ -1,5 +1,5 @@
 
-package body Mavlink.SHA_256 is
+package body MAVLink.SHA_256 is
 
    use type System.Bit_Order;
 
@@ -306,4 +306,4 @@ package body Mavlink.SHA_256 is
       end;
    end Digest;
 
-end Mavlink.SHA_256;
+end MAVLink.SHA_256;
