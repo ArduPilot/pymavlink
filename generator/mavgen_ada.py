@@ -404,12 +404,40 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
     return spec
 
 # Create dialect common message package
-def generate_common_messages_pkg (directory, pkg, p_name, header=None):
+def generate_common_messages_pkg (directory, msgs, pkg, p_name, header=None):
     f_name = os.path.join(directory, pkg)
     spec = open(f_name + ".ads", "w")
     spec.write(GEN)
     if header: spec.write(header)
-    spec.write("pragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\nend %s;\n" % (p_name, p_name))
+    spec.write("pragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\n" % p_name)
+
+    ids = []
+    for m in msgs:
+        ids.append(int(m.id))
+
+    if len(ids) > 0:
+        ids.sort()
+        prev = -1
+
+        max = len(str(ids[-1]))
+        spec.write("   subtype Valid_Msg_Id is Msg_Id\n     with Static_Predicate => Valid_Msg_Id in\n")
+        for id in ids:
+            if prev == -1:
+                spec.write("       %s .. " % str(id).ljust(max))
+            else:
+                if prev + 1 != id:
+                    spec.write("%s |\n       %s .. " % (str(prev).ljust(max), str(id).ljust(max)))
+            prev = id
+
+        spec.write("%s;\n\n" % str(ids[-1]).ljust(max))
+        spec.write("   function Image (Id : Valid_Msg_Id) return String is\n")
+        spec.write("     (case Id is")
+        for id in ids:
+            if id != ids[0]:
+                spec.write(",")
+            spec.write('\n         when %s => "%s"' % (str(id).ljust(max), str(id)))
+        spec.write(");\n\n")
+    spec.write("end %s;\n" % p_name)
 
 # Create file for the message spec
 def create_message_pkg (x, f_name, p_name, ver, m, header=None):
@@ -590,11 +618,37 @@ def generate_message_methods(name, rev, spec):
       return Boolean;
    --  Returns True if CRC is valid
 
-""" % (name, rev, name, rev, name, rev, name, rev, rev))
+""" % (name, rev,
+       name, rev,
+       name, rev,
+       name, rev,
+       rev))
+
+def generate_message_methods_V2(name, spec):
+    spec.write("""   procedure Encode
+     (Message : %s;
+      Connect : in out %s.Out_Connection;
+      Sign    : in out Signature;
+      Buffer  : out Data_Buffer;
+      Last    : out Positive);
+
+   procedure Encode
+     (Message : %s;
+      Connect : in out %s.Connection;
+      Sign    : in out Signature;
+      Buffer  : out Data_Buffer;
+      Last    : out Positive);
+
+""" % (name, v2,
+       name, v2))
 
 # Generate message body
 def generate_message_body(name, rev, extra, body, is_v1):
-    body.write("""   procedure Encode
+    body.write("""   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
      (Message : %s;
       Connect : in out %s.Out_Connection;
       Buffer  : out Data_Buffer;
@@ -611,6 +665,38 @@ def generate_message_body(name, rev, extra, body, is_v1):
       Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
       Encode (Connect, %s_Id, %s, Buffer, Last);
    end Encode;
+""" % (name, rev, name, name, name, extra))
+
+    if not is_v1:
+        body.write("""
+   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
+     (Message : %s;
+      Connect : in out %s.Out_Connection;
+      Sign    : in out %s.Signature;
+      Buffer  : out Data_Buffer;
+      Last    : out Positive)
+   is
+      Local : Data_Buffer (1 .. %s'Value_Size / 8)
+        with Import, Address => Message'Address,
+        Convention => Ada;
+
+   begin
+      Last := Buffer'First +
+        Packet_Payload_First +
+        (%s'Value_Size / 8) - 1;
+      Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
+      Encode (Connect, %s_Id, %s, Sign, Buffer, Last);
+   end Encode;
+""" % (name, rev, rev, name, name, name, extra))
+
+    body.write("""
+   ------------
+   -- Encode --
+   ------------
 
    procedure Encode
      (Message : %s;
@@ -629,6 +715,38 @@ def generate_message_body(name, rev, extra, body, is_v1):
       Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
       Encode (Connect, %s_Id, %s, Buffer, Last);
    end Encode;
+""" % (name, rev, name, name, name, extra))
+
+    if not is_v1:
+        body.write("""
+   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
+     (Message : %s;
+      Connect : in out %s.Connection;
+      Sign    : in out %s.Signature;
+      Buffer  : out Data_Buffer;
+      Last    : out Positive)
+   is
+      Local : Data_Buffer (1 .. %s'Value_Size / 8)
+        with Import, Address => Message'Address,
+        Convention => Ada;
+
+   begin
+      Last := Buffer'First +
+        Packet_Payload_First +
+        (%s'Value_Size / 8) - 1;
+      Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
+      Encode (Connect, %s_Id, %s, Sign, Buffer, Last);
+   end Encode;
+""" % (name, rev, rev, name, name, name, extra))
+
+    body.write("""
+   ---------------
+   -- Check_CRC --
+   ---------------
 
    function Check_CRC
      (Connect : in out %s.Connection) return Boolean is
@@ -636,14 +754,16 @@ def generate_message_body(name, rev, extra, body, is_v1):
       return Is_CRC_Valid (Connect, %s);
    end Check_CRC;
 
+   ------------
+   -- Decode --
+   ------------
+
    procedure Decode
      (Message   : out %s;
       Connect   : in out %s.Connection;
       CRC_Valid : out Boolean)
    is
-""" % (name, rev, name, name, name, extra,
-       name, rev, name, name, name, extra,
-       rev, extra,
+""" % (rev, extra,
        name, rev))
 
     if is_v1:
@@ -675,6 +795,10 @@ def generate_message_body(name, rev, extra, body, is_v1):
 """ % (name, name))
 
     body.write("""   end Decode;
+
+   ------------
+   -- Decode --
+   ------------
 
    procedure Decode
      (Message : out %s;
@@ -909,7 +1033,7 @@ def generate(directory, xml):
 
         dialect = file_name(x)
         generate_v1_types(directory, x, types_size)
-        generate_common_messages_pkg (directory, "mavlink-v1-%s-message" % dialect, "%s.%s.Message" % (v1, dialect.title()), copy)
+        generate_common_messages_pkg (directory, x.message, "mavlink-v1-%s-message" % dialect, "%s.%s.Message" % (v1, dialect.title()), copy)
 
         #Generate messages
         for m in x.message:
@@ -1024,6 +1148,7 @@ def generate_v2_message(msg, spec, body, xml):
 
     generate_message_representation(msg, spec, max_len)
     generate_message_methods(name, v2, spec)
+    generate_message_methods_V2(name, spec)
     generate_message_body(name, v2, str(msg.crc_extra), body, False)
 
 # Find package name
@@ -1059,7 +1184,7 @@ procedure Test
 is""");
 
     for x in xml:
-        if x.filename == "common.xml":
+        if "common.xml" in x.filename:
             Has_Common = True
 
     if Has_Common:
@@ -1114,7 +1239,10 @@ is""");
       1, -- Link_Id
       200, 0, 0, 0, 0, 0, --  Timestamp
       189, 152, 194, 72,  122, 99]; --  SHA
+""")
 
+    f.write("""
+   Sig         : MAVLink.V2.Signature;
    In_Connect  : MAVLink.V2.Connection (1, 1);
    Out_Connect : MAVLink.V2.Out_Connection (1, 1);
    Pass        : constant String := "long_password";
@@ -1122,23 +1250,25 @@ is""");
      Address => Pass'Address;
    Res         : Boolean;
 
-   Seq         : Interfaces.Unsigned_8;
-   Sys_Id      : Interfaces.Unsigned_8;
-   Comp_Id     : Interfaces.Unsigned_8;
+   Seq         : Sequence_Id_Type;
+   Sys_Id      : System_Id_Type;
+   Comp_Id     : Component_Id_Type;
    Id          : Msg_Id;
-   Link_Id     : Interfaces.Unsigned_8;
+   Link_Id     : Link_Id_Type;
    Timestamp   : Timestamp_Type;
    Signature   : Three_Boolean;
    Buffer      : Data_Buffer (1 .. MAVLink.V2.Maximum_Buffer_Len);
    Last        : Positive;
 
 begin
+   Initialize (Sig,  1, Pass_Data, 200);
+""")
+
+    if Has_Common:
+        f.write("""
    Do_SHA_256_Test (D1, R1);
    Do_SHA_256_Test (D2, R2);
    Do_SHA_256_Test (D3, R3);
-
-   Initialize_Signature (In_Connect,  1, Pass_Data, 200);
-   Initialize_Signature (Out_Connect, 1, Pass_Data, 200);
 
    -- Income
    for Index in Hygrometer_Sensors_Data'First ..
@@ -1146,11 +1276,10 @@ begin
    loop
       Res := Parse_Byte (In_Connect, Hygrometer_Sensors_Data (Index));
    end loop;
-
    pragma Assert (Res);
 
    Get_Message_Information
-     (In_Connect, Seq, Sys_Id, Comp_Id, Id, Link_Id, Timestamp, Signature);
+     (In_Connect, Sig, Seq, Sys_Id, Comp_Id, Id, Link_Id, Timestamp, Signature);
 
    pragma Assert (Seq = 0);
    pragma Assert (Sys_Id = 1);
@@ -1170,7 +1299,7 @@ begin
         (Id => 1, Temperature => 1, Humidity => 0);
       O : Hygrometer_Sensor;
    begin
-      Encode (M, Out_Connect, Buffer, Last);
+      Encode (M, Out_Connect, Sig, Buffer, Last);
       pragma Assert (Last = 30);
 
       for Index in Buffer'First .. Last loop
@@ -1179,7 +1308,7 @@ begin
       pragma Assert (Res);
 
       Get_Message_Information
-        (In_Connect, Seq, Sys_Id, Comp_Id, Id, Link_Id, Timestamp, Signature);
+        (In_Connect, Sig, Seq, Sys_Id, Comp_Id, Id, Link_Id, Timestamp, Signature);
 
       pragma Assert (Seq = 0);
       pragma Assert (Sys_Id = 1);
@@ -1193,21 +1322,6 @@ begin
       pragma Assert (M = O);
    end;
 
-""")
-    else:
-        f.write("""
-   In_Connect  : MAVLink.V2.Connection (1, 1);
-   Out_Connect : MAVLink.V2.Out_Connection (1, 1);
-   Pass        : constant String := "long_password";
-   Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
-     Address => Pass'Address;
-   Res         : Boolean;
-   Buffer      : Data_Buffer (1 .. MAVLink.V2.Maximum_Buffer_Len);
-   Last        : Positive;
-
-begin
-   Initialize_Signature (In_Connect,  1, Pass_Data, 200);
-   Initialize_Signature (Out_Connect, 1, Pass_Data, 200);
 """)
 
     for x in xml:
@@ -1252,12 +1366,16 @@ begin
 
             f.write(""");
    begin
-      Encode (O, Out_Connect, Buffer, Last);
+      Encode (O, Out_Connect, Sig, Buffer, Last);
 
       for Index in Buffer'First .. Last loop
          Res := Parse_Byte (In_Connect, Buffer (Index));
       end loop;
       pragma Assert (Res);
+
+      Get_Message_Information
+        (In_Connect, Sig, Seq, Sys_Id, Comp_Id, Id, Link_Id, Timestamp, Signature);
+      pragma Assert (Signature = True);
 
       Decode (I, In_Connect, Res);
       pragma Assert (Res);
@@ -1316,7 +1434,7 @@ def generate_v2(directory, xml):
         generate_v2_types (directory, x, types_size)
 
         # Mavlink.`dialect`.Message
-        generate_common_messages_pkg (directory, "mavlink-v2-%s-message" % dialect, "%s.%s.Message" % (v2, dialect.title()))
+        generate_common_messages_pkg (directory, x.message, "mavlink-v2-%s-message" % dialect, "%s.%s.Message" % (v2, dialect.title()))
 
         #Generate messages
         for m in x.message:

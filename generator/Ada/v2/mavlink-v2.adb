@@ -4,43 +4,22 @@ with MAVLink.X25CRC;
 
 package body MAVLink.V2 is
 
-   --------------------------
-   -- Initialize_Signature --
-   --------------------------
+   ----------------
+   -- Initialize --
+   ----------------
 
-   procedure Initialize_Signature
-     (Self      : in out Connection;
-      Link_Id   : Interfaces.Unsigned_8;
+   procedure Initialize
+     (Self      : out Signature;
+      Link_Id   : Link_Id_Type;
       Key       : Signature_Key;
       Timestamp : Timestamp_Type) is
    begin
-      Self.Settings.Link_Id := Link_Id;
+      Self.Link_Id   := Link_Id;
+      Self.Timestamp := Timestamp;
 
-      Self.Settings.Key := SHA_256.Initial_Context;
-      SHA_256.Update (Self.Settings.Key, SHA_256.Data (Key));
-
-      Self.Settings.Timestamp     := Timestamp;
-      Self.Settings.Use_Signature := True;
-   end Initialize_Signature;
-
-   --------------------------
-   -- Initialize_Signature --
-   --------------------------
-
-   procedure Initialize_Signature
-     (Self      : in out Out_Connection;
-      Link_Id   : Interfaces.Unsigned_8;
-      Key       : Signature_Key;
-      Timestamp : Timestamp_Type) is
-   begin
-      Self.Settings.Link_Id := Link_Id;
-
-      Self.Settings.Key := SHA_256.Initial_Context;
-      SHA_256.Update (Self.Settings.Key, SHA_256.Data (Key));
-
-      Self.Settings.Timestamp     := Timestamp;
-      Self.Settings.Use_Signature := True;
-   end Initialize_Signature;
+      Self.Key := SHA_256.Initial_Context;
+      SHA_256.Update (Self.Key, SHA_256.Data (Key));
+   end Initialize;
 
    ----------------
    -- Parse_Byte --
@@ -87,14 +66,11 @@ package body MAVLink.V2 is
    -----------------------------
 
    procedure Get_Message_Information
-     (Self      : Connection;
-      Seq       : out Interfaces.Unsigned_8;
-      Sys_Id    : out Interfaces.Unsigned_8;
-      Comp_Id   : out Interfaces.Unsigned_8;
-      Id        : out Msg_Id;
-      Link_Id   : out Interfaces.Unsigned_8;
-      Timestamp : out Timestamp_Type;
-      Signature : out Three_Boolean)
+     (Self    : Connection;
+      Seq     : out Sequence_Id_Type;
+      Sys_Id  : out System_Id_Type;
+      Comp_Id : out Component_Id_Type;
+      Id      : out Msg_Id)
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -103,8 +79,25 @@ package body MAVLink.V2 is
       Sys_Id  := Header.Sys_Id;
       Comp_Id := Header.Comp_Id;
       Id      := Get_Message_Id (Self);
+   end Get_Message_Information;
 
-      Check_Message_Signature (Self, Link_Id, Timestamp, Signature);
+   -----------------------------
+   -- Get_Message_Information --
+   -----------------------------
+
+   procedure Get_Message_Information
+     (Self      : Connection;
+      Sign      : Signature;
+      Seq       : out Sequence_Id_Type;
+      Sys_Id    : out System_Id_Type;
+      Comp_Id   : out Component_Id_Type;
+      Id        : out Msg_Id;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) is
+   begin
+      Get_Message_Information (Self, Seq, Sys_Id, Comp_Id, Id);
+      Check_Message_Signature (Self, Sign, Link_Id, Timestamp, Signature);
    end Get_Message_Information;
 
    --------------------
@@ -127,7 +120,7 @@ package body MAVLink.V2 is
    -------------------------
 
    function Get_Message_Sequnce
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Sequence_Id_Type
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -140,7 +133,7 @@ package body MAVLink.V2 is
    ---------------------------
 
    function Get_Message_System_Id
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return System_Id_Type
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -153,7 +146,7 @@ package body MAVLink.V2 is
    ------------------------------
 
    function Get_Message_Component_Id
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Component_Id_Type
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
@@ -166,11 +159,11 @@ package body MAVLink.V2 is
    -------------------------
 
    function Get_Message_Link_Id
-     (Self : Connection) return Interfaces.Unsigned_8
+     (Self : Connection) return Link_Id_Type
    is
       Header : constant V2_Header with Import,
         Address => Self.Income_Buffer'Address;
-      Sig    : constant MAVLink.V2.Signature with Import,
+      Sig    : constant MAVLink.V2.MAV_Signature with Import,
         Address => Self.Income_Buffer
           (Self.Income_Buffer'First +
              Packet_Payload_First +
@@ -189,7 +182,8 @@ package body MAVLink.V2 is
 
    procedure Check_Message_Signature
      (Self      : Connection;
-      Link_Id   : out Interfaces.Unsigned_8;
+      Sign      : Signature;
+      Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean)
    is
@@ -201,7 +195,7 @@ package body MAVLink.V2 is
             Last_Data   : constant Positive := Self.Income_Buffer'First +
               Packet_Payload_First +
                 Natural (Header.Len - 1);
-            Sig         : constant MAVLink.V2.Signature with Import,
+            Sig         : constant MAVLink.V2.MAV_Signature with Import,
               Address => Self.Income_Buffer (Last_Data + 3)'Address;
             Message_SHA : SHA_Digest;
          begin
@@ -216,7 +210,7 @@ package body MAVLink.V2 is
                end if;
             end loop;
 
-            Calc_SHA (Self.Settings, Self.Income_Buffer
+            Calc_SHA (Sign.Key, Self.Income_Buffer
                       (Self.Income_Buffer'First .. Last_Data + 2 + 7),
                       Message_SHA);
 
@@ -243,7 +237,7 @@ package body MAVLink.V2 is
         Address => Self.Income_Buffer'Address;
       Last_Data : constant Positive := Self.Income_Buffer'First +
         Packet_Payload_First +
-          Natural (Header.Len - 1);
+          Natural (Header.Len) - 1;
 
       CRC : X25CRC.Checksum;
    begin
@@ -302,8 +296,28 @@ package body MAVLink.V2 is
       Buffer : in out Data_Buffer;
       Last   : in out Positive) is
    begin
-      Encode (Self.System_Id, Self.Component_Id, Id, Extras, Self.Settings,
-              Buffer, Last);
+      Encode
+        (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
+         Id, Extras, Buffer, Last);
+      Self.Sequence_Id := Self.Sequence_Id + 1;
+   end Encode;
+
+   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
+     (Self   : in out Connection;
+      Id     : Msg_Id;
+      Extras : Interfaces.Unsigned_8;
+      Sign   : in out Signature;
+      Buffer : in out Data_Buffer;
+      Last   : in out Positive) is
+   begin
+      Encode
+        (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
+         Id, Extras, Sign, Buffer, Last);
+      Self.Sequence_Id := Self.Sequence_Id + 1;
    end Encode;
 
    ------------
@@ -317,8 +331,10 @@ package body MAVLink.V2 is
       Buffer : in out Data_Buffer;
       Last   : in out Positive) is
    begin
-      Encode (Self.System_Id, Self.Component_Id, Id, Extras, Self.Settings,
-              Buffer, Last);
+      Encode
+        (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
+         Id, Extras, Buffer, Last);
+      Self.Sequence_Id := Self.Sequence_Id + 1;
    end Encode;
 
    ------------
@@ -326,18 +342,37 @@ package body MAVLink.V2 is
    ------------
 
    procedure Encode
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8;
+     (Self   : in out Out_Connection;
+      Id     : Msg_Id;
+      Extras : Interfaces.Unsigned_8;
+      Sign   : in out Signature;
+      Buffer : in out Data_Buffer;
+      Last   : in out Positive) is
+   begin
+      Encode
+        (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
+         Id, Extras, Sign, Buffer, Last);
+      Self.Sequence_Id := Self.Sequence_Id + 1;
+   end Encode;
+
+   ------------
+   -- Encode --
+   ------------
+
+   procedure Encode
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type;
+      Sequence_Id  : Sequence_Id_Type;
       Id           : Msg_Id;
       Extras       : Interfaces.Unsigned_8;
-      Settings     : in out Settings_Data;
       Buffer       : in out Data_Buffer;
-      Last         : in out Positive)
+      Last         : in out Positive;
+      Inc_Flags    : Interfaces.Unsigned_8 := 0)
    is
       Header : V2_Header with Import,
         Address => Buffer (Buffer'First)'Address;
-      L_Id  : Unsigned_64 := Unsigned_64 (Id);
-      CRC   : X25CRC.Checksum;
+      L_Id   : Unsigned_64 := Unsigned_64 (Id);
+      CRC    : X25CRC.Checksum;
    begin
       --  Truncate the message
       while Last > Buffer'First + Packet_Payload_First loop
@@ -348,13 +383,11 @@ package body MAVLink.V2 is
       Header.Stx       := Version_2_Code;
       Header.Len       := Unsigned_8
         (Last - (Buffer'First + Packet_Payload_First - 1));
-      Header.Inc_Flags := (if Settings.Use_Signature then 1 else 0);
+      Header.Inc_Flags := Inc_Flags;
       Header.Cmp_Flags := 0;
-      Header.Seq       := Settings.Sequence_Id;
+      Header.Seq       := Sequence_Id;
       Header.Sys_Id    := System_Id;
       Header.Comp_Id   := Component_Id;
-
-      Settings.Sequence_Id := Settings.Sequence_Id + 1;
 
       Header.Id_Low := Unsigned_8 (L_Id and 16#FF#);
       L_Id := Shift_Right (L_Id, 8);
@@ -370,25 +403,42 @@ package body MAVLink.V2 is
       Buffer (Last + 1) := CRC.High;
       Buffer (Last + 2) := CRC.Low;
       Last := Last + 2;
+   end Encode;
 
-      if Settings.Use_Signature then
-         declare
-            S : Signature with Import, Address => Buffer (Last + 1)'Address;
-            T : Timestamp_Type := Settings.Timestamp;
-         begin
-            S.Link_Id := Settings.Link_Id;
+   ------------
+   -- Encode --
+   ------------
 
-            for Index in S.Timestamp'Range loop
-               S.Timestamp (Index) := Unsigned_8 (T and 16#FF#);
-               T := Timestamp_Type (Shift_Right (Unsigned_64 (T), 8));
-            end loop;
+   procedure Encode
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type;
+      Sequence_Id  : Sequence_Id_Type;
+      Id           : Msg_Id;
+      Extras       : Interfaces.Unsigned_8;
+      Sign         : in out Signature;
+      Buffer       : in out Data_Buffer;
+      Last         : in out Positive) is
+   begin
+      Encode
+        (System_Id, Component_Id, Sequence_Id, Id, Extras, Buffer, Last, 1);
 
-            Calc_SHA (Settings, Buffer (Buffer'First .. Last + 7), S.Sig);
-         end;
+      declare
+         Sig  : MAV_Signature with Import,
+           Address => Buffer (Last + 1)'Address;
+         Time : Timestamp_Type := Sign.Timestamp;
+      begin
+         Sig.Link_Id := Sign.Link_Id;
 
-         Settings.Timestamp := Settings.Timestamp + 1;
-         Last := Last + 13;
-      end if;
+         for Index in Sig.Timestamp'Range loop
+            Sig.Timestamp (Index) := Unsigned_8 (Time and 16#FF#);
+            Time := Timestamp_Type (Shift_Right (Unsigned_64 (Time), 8));
+         end loop;
+
+         Calc_SHA (Sign.Key, Buffer (Buffer'First .. Last + 7), Sig.Sig);
+      end;
+
+      Sign.Timestamp := Sign.Timestamp + 1;
+      Last := Last + 13;
    end Encode;
 
    --------------
@@ -396,12 +446,12 @@ package body MAVLink.V2 is
    --------------
 
    procedure Calc_SHA
-     (Settings : Settings_Data;
-      Buffer   : Data_Buffer;
-      Result   : out SHA_Digest)
+     (Key    : SHA_256.Context;
+      Buffer : Data_Buffer;
+      Result : out SHA_Digest)
    is
       use SHA_256;
-      SHA : Context := Settings.Key;
+      SHA : Context := Key;
       D   : Digest_Type;
    begin
       Update (SHA, Data (Buffer));
@@ -422,7 +472,7 @@ package body MAVLink.V2 is
         Address => Self.Income_Buffer'Address;
       Last_Data : constant Positive := Self.Income_Buffer'First +
         Packet_Payload_First +
-          Natural (Header.Len - 1);
+          Natural (Header.Len) - 1;
    begin
       Last := Buffer'First + Natural (Header.Len - 1);
       Buffer (Buffer'First .. Last) := Self.Income_Buffer

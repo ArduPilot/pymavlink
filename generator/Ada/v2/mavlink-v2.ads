@@ -19,6 +19,11 @@ package MAVLink.V2 is
 
    Maximum_Buffer_Len : constant Positive := 280;
 
+   type System_Id_Type is new Interfaces.Unsigned_8;
+   type Component_Id_Type is new Interfaces.Unsigned_8;
+   type Sequence_Id_Type is new Interfaces.Unsigned_8;
+   type Link_Id_Type is new Interfaces.Unsigned_8;
+
    type Timestamp_Type is mod 2 ** 48 with Size => 48;
 
    subtype Signature_Index is Positive range 1 .. 32;
@@ -52,22 +57,28 @@ package MAVLink.V2 is
    type Long_Float_Array is array (Natural range <>) of Raw_Long_Float
      with Component_Size => 64;
 
+   ---------------
+   -- Signature --
+   ---------------
+
+   type Signature is private;
+
+   procedure Initialize
+     (Self      : out Signature;
+      Link_Id   : Link_Id_Type;
+      Key       : Signature_Key;
+      Timestamp : Timestamp_Type);
+   --  Initialize signature that will be used to generate SHA256 signature
+   --  for packets
+
    ----------------
    -- Connection --
    ----------------
 
    type Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type)
    is private;
-
-   procedure Initialize_Signature
-     (Self      : in out Connection;
-      Link_Id   : Interfaces.Unsigned_8;
-      Key       : Signature_Key;
-      Timestamp : Timestamp_Type);
-   --  Initialize signature that will be used to generate SHA256 signature
-   --  for packets
 
    function Parse_Byte
      (Self  : in out Connection;
@@ -79,11 +90,12 @@ package MAVLink.V2 is
    --  Get the message's information that is in the connection's buffer --
    procedure Get_Message_Information
      (Self      : Connection;
-      Seq       : out Interfaces.Unsigned_8;
-      Sys_Id    : out Interfaces.Unsigned_8;
-      Comp_Id   : out Interfaces.Unsigned_8;
+      Sign      : Signature;
+      Seq       : out Sequence_Id_Type;
+      Sys_Id    : out System_Id_Type;
+      Comp_Id   : out Component_Id_Type;
       Id        : out Msg_Id;
-      Link_Id   : out Interfaces.Unsigned_8;
+      Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean);
    --  Returns information about the current message in the buffer.
@@ -93,29 +105,39 @@ package MAVLink.V2 is
    --  set to True/False depends on whether the checksum is valid for the
    --  message.
 
+   --  Get the message's information that is in the connection's buffer --
+   procedure Get_Message_Information
+     (Self    : Connection;
+      Seq     : out Sequence_Id_Type;
+      Sys_Id  : out System_Id_Type;
+      Comp_Id : out Component_Id_Type;
+      Id      : out Msg_Id);
+   --  Same as above but do not check V2 signature
+
    function Get_Message_Id (Self : Connection) return Msg_Id;
    --  Returns message's ID
 
    function Get_Message_Sequnce
-     (Self : Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Sequence_Id_Type;
    --  Returns message's Seq
 
    function Get_Message_System_Id
-     (Self : Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return System_Id_Type;
    --  Returns message's Sys_Id
 
    function Get_Message_Component_Id
-     (Self : Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Component_Id_Type;
    --  Returns message's Comp_Id
 
    function Get_Message_Link_Id
-     (Self : Connection) return Interfaces.Unsigned_8;
+     (Self : Connection) return Link_Id_Type;
    --  Returns message's Link_Id. Returns 0 if the message does not have
    --  the Signature.
 
    procedure Check_Message_Signature
      (Self      : Connection;
-      Link_Id   : out Interfaces.Unsigned_8;
+      Sign      : Signature;
+      Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean);
    --  Returns the message's Signature. See Get_Message_Information.
@@ -135,17 +157,9 @@ package MAVLink.V2 is
    --------------------
 
    type Out_Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type)
    is private;
-
-   procedure Initialize_Signature
-     (Self      : in out Out_Connection;
-      Link_Id   : Interfaces.Unsigned_8;
-      Key       : Signature_Key;
-      Timestamp : Timestamp_Type);
-   --  Initialize signature that will be used to generate SHA256 signature
-   --  for packets
 
 private
 
@@ -154,9 +168,9 @@ private
       Len       : Interfaces.Unsigned_8;
       Inc_Flags : Interfaces.Unsigned_8;
       Cmp_Flags : Interfaces.Unsigned_8;
-      Seq       : Interfaces.Unsigned_8;
-      Sys_Id    : Interfaces.Unsigned_8;
-      Comp_Id   : Interfaces.Unsigned_8;
+      Seq       : Sequence_Id_Type;
+      Sys_Id    : System_Id_Type;
+      Comp_Id   : Component_Id_Type;
       Id_Low    : Interfaces.Unsigned_8;
       Id_Mid    : Interfaces.Unsigned_8;
       Id_High   : Interfaces.Unsigned_8;
@@ -177,35 +191,31 @@ private
 
    type SHA_Digest is array (1 .. 6) of Interfaces.Unsigned_8;
 
-   type Signature is record
-      Link_Id   : Interfaces.Unsigned_8;
+   type MAV_Signature is record
+      Link_Id   : Link_Id_Type;
       Timestamp : Data_Buffer (1 .. 6);
       Sig       : SHA_Digest;
    end record;
 
-   for Signature use record
+   for MAV_Signature use record
       Link_Id   at 0 range 0 .. 7;
       Timestamp at 1 range 0 .. 47;
       Sig       at 7 range 0 .. 47;
    end record;
 
-   -- Settings_Data --
-
-   type Settings_Data is record
-      Sequence_Id   : Interfaces.Unsigned_8  := 0;
-      Use_Signature : Boolean                := False;
-      Link_Id       : Interfaces.Unsigned_8  := 0;
-      Key           : SHA_256.Context;
-      Timestamp     : Timestamp_Type         := 0;
+   type Signature is record
+      Link_Id   : Link_Id_Type;
+      Key       : SHA_256.Context;
+      Timestamp : Timestamp_Type := 0;
    end record;
 
    -- Connection --
 
    type Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type)
    is record
-      Settings      : Settings_Data;
+      Sequence_Id   : Sequence_Id_Type := 0;
 
       -- Income
       Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
@@ -217,6 +227,14 @@ private
      (Self   : in out Connection;
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
+      Buffer : in out Data_Buffer;
+      Last   : in out Positive);
+
+   procedure Encode
+     (Self   : in out Connection;
+      Id     : Msg_Id;
+      Extras : Interfaces.Unsigned_8;
+      Sign   : in out Signature;
       Buffer : in out Data_Buffer;
       Last   : in out Positive);
 
@@ -233,10 +251,10 @@ private
    -- Out_Connection --
 
    type Out_Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type)
    is record
-      Settings : Settings_Data;
+      Sequence_Id : Sequence_Id_Type := 0;
    end record;
 
    procedure Encode
@@ -246,21 +264,40 @@ private
       Buffer : in out Data_Buffer;
       Last   : in out Positive);
 
+   procedure Encode
+     (Self   : in out Out_Connection;
+      Id     : Msg_Id;
+      Extras : Interfaces.Unsigned_8;
+      Sign   : in out Signature;
+      Buffer : in out Data_Buffer;
+      Last   : in out Positive);
+
    -- Utils --
 
    procedure Encode
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8;
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type;
+      Sequence_Id  : Sequence_Id_Type;
       Id           : Msg_Id;
       Extras       : Interfaces.Unsigned_8;
-      Settings     : in out Settings_Data;
+      Buffer       : in out Data_Buffer;
+      Last         : in out Positive;
+      Inc_Flags    : Interfaces.Unsigned_8 := 0);
+
+   procedure Encode
+     (System_Id    : System_Id_Type;
+      Component_Id : Component_Id_Type;
+      Sequence_Id  : Sequence_Id_Type;
+      Id           : Msg_Id;
+      Extras       : Interfaces.Unsigned_8;
+      Sign         : in out Signature;
       Buffer       : in out Data_Buffer;
       Last         : in out Positive);
 
    procedure Calc_SHA
-     (Settings : Settings_Data;
-      Buffer   : Data_Buffer;
-      Result   : out SHA_Digest);
+     (Key    : SHA_256.Context;
+      Buffer : Data_Buffer;
+      Result : out SHA_Digest);
 
    --  Positions of the messages parts minus 1, to use in construction like
    --  Buff'First + Packet_Payload_First
