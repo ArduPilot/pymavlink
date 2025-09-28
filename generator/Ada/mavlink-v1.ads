@@ -53,24 +53,50 @@ package MAVLink.V1 is
       Component_Id : Interfaces.Unsigned_8) is private;
 
    function Parse_Byte
-     (Conn : in out Connection; Val : Interfaces.Unsigned_8) return Boolean;
+     (Conn : in out Connection;
+      Val  : Interfaces.Unsigned_8)
+      return Boolean with Inline;
    --  Returns True when the full message has been loaded to the internal
    --  buffer. After this, you can use Check_CRC and Decode from the
    --  corresponding message according to the Get_Msg_Id result.
 
    function Get_Target_System_Id
-     (Conn : Connection) return Interfaces.Unsigned_8;
+     (Conn : Connection) return Interfaces.Unsigned_8 with Inline;
 
    function Get_Target_Component_Id
-     (Conn : Connection) return Interfaces.Unsigned_8;
+     (Conn : Connection) return Interfaces.Unsigned_8 with Inline;
 
-   function Get_Msg_Id (Conn : Connection) return Msg_Id;
+   function Get_Msg_Id (Conn : Connection) return Msg_Id with Inline;
 
    procedure Get_Buffer
      (Conn   : Connection;
       Buffer : out Data_Buffer;
-      Last   : out Natural);
+      Last   : out Natural) with Inline;
    --  Returns data from the internal buffer filled with Parse_Byte.
+
+   -------------------
+   -- In_Connection --
+   -------------------
+
+   type In_Connection is private;
+
+   function Parse_Byte
+     (Conn : in out In_Connection;
+      Val  : Interfaces.Unsigned_8)
+      return Boolean with Inline;
+
+   function Get_Target_System_Id
+     (Conn : In_Connection) return Interfaces.Unsigned_8 with Inline;
+
+   function Get_Target_Component_Id
+     (Conn : In_Connection) return Interfaces.Unsigned_8 with Inline;
+
+   function Get_Msg_Id (Conn : In_Connection) return Msg_Id with Inline;
+
+   procedure Get_Buffer
+     (Conn   : In_Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) with Inline;
 
    --------------------
    -- Out_Connection --
@@ -113,33 +139,37 @@ private
    Pos_Target_Component_Id : constant Natural := 5;
    Pos_Msg_Id              : constant Natural := 6;
 
+   type Incoming_Data is record
+      In_Buf       : Data_Buffer (1 .. Maximum_Buffer_Len) := [others => 0];
+      In_Ptr       : Natural := 0;
+      Len          : Natural := 0;
+      Checksum     : X25CRC.Checksum;
+      Extras_Added : Boolean := False;
+   end record;
+
    -- Connection --
 
    type Connection
      (System_Id    : Interfaces.Unsigned_8;
       Component_Id : Interfaces.Unsigned_8)
    is record
-      In_Buf       : Data_Buffer (1 .. Maximum_Buffer_Len) := [others => 0];
-      In_Ptr       : Natural := 0;
-      Len          : Natural := 0;
+      Incoming     : Incoming_Data;
       Out_Sequency : Interfaces.Unsigned_8 := 0;
-      Checksum     : X25CRC.Checksum;
-      Extras_Added : Boolean := False;
    end record;
 
    function Get_Target_System_Id
      (Conn : Connection) return Interfaces.Unsigned_8
-   is (Conn.In_Buf (Pos_Target_System_Id));
+   is (Conn.Incoming.In_Buf (Pos_Target_System_Id));
 
    function Get_Target_Component_Id
      (Conn : Connection) return Interfaces.Unsigned_8
-   is (Conn.In_Buf (Pos_Target_Component_Id));
+   is (Conn.Incoming.In_Buf (Pos_Target_Component_Id));
 
    function Get_Msg_Id (Conn : Connection) return Msg_Id
-   is (Conn.In_Buf (Pos_Msg_id));
+   is (Conn.Incoming.In_Buf (Pos_Msg_id));
 
    function Get_Msg_Len (Conn : Connection) return Interfaces.Unsigned_8
-   is (Conn.In_Buf (Pos_Len));
+   is (Conn.Incoming.In_Buf (Pos_Len));
 
    procedure Encode
      (Conn   : in out Connection;
@@ -155,6 +185,35 @@ private
 
    procedure Get_Message_Data
      (Conn   : Connection;
+      Buffer : out Data_Buffer);
+
+   -- In_Connection --
+
+   type In_Connection is record
+      Incoming : Incoming_Data;
+   end record;
+
+   function Get_Target_System_Id
+     (Conn : In_Connection) return Interfaces.Unsigned_8
+   is (Conn.Incoming.In_Buf (Pos_Target_System_Id));
+
+   function Get_Target_Component_Id
+     (Conn : In_Connection) return Interfaces.Unsigned_8
+   is (Conn.Incoming.In_Buf (Pos_Target_Component_Id));
+
+   function Get_Msg_Id (Conn : In_Connection) return Msg_Id
+   is (Conn.Incoming.In_Buf (Pos_Msg_id));
+
+   function Get_Msg_Len (Conn : In_Connection) return Interfaces.Unsigned_8
+   is (Conn.Incoming.In_Buf (Pos_Len));
+
+   function Is_CRC_Valid
+     (Conn   : in out In_Connection;
+      Extras : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Message_Data
+     (Conn   : In_Connection;
       Buffer : out Data_Buffer);
 
    -- Out_Connection --
@@ -174,6 +233,25 @@ private
       Last   : in out Positive);
 
    -- Utils --
+
+   function Parse_Byte
+     (Incoming : in out Incoming_Data;
+      Val      : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Buffer
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer;
+      Last     : out Natural);
+
+   function Is_CRC_Valid
+     (Incoming : in out Incoming_Data;
+      Extras   : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Message_Data
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer);
 
    procedure Encode
      (System_Id    : Interfaces.Unsigned_8;

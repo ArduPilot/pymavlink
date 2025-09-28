@@ -469,7 +469,7 @@ def create_message_pkg (x, f_name, p_name, ver, m, header=None):
 def create_message_body (f_name, p_name):
     body = open(f_name + ".adb", "w")
     body.write(GEN)
-    body.write("package body %s is\n\n" % p_name)
+    body.write("package body %s is\n" % p_name)
     return body
 
 # Prepare information about types
@@ -586,7 +586,14 @@ def generate_message_representation(msg, spec, max_len):
         offset += field_size / 8
     spec.write("   end record;\n\n")
 
-def generate_message_methods(name, rev, spec):
+def generate_message_methods(name, rev, spec, is_v1):
+    if is_v1:
+        mode = ""
+        c_mode = "in out "
+    else:
+        mode = "in out "
+        c_mode = ""
+
     spec.write("""   procedure Encode
      (Message : %s;
       Connect : in out %s.Out_Connection;
@@ -610,31 +617,52 @@ def generate_message_methods(name, rev, spec):
 
    procedure Decode
      (Message : out %s;
-      Connect : in out %s.Connection);
+      Connect : %s%s.Connection);
+   --  Same as Above but does not check CRC
+
+   procedure Decode
+     (Message   : out %s;
+      Connect   : in out %s.In_Connection;
+      CRC_Valid : out Boolean);
+   --  Get the message from the Connect and delete it
+   --  from the Connect's buffer. CRC_Valid is set to
+   --  True if x25crc is valid for the message.
+
+   procedure Decode
+     (Message : out %s;
+      Connect : %s%s.In_Connection);
    --  Same as Above but does not check CRC
 
    function Check_CRC
-     (Connect : in out %s.Connection)
-      return Boolean;
+     (Connect : %s%s.Connection)
+      return Boolean with Inline;
+   --  Returns True if CRC is valid
+
+   function Check_CRC
+     (Connect : %s%s.In_Connection)
+      return Boolean with Inline;
    --  Returns True if CRC is valid
 
 """ % (name, rev,
        name, rev,
        name, rev,
+       name, mode, rev,
        name, rev,
-       rev))
+       name, mode, rev,
+       c_mode, rev,
+       c_mode, rev))
 
 def generate_message_methods_V2(name, spec):
     spec.write("""   procedure Encode
      (Message : %s;
-      Connect : in out %s.Out_Connection;
+      Connect : in out %s.Connection;
       Sign    : in out Signature;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
 
    procedure Encode
      (Message : %s;
-      Connect : in out %s.Connection;
+      Connect : in out %s.Out_Connection;
       Sign    : in out Signature;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
@@ -643,14 +671,15 @@ def generate_message_methods_V2(name, spec):
        name, v2))
 
 # Generate message body
-def generate_message_body(name, rev, extra, body, is_v1):
-    body.write("""   ------------
+def generate_message_body_encode (name, rev, extra, body, is_v1, connection):
+    body.write("""
+   ------------
    -- Encode --
    ------------
 
    procedure Encode
      (Message : %s;
-      Connect : in out %s.Out_Connection;
+      Connect : in out %s.%s;
       Buffer  : out Data_Buffer;
       Last    : out Positive)
    is
@@ -665,7 +694,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
       Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
       Encode (Connect, %s_Id, %s, Buffer, Last);
    end Encode;
-""" % (name, rev, name, name, name, extra))
+""" % (name, rev, connection, name, name, name, extra))
 
     if not is_v1:
         body.write("""
@@ -675,7 +704,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
 
    procedure Encode
      (Message : %s;
-      Connect : in out %s.Out_Connection;
+      Connect : in out %s.%s;
       Sign    : in out %s.Signature;
       Buffer  : out Data_Buffer;
       Last    : out Positive)
@@ -691,80 +720,25 @@ def generate_message_body(name, rev, extra, body, is_v1):
       Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
       Encode (Connect, %s_Id, %s, Sign, Buffer, Last);
    end Encode;
-""" % (name, rev, rev, name, name, name, extra))
+""" % (name, rev, connection, rev, name, name, name, extra))
+
+def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
+    if is_v1:
+        mode = ""
+    else:
+        mode = "in out "
 
     body.write("""
-   ------------
-   -- Encode --
-   ------------
-
-   procedure Encode
-     (Message : %s;
-      Connect : in out %s.Connection;
-      Buffer  : out Data_Buffer;
-      Last    : out Positive)
-   is
-      Local : Data_Buffer (1 .. %s'Value_Size / 8)
-        with Import, Address => Message'Address,
-        Convention => Ada;
-
-   begin
-      Last := Buffer'First +
-        Packet_Payload_First +
-        (%s'Value_Size / 8) - 1;
-      Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
-      Encode (Connect, %s_Id, %s, Buffer, Last);
-   end Encode;
-""" % (name, rev, name, name, name, extra))
-
-    if not is_v1:
-        body.write("""
-   ------------
-   -- Encode --
-   ------------
-
-   procedure Encode
-     (Message : %s;
-      Connect : in out %s.Connection;
-      Sign    : in out %s.Signature;
-      Buffer  : out Data_Buffer;
-      Last    : out Positive)
-   is
-      Local : Data_Buffer (1 .. %s'Value_Size / 8)
-        with Import, Address => Message'Address,
-        Convention => Ada;
-
-   begin
-      Last := Buffer'First +
-        Packet_Payload_First +
-        (%s'Value_Size / 8) - 1;
-      Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
-      Encode (Connect, %s_Id, %s, Sign, Buffer, Last);
-   end Encode;
-""" % (name, rev, rev, name, name, name, extra))
-
-    body.write("""
-   ---------------
-   -- Check_CRC --
-   ---------------
-
-   function Check_CRC
-     (Connect : in out %s.Connection) return Boolean is
-   begin
-      return Is_CRC_Valid (Connect, %s);
-   end Check_CRC;
-
    ------------
    -- Decode --
    ------------
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.Connection;
+      Connect   : in out %s.%s;
       CRC_Valid : out Boolean)
    is
-""" % (rev, extra,
-       name, rev))
+""" % (name, rev, connection))
 
     if is_v1:
         body.write("""      Buf : Data_Buffer
@@ -793,7 +767,6 @@ def generate_message_body(name, rev, extra, body, is_v1):
 
       Drop_Message (Connect);
 """ % (name, name))
-
     body.write("""   end Decode;
 
    ------------
@@ -802,9 +775,9 @@ def generate_message_body(name, rev, extra, body, is_v1):
 
    procedure Decode
      (Message : out %s;
-      Connect : in out %s.Connection)
+      Connect : %s%s.%s)
    is
-""" % (name, rev))
+""" % (name, mode, rev, connection))
     if is_v1:
         body.write("""      Buf : Data_Buffer
         (1 .. %s'Size / 8) := [others => 0]
@@ -828,7 +801,33 @@ def generate_message_body(name, rev, extra, body, is_v1):
       Buf (1 .. Last) := Data (1 .. Last);
       Drop_Message (Connect);
 """ % (name, name))
-    body.write("   end Decode;\n\n")
+    body.write("   end Decode;\n")
+
+def generate_message_body_crc(rev, extra, body, connection, is_v1):
+    if is_v1:
+        mode = "in out "
+    else:
+        mode = ""
+
+    body.write("""
+   ---------------
+   -- Check_CRC --
+   ---------------
+
+   function Check_CRC
+     (Connect : %s%s.%s) return Boolean is
+   begin
+      return Is_CRC_Valid (Connect, %s);
+   end Check_CRC;
+""" % (mode, rev, connection, extra))
+
+def generate_message_body(name, rev, extra, body, is_v1):
+    generate_message_body_encode(name, rev, extra, body, is_v1, "Connection")
+    generate_message_body_encode(name, rev, extra, body, is_v1, "Out_Connection")
+    generate_message_body_decode(name, rev, extra, body, is_v1, "Connection")
+    generate_message_body_decode(name, rev, extra, body, is_v1, "In_Connection")
+    generate_message_body_crc(rev, extra, body, "Connection", is_v1)
+    generate_message_body_crc(rev, extra, body, "In_Connection", is_v1)
 
 # Generate message for the V1
 def generate_v1_message(msg, spec, body, xml):
@@ -879,7 +878,7 @@ def generate_v1_message(msg, spec, body, xml):
         spec.write("   pragma Obsolescent (%s);\n\n" % name)
 
     generate_message_representation(msg, spec, max_len)
-    generate_message_methods(name, v1, spec)
+    generate_message_methods(name, v1, spec, True)
     generate_message_body(name, v1, str(msg.crc_extra), body, True)
 
 # Generate test project
@@ -1043,7 +1042,7 @@ def generate(directory, xml):
             body = create_message_body (f_name, p_name)
             generate_v1_message(m, spec, body, xml)
             spec.write("end %s;\n" % p_name)
-            body.write("end %s;\n" % p_name)
+            body.write("\nend %s;\n" % p_name)
     generate_test_v1(directory, xml, bitmasks)
 
 #
@@ -1147,7 +1146,7 @@ def generate_v2_message(msg, spec, body, xml):
         spec.write("   pragma Obsolescent (%s);\n\n" % name)
 
     generate_message_representation(msg, spec, max_len)
-    generate_message_methods(name, v2, spec)
+    generate_message_methods(name, v2, spec, False)
     generate_message_methods_V2(name, spec)
     generate_message_body(name, v2, str(msg.crc_extra), body, False)
 
@@ -1444,6 +1443,6 @@ def generate_v2(directory, xml):
             body = create_message_body (f_name, p_name)
             generate_v2_message(m, spec, body, xml)
             spec.write("end %s;\n" % p_name)
-            body.write("end %s;\n" % p_name)
+            body.write("\nend %s;\n" % p_name)
 
     generate_test_v2(directory, xml, bitmasks)

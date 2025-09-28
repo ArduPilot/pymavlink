@@ -8,39 +8,83 @@ package body MAVLink.V1 is
    ----------------
 
    function Parse_Byte
-     (Conn : in out Connection; Val : Interfaces.Unsigned_8) return Boolean
+     (Incoming : in out Incoming_Data;
+      Val      : Interfaces.Unsigned_8)
+      return Boolean
    is
       use type Interfaces.Unsigned_8;
    begin
-      if Conn.In_Ptr = 0
+      if Incoming.In_Ptr = 0
         and then Val /= Version_1_Code
       then
          return False;
       end if;
 
-      Conn.In_Ptr := Conn.In_Ptr + 1;
-      Conn.In_Buf (Conn.In_Ptr) := Val;
+      Incoming.In_Ptr := Incoming.In_Ptr + 1;
+      Incoming.In_Buf (Incoming.In_Ptr) := Val;
 
-      if Conn.In_Ptr = Pos_Len then
-         Conn.Len := Conn.In_Buf'First +
+      if Incoming.In_Ptr = Pos_Len then
+         Incoming.Len := Incoming.In_Buf'First +
            Packet_Payload_First + --  header
-             Natural (Conn.In_Buf (Pos_Len)) + --  data len
+             Natural (Incoming.In_Buf (Pos_Len)) + --  data len
            1; --  x25crc checksum -1
 
-         X25CRC.Reset (Conn.Checksum);
-         X25CRC.Update (Conn.Checksum, Val);
-         Conn.Extras_Added := False;
+         X25CRC.Reset (Incoming.Checksum);
+         X25CRC.Update (Incoming.Checksum, Val);
+         Incoming.Extras_Added := False;
 
-      elsif Conn.In_Ptr = Conn.Len then
-         Conn.In_Ptr := 0;
+      elsif Incoming.In_Ptr = Incoming.Len then
+         Incoming.In_Ptr := 0;
          return True;
 
-      elsif Conn.In_Ptr <= Conn.Len - 2 then
-         X25CRC.Update (Conn.Checksum, Val);
+      elsif Incoming.In_Ptr <= Incoming.Len - 2 then
+         X25CRC.Update (Incoming.Checksum, Val);
       end if;
 
       return False;
    end Parse_Byte;
+
+   ----------------
+   -- Parse_Byte --
+   ----------------
+
+   function Parse_Byte
+     (Conn : in out Connection;
+      Val  : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      return Parse_Byte (Conn.Incoming, Val);
+   end Parse_Byte;
+
+   ----------------
+   -- Parse_Byte --
+   ----------------
+
+   function Parse_Byte
+     (Conn : in out In_Connection;
+      Val  : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      return Parse_Byte (Conn.Incoming, Val);
+   end Parse_Byte;
+
+   ----------------
+   -- Get_Buffer --
+   ----------------
+
+   procedure Get_Buffer
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer;
+      Last     : out Natural)
+   is
+      Len : constant Natural := Natural'Min
+        (Buffer'Length,
+         (if Incoming.In_Ptr = 0 then Incoming.Len else Incoming.In_Ptr));
+   begin
+      Last := Buffer'First + Len - 1;
+      Buffer (Buffer'First .. Last) := Incoming.In_Buf
+        (Incoming.In_Buf'First .. Incoming.In_Buf'First + Len - 1);
+   end Get_Buffer;
 
    ----------------
    -- Get_Buffer --
@@ -49,16 +93,40 @@ package body MAVLink.V1 is
    procedure Get_Buffer
      (Conn   : Connection;
       Buffer : out Data_Buffer;
-      Last   : out Natural)
-   is
-      Len : constant Natural := Natural'Min
-        (Buffer'Length,
-         (if Conn.In_Ptr = 0 then Conn.Len else Conn.In_Ptr));
+      Last   : out Natural) is
    begin
-      Last := Buffer'First + Len - 1;
-      Buffer (Buffer'First .. Last) :=
-        Conn.In_Buf (Conn.In_Buf'First .. Conn.In_Buf'First + Len - 1);
+      Get_Buffer (Conn.Incoming, Buffer, Last);
    end Get_Buffer;
+
+   ----------------
+   -- Get_Buffer --
+   ----------------
+
+   procedure Get_Buffer
+     (Conn   : In_Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) is
+   begin
+      Get_Buffer (Conn.Incoming, Buffer, Last);
+   end Get_Buffer;
+
+   ------------------
+   -- Is_CRC_Valid --
+   ------------------
+
+   function Is_CRC_Valid
+     (Incoming : in out Incoming_Data;
+      Extras   : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      if not Incoming.Extras_Added then
+         X25CRC.Update (Incoming.Checksum, Extras);
+         Incoming.Extras_Added := True;
+      end if;
+
+      return Incoming.Checksum.High = Incoming.In_Buf (Incoming.Len - 1)
+        and Incoming.Checksum.Low = Incoming.In_Buf (Incoming.Len);
+   end Is_CRC_Valid;
 
    ------------------
    -- Is_CRC_Valid --
@@ -69,13 +137,19 @@ package body MAVLink.V1 is
       Extras : Interfaces.Unsigned_8)
       return Boolean is
    begin
-      if not Conn.Extras_Added then
-         X25CRC.Update (Conn.Checksum, Extras);
-         Conn.Extras_Added := True;
-      end if;
+      return Is_CRC_Valid (Conn.Incoming, Extras);
+   end Is_CRC_Valid;
 
-      return Conn.Checksum.High = Conn.In_Buf (Conn.Len - 1)
-        and Conn.Checksum.Low = Conn.In_Buf (Conn.Len);
+   ------------------
+   -- Is_CRC_Valid --
+   ------------------
+
+   function Is_CRC_Valid
+     (Conn   : in out In_Connection;
+      Extras : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      return Is_CRC_Valid (Conn.Incoming, Extras);
    end Is_CRC_Valid;
 
    ----------------------
@@ -83,18 +157,40 @@ package body MAVLink.V1 is
    ----------------------
 
    procedure Get_Message_Data
-     (Conn   : Connection;
-      Buffer : out Data_Buffer)
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer)
    is
       Header    : constant V1_Header with Import,
-        Address => Conn.In_Buf'Address;
-      Last_Data : constant Positive := Conn.In_Buf'First +
+        Address => Incoming.In_Buf'Address;
+      Last_Data : constant Positive := Incoming.In_Buf'First +
         Packet_Payload_First +
           Natural (Header.Len - 1);
       Last : constant Natural := Buffer'First + Natural (Header.Len - 1);
    begin
-      Buffer (Buffer'First .. Last) :=
-        Conn.In_Buf (Conn.In_Buf'First + Packet_Payload_First .. Last_Data);
+      Buffer (Buffer'First .. Last) := Incoming.In_Buf
+        (Incoming.In_Buf'First + Packet_Payload_First .. Last_Data);
+   end Get_Message_Data;
+
+   ----------------------
+   -- Get_Message_Data --
+   ----------------------
+
+   procedure Get_Message_Data
+     (Conn   : Connection;
+      Buffer : out Data_Buffer) is
+   begin
+      Get_Message_Data (Conn.Incoming, Buffer);
+   end Get_Message_Data;
+
+   ----------------------
+   -- Get_Message_Data --
+   ----------------------
+
+   procedure Get_Message_Data
+     (Conn   : In_Connection;
+      Buffer : out Data_Buffer) is
+   begin
+      Get_Message_Data (Conn.Incoming, Buffer);
    end Get_Message_Data;
 
    ------------

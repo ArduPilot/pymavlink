@@ -26,40 +26,85 @@ package body MAVLink.V2 is
    ----------------
 
    function Parse_Byte
-     (Self  : in out Connection;
-      Value : Interfaces.Unsigned_8)
+     (Incoming : in out Incoming_Data;
+      Value    : Interfaces.Unsigned_8)
       return Boolean
    is
-      Header : V2_Header with Import, Address => Self.Income_Buffer'Address;
+      Header : V2_Header with Import,
+        Address => Incoming.Income_Buffer'Address;
    begin
-      if Self.Position = 0
+      if Incoming.Position = 0
         and then Value /= Version_2_Code
       then
          return False;
       end if;
 
-      Self.Position := Self.Position + 1;
-      Self.Income_Buffer (Self.Position) := Value;
+      Incoming.Position := Incoming.Position + 1;
+      Incoming.Income_Buffer (Incoming.Position) := Value;
 
-      if Self.Position < Packet_Payload_First then
+      if Incoming.Position < Packet_Payload_First then
          --  no header yet
          return False;
       end if;
 
-      if Self.Last = 0 then
-         Self.Last := Self.Income_Buffer'First +
+      if Incoming.Last = 0 then
+         Incoming.Last := Incoming.Income_Buffer'First +
            Packet_Payload_First + --  header
              Natural (Header.Len - 1) + --  data len
            2; --  x25crc checksum
 
          if (Header.Inc_Flags and 1) > 0 then
-            Self.Last := Self.Last + 13; --  SHA256 signature
+            Incoming.Last := Incoming.Last + 13; --  SHA256 signature
          end if;
       end if;
 
-      return Self.Position = Self.Last
-        or else Self.Position = Self.Income_Buffer'Last;
+      return Incoming.Position = Incoming.Last
+        or else Incoming.Position = Incoming.Income_Buffer'Last;
    end Parse_Byte;
+
+   ----------------
+   -- Parse_Byte --
+   ----------------
+
+   function Parse_Byte
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      return Parse_Byte (Self.Incoming, Value);
+   end Parse_Byte;
+
+   ----------------
+   -- Parse_Byte --
+   ----------------
+
+   function Parse_Byte
+     (Self  : in out In_Connection;
+      Value : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      return Parse_Byte (Self.Incoming, Value);
+   end Parse_Byte;
+
+   -----------------------------
+   -- Get_Message_Information --
+   -----------------------------
+
+   procedure Get_Message_Information
+     (Incoming : Incoming_Data;
+      Seq      : out Sequence_Id_Type;
+      Sys_Id   : out System_Id_Type;
+      Comp_Id  : out Component_Id_Type;
+      Id       : out Msg_Id)
+   is
+      Header : constant V2_Header with Import,
+        Address => Incoming.Income_Buffer'Address;
+   begin
+      Seq     := Header.Seq;
+      Sys_Id  := Header.Sys_Id;
+      Comp_Id := Header.Comp_Id;
+      Id      := Get_Message_Id (Incoming);
+   end Get_Message_Information;
 
    -----------------------------
    -- Get_Message_Information --
@@ -70,15 +115,42 @@ package body MAVLink.V2 is
       Seq     : out Sequence_Id_Type;
       Sys_Id  : out System_Id_Type;
       Comp_Id : out Component_Id_Type;
-      Id      : out Msg_Id)
-   is
-      Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+      Id      : out Msg_Id) is
    begin
-      Seq     := Header.Seq;
-      Sys_Id  := Header.Sys_Id;
-      Comp_Id := Header.Comp_Id;
-      Id      := Get_Message_Id (Self);
+      Get_Message_Information (Self.Incoming, Seq, Sys_Id, Comp_Id, Id);
+   end Get_Message_Information;
+
+   -----------------------------
+   -- Get_Message_Information --
+   -----------------------------
+
+   procedure Get_Message_Information
+     (Self    : In_Connection;
+      Seq     : out Sequence_Id_Type;
+      Sys_Id  : out System_Id_Type;
+      Comp_Id : out Component_Id_Type;
+      Id      : out Msg_Id) is
+   begin
+      Get_Message_Information (Self.Incoming, Seq, Sys_Id, Comp_Id, Id);
+   end Get_Message_Information;
+
+   -----------------------------
+   -- Get_Message_Information --
+   -----------------------------
+
+   procedure Get_Message_Information
+     (Incoming  : Incoming_Data;
+      Sign      : Signature;
+      Seq       : out Sequence_Id_Type;
+      Sys_Id    : out System_Id_Type;
+      Comp_Id   : out Component_Id_Type;
+      Id        : out Msg_Id;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) is
+   begin
+      Get_Message_Information (Incoming, Seq, Sys_Id, Comp_Id, Id);
+      Check_Message_Signature (Incoming, Sign, Link_Id, Timestamp, Signature);
    end Get_Message_Information;
 
    -----------------------------
@@ -96,18 +168,39 @@ package body MAVLink.V2 is
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean) is
    begin
-      Get_Message_Information (Self, Seq, Sys_Id, Comp_Id, Id);
-      Check_Message_Signature (Self, Sign, Link_Id, Timestamp, Signature);
+      Get_Message_Information
+        (Self.Incoming, Sign, Seq, Sys_Id, Comp_Id, Id,
+         Link_Id, Timestamp, Signature);
+   end Get_Message_Information;
+
+   -----------------------------
+   -- Get_Message_Information --
+   -----------------------------
+
+   procedure Get_Message_Information
+     (Self      : In_Connection;
+      Sign      : Signature;
+      Seq       : out Sequence_Id_Type;
+      Sys_Id    : out System_Id_Type;
+      Comp_Id   : out Component_Id_Type;
+      Id        : out Msg_Id;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) is
+   begin
+      Get_Message_Information
+        (Self.Incoming, Sign, Seq, Sys_Id, Comp_Id, Id,
+         Link_Id, Timestamp, Signature);
    end Get_Message_Information;
 
    --------------------
    -- Get_Message_Id --
    --------------------
 
-   function Get_Message_Id (Self : Connection) return Msg_Id
+   function Get_Message_Id (Incoming : Incoming_Data) return Msg_Id
    is
       Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+        Address => Incoming.Income_Buffer'Address;
 
    begin
       return Msg_Id (Shift_Left (Unsigned_64 (Header.Id_High), 16) +
@@ -115,17 +208,55 @@ package body MAVLink.V2 is
                          Unsigned_64 (Header.Id_Low));
    end Get_Message_Id;
 
+   --------------------
+   -- Get_Message_Id --
+   --------------------
+
+   function Get_Message_Id (Self : Connection) return Msg_Id is
+   begin
+      return Get_Message_Id (Self.Incoming);
+   end Get_Message_Id;
+
+   --------------------
+   -- Get_Message_Id --
+   --------------------
+
+   function Get_Message_Id (Self : In_Connection) return Msg_Id is
+   begin
+      return Get_Message_Id (Self.Incoming);
+   end Get_Message_Id;
+
    -------------------------
    -- Get_Message_Sequnce --
    -------------------------
 
    function Get_Message_Sequnce
-     (Self : Connection) return Sequence_Id_Type
+     (Incoming : Incoming_Data) return Sequence_Id_Type
    is
       Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+        Address => Incoming.Income_Buffer'Address;
    begin
       return Header.Seq;
+   end Get_Message_Sequnce;
+
+   -------------------------
+   -- Get_Message_Sequnce --
+   -------------------------
+
+   function Get_Message_Sequnce
+     (Self : Connection) return Sequence_Id_Type is
+   begin
+      return Get_Message_Sequnce (Self.Incoming);
+   end Get_Message_Sequnce;
+
+   -------------------------
+   -- Get_Message_Sequnce --
+   -------------------------
+
+   function Get_Message_Sequnce
+     (Self : In_Connection) return Sequence_Id_Type is
+   begin
+      return Get_Message_Sequnce (Self.Incoming);
    end Get_Message_Sequnce;
 
    ---------------------------
@@ -133,12 +264,32 @@ package body MAVLink.V2 is
    ---------------------------
 
    function Get_Message_System_Id
-     (Self : Connection) return System_Id_Type
+     (Incoming : Incoming_Data) return System_Id_Type
    is
       Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+        Address => Incoming.Income_Buffer'Address;
    begin
       return Header.Sys_Id;
+   end Get_Message_System_Id;
+
+   ---------------------------
+   -- Get_Message_System_Id --
+   ---------------------------
+
+   function Get_Message_System_Id
+     (Self : Connection) return System_Id_Type is
+   begin
+      return Get_Message_System_Id (Self.Incoming);
+   end Get_Message_System_Id;
+
+   ---------------------------
+   -- Get_Message_System_Id --
+   ---------------------------
+
+   function Get_Message_System_Id
+     (Self : In_Connection) return System_Id_Type is
+   begin
+      return Get_Message_System_Id (Self.Incoming);
    end Get_Message_System_Id;
 
    ------------------------------
@@ -146,12 +297,32 @@ package body MAVLink.V2 is
    ------------------------------
 
    function Get_Message_Component_Id
-     (Self : Connection) return Component_Id_Type
+     (Incoming : Incoming_Data) return Component_Id_Type
    is
       Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+        Address => Incoming.Income_Buffer'Address;
    begin
       return Header.Comp_Id;
+   end Get_Message_Component_Id;
+
+   ------------------------------
+   -- Get_Message_Component_Id --
+   ------------------------------
+
+   function Get_Message_Component_Id
+     (Self : Connection) return Component_Id_Type is
+   begin
+      return Get_Message_Component_Id (Self.Incoming);
+   end Get_Message_Component_Id;
+
+   ------------------------------
+   -- Get_Message_Component_Id --
+   ------------------------------
+
+   function Get_Message_Component_Id
+     (Self : In_Connection) return Component_Id_Type is
+   begin
+      return Get_Message_Component_Id (Self.Incoming);
    end Get_Message_Component_Id;
 
    -------------------------
@@ -159,13 +330,13 @@ package body MAVLink.V2 is
    -------------------------
 
    function Get_Message_Link_Id
-     (Self : Connection) return Link_Id_Type
+     (Incoming : Incoming_Data) return Link_Id_Type
    is
       Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+        Address => Incoming.Income_Buffer'Address;
       Sig    : constant MAVLink.V2.MAV_Signature with Import,
-        Address => Self.Income_Buffer
-          (Self.Income_Buffer'First +
+        Address => Incoming.Income_Buffer
+          (Incoming.Income_Buffer'First +
              Packet_Payload_First +
                Natural (Header.Len - 1) + 3)'Address;
    begin
@@ -176,27 +347,47 @@ package body MAVLink.V2 is
       end if;
    end Get_Message_Link_Id;
 
+   -------------------------
+   -- Get_Message_Link_Id --
+   -------------------------
+
+   function Get_Message_Link_Id
+     (Self : Connection) return Link_Id_Type is
+   begin
+      return Get_Message_Link_Id (Self.Incoming);
+   end Get_Message_Link_Id;
+
+   -------------------------
+   -- Get_Message_Link_Id --
+   -------------------------
+
+   function Get_Message_Link_Id
+     (Self : In_Connection) return Link_Id_Type is
+   begin
+      return Get_Message_Link_Id (Self.Incoming);
+   end Get_Message_Link_Id;
+
    -----------------------------
    -- Check_Message_Signature --
    -----------------------------
 
    procedure Check_Message_Signature
-     (Self      : Connection;
+     (Incoming  : Incoming_Data;
       Sign      : Signature;
       Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean)
    is
       Header : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
+        Address => Incoming.Income_Buffer'Address;
    begin
       if (Header.Inc_Flags and 1) > 0 then
          declare
-            Last_Data   : constant Positive := Self.Income_Buffer'First +
+            Last_Data   : constant Positive := Incoming.Income_Buffer'First +
               Packet_Payload_First +
                 Natural (Header.Len - 1);
             Sig         : constant MAVLink.V2.MAV_Signature with Import,
-              Address => Self.Income_Buffer (Last_Data + 3)'Address;
+              Address => Incoming.Income_Buffer (Last_Data + 3)'Address;
             Message_SHA : SHA_Digest;
          begin
             Link_Id   := Sig.Link_Id;
@@ -210,8 +401,8 @@ package body MAVLink.V2 is
                end if;
             end loop;
 
-            Calc_SHA (Sign.Key, Self.Income_Buffer
-                      (Self.Income_Buffer'First .. Last_Data + 2 + 7),
+            Calc_SHA (Sign.Key, Incoming.Income_Buffer
+                      (Incoming.Income_Buffer'First .. Last_Data + 2 + 7),
                       Message_SHA);
 
             Signature := (if Sig.Sig = Message_SHA then True else False);
@@ -224,6 +415,64 @@ package body MAVLink.V2 is
       end if;
    end Check_Message_Signature;
 
+   -----------------------------
+   -- Check_Message_Signature --
+   -----------------------------
+
+   procedure Check_Message_Signature
+     (Self      : Connection;
+      Sign      : Signature;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) is
+   begin
+      Check_Message_Signature
+        (Self.Incoming, Sign, Link_Id, Timestamp, Signature);
+   end Check_Message_Signature;
+
+   -----------------------------
+   -- Check_Message_Signature --
+   -----------------------------
+
+   procedure Check_Message_Signature
+     (Self      : In_Connection;
+      Sign      : Signature;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) is
+   begin
+      Check_Message_Signature
+        (Self.Incoming, Sign, Link_Id, Timestamp, Signature);
+   end Check_Message_Signature;
+
+   ------------------
+   -- Is_CRC_Valid --
+   ------------------
+
+   function Is_CRC_Valid
+     (Incoming : Incoming_Data;
+      Extras   : Interfaces.Unsigned_8)
+      return Boolean
+   is
+      Header    : constant V2_Header with Import,
+        Address => Incoming.Income_Buffer'Address;
+      Last_Data : constant Positive := Incoming.Income_Buffer'First +
+        Packet_Payload_First +
+          Natural (Header.Len) - 1;
+
+      CRC : X25CRC.Checksum;
+   begin
+      for B of Incoming.Income_Buffer
+        (Incoming.Income_Buffer'First + 1 .. Last_Data)
+      loop
+         X25CRC.Update (CRC, B);
+      end loop;
+      X25CRC.Update (CRC, Extras);
+
+      return Incoming.Income_Buffer (Last_Data + 1) = CRC.High
+        and then Incoming.Income_Buffer (Last_Data + 2) = CRC.Low;
+   end Is_CRC_Valid;
+
    ------------------
    -- Is_CRC_Valid --
    ------------------
@@ -231,26 +480,40 @@ package body MAVLink.V2 is
    function Is_CRC_Valid
      (Self   : Connection;
       Extras : Interfaces.Unsigned_8)
-      return Boolean
-   is
-      Header    : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
-      Last_Data : constant Positive := Self.Income_Buffer'First +
-        Packet_Payload_First +
-          Natural (Header.Len) - 1;
-
-      CRC : X25CRC.Checksum;
+      return Boolean is
    begin
-      for B of Self.Income_Buffer
-        (Self.Income_Buffer'First + 1 .. Last_Data)
-      loop
-         X25CRC.Update (CRC, B);
-      end loop;
-      X25CRC.Update (CRC, Extras);
-
-      return Self.Income_Buffer (Last_Data + 1) = CRC.High
-        and then Self.Income_Buffer (Last_Data + 2) = CRC.Low;
+      return Is_CRC_Valid (Self.Incoming, Extras);
    end Is_CRC_Valid;
+
+   ------------------
+   -- Is_CRC_Valid --
+   ------------------
+
+   function Is_CRC_Valid
+     (Self   : In_Connection;
+      Extras : Interfaces.Unsigned_8)
+      return Boolean is
+   begin
+      return Is_CRC_Valid (Self.Incoming, Extras);
+   end Is_CRC_Valid;
+
+   ----------------
+   -- Get_Buffer --
+   ----------------
+
+   procedure Get_Buffer
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer;
+      Last     : out Natural)
+   is
+      Len : constant Natural := Natural'Min
+        (Buffer'Length, Incoming.Income_Buffer'First + Incoming.Position - 1);
+   begin
+      Last := Buffer'First + Len - 1;
+      Buffer (Buffer'First .. Last) := Incoming.Income_Buffer
+        (Incoming.Income_Buffer'First ..
+           Incoming.Income_Buffer'First + Len - 1);
+   end Get_Buffer;
 
    ----------------
    -- Get_Buffer --
@@ -259,31 +522,102 @@ package body MAVLink.V2 is
    procedure Get_Buffer
      (Self   : Connection;
       Buffer : out Data_Buffer;
-      Last   : out Natural)
-   is
-      Len : constant Natural := Natural'Min
-        (Buffer'Length, Self.Income_Buffer'First + Self.Position - 1);
+      Last   : out Natural) is
    begin
-      Last := Buffer'First + Len - 1;
-      Buffer (Buffer'First .. Last) := Self.Income_Buffer
-        (Self.Income_Buffer'First .. Self.Income_Buffer'First + Len - 1);
+      Get_Buffer (Self.Incoming, Buffer, Last);
+   end Get_Buffer;
+
+   ----------------
+   -- Get_Buffer --
+   ----------------
+
+   procedure Get_Buffer
+     (Self   : In_Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) is
+   begin
+      Get_Buffer (Self.Incoming, Buffer, Last);
    end Get_Buffer;
 
    ------------------
    -- Drop_Message --
    ------------------
 
-   procedure Drop_Message (Self : in out Connection)
+   procedure Drop_Message (Incoming : in out Incoming_Data)
    is
-      Len : constant Natural := Self.Position - Self.Last;
+      Len : constant Natural := Incoming.Position - Incoming.Last;
    begin
-      Self.Income_Buffer
-        (Self.Income_Buffer'First .. Self.Income_Buffer'First + Len - 1) :=
-        Self.Income_Buffer (Self.Last + 1 .. Self.Position);
+      Incoming.Income_Buffer
+        (Incoming.Income_Buffer'First ..
+           Incoming.Income_Buffer'First + Len - 1) :=
+        Incoming.Income_Buffer (Incoming.Last + 1 .. Incoming.Position);
 
-      Self.Position := Self.Income_Buffer'First + Len - 1;
-      Self.Last     := 0;
+      Incoming.Position := Incoming.Income_Buffer'First + Len - 1;
+      Incoming.Last     := 0;
    end Drop_Message;
+
+   ------------------
+   -- Drop_Message --
+   ------------------
+
+   procedure Drop_Message (Self : in out Connection) is
+   begin
+      Drop_Message (Self.Incoming);
+   end Drop_Message;
+
+   ------------------
+   -- Drop_Message --
+   ------------------
+
+   procedure Drop_Message (Self : in out In_Connection) is
+   begin
+      Drop_Message (Self.Incoming);
+   end Drop_Message;
+
+   ----------------------
+   -- Get_Message_Data --
+   ----------------------
+
+   procedure Get_Message_Data
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer;
+      Last     : out Natural)
+   is
+      Header    : constant V2_Header with Import,
+        Address => Incoming.Income_Buffer'Address;
+      Last_Data : constant Positive := Incoming.Income_Buffer'First +
+        Packet_Payload_First +
+          Natural (Header.Len) - 1;
+   begin
+      Last := Buffer'First + Natural (Header.Len - 1);
+      Buffer (Buffer'First .. Last) := Incoming.Income_Buffer
+        (Incoming.Income_Buffer'First + Packet_Payload_First ..
+           Last_Data);
+   end Get_Message_Data;
+
+   ----------------------
+   -- Get_Message_Data --
+   ----------------------
+
+   procedure Get_Message_Data
+     (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) is
+   begin
+      Get_Message_Data (Self.Incoming, Buffer, Last);
+   end Get_Message_Data;
+
+   ----------------------
+   -- Get_Message_Data --
+   ----------------------
+
+   procedure Get_Message_Data
+     (Self   : In_Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) is
+   begin
+      Get_Message_Data (Self.Incoming, Buffer, Last);
+   end Get_Message_Data;
 
    ------------
    -- Encode --
@@ -458,26 +792,5 @@ package body MAVLink.V2 is
       Digest (SHA, D);
       Result := SHA_Digest (D (D'First .. D'First + 5));
    end Calc_SHA;
-
-   ----------------------
-   -- Get_Message_Data --
-   ----------------------
-
-   procedure Get_Message_Data
-     (Self   : Connection;
-      Buffer : out Data_Buffer;
-      Last   : out Natural)
-   is
-      Header    : constant V2_Header with Import,
-        Address => Self.Income_Buffer'Address;
-      Last_Data : constant Positive := Self.Income_Buffer'First +
-        Packet_Payload_First +
-          Natural (Header.Len) - 1;
-   begin
-      Last := Buffer'First + Natural (Header.Len - 1);
-      Buffer (Buffer'First .. Last) := Self.Income_Buffer
-        (Self.Income_Buffer'First + Packet_Payload_First ..
-           Last_Data);
-   end Get_Message_Data;
 
 end MAVLink.V2;

@@ -83,7 +83,7 @@ package MAVLink.V2 is
    function Parse_Byte
      (Self  : in out Connection;
       Value : Interfaces.Unsigned_8)
-      return Boolean;
+      return Boolean with Inline;
    --  Add the Value to the buffer and return True if a message has been read
    --  (collected all message data)
 
@@ -97,7 +97,7 @@ package MAVLink.V2 is
       Id        : out Msg_Id;
       Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
-      Signature : out Three_Boolean);
+      Signature : out Three_Boolean) with Inline;
    --  Returns information about the current message in the buffer.
    --  Should be called only after Parse_Byte returned True.
    --  Timestamp contains 48 bits of the timestamp (others set ot 0)
@@ -111,26 +111,26 @@ package MAVLink.V2 is
       Seq     : out Sequence_Id_Type;
       Sys_Id  : out System_Id_Type;
       Comp_Id : out Component_Id_Type;
-      Id      : out Msg_Id);
+      Id      : out Msg_Id) with Inline;
    --  Same as above but do not check V2 signature
 
-   function Get_Message_Id (Self : Connection) return Msg_Id;
+   function Get_Message_Id (Self : Connection) return Msg_Id with Inline;
    --  Returns message's ID
 
    function Get_Message_Sequnce
-     (Self : Connection) return Sequence_Id_Type;
+     (Self : Connection) return Sequence_Id_Type with Inline;
    --  Returns message's Seq
 
    function Get_Message_System_Id
-     (Self : Connection) return System_Id_Type;
+     (Self : Connection) return System_Id_Type with Inline;
    --  Returns message's Sys_Id
 
    function Get_Message_Component_Id
-     (Self : Connection) return Component_Id_Type;
+     (Self : Connection) return Component_Id_Type with Inline;
    --  Returns message's Comp_Id
 
    function Get_Message_Link_Id
-     (Self : Connection) return Link_Id_Type;
+     (Self : Connection) return Link_Id_Type with Inline;
    --  Returns message's Link_Id. Returns 0 if the message does not have
    --  the Signature.
 
@@ -139,18 +139,76 @@ package MAVLink.V2 is
       Sign      : Signature;
       Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
-      Signature : out Three_Boolean);
+      Signature : out Three_Boolean) with Inline;
    --  Returns the message's Signature. See Get_Message_Information.
 
    procedure Get_Buffer
      (Self   : Connection;
       Buffer : out Data_Buffer;
-      Last   : out Natural);
+      Last   : out Natural) with Inline;
    --  Returns data from the internal buffer filled with Parse_Byte.
 
-   procedure Drop_Message (Self : in out Connection);
+   procedure Drop_Message (Self : in out Connection) with Inline;
    --  Delete current message from the buffer.
    --  Should be called only after Parse_Byte returned True
+
+   -------------------
+   -- In_Connection --
+   -------------------
+
+   type In_Connection is private;
+   --  For incoming messages only
+
+   function Parse_Byte
+     (Self  : in out In_Connection;
+      Value : Interfaces.Unsigned_8)
+      return Boolean with Inline;
+
+   procedure Get_Message_Information
+     (Self      : In_Connection;
+      Sign      : Signature;
+      Seq       : out Sequence_Id_Type;
+      Sys_Id    : out System_Id_Type;
+      Comp_Id   : out Component_Id_Type;
+      Id        : out Msg_Id;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) with Inline;
+
+   procedure Get_Message_Information
+     (Self    : In_Connection;
+      Seq     : out Sequence_Id_Type;
+      Sys_Id  : out System_Id_Type;
+      Comp_Id : out Component_Id_Type;
+      Id      : out Msg_Id) with Inline;
+
+   function Get_Message_Id (Self : In_Connection) return Msg_Id with Inline;
+
+   function Get_Message_Sequnce
+     (Self : In_Connection) return Sequence_Id_Type with Inline;
+
+   function Get_Message_System_Id
+     (Self : In_Connection) return System_Id_Type with Inline;
+
+   function Get_Message_Component_Id
+     (Self : In_Connection) return Component_Id_Type with Inline;
+
+   function Get_Message_Link_Id
+     (Self : In_Connection) return Link_Id_Type with Inline;
+
+   procedure Check_Message_Signature
+     (Self      : In_Connection;
+      Sign      : Signature;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean) with Inline;
+
+   procedure Get_Buffer
+     (Self   : In_Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural) with Inline;
+
+   procedure Drop_Message (Self : in out In_Connection) with Inline;
 
    --------------------
    -- Out_Connection --
@@ -160,6 +218,7 @@ package MAVLink.V2 is
      (System_Id    : System_Id_Type;
       Component_Id : Component_Id_Type)
    is private;
+   --  For outcoming messages only
 
 private
 
@@ -209,18 +268,20 @@ private
       Timestamp : Timestamp_Type := 0;
    end record;
 
+   type Incoming_Data is record
+      Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
+      Position      : Natural := 0;
+      Last          : Natural := 0;
+   end record;
+
    -- Connection --
 
    type Connection
      (System_Id    : System_Id_Type;
       Component_Id : Component_Id_Type)
    is record
-      Sequence_Id   : Sequence_Id_Type := 0;
-
-      -- Income
-      Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
-      Position      : Natural := 0;
-      Last          : Natural := 0;
+      Sequence_Id : Sequence_Id_Type := 0;
+      Incoming    : Incoming_Data;
    end record;
 
    procedure Encode
@@ -245,6 +306,22 @@ private
 
    procedure Get_Message_Data
      (Self   : Connection;
+      Buffer : out Data_Buffer;
+      Last   : out Natural);
+
+   -- In_Connection --
+
+   type In_Connection is record
+      Incoming : Incoming_Data;
+   end record;
+
+   function Is_CRC_Valid
+     (Self   : In_Connection;
+      Extras : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Message_Data
+     (Self   : In_Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural);
 
@@ -273,6 +350,67 @@ private
       Last   : in out Positive);
 
    -- Utils --
+
+   function Parse_Byte
+     (Incoming : in out Incoming_Data;
+      Value    : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Message_Information
+     (Incoming : Incoming_Data;
+      Seq      : out Sequence_Id_Type;
+      Sys_Id   : out System_Id_Type;
+      Comp_Id  : out Component_Id_Type;
+      Id       : out Msg_Id);
+
+   procedure Get_Message_Information
+     (Incoming  : Incoming_Data;
+      Sign      : Signature;
+      Seq       : out Sequence_Id_Type;
+      Sys_Id    : out System_Id_Type;
+      Comp_Id   : out Component_Id_Type;
+      Id        : out Msg_Id;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean);
+
+   function Get_Message_Id (Incoming : Incoming_Data) return Msg_Id;
+
+   function Get_Message_Sequnce
+     (Incoming : Incoming_Data) return Sequence_Id_Type;
+
+   function Get_Message_System_Id
+     (Incoming : Incoming_Data) return System_Id_Type;
+
+   function Get_Message_Component_Id
+     (Incoming : Incoming_Data) return Component_Id_Type;
+
+   function Get_Message_Link_Id
+     (Incoming : Incoming_Data) return Link_Id_Type;
+
+   procedure Check_Message_Signature
+     (Incoming  : Incoming_Data;
+      Sign      : Signature;
+      Link_Id   : out Link_Id_Type;
+      Timestamp : out Timestamp_Type;
+      Signature : out Three_Boolean);
+
+   function Is_CRC_Valid
+     (Incoming : Incoming_Data;
+      Extras   : Interfaces.Unsigned_8)
+      return Boolean;
+
+   procedure Get_Buffer
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer;
+      Last     : out Natural);
+
+   procedure Drop_Message (Incoming : in out Incoming_Data);
+
+   procedure Get_Message_Data
+     (Incoming : Incoming_Data;
+      Buffer   : out Data_Buffer;
+      Last     : out Natural);
 
    procedure Encode
      (System_Id    : System_Id_Type;
