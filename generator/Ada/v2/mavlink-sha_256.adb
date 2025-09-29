@@ -38,7 +38,7 @@ package body MAVLink.SHA_256 is
       return Interfaces.Unsigned_32 with Inline;
 
    function Swap
-     (X : in out Interfaces.Unsigned_32)
+     (X : Interfaces.Unsigned_32)
       return Interfaces.Unsigned_32;
 
    ------------
@@ -98,7 +98,7 @@ package body MAVLink.SHA_256 is
    ----------
 
    function Swap
-     (X : in out Interfaces.Unsigned_32)
+     (X : Interfaces.Unsigned_32)
       return Interfaces.Unsigned_32 is
    begin
       return (Shift_Left (X, 24) and 16#ff000000#) or
@@ -255,7 +255,7 @@ package body MAVLink.SHA_256 is
       Res  : out Digest_Type)
    is
       Message_Length : Interfaces.Unsigned_64 := Self.Length;
-      Zeroes         : Natural :=
+      Zeroes         : constant Natural :=
         (Self.Buffer'Last - 9 - Self.Last) mod Self.Buffer'Length;
 
    begin
