@@ -6,7 +6,7 @@ MAVLink File Transfer Protocol support - https://mavlink.io/en/services/ftp.html
 
 Original from MAVProxy/MAVProxy/modules/mavproxy_ftp.py.
 
-SPDX-FileCopyrightText: 2011-2024 Andrew Tridgell, 2024 Amilcar Lucas
+SPDX-FileCopyrightText: 2011-2024 Andrew Tridgell, 2024-2025 Amilcar Lucas
 
 SPDX-License-Identifier: GPL-3.0-or-later
 """
@@ -32,8 +32,8 @@ from argcomplete.completers import FilesCompleter
 from pymavlink import mavutil
 
 # pylint: disable=too-many-lines
-# mypy: disable-error-code="union-attr,operator,arg-type"
-# ruff: noqa: ANN001
+# mypy: disable-error-code="union-attr,arg-type"
+
 from pymavlink.mavftp_op import (
     FTP_OP,
     OP_Ack,
@@ -134,11 +134,11 @@ class ParamData:
 class MAVFTPSetting:  # pylint: disable=too-few-public-methods
     """A single MAVFTP setting with a name, type, value and default value."""
 
-    def __init__(self, name: str, s_type: type, default) -> None:
-        self.name = name
+    def __init__(self, name: str, s_type: type, default: Union[int, float]) -> None:
+        self.name: str = name
         self.type = s_type
-        self.default = default
-        self.value = default
+        self.default: Union[int, float] = default
+        self.value: Union[int, float] = default
 
 
 class MAVFTPSettings:
@@ -160,17 +160,17 @@ class MAVFTPSettings:
     def __getattr__(self, name: str) -> Union[int, float]:
         """Get attribute."""
         try:
-            return self._vars[name].value  # type: ignore[no-any-return]
+            return self._vars[name].type(self._vars[name].value)
         except Exception as exc:
             raise AttributeError from exc
 
-    def __setattr__(self, name: str, value) -> None:
+    def __setattr__(self, name: str, value: Union[int, float]) -> None:
         """Set attribute."""
         if name[0] == "_":
             self.__dict__[name] = value
             return
         if name in self._vars:
-            self._vars[name].value = value
+            self._vars[name].value = self._vars[name].type(value)
             return
         raise AttributeError
 
@@ -178,7 +178,7 @@ class MAVFTPSettings:
 class MAVFTPReturn:
     """The result of a MAVFTP operation."""
 
-    def __init__(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         operation_name: str,
         error_code: int,
@@ -186,6 +186,7 @@ class MAVFTPReturn:
         invalid_error_code: int = 0,
         invalid_opcode: int = 0,
         invalid_payload_size: int = 0,
+        directory_listing: Optional[list[DirectoryEntry]] = None,
     ) -> None:
         self.operation_name = operation_name
         self.error_code = error_code
@@ -193,8 +194,9 @@ class MAVFTPReturn:
         self.invalid_error_code = invalid_error_code
         self.invalid_opcode = invalid_opcode
         self.invalid_payload_size = invalid_payload_size
+        self.directory_listing = directory_listing
 
-    def display_message(self) -> None:  # pylint: disable=too-many-branches
+    def display_message(self) -> None:  # pylint: disable=too-many-branches, too-many-statements # noqa: C901, PLR0912, PLR0915
         if self.error_code == FtpError.Success:
             logging.info("%s succeeded", self.operation_name)
         elif self.error_code == FtpError.Fail:
@@ -267,6 +269,18 @@ class MAVFTPReturn:
                 self.error_code,
             )
 
+        if self.directory_listing is not None and len(self.directory_listing) > 0:
+            total_size = 0
+            for entry in self.directory_listing:
+                name = entry.name
+                size = entry.size_b
+                if entry.is_dir:
+                    logging.info("   %s/", name)
+                else:
+                    logging.info("   %s\t%u", name, size)
+                total_size += max(0, size)
+            logging.info("Total size %.2f kByte", total_size / 1024.0)
+
     @property
     def return_code(self) -> int:
         return self.error_code
@@ -329,9 +343,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.rtt = 0.5
         self.reached_eof = False
         self.backlog = 0
-        self.burst_size = self.ftp_settings.burst_read_size
+        self.burst_size: int = int(self.ftp_settings.burst_read_size)
         self.write_list: Union[None, set[int]] = None
-        self.write_block_size = 0
+        self.write_block_size: int = 0
         self.write_acks = 0
         self.write_total = 0
         self.write_file_size = 0
@@ -365,8 +379,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if args[0] == "list":
             return self.cmd_list(args[1:])
         if args[0] == "set":
-            self.ftp_settings.command(args[1:])
-            return MAVFTPReturn("FTP command", FtpError.Success)
+            return self.cmd_set(args[1:])
         if args[0] == "get":
             return self.cmd_get(args[1:])
         if args[0] == "getparams":
@@ -473,7 +486,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __handle_list_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle OP_ListDirectory reply."""
-        output: list[DirectoryEntry] = []
         if op.opcode == OP_Ack and op.payload is not None:
             dentries = sorted(op.payload.split(b"\x00"))
             for d in dentries:
@@ -486,13 +498,21 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     logging.debug(error)
                     continue
                 if dir_entry[0] == "D":
-                    output.append(
+                    self.list_temp_result.append(
                         DirectoryEntry(name=dir_entry[1:], is_dir=True, size_b=0)
                     )
                 elif dir_entry[0] == "F":
                     (name, size_str) = dir_entry[1:].split("\t")
-                    size = int(size_str)
-                    output.append(DirectoryEntry(name=name, size_b=size, is_dir=False))
+                    try:
+                        size = int(size_str)
+                    except (ValueError, TypeError, OverflowError):
+                        logging.error("Invalid file size: %s", size_str)
+                        size = 0
+                    self.list_temp_result.append(
+                        DirectoryEntry(name=name, is_dir=False, size_b=size)
+                    )
+                else:
+                    logging.info(d)
             # ask for more
             more = self.last_op
             more.offset = self.dir_offset
@@ -501,10 +521,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             op.opcode == OP_Nack
             and op.payload is not None
             and len(op.payload) == 1
-            and op.payload[0] == 6
+            and op.payload[0] == FtpError.EndOfFile
         ):
             self.list_result = self.list_temp_result
-        self.list_temp_result.extend(output)
+            return MAVFTPReturn(
+                "ListDirectory", FtpError.Success, directory_listing=self.list_result
+            )
+        else:
+            return self.__decode_ftp_ack_and_nack(op)
         return MAVFTPReturn("ListDirectory", FtpError.Success)
 
     def read_sector(self, path: str, offset: int, size: int) -> Optional[bytes]:
@@ -529,7 +553,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.op_start = time.time()
         self.read_total = 0
         self.reached_eof = False
-        self.burst_size = self.ftp_settings.burst_read_size
+        self.burst_size = int(self.ftp_settings.burst_read_size)
         if self.burst_size < 1 or self.burst_size > 239:
             self.burst_size = 239
         enc_fname = bytearray(path, "ascii")
@@ -561,6 +585,29 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         logging.error("closed read with %u gaps", self.read_gaps)
         return None
 
+    def cmd_set(self, args: list[str]) -> MAVFTPReturn:
+        """Set a MAVFTP configuration parameter."""
+        if len(args) != 2:
+            logging.error("Usage: set PARAMETERNAME PARAMETERVALUE")
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+
+        setting_name = args[0]
+
+        # Check if parameter exists in settings
+        if setting_name not in self.ftp_settings._vars:  # pylint: disable=protected-access
+            logging.error("Invalid parameter name: %s", setting_name)
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+
+        try:
+            setting_value = float(args[1])
+        except (ValueError, TypeError):
+            logging.error("Invalid parameter value: %s", args[1])
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+
+        setattr(self.ftp_settings, setting_name, setting_value)
+        logging.info("Set %s = %s", setting_name, setting_value)
+        return MAVFTPReturn("Set", FtpError.Success)
+
     def cmd_get(
         self, args: list[str], callback=None, progress_callback=None
     ) -> MAVFTPReturn:
@@ -581,7 +628,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.read_retries = 0
         self.duplicates = 0
         self.reached_eof = False
-        self.burst_size = self.ftp_settings.burst_read_size
+        self.burst_size = int(self.ftp_settings.burst_read_size)
         if self.burst_size < 1 or self.burst_size > 239:
             self.burst_size = 239
         self.remote_file_size = 0
@@ -621,7 +668,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 )
                 self.__terminate_session()
                 return MAVFTPReturn("OpenFileRO", FtpError.FileNotFound)
-            if op.size == 4 and len(op.payload) >= 4:
+            if op.size == 4 and op.payload is not None and len(op.payload) >= 4:
                 self.remote_file_size = (
                     op.payload[0]
                     + (op.payload[1] << 8)
@@ -729,7 +776,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.info(op)
             return MAVFTPReturn("BurstReadFile", FtpError.Fail)
         self.last_burst_read = time.time()
-        size = len(op.payload)
+        size = len(op.payload) if op.payload is not None else 0
         if size > self.burst_size:
             # this server doesn't handle the burst size argument
             self.burst_size = MAX_Payload
@@ -808,7 +855,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     )
                 self.__send(more)
         elif op.opcode == OP_Nack:
-            ecode = FtpError(op.payload[0])
+            ecode = (
+                FtpError(op.payload[0])
+                if op.payload is not None
+                else FtpError.NoErrorCodeInNack
+            )
             if ecode in (FtpError.EndOfFile, 0):
                 if not self.reached_eof and op.offset > self.fh.tell():
                     # we lost the last part of the burst
@@ -914,7 +965,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.fh.seek(0)
 
         # setup write list
-        self.write_block_size = self.ftp_settings.write_size
+        self.write_block_size = int(self.ftp_settings.write_size)
         self.write_file_size = file_size
 
         write_blockcount = file_size // self.write_block_size
@@ -974,7 +1025,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __send_more_writes(self) -> None:
         """Send some more writes."""
-        if len(self.write_list) == 0:
+        if self.write_list is None or len(self.write_list) == 0:
             # all done
             self.__put_finished(self.write_file_size)
             self.__terminate_session()
@@ -1182,7 +1233,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             seq, session, opcode, size, req_opcode, burst_complete, offset, payload
         )
 
-    def __mavlink_packet(self, m) -> MAVFTPReturn:  # noqa: PLR0911 pylint: disable=too-many-branches,too-many-return-statements
+    def __mavlink_packet(self, m) -> MAVFTPReturn:  # noqa: PLR0911, PGH004, pylint: disable=too-many-branches, too-many-return-statements
         """Handle a mavlink packet."""
         operation_name = "mavlink_packet"
         mtype = m.get_type()
@@ -1460,11 +1511,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         elif op.opcode == OP_Nack:
             if len_payload <= 0:
                 error_code = FtpError.NoErrorCodeInPayload
-            elif len_payload == 1:
+            elif op.payload is not None and len_payload == 1:
                 try:
                     error_code = FtpError(op.payload[0])
                 except ValueError:
-                    error_code = op.payload[0]
+                    error_code = op.payload[0]  # type: ignore[assignment]
                 if error_code == FtpError.Success:
                     error_code = FtpError.NoErrorCodeInNack
                 elif error_code == FtpError.FailErrno:
@@ -1482,7 +1533,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 ]:
                     invalid_error_code = error_code
                     error_code = FtpError.InvalidErrorCode
-            elif op.payload[0] == FtpError.FailErrno and len_payload == 2:
+            elif (
+                op.payload is not None
+                and op.payload[0] == FtpError.FailErrno
+                and len_payload == 2
+            ):
                 system_error = op.payload[1]
                 error_code = FtpError.FailErrno
             else:
@@ -1636,7 +1691,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 f.write("\n")
         logging.info("Outputted %u parameters to %s", len(pdict), filename)
 
-    def cmd_getparams(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+    def cmd_getparams(  # pylint: disable=too-many-arguments
         self,
         args: list[str],
         progress_callback=None,
@@ -1663,7 +1718,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             param_defaults = MAVFTP.extract_params(pdata.defaults, sort_type)
 
             param_values_path = args[0]
-            param_defaults_path = args[1] if len(args) > 1 else None
+            param_defaults_path = args[1] if len(args) > 1 else ""
 
             MAVFTP.save_params(
                 param_values,
@@ -1784,7 +1839,7 @@ def create_argument_parser() -> ArgumentParser:
     parser.add_argument(
         "--idle_detection_time",
         type=float,
-        default=1.2,
+        default=3.7,
         help="Idle detection time. Default is %(default)s",
     )
     parser.add_argument(
@@ -1801,6 +1856,23 @@ def create_argument_parser() -> ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Set command
+    parser_set = subparsers.add_parser(
+        "set", help="Set a MAVFTP internal configuration parameter."
+    )
+    parser_set.add_argument(
+        "arg1",
+        type=str,
+        metavar="setting_name",
+        help="MAVFTP internal configuration parameter name.",
+    )
+    parser_set.add_argument(
+        "arg2",
+        type=float,
+        metavar="setting_value",
+        help="MAVFTP internal configuration parameter value.",
+    )
 
     # Get command
     parser_get = subparsers.add_parser(
@@ -2073,7 +2145,7 @@ def main() -> None:
             "Command returned: %s, but it should return a MAVFTPReturn instead", ret
         )
     elif isinstance(ret, MAVFTPReturn):
-        if ret.error_code:
+        if ret.error_code or args.command in {"list"}:
             ret.display_message()
     elif ret is None:
         logging.error(
