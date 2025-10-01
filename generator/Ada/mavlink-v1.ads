@@ -16,8 +16,7 @@ package MAVLink.V1 is
 
    -- Arrays --
 
-   type Data_Buffer is array (Positive range <>) of
-     aliased Interfaces.Unsigned_8;
+   type Data_Buffer is array (Positive range <>) of Interfaces.Unsigned_8;
 
    Maximum_Buffer_Len : constant Positive := 263;
 
@@ -48,9 +47,19 @@ package MAVLink.V1 is
    -- Connection --
    ----------------
 
-   type Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8) is private;
+   type Connection is private;
+
+   procedure Set_System_Id
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8);
+
+   procedure Set_Component_Id
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8);
+
+   procedure Set_Sequency_Id
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8);
 
    function Parse_Byte
      (Conn : in out Connection;
@@ -102,9 +111,19 @@ package MAVLink.V1 is
    -- Out_Connection --
    --------------------
 
-   type Out_Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8) is private;
+   type Out_Connection is private;
+
+   procedure Set_System_Id
+     (Self  : in out Out_Connection;
+      Value : Interfaces.Unsigned_8);
+
+   procedure Set_Component_Id
+     (Self  : in out Out_Connection;
+      Value : Interfaces.Unsigned_8);
+
+   procedure Set_Sequency_Id
+     (Self  : in out Out_Connection;
+      Value : Interfaces.Unsigned_8);
 
 private
 
@@ -149,10 +168,9 @@ private
 
    -- Connection --
 
-   type Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
-   is record
+   type Connection is record
+      System_Id    : Interfaces.Unsigned_8 := 1;
+      Component_Id : Interfaces.Unsigned_8 := 1;
       Incoming     : Incoming_Data;
       Out_Sequency : Interfaces.Unsigned_8 := 0;
    end record;
@@ -218,10 +236,9 @@ private
 
    -- Out_Connection --
 
-   type Out_Connection
-     (System_Id    : Interfaces.Unsigned_8;
-      Component_Id : Interfaces.Unsigned_8)
-   is record
+   type Out_Connection is record
+      System_Id    : Interfaces.Unsigned_8 := 1;
+      Component_Id : Interfaces.Unsigned_8 := 1;
       Out_Sequency : Interfaces.Unsigned_8 := 0;
    end record;
 

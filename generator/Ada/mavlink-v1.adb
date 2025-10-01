@@ -3,6 +3,72 @@
 
 package body MAVLink.V1 is
 
+   -------------------
+   -- Set_System_Id --
+   -------------------
+
+   procedure Set_System_Id
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8) is
+   begin
+      Self.System_Id := Value;
+   end Set_System_Id;
+
+   ----------------------
+   -- Set_Component_Id --
+   ----------------------
+
+   procedure Set_Component_Id
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8) is
+   begin
+      Self.Component_Id := Value;
+   end Set_Component_Id;
+
+   ---------------------
+   -- Set_Sequency_Id --
+   ---------------------
+
+   procedure Set_Sequency_Id
+     (Self  : in out Connection;
+      Value : Interfaces.Unsigned_8) is
+   begin
+      Self.Out_Sequency := Value;
+   end Set_Sequency_Id;
+
+   -------------------
+   -- Set_System_Id --
+   -------------------
+
+   procedure Set_System_Id
+     (Self  : in out Out_Connection;
+      Value : Interfaces.Unsigned_8) is
+   begin
+      Self.System_Id := Value;
+   end Set_System_Id;
+
+   ----------------------
+   -- Set_Component_Id --
+   ----------------------
+
+   procedure Set_Component_Id
+     (Self  : in out Out_Connection;
+      Value : Interfaces.Unsigned_8) is
+   begin
+      Self.Component_Id := Value;
+   end Set_Component_Id;
+
+   ---------------------
+   -- Set_Sequency_Id --
+   ---------------------
+
+   procedure Set_Sequency_Id
+     (Self  : in out Out_Connection;
+      Value : Interfaces.Unsigned_8) is
+   begin
+      Self.Out_Sequency := Value;
+   end Set_Sequency_Id;
+
    ----------------
    -- Parse_Byte --
    ----------------

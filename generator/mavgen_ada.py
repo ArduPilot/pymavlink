@@ -170,8 +170,8 @@ invalid = {
 }
 
 float_types_conversions = {
-    'Raw_Float' : 'Float',
-    'Raw_Long_Float' : 'Long_Float',
+    'Raw_Float' : 'Interfaces.IEEE_Float_32',
+    'Raw_Long_Float' : 'Interfaces.IEEE_Float_64',
     'Interfaces.IEEE_Float_32' : 'Interfaces.IEEE_Float_32'}
 
 GEN = """-------------------------------------------
@@ -206,7 +206,7 @@ def get_deprecated(deprecated, tab):
     s  = "".ljust(tab) + "------------\n"
     s += "".ljust(tab) + "--  DEPRECATED SINCE: %s REPLACED BY: %s\n" % (deprecated.since, deprecated.replaced_by)
     s += format_comment (deprecated.explanation, tab)
-    s += "".ljust(tab) + "------------\n"
+    s += "".ljust(tab) + "------------\n\n"
     return s
 
 def pkg_name(x):
@@ -397,7 +397,7 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
     if header: spec.write(header)
     spec.write("pragma Ada_2022;\n\n")
 
-    generate_includes (x, spec, ver)
+#    generate_includes (x, spec, ver)
 
     spec.write("package %s.%s is\n\n" % (ver, dialect.title()))
     spec.write("   pragma Preelaborate;\n\n")
@@ -412,30 +412,41 @@ def generate_common_messages_pkg (directory, msgs, pkg, p_name, header=None):
     spec.write("pragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\n" % p_name)
 
     ids = []
+    id_name = {}
     for m in msgs:
         ids.append(int(m.id))
+        id_name[int(m.id)] = normalize_message_name(m.name).title()
 
     if len(ids) > 0:
+        n_len = 0
+        for i in id_name:
+            n_len = max(len(id_name[i]), n_len)
+
+        n_len += 3
+        for i in sorted(id_name):
+            spec.write("   %s : constant Msg_Id := %i;\n" % ((id_name[i] + '_Id').ljust(n_len), i))
+        spec.write("\n")
+
         ids.sort()
         prev = -1
 
-        max = len(str(ids[-1]))
+        n_len = len(str(ids[-1]))
         spec.write("   subtype Valid_Msg_Id is Msg_Id\n     with Static_Predicate => Valid_Msg_Id in\n")
         for id in ids:
             if prev == -1:
-                spec.write("       %s .. " % str(id).ljust(max))
+                spec.write("       %s .. " % str(id).ljust(n_len))
             else:
                 if prev + 1 != id:
-                    spec.write("%s |\n       %s .. " % (str(prev).ljust(max), str(id).ljust(max)))
+                    spec.write("%s |\n       %s .. " % (str(prev).ljust(n_len), str(id).ljust(n_len)))
             prev = id
 
-        spec.write("%s;\n\n" % str(ids[-1]).ljust(max))
+        spec.write("%s;\n\n" % str(ids[-1]).ljust(n_len))
         spec.write("   function Image (Id : Valid_Msg_Id) return String is\n")
         spec.write("     (case Id is")
         for id in ids:
             if id != ids[0]:
                 spec.write(",")
-            spec.write('\n         when %s => "%s"' % (str(id).ljust(max), str(id)))
+            spec.write('\n         when %s => "%s"' % (str(id).ljust(n_len), str(id)))
         spec.write(");\n\n")
     spec.write("end %s;\n" % p_name)
 
@@ -449,11 +460,11 @@ def create_message_pkg (x, f_name, p_name, ver, m, header=None):
     if m.deprecated:
         spec.write(get_deprecated(m.deprecated, 0))
     spec.write(format_comment (m.description, 0))
-    spec.write("pragma Ada_2022;\n\n")
+    spec.write("\npragma Ada_2022;\n")
 
     # indirect includes
     included = [x]
-    f_types = [field.enum for field in m.fields if field.enum]
+    f_types = [field.enum for field in m.fields if field.enum and not field.array_length]
     for t in f_types:
         if t in types_files and types_files[t] not in included and types_files[t].filename not in x.include:
             if len(included) == 1: spec.write("\n")
@@ -833,8 +844,6 @@ def generate_message_body(name, rev, extra, body, is_v1):
 def generate_v1_message(msg, spec, body, xml):
     name = normalize_message_name(msg.name).title()
 
-    spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
-
     max_len = 0
     payload_length = 0
     for field in msg.fields:
@@ -895,7 +904,8 @@ project Test is
    for Main use ("test.adb");
 
    package Compiler is
-      for Switches ("ada") use ("-gnat2022", "-gnata", "-g");
+      for Switches ("ada") use
+        ("-gnat2022", "-gnata", "-g", "-gnatf", "-gnatwaJ");
    end Compiler;
 
    package Builder is
@@ -921,20 +931,26 @@ def generate_test_v1(directory, xml, bitmasks):
             f.write("with %s;\n" % p_name)
 
     f.write("""\nwith Ada.Text_IO;
-with Interfaces;              use Interfaces;
-with MAVLink.Raw_Long_Floats;      use MAVLink.Raw_Long_Floats;
+
+pragma Warnings (Off); --  prevent "not used"
+with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
+pragma Warnings (On);
 
 use MAVLink.V1;
 
 procedure Test
 is
-   In_Connect  : MAVLink.V1.Connection (1, 1);
-   Out_Connect : MAVLink.V1.Out_Connection (1, 1);
+   In_Connect  : MAVLink.V1.Connection;
+   Out_Connect : MAVLink.V1.Out_Connection;
    Res         : Boolean;
    Buffer      : Data_Buffer (1 .. MAVLink.V1.Maximum_Buffer_Len);
    Last        : Positive;
 
 begin
+   Set_System_Id (In_Connect, 1);
+   Set_Component_Id (In_Connect, 1);
+   Set_System_Id (Out_Connect, 1);
+   Set_Component_Id (Out_Connect, 1);
 """)
     for x in xml:
         for m in x.message:
@@ -943,7 +959,7 @@ begin
             f.write("""   declare
       use %s;
       I : %s;
-      O : %s :=
+      O : constant %s :=
          (""" % (p_name, msg, msg))
             first = True
             for field in m.fields:
@@ -1102,8 +1118,6 @@ def generate_v2_types (directory, x, types_size):
 def generate_v2_message(msg, spec, body, xml):
     name = normalize_message_name(msg.name).title()
 
-    spec.write("   %s_Id : constant Msg_Id := %i;\n\n" % (name, msg.id))
-
     max_len = 0
     for field in msg.fields:
         max_len = max(max_len, len(normalize_field_name(field.name)))
@@ -1171,11 +1185,12 @@ def generate_test_v2(directory, xml, bitmasks):
             f.write("with %s;\n" % p_name)
 
     f.write("""\nwith Ada.Text_IO;
-with Interfaces;              use Interfaces;
 
+pragma Warnings (Off); --  prevent "not used"
 with MAVLink.Raw_Floats;      use MAVLink.Raw_Floats;
 with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
 with MAVLink.SHA_256;
+pragma Warnings (On);
 
 use MAVLink.V2;
 
@@ -1242,8 +1257,8 @@ is""");
 
     f.write("""
    Sig         : MAVLink.V2.Signature;
-   In_Connect  : MAVLink.V2.Connection (1, 1);
-   Out_Connect : MAVLink.V2.Out_Connection (1, 1);
+   In_Connect  : MAVLink.V2.Connection;
+   Out_Connect : MAVLink.V2.Out_Connection;
    Pass        : constant String := "long_password";
    Pass_Data   : Signature_Key (1 .. Pass'Length) with Import,
      Address => Pass'Address;
@@ -1261,6 +1276,10 @@ is""");
 
 begin
    Initialize (Sig,  1, Pass_Data, 200);
+   Set_System_Id (In_Connect, 1);
+   Set_Component_Id (In_Connect, 1);
+   Set_System_Id (Out_Connect, 1);
+   Set_Component_Id (Out_Connect, 1);
 """)
 
     if Has_Common:
@@ -1285,7 +1304,7 @@ begin
    pragma Assert (Comp_Id = 1);
    pragma Assert
      (Id =
-        MAVLink.V2.Common.Message.Hygrometer_Sensors.Hygrometer_Sensor_Id);
+        MAVLink.V2.Common.Message.Hygrometer_Sensor_Id);
    pragma Assert (Link_Id = 1);
    pragma Assert (Timestamp = 200);
    pragma Assert (Signature = True);
@@ -1312,7 +1331,7 @@ begin
       pragma Assert (Seq = 0);
       pragma Assert (Sys_Id = 1);
       pragma Assert (Comp_Id = 1);
-      pragma Assert (Id = Hygrometer_Sensor_Id);
+      pragma Assert (Id = MAVLink.V2.Common.Message.Hygrometer_Sensor_Id);
       pragma Assert (Link_Id = 1);
       pragma Assert (Timestamp = 200);
       pragma Assert (Signature = True);
@@ -1330,7 +1349,7 @@ begin
             f.write("""   declare
       use %s;
       I : %s;
-      O : %s :=
+      O : constant %s :=
          (""" % (p_name, msg, msg))
             first = True
             for field in m.fields:

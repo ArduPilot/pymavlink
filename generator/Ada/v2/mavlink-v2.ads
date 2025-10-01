@@ -14,8 +14,7 @@ package MAVLink.V2 is
    type Msg_Id is mod 2 ** 24 with Size => 24;
    --  Message ID has 3 bytes
 
-   type Data_Buffer is array (Positive range <>) of
-     aliased Interfaces.Unsigned_8;
+   type Data_Buffer is array (Positive range <>) of Interfaces.Unsigned_8;
 
    Maximum_Buffer_Len : constant Positive := 280;
 
@@ -75,10 +74,19 @@ package MAVLink.V2 is
    -- Connection --
    ----------------
 
-   type Connection
-     (System_Id    : System_Id_Type;
-      Component_Id : Component_Id_Type)
-   is private;
+   type Connection is private;
+
+   procedure Set_System_Id
+     (Self  : in out Connection;
+      Value : System_Id_Type);
+
+   procedure Set_Component_Id
+     (Self  : in out Connection;
+      Value : Component_Id_Type);
+
+   procedure Set_Sequency_Id
+     (Self  : in out Connection;
+      Value : Sequence_Id_Type);
 
    function Parse_Byte
      (Self  : in out Connection;
@@ -214,11 +222,20 @@ package MAVLink.V2 is
    -- Out_Connection --
    --------------------
 
-   type Out_Connection
-     (System_Id    : System_Id_Type;
-      Component_Id : Component_Id_Type)
-   is private;
+   type Out_Connection is private;
    --  For outcoming messages only
+
+   procedure Set_System_Id
+     (Self  : in out Out_Connection;
+      Value : System_Id_Type);
+
+   procedure Set_Component_Id
+     (Self  : in out Out_Connection;
+      Value : Component_Id_Type);
+
+   procedure Set_Sequency_Id
+     (Self  : in out Out_Connection;
+      Value : Sequence_Id_Type);
 
 private
 
@@ -276,12 +293,11 @@ private
 
    -- Connection --
 
-   type Connection
-     (System_Id    : System_Id_Type;
-      Component_Id : Component_Id_Type)
-   is record
-      Sequence_Id : Sequence_Id_Type := 0;
-      Incoming    : Incoming_Data;
+   type Connection is record
+      System_Id    : System_Id_Type := 1;
+      Component_Id : Component_Id_Type := 1;
+      Sequence_Id  : Sequence_Id_Type := 0;
+      Incoming     : Incoming_Data;
    end record;
 
    procedure Encode
@@ -327,11 +343,10 @@ private
 
    -- Out_Connection --
 
-   type Out_Connection
-     (System_Id    : System_Id_Type;
-      Component_Id : Component_Id_Type)
-   is record
-      Sequence_Id : Sequence_Id_Type := 0;
+   type Out_Connection is record
+      System_Id    : System_Id_Type := 1;
+      Component_Id : Component_Id_Type := 1;
+      Sequence_Id  : Sequence_Id_Type := 0;
    end record;
 
    procedure Encode

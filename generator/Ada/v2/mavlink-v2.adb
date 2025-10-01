@@ -1,5 +1,6 @@
 pragma Ada_2022;
 
+with MAVLink.V2;
 with MAVLink.X25CRC;
 
 package body MAVLink.V2 is
@@ -20,6 +21,72 @@ package body MAVLink.V2 is
       Self.Key := SHA_256.Initial_Context;
       SHA_256.Update (Self.Key, SHA_256.Data (Key));
    end Initialize;
+
+   -------------------
+   -- Set_System_Id --
+   -------------------
+
+   procedure Set_System_Id
+     (Self  : in out Connection;
+      Value : System_Id_Type) is
+   begin
+      Self.System_Id := Value;
+   end Set_System_Id;
+
+   ----------------------
+   -- Set_Component_Id --
+   ----------------------
+
+   procedure Set_Component_Id
+     (Self  : in out Connection;
+      Value : Component_Id_Type) is
+   begin
+      Self.Component_Id := Value;
+   end Set_Component_Id;
+
+   ---------------------
+   -- Set_Sequency_Id --
+   ---------------------
+
+   procedure Set_Sequency_Id
+     (Self  : in out Connection;
+      Value : Sequence_Id_Type) is
+   begin
+      Self.Sequence_Id := Value;
+   end Set_Sequency_Id;
+
+   -------------------
+   -- Set_System_Id --
+   -------------------
+
+   procedure Set_System_Id
+     (Self  : in out Out_Connection;
+      Value : System_Id_Type) is
+   begin
+      Self.System_Id := Value;
+   end Set_System_Id;
+
+   ----------------------
+   -- Set_Component_Id --
+   ----------------------
+
+   procedure Set_Component_Id
+     (Self  : in out Out_Connection;
+      Value : Component_Id_Type) is
+   begin
+      Self.Component_Id := Value;
+   end Set_Component_Id;
+
+   ---------------------
+   -- Set_Sequency_Id --
+   ---------------------
+
+   procedure Set_Sequency_Id
+     (Self  : in out Out_Connection;
+      Value : Sequence_Id_Type) is
+   begin
+      Self.Sequence_Id := Value;
+   end Set_Sequency_Id;
 
    ----------------
    -- Parse_Byte --
