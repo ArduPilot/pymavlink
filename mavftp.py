@@ -25,7 +25,7 @@ from datetime import datetime
 from enum import IntEnum
 from io import BufferedRandom, BufferedReader, BufferedWriter
 from io import BytesIO as SIO  # noqa: N814
-from typing import Optional, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 try:
     import argcomplete
@@ -127,10 +127,10 @@ class ParamData:
     """A class to manage parameter values and defaults for ArduPilot configuration."""
 
     def __init__(self) -> None:
-        self.params: list[
-            tuple[bytes, float, type]
+        self.params: List[
+            Tuple[bytes, float, type]
         ] = []  # params as (name, value, ptype)
-        self.defaults: Union[None, list[tuple[bytes, float, type]]] = (
+        self.defaults: Union[None, List[Tuple[bytes, float, type]]] = (
             None  # defaults as (name, value, ptype)
         )
 
@@ -157,7 +157,7 @@ class MAVFTPSettings:
     """A collection of MAVFTP settings."""
 
     def __init__(self, s_vars) -> None:
-        self._vars: dict[str, MAVFTPSetting] = {}
+        self._vars: Dict[str, MAVFTPSetting] = {}
         for v in s_vars:
             self.append(v)
 
@@ -198,7 +198,7 @@ class MAVFTPReturn:
         invalid_error_code: int = 0,
         invalid_opcode: int = 0,
         invalid_payload_size: int = 0,
-        directory_listing: Optional[list[DirectoryEntry]] = None,
+        directory_listing: Optional[List[DirectoryEntry]] = None,
     ) -> None:
         self.operation_name = operation_name
         self.error_code = error_code
@@ -339,8 +339,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.put_callback = None
         self.put_callback_progress = None
         self.total_size = 0
-        self.read_gaps: list[tuple[int, int]] = []
-        self.read_gap_times: dict[tuple[int, int], float] = {}
+        self.read_gaps: List[Tuple[int, int]] = []
+        self.read_gap_times: Dict[Tuple[int, int], float] = {}
         self.last_gap_send = 0.0
         self.read_retries = 0
         self.read_total = 0
@@ -356,7 +356,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.reached_eof = False
         self.backlog = 0
         self.burst_size: int = int(self.ftp_settings.burst_read_size)
-        self.write_list: Union[None, set[int]] = None
+        self.write_list: Union[None, Set[int]] = None
         self.write_block_size: int = 0
         self.write_acks = 0
         self.write_total = 0
@@ -366,8 +366,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.write_pending = 0
         self.write_last_send: Union[None, float] = None
         self.open_retries = 0
-        self.list_result: list[DirectoryEntry] = []
-        self.list_temp_result: list[DirectoryEntry] = []
+        self.list_result: List[DirectoryEntry] = []
+        self.list_temp_result: List[DirectoryEntry] = []
         self.requested_size: int = 0
         self.requested_offset: int = 0
         self.temp_filename = "/tmp/temp_mavftp_file"
@@ -382,7 +382,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__send(FTP_OP(self.seq, self.session, OP_ResetSessions, 0, 0, 0, 0, None))
         self.process_ftp_reply("ResetSessions")
 
-    def cmd_ftp(self, args: list[str]) -> MAVFTPReturn:  # noqa: PLR0911 pylint: disable=too-many-branches,too-many-return-statements
+    def cmd_ftp(self, args: List[str]) -> MAVFTPReturn:  # noqa: PLR0911 pylint: disable=too-many-branches,too-many-return-statements
         """FTP operations."""
         usage = "Usage: ftp <list|set|get|getparams|put|rm|rmdir|rename|mkdir|status|cancel|crc>"
         if len(args) < 1:
@@ -468,7 +468,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.process_ftp_reply("TerminateSession")
         self.session = (self.session + 1) % 256
 
-    def cmd_list(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_list(self, args: List[str]) -> MAVFTPReturn:
         """List files."""
         self.list_result = []
         self.list_temp_result = []
@@ -597,7 +597,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         logging.error("closed read with %u gaps", self.read_gaps)
         return None
 
-    def cmd_set(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_set(self, args: List[str]) -> MAVFTPReturn:
         """Set a MAVFTP configuration parameter."""
         if len(args) != 2:
             logging.error("Usage: set PARAMETERNAME PARAMETERVALUE")
@@ -621,7 +621,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         return MAVFTPReturn("Set", FtpError.Success)
 
     def cmd_get(
-        self, args: list[str], callback=None, progress_callback=None
+        self, args: List[str], callback=None, progress_callback=None
     ) -> MAVFTPReturn:
         """Get file."""
         if len(args) == 0 or len(args) > 2:
@@ -947,7 +947,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         return MAVFTPReturn("ReadFile", FtpError.Success)
 
     def cmd_put(
-        self, args: list[str], fh=None, callback=None, progress_callback=None
+        self, args: List[str], fh=None, callback=None, progress_callback=None
     ) -> MAVFTPReturn:
         """Put file."""
         if len(args) == 0 or len(args) > 2:
@@ -984,7 +984,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if file_size % self.write_block_size != 0:
             write_blockcount += 1
 
-        self.write_list = set(range(write_blockcount))
+        self.write_list = Set(range(write_blockcount))
         self.write_acks = 0
         self.write_total = write_blockcount
         self.write_idx = 0
@@ -1101,7 +1101,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__send_more_writes()
         return MAVFTPReturn("WriteFile", FtpError.Success)
 
-    def cmd_rm(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_rm(self, args: List[str]) -> MAVFTPReturn:
         """Remove file."""
         if len(args) != 1:
             logging.error("Usage: rm [FILENAME]")
@@ -1115,7 +1115,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__send(op)
         return self.process_ftp_reply("RemoveFile")
 
-    def cmd_rmdir(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_rmdir(self, args: List[str]) -> MAVFTPReturn:
         """Remove directory."""
         if len(args) != 1:
             logging.error("Usage: rmdir [DIRECTORYNAME]")
@@ -1140,7 +1140,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         """Handle remove reply."""
         return self.__decode_ftp_ack_and_nack(op)
 
-    def cmd_rename(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_rename(self, args: List[str]) -> MAVFTPReturn:
         """Rename file or directory."""
         if len(args) < 2:
             logging.error("Usage: rename [OLDNAME NEWNAME]")
@@ -1159,7 +1159,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         """Handle rename reply."""
         return self.__decode_ftp_ack_and_nack(op)
 
-    def cmd_mkdir(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_mkdir(self, args: List[str]) -> MAVFTPReturn:
         """Make directory."""
         if len(args) != 1:
             logging.error("Usage: mkdir NAME")
@@ -1177,7 +1177,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         """Handle mkdir reply."""
         return self.__decode_ftp_ack_and_nack(op)
 
-    def cmd_crc(self, args: list[str]) -> MAVFTPReturn:
+    def cmd_crc(self, args: List[str]) -> MAVFTPReturn:
         """Get file crc."""
         if len(args) != 1:
             logging.error("Usage: crc [NAME]")
@@ -1644,14 +1644,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         return pdata
 
     @staticmethod
-    def missionplanner_sort(item: str) -> tuple[str, ...]:
+    def missionplanner_sort(item: str) -> Tuple[str, ...]:
         """Sorts a parameter name according to the rules defined in the Mission Planner software."""
-        return tuple(item.split("_"))
+        return Tuple(item.split("_"))
 
     @staticmethod
     def extract_params(
-        pdata: list[tuple[bytes, float, type]], sort_type: str
-    ) -> dict[str, tuple[float, type]]:
+        pdata: List[Tuple[bytes, float, type]], sort_type: str
+    ) -> Dict[str, Tuple[float, type]]:
         """Extract parameter values to an optionally sorted dictionary of name->(value, type)."""
         pdict = {}
         if pdata:
@@ -1659,20 +1659,20 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 pdict[name.decode("utf-8")] = (value, ptype)
 
             if sort_type == "missionplanner":
-                pdict = dict(
+                pdict = Dict(
                     sorted(
                         pdict.items(), key=lambda x: MAVFTP.missionplanner_sort(x[0])
                     )
                 )  # sort alphabetically
             elif sort_type == "mavproxy":
-                pdict = dict(sorted(pdict.items()))  # sort in ASCIIbetical order
+                pdict = Dict(sorted(pdict.items()))  # sort in ASCIIbetical order
             elif sort_type == "none":
                 pass
         return pdict
 
     @staticmethod
     def save_params(
-        pdict: dict[str, tuple[float, str]],
+        pdict: Dict[str, Tuple[float, str]],
         filename: str,
         sort_type: str,
         add_datatype_comments: bool,
@@ -1705,7 +1705,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def cmd_getparams(  # pylint: disable=too-many-arguments
         self,
-        args: list[str],
+        args: List[str],
         progress_callback=None,
         sort_type: str = "missionplanner",
         add_datatype_comments: bool = False,
@@ -2031,7 +2031,7 @@ def create_argument_parser() -> ArgumentParser:
     return parser
 
 
-def auto_detect_serial() -> list[mavutil.SerialPort]:
+def auto_detect_serial() -> List[mavutil.SerialPort]:
     preferred_ports = [
         "*FTDI*",
         "*3D*",
@@ -2047,7 +2047,7 @@ def auto_detect_serial() -> list[mavutil.SerialPort]:
         "*CubePilot*",
         "*Qiotek*",
     ]
-    serial_list: list[mavutil.SerialPort] = mavutil.auto_detect_serial(
+    serial_list: List[mavutil.SerialPort] = mavutil.auto_detect_serial(
         preferred_list=preferred_ports
     )
     serial_list.sort(key=lambda x: x.device)
