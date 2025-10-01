@@ -217,7 +217,7 @@ static inline uint16_t mavlink_msg_${name_lower}_pack(uint8_t system_id, uint8_t
                               ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    char buf[MAVLINK_MSG_ID_${name}_LEN];
+    MAVLINK_ALIGNED_BUF(buf, MAVLINK_MSG_ID_${name}_LEN);
 ${{scalar_fields:    _mav_put_${type}(buf, ${wire_offset}, ${putname});
 }}
 ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array_length});
@@ -251,7 +251,7 @@ static inline uint16_t mavlink_msg_${name_lower}_pack_status(uint8_t system_id, 
                               ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    char buf[MAVLINK_MSG_ID_${name}_LEN];
+    MAVLINK_ALIGNED_BUF(buf, MAVLINK_MSG_ID_${name}_LEN);
 ${{scalar_fields:    _mav_put_${type}(buf, ${wire_offset}, ${putname});
 }}
 ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array_length});
@@ -289,7 +289,7 @@ static inline uint16_t mavlink_msg_${name_lower}_pack_chan(uint8_t system_id, ui
                                    ${{arg_fields:${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    char buf[MAVLINK_MSG_ID_${name}_LEN];
+    MAVLINK_ALIGNED_BUF(buf, MAVLINK_MSG_ID_${name}_LEN);
 ${{scalar_fields:    _mav_put_${type}(buf, ${wire_offset}, ${putname});
 }}
 ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array_length});
@@ -361,7 +361,7 @@ ${{arg_fields: * @param ${name} ${units} ${description}
 static inline void mavlink_msg_${name_lower}_send(mavlink_channel_t chan,${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    char buf[MAVLINK_MSG_ID_${name}_LEN];
+    MAVLINK_ALIGNED_BUF(buf, MAVLINK_MSG_ID_${name}_LEN);
 ${{scalar_fields:    _mav_put_${type}(buf, ${wire_offset}, ${putname});
 }}
 ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array_length});
