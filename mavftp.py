@@ -27,8 +27,20 @@ from io import BufferedRandom, BufferedReader, BufferedWriter
 from io import BytesIO as SIO  # noqa: N814
 from typing import Optional, Union
 
-import argcomplete
-from argcomplete.completers import FilesCompleter
+try:
+    import argcomplete
+    from argcomplete.completers import FilesCompleter
+
+    _ARGCOMPLETE_AVAILABLE = True
+except ImportError:
+    _ARGCOMPLETE_AVAILABLE = False
+
+    # Dummy class to avoid errors when argcomplete is not available
+    class FilesCompleter:  # pylint: disable=too-few-public-methods,missing-class-docstring
+        def __init__(self, *args, **kwargs):
+            pass
+
+
 from pymavlink import mavutil
 
 # pylint: disable=too-many-lines
@@ -2014,7 +2026,8 @@ def create_argument_parser() -> ArgumentParser:
     )
 
     # Add other subparsers commands as needed
-    argcomplete.autocomplete(parser)
+    if _ARGCOMPLETE_AVAILABLE:
+        argcomplete.autocomplete(parser)
     return parser
 
 
