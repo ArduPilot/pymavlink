@@ -11,7 +11,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 # FLAKE_CLEAN
 
 import struct
-from typing import Generator, Optional, Union
+from typing import Generator, Optional, Tuple, Union
 
 
 # pylint: disable=invalid-name
@@ -93,7 +93,7 @@ class FTP_OP:  # pylint: disable=invalid-name, too-many-instance-attributes
             ret += f" [{self.payload[0]}]"
         return ret
 
-    def items(self) -> Generator[tuple[str, Union[int, bool, bytes, Optional[bytearray]]], None, None]:
+    def items(self) -> Generator[Tuple[str, Union[int, bool, bytes, Optional[bytearray]]], None, None]:
         """Yield each attribute and its value for the FTP_OP instance. For debugging purposes."""
         yield "seq", self.seq
         yield "session", self.session
