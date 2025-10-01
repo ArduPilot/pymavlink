@@ -23,7 +23,15 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
               confirmation (uint8_t): 1
-              param1: Mode (MAV_MODE): Unknown (1)
+              param1: Mode (MAV_MODE_FLAG): 0x00000001 (1)
+                  .... ...1 = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED: True
+                  .... ..0. = MAV_MODE_FLAG_TEST_ENABLED: False
+                  .... .0.. = MAV_MODE_FLAG_AUTO_ENABLED: False
+                  .... 0... = MAV_MODE_FLAG_GUIDED_ENABLED: False
+                  ...0 .... = MAV_MODE_FLAG_STABILIZE_ENABLED: False
+                  ..0. .... = MAV_MODE_FLAG_HIL_ENABLED: False
+                  .0.. .... = MAV_MODE_FLAG_MANUAL_INPUT_ENABLED: False
+                  0... .... = MAV_MODE_FLAG_SAFETY_ARMED: False
               param2: Custom Mode (float): 5
               param3: Custom Submode (float): 0
               param4 (float): 0
@@ -84,7 +92,8 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
               confirmation (uint8_t): 1
-              param1: Arm (float): 0
+              param1: Arm (MAV_BOOL): 0x00000000 (0)
+                  ...0 = MAV_BOOL_TRUE: False
               param2: Force (float): 0
               param3 (float): 0
               param4 (float): 0
@@ -171,7 +180,15 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
               confirmation (uint8_t): 1
-              param1: Mode (MAV_MODE): Unknown (1)
+              param1: Mode (MAV_MODE_FLAG): 0x00000001 (1)
+                  .... ...1 = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED: True
+                  .... ..0. = MAV_MODE_FLAG_TEST_ENABLED: False
+                  .... .0.. = MAV_MODE_FLAG_AUTO_ENABLED: False
+                  .... 0... = MAV_MODE_FLAG_GUIDED_ENABLED: False
+                  ...0 .... = MAV_MODE_FLAG_STABILIZE_ENABLED: False
+                  ..0. .... = MAV_MODE_FLAG_HIL_ENABLED: False
+                  .0.. .... = MAV_MODE_FLAG_MANUAL_INPUT_ENABLED: False
+                  0... .... = MAV_MODE_FLAG_SAFETY_ARMED: False
               param2: Custom Mode (float): 5
               param3: Custom Submode (float): 0
               param4 (float): 0
@@ -232,7 +249,8 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
               confirmation (uint8_t): 1
-              param1: Arm (float): 0
+              param1: Arm (MAV_BOOL): 0x00000000 (0)
+                  ...0 = MAV_BOOL_TRUE: False
               param2: Force (float): 0
               param3 (float): 0
               param4 (float): 0
@@ -409,24 +427,27 @@
               Message id: AUTOPILOT_VERSION (148)
           Payload: AUTOPILOT_VERSION (148)
               capabilities (MAV_PROTOCOL_CAPABILITY): 0x000000000000f36f (62319)
-                  .... .... .... .... ...1 = MAV_PROTOCOL_CAPABILITY_MISSION_FLOAT: True
-                  .... .... .... .... ..1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT: True
-                  .... .... .... .... .1.. = MAV_PROTOCOL_CAPABILITY_MISSION_INT: True
-                  .... .... .... .... 1... = MAV_PROTOCOL_CAPABILITY_COMMAND_INT: True
-                  .... .... .... ...0 .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_BYTEWISE: False
-                  .... .... .... ..1. .... = MAV_PROTOCOL_CAPABILITY_FTP: True
-                  .... .... .... .1.. .... = MAV_PROTOCOL_CAPABILITY_SET_ATTITUDE_TARGET: True
-                  .... .... .... 0... .... = MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_LOCAL_NED: False
-                  .... .... ...1 .... .... = MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_GLOBAL_INT: True
-                  .... .... ..1. .... .... = MAV_PROTOCOL_CAPABILITY_TERRAIN: True
-                  .... .... .0.. .... .... = MAV_PROTOCOL_CAPABILITY_SET_ACTUATOR_TARGET: False
-                  .... .... 0... .... .... = MAV_PROTOCOL_CAPABILITY_FLIGHT_TERMINATION: False
-                  .... ...1 .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION: True
-                  .... ..1. .... .... .... = MAV_PROTOCOL_CAPABILITY_MAVLINK2: True
-                  .... .1.. .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_FENCE: True
-                  .... 1... .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_RALLY: True
-                  ...0 .... .... .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED2: False
-                  ..0. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_C_CAST: False
+                  .... .... .... .... .... ...1 = MAV_PROTOCOL_CAPABILITY_MISSION_FLOAT: True
+                  .... .... .... .... .... ..1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT: True
+                  .... .... .... .... .... .1.. = MAV_PROTOCOL_CAPABILITY_MISSION_INT: True
+                  .... .... .... .... .... 1... = MAV_PROTOCOL_CAPABILITY_COMMAND_INT: True
+                  .... .... .... .... ...0 .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_BYTEWISE: False
+                  .... .... .... .... ..1. .... = MAV_PROTOCOL_CAPABILITY_FTP: True
+                  .... .... .... .... .1.. .... = MAV_PROTOCOL_CAPABILITY_SET_ATTITUDE_TARGET: True
+                  .... .... .... .... 0... .... = MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_LOCAL_NED: False
+                  .... .... .... ...1 .... .... = MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_GLOBAL_INT: True
+                  .... .... .... ..1. .... .... = MAV_PROTOCOL_CAPABILITY_TERRAIN: True
+                  .... .... .... .0.. .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED3: False
+                  .... .... .... 0... .... .... = MAV_PROTOCOL_CAPABILITY_FLIGHT_TERMINATION: False
+                  .... .... ...1 .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION: True
+                  .... .... ..1. .... .... .... = MAV_PROTOCOL_CAPABILITY_MAVLINK2: True
+                  .... .... .1.. .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_FENCE: True
+                  .... .... 1... .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_RALLY: True
+                  .... ...0 .... .... .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED2: False
+                  .... ..0. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_C_CAST: False
+                  .... .0.. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPONENT_IMPLEMENTS_GIMBAL_MANAGER: False
+                  .... 0... .... .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPONENT_ACCEPTS_GCS_CONTROL: False
+                  ...0 .... .... .... .... .... = MAV_PROTOCOL_CAPABILITY_GRIPPER: False
               flight_sw_version (uint32_t): 67307007
               middleware_sw_version (uint32_t): 0
               os_sw_version (uint32_t): 0
