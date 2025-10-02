@@ -125,7 +125,7 @@ package body MAVLink.V2 is
          end if;
       end if;
 
-      return Incoming.Position = Incoming.Last
+      return Incoming.Position >= Incoming.Last
         or else Incoming.Position = Incoming.Income_Buffer'Last;
    end Parse_Byte;
 
@@ -640,6 +640,34 @@ package body MAVLink.V2 is
    begin
       Drop_Message (Self.Incoming);
    end Drop_Message;
+
+   -----------
+   -- Clear --
+   -----------
+
+   procedure Clear (Incoming : in out Incoming_Data) is
+   begin
+      Incoming.Position := 0;
+      Incoming.Last     := 0;
+   end Clear;
+
+   -----------
+   -- Clear --
+   -----------
+
+   procedure Clear (Self : in out Connection) is
+   begin
+      Clear (Self.Incoming);
+   end Clear;
+
+   -----------
+   -- Clear --
+   -----------
+
+   procedure Clear (Self : in out In_Connection) is
+   begin
+      Clear (Self.Incoming);
+   end Clear;
 
    ----------------------
    -- Get_Message_Data --

@@ -1,6 +1,8 @@
 --  Connects to ardupilot (baud rate 115200) via ttyUSB0 and set SR0_PARAMS to 11.
 --  Copyright Fil Andrii root.fi36@gmail.com 2022
 
+pragma Ada_2022;
+
 with Ada.Numerics.Generic_Elementary_Functions;
 with Ada.Strings;
 with Ada.Strings.Fixed;
@@ -11,9 +13,9 @@ with Ada.Text_IO;
 with GNAT.Serial_Communications;
 with Interfaces;
 
-with MAVLink.V1;
-with MAVLink.V1.Common.Message.Param_Sets;
-with MAVLink.V1.Common.Message.Param_Values;
+with MAVLink.V1.Common.Types;
+with MAVLink.V1.Common.Param_Sets;
+with MAVLink.V1.Common.Param_Values;
 
 procedure Param_Set_SR0_PARAMS is
    use type Ada.Streams.Stream_Element_Offset;
@@ -28,15 +30,15 @@ procedure Param_Set_SR0_PARAMS is
    Output      : MAVLink.V1.Data_Buffer (1 .. 1024);
    Output_Last : Natural := Output'First;
 
-   Mav_Conn    : MAVLink.V1.Connection (System_Id => 250, Component_Id => 1);
+   Mav_Conn    : MAVLink.V1.Connection;
 
    function Handler_Param_Value return Boolean is
-      Param_Value : MAVLink.V1.Common.Message.Param_Values.Param_Value;
+      Param_Value : MAVLink.V1.Common.Param_Values.Param_Value;
    begin
       pragma Assert
-        (MAVLink.V1.Common.Message.Param_Values.Check_CRC (Mav_Conn));
+        (MAVLink.V1.Common.Param_Values.Check_CRC (Mav_Conn));
 
-      MAVLink.V1.Common.Message.Param_Values.Decode (Param_Value, Mav_Conn);
+      MAVLink.V1.Common.Param_Values.Decode (Param_Value, Mav_Conn);
 
       if Ada.Strings.Fixed.Trim
         (Source => Param_Value.Param_Id,
@@ -52,9 +54,12 @@ procedure Param_Set_SR0_PARAMS is
       return False;
    end Handler_Param_Value;
 
-   Param_Set : MAVLink.V1.Common.Message.Param_Sets.Param_Set;
+   Param_Set : MAVLink.V1.Common.Param_Sets.Param_Set;
 
 begin
+   MAVLink.V1.Set_System_Id (Mav_Conn, 250);
+   MAVLink.V1.Set_Component_Id (Mav_Conn, 1);
+
    Ada.Text_IO.Put_Line
      ("Connects to ardupilot (baud rate 115200) via "
       & "ttyUSB0 and set SR0_PARAMS to 11.");
@@ -75,9 +80,9 @@ begin
       Count  => 16,
       Pad    => ASCII.Nul);
    Param_Set.Param_Value := 11.0;
-   Param_Set.Param_Type := MAVLink.V1.Common.Real32;
+   Param_Set.Param_Type := MAVLink.V1.Common.Types.Real32;
 
-   MAVLink.V1.Common.Message.Param_Sets.Encode
+   MAVLink.V1.Common.Param_Sets.Encode
      (Param_Set, Mav_Conn, Output, Output_Last);
 
    declare
@@ -100,7 +105,7 @@ begin
       for B of Input (Input'First .. Input_Last) loop
          if MAVLink.V1.Parse_Byte(Mav_Conn, Interfaces.Unsigned_8 (B)) then
             if MAVLink.V1.Get_Msg_Id (Mav_Conn) =
-              MAVLink.V1.Common.Message.Param_Values.Param_Value_Id
+              MAVLink.V1.Common.Param_Value_Id
             then
                if Handler_Param_Value then
                   exit Main_Loop;

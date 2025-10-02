@@ -160,6 +160,9 @@ package MAVLink.V2 is
    --  Delete current message from the buffer.
    --  Should be called only after Parse_Byte returned True
 
+   procedure Clear (Self : in out Connection) with Inline;
+   --  Delete all data from the incoming buffer
+
    -------------------
    -- In_Connection --
    -------------------
@@ -217,6 +220,8 @@ package MAVLink.V2 is
       Last   : out Natural) with Inline;
 
    procedure Drop_Message (Self : in out In_Connection) with Inline;
+
+   procedure Clear (Self : in out In_Connection) with Inline;
 
    --------------------
    -- Out_Connection --
@@ -421,6 +426,8 @@ private
       Last     : out Natural);
 
    procedure Drop_Message (Incoming : in out Incoming_Data);
+
+   procedure Clear (Incoming : in out Incoming_Data);
 
    procedure Get_Message_Data
      (Incoming : Incoming_Data;

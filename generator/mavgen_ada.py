@@ -16,7 +16,9 @@ from operator import attrgetter
 from . import mavparse
 
 v1 = "MAVLink.V1"
+v1_file = "mavlink-v1-"
 v2 = "MAVLink.V2"
+v2_file = "mavlink-v2-"
 
 NAN = "0"
 
@@ -59,10 +61,10 @@ def normalize_field_name(name):
     return n
 
 def normalize_message_name(name):
-    return normalize_name(name, "Message")
+    return normalize_name(name, "Message").title()
 
 def normalize_enum_name(name):
-    return normalize_name(name, "Enum")
+    return normalize_name(name, "Enum").title()
 
 def normalize_entry_name(name):
     return normalize_name(name, "Entry")
@@ -226,13 +228,13 @@ def file_name(x):
 # Returns package filename and name for the message
 def get_pakage_name(x, m, directory, ver, f_ver):
     name = file_name(x)
-    pkg_name = normalize_message_name(m.name).title()
+    pkg_name = normalize_message_name(m.name)
 
     if pkg_name[-1] == 's': pkg_name += 'es'
     else: pkg_name += 's'
 
-    f_name = os.path.join(directory, "mavlink-%s-%s-message-%s" % (f_ver, name, pkg_name.lower()))
-    p_name = "%s.%s.Message.%s" % (ver, name.title(), pkg_name)
+    f_name = os.path.join(directory, "mavlink-%s-%s-%s" % (f_ver, name, pkg_name.lower()))
+    p_name = "%s.%s.%s" % (ver, name.title(), pkg_name)
     return f_name, p_name
 
 # Returns package name where the tp type declared
@@ -240,14 +242,14 @@ def find_pkg (xml, tp, ver):
     pkg = ""
     for x in xml:
         for t in x.enum:
-            if normalize_enum_name(t.name).title() == tp:
+            if normalize_enum_name(t.name) == tp:
                 pkg = pkg_name(x)
 
-    return "%s.%s.%s" % (ver, pkg, tp)
+    return "%s.%s.Types.%s" % (ver, pkg, tp)
 
 # Generate record type
 def repr_bitmask(enum, size):
-    enum_name = normalize_enum_name(enum.name).title()
+    enum_name = normalize_enum_name(enum.name)
     s = "   type %s is record\n" % enum_name
     names = [i.name for i in enum.entry if not i.end_marker]
     common_prefix = os.path.commonprefix(names) if len(names) > 1 else ""
@@ -310,7 +312,7 @@ def repr_bitmask(enum, size):
 def repr_enum(enum, size):
     global types_files
 
-    enum_name = normalize_enum_name(enum.name).title()
+    enum_name = normalize_enum_name(enum.name)
     s = "   type %s is new Interfaces.Unsigned_%i;\n" % (enum_name, size * 8)
     if enum.deprecated:
         s += "   pragma Obsolescent (%s);\n" % enum_name
@@ -373,21 +375,20 @@ def repr_enum(enum, size):
 
     return s
 
-#Add with/use for includes
-def generate_includes(x, f, ver):
-    n_len = 0
-    for i in x.include:
-        n_len = max (len(os.path.splitext(i)[0]), n_len);
-
-    for i in x.include:
-        n = os.path.splitext(i)[0].title() + ";"
-        f.write("with " + ver + "." + n.ljust(n_len) +
-                " use " + ver + "." + n + "\n")
-
-    if n_len > 0: f.write("\n")
-
 # Create file for the types package
-def create_types_spec (directory, file_prefix, ver, x, header=None):
+def create_dialect_spec (directory, file_prefix, ver, x, xml, header=None):
+    def process_ids(ids, id_name, x):
+        for m in x.message:
+            if int(m.id) not in ids: ids.append(int(m.id))
+            if int(m.id) not in id_name: id_name[int(m.id)] = normalize_message_name(m.name)
+
+    def process_dialect(ids, id_name, x):
+        process_ids(ids, id_name, x)
+        for i in x.include:
+            for c in xml:
+                if i in c.filename:
+                    process_dialect(ids, id_name, c)
+
     dialect = file_name(x)
     print("Generate " + dialect.title())
 
@@ -397,25 +398,12 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
     if header: spec.write(header)
     spec.write("pragma Ada_2022;\n\n")
 
-#    generate_includes (x, spec, ver)
-
     spec.write("package %s.%s is\n\n" % (ver, dialect.title()))
     spec.write("   pragma Preelaborate;\n\n")
-    return spec
-
-# Create dialect common message package
-def generate_common_messages_pkg (directory, msgs, pkg, p_name, header=None):
-    f_name = os.path.join(directory, pkg)
-    spec = open(f_name + ".ads", "w")
-    spec.write(GEN)
-    if header: spec.write(header)
-    spec.write("pragma Ada_2022;\n\npackage %s is\n\n   pragma Preelaborate;\n\n" % p_name)
 
     ids = []
     id_name = {}
-    for m in msgs:
-        ids.append(int(m.id))
-        id_name[int(m.id)] = normalize_message_name(m.name).title()
+    process_dialect(ids, id_name, x)
 
     if len(ids) > 0:
         n_len = 0
@@ -448,7 +436,21 @@ def generate_common_messages_pkg (directory, msgs, pkg, p_name, header=None):
                 spec.write(",")
             spec.write('\n         when %s => "%s"' % (str(id).ljust(n_len), str(id)))
         spec.write(");\n\n")
-    spec.write("end %s;\n" % p_name)
+    spec.write("end %s.%s;\n" % (ver, dialect.title()))
+
+# Create file for the types package
+def create_types_spec (directory, file_prefix, ver, x, header=None):
+    dialect = file_name(x)
+
+    # Create file
+    spec = open(os.path.join(directory, file_prefix + dialect + "-types.ads"), "w")
+    spec.write(GEN)
+    if header: spec.write(header)
+    spec.write("pragma Ada_2022;\n\n")
+
+    spec.write("package %s.%s.Types is\n\n" % (ver, dialect.title()))
+    spec.write("   pragma Preelaborate;\n\n")
+    return spec
 
 # Create file for the message spec
 def create_message_pkg (x, f_name, p_name, ver, m, header=None):
@@ -463,14 +465,14 @@ def create_message_pkg (x, f_name, p_name, ver, m, header=None):
     spec.write("\npragma Ada_2022;\n")
 
     # indirect includes
-    included = [x]
+    included = []
     f_types = [field.enum for field in m.fields if field.enum and not field.array_length]
     for t in f_types:
         if t in types_files and types_files[t] not in included and types_files[t].filename not in x.include:
-            if len(included) == 1: spec.write("\n")
+            if len(included) == 0: spec.write("\n")
             included.append(types_files[t])
             inc = os.path.splitext(os.path.basename(types_files[t].filename))[0].title()
-            spec.write("with %s.%s; use %s.%s;\n" % (ver, inc, ver, inc))
+            spec.write("with %s.%s.Types; use %s.%s.Types;\n" % (ver, inc, ver, inc))
 
     spec.write("\npackage %s is\n\n" % p_name)
     spec.write("   pragma Preelaborate;\n\n")
@@ -513,7 +515,7 @@ def calculate_types_size(xml):
 # Generate v1 types
 def generate_v1_types(directory, x, types_size):
     dialect = pkg_name(x)
-    outf = create_types_spec (directory, "mavlink-v1-", v1, x, copy)
+    outf = create_types_spec (directory, v1_file, v1, x, copy)
 
     for t in x.enum:
         size = types_size[t.name]
@@ -523,7 +525,7 @@ def generate_v1_types(directory, x, types_size):
             else:
                 outf.write(repr_enum(t, size))
             outf.write("\n")
-    outf.write("end %s.%s;\n" % (v1, dialect.title()))
+    outf.write("end %s.%s.Types;\n" % (v1, dialect.title()))
 
 # return default value for record field
 def get_default(value, type_name, array_to_float):
@@ -569,7 +571,7 @@ def get_default(value, type_name, array_to_float):
 
             else:
                 for t in types:
-                    if normalize_enum_name(t.name).title() == type_name and not t.bitmask:
+                    if normalize_enum_name(t.name) == type_name and not t.bitmask:
                         values = [i.name for i in t.entry if not i.end_marker]
                         if value in values:
                             common_prefix = os.path.commonprefix(values) if len(values) > 1 else ""
@@ -578,7 +580,7 @@ def get_default(value, type_name, array_to_float):
                 return value
 
 def generate_message_representation(msg, spec, max_len):
-    name = normalize_message_name(msg.name).title()
+    name = normalize_message_name(msg.name)
     offset = 0
     max_offset = 0
     for field in msg.ordered_fields:
@@ -842,7 +844,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
 
 # Generate message for the V1
 def generate_v1_message(msg, spec, body, xml):
-    name = normalize_message_name(msg.name).title()
+    name = normalize_message_name(msg.name)
 
     max_len = 0
     payload_length = 0
@@ -866,7 +868,7 @@ def generate_v1_message(msg, spec, body, xml):
                 tp = field_array_types[field.type]
                 spec.write("%s (1 .. %i)" % (tp, field.array_length))
             elif field.enum:
-                tp = normalize_enum_name(field.enum).title()
+                tp = normalize_enum_name(field.enum)
                 if field_name == tp: tp = find_pkg (xml, tp, v1)
                 spec.write(tp)
             else:
@@ -924,8 +926,12 @@ def generate_test_v1(directory, xml, bitmasks):
     generate_test_project(directory, "v1")
 
     f = open(os.path.join(dir, "test.adb"), "w")
+    f.write("\npragma Warnings (Off); --  prevent `not used`\n")
     for x in xml:
-        f.write("with %s.%s;\n" % (v1, pkg_name(x)))
+        f.write("with %s.%s.Types;\n" % (v1, file_name(x).title()))
+    f.write("pragma Warnings (On);\n\n")
+
+    for x in xml:
         for m in x.message:
             f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
             f.write("with %s;\n" % p_name)
@@ -954,7 +960,7 @@ begin
 """)
     for x in xml:
         for m in x.message:
-            msg = normalize_message_name(m.name).title()
+            msg = normalize_message_name(m.name)
             f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
             f.write("""   declare
       use %s;
@@ -982,7 +988,7 @@ begin
                             else:
                                 value = "MAVLink.V1.%s.%s'First" % (
                                     find_package(xml, field.enum),
-                                    normalize_enum_name(field.enum).title())
+                                    normalize_enum_name(field.enum))
                         else:
                             value = field_values_v1[field.type]
 
@@ -1046,9 +1052,8 @@ def generate(directory, xml):
         for t in x.enum:
             if t.bitmask: bitmasks.append(t.name)
 
-        dialect = file_name(x)
+        create_dialect_spec (directory, v1_file, v1, x, xml, copy)
         generate_v1_types(directory, x, types_size)
-        generate_common_messages_pkg (directory, x.message, "mavlink-v1-%s-message" % dialect, "%s.%s.Message" % (v1, dialect.title()), copy)
 
         #Generate messages
         for m in x.message:
@@ -1097,7 +1102,7 @@ def calculate_bitmask_size(bitmask):
 # generate types and place them into Mavlink.`dialect` package
 def generate_v2_types (directory, x, types_size):
     name = pkg_name(x)
-    spec = create_types_spec (directory, "mavlink-v2-", v2, x)
+    spec = create_types_spec (directory, v2_file, v2, x)
 
     # Generate types
     for t in x.enum:
@@ -1112,11 +1117,11 @@ def generate_v2_types (directory, x, types_size):
             spec.write(repr_enum(t, size))
         spec.write("\n")
 
-    spec.write("end %s.%s;\n" % (v2, name))
+    spec.write("end %s.%s.Types;\n" % (v2, name))
 
 #Generate message
 def generate_v2_message(msg, spec, body, xml):
-    name = normalize_message_name(msg.name).title()
+    name = normalize_message_name(msg.name)
 
     max_len = 0
     for field in msg.fields:
@@ -1138,7 +1143,7 @@ def generate_v2_message(msg, spec, body, xml):
                 spec.write("%s (1 .. %i)" % (tp, field.array_length))
 
             elif field.enum:
-                tp = normalize_enum_name(field.enum).title()
+                tp = normalize_enum_name(field.enum)
                 if field_name == tp: tp = find_pkg (xml, tp, v2)
                 spec.write(tp)
 
@@ -1169,7 +1174,7 @@ def find_package(xml, name):
     for x in xml:
         for t in x.enum:
             if not t.bitmask and t.name == name:
-                return pkg_name(x)
+                return pkg_name(x) + ".Types"
     return ""
 
 # Generate test project for V2
@@ -1179,6 +1184,12 @@ def generate_test_v2(directory, xml, bitmasks):
     generate_test_project(directory, "v2")
 
     f = open(os.path.join(dir, "test.adb"), "w")
+
+    f.write("\npragma Warnings (Off); --  prevent `not used`\n")
+    for x in xml:
+        f.write("with %s.%s.Types;\n" % (v2, file_name(x).title()))
+    f.write("pragma Warnings (On);\n\n")
+
     for x in xml:
         for m in x.message:
             f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
@@ -1280,6 +1291,7 @@ begin
    Set_Component_Id (In_Connect, 1);
    Set_System_Id (Out_Connect, 1);
    Set_Component_Id (Out_Connect, 1);
+   Drop_Message (In_Connect);
 """)
 
     if Has_Common:
@@ -1304,7 +1316,7 @@ begin
    pragma Assert (Comp_Id = 1);
    pragma Assert
      (Id =
-        MAVLink.V2.Common.Message.Hygrometer_Sensor_Id);
+        MAVLink.V2.Common.Hygrometer_Sensor_Id);
    pragma Assert (Link_Id = 1);
    pragma Assert (Timestamp = 200);
    pragma Assert (Signature = True);
@@ -1312,7 +1324,7 @@ begin
 
    -- In / Out
    declare
-      use MAVLink.V2.Common.Message.Hygrometer_Sensors;
+      use MAVLink.V2.Common.Hygrometer_Sensors;
       M : constant Hygrometer_Sensor :=
         (Id => 1, Temperature => 1, Humidity => 0);
       O : Hygrometer_Sensor;
@@ -1331,7 +1343,7 @@ begin
       pragma Assert (Seq = 0);
       pragma Assert (Sys_Id = 1);
       pragma Assert (Comp_Id = 1);
-      pragma Assert (Id = MAVLink.V2.Common.Message.Hygrometer_Sensor_Id);
+      pragma Assert (Id = MAVLink.V2.Common.Hygrometer_Sensor_Id);
       pragma Assert (Link_Id = 1);
       pragma Assert (Timestamp = 200);
       pragma Assert (Signature = True);
@@ -1344,7 +1356,7 @@ begin
 
     for x in xml:
         for m in x.message:
-            msg = normalize_message_name(m.name).title()
+            msg = normalize_message_name(m.name)
             f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
             f.write("""   declare
       use %s;
@@ -1372,7 +1384,7 @@ begin
                             else:
                                 value = "MAVLink.V2.%s.%s'First" % (
                                     find_package(xml, field.enum),
-                                    normalize_enum_name(field.enum).title())
+                                    normalize_enum_name(field.enum))
                         else:
                             value = field_values_v2[field.type]
 
@@ -1386,9 +1398,11 @@ begin
    begin
       Encode (O, Out_Connect, Sig, Buffer, Last);
 
-      for Index in Buffer'First .. Last loop
+      for Index in Buffer'First .. Last - 1 loop
          Res := Parse_Byte (In_Connect, Buffer (Index));
+         pragma Assert (not Res);
       end loop;
+      Res := Parse_Byte (In_Connect, Buffer (Last));
       pragma Assert (Res);
 
       Get_Message_Information
@@ -1448,11 +1462,8 @@ def generate_v2(directory, xml):
             if t.bitmask: bitmasks.append(t.name)
 
         # Mavlink.`dialect`
-        dialect = file_name(x)
+        create_dialect_spec (directory, v2_file, v2, x, xml)
         generate_v2_types (directory, x, types_size)
-
-        # Mavlink.`dialect`.Message
-        generate_common_messages_pkg (directory, x.message, "mavlink-v2-%s-message" % dialect, "%s.%s.Message" % (v2, dialect.title()))
 
         #Generate messages
         for m in x.message:
@@ -1463,5 +1474,27 @@ def generate_v2(directory, xml):
             generate_v2_message(m, spec, body, xml)
             spec.write("end %s;\n" % p_name)
             body.write("\nend %s;\n" % p_name)
+
+        def create_renames (c):
+            for m in c.message:
+                f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
+                fc_name, pc_name = get_pakage_name(c, m, directory, v2, "v2")
+                spec = open(f_name + ".ads", "w")
+                spec.write(GEN)
+                if m.deprecated:
+                    spec.write(get_deprecated(m.deprecated, 0))
+                spec.write(format_comment (m.description, 0))
+                spec.write("\npragma Ada_2022;\n")
+                spec.write("\nwith %s;\n" % pc_name)
+                spec.write("\npackage %s\nrenames %s;\n" % (p_name, pc_name))
+
+        def process_dialect(c, rename):
+            if rename: create_renames(c)
+            for i in c.include:
+                for t in xml:
+                    if i in t.filename:
+                        process_dialect(t, True)
+
+        process_dialect (x, False)
 
     generate_test_v2(directory, xml, bitmasks)
