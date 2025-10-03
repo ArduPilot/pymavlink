@@ -519,6 +519,7 @@ def generate_v1_types(directory, x, types_size):
 
     for t in x.enum:
         size = types_size[t.name]
+
         if size is not None:
             if t.bitmask:
                 outf.write(repr_bitmask(t, size))
@@ -605,133 +606,129 @@ def generate_message_methods(name, rev, spec, is_v1):
     else:
         mode = ""
 
-    spec.write("""   procedure Encode
-     (Message : %s;
-      Connect : in out %s.Out_Connection;
+    out = """   procedure Encode
+     (Message : {0};
+      Connect : in out {1}.Out_Connection;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
    --  Put the message in the buffer ready for send
 
    procedure Encode
-     (Message : %s;
-      Connect : in out %s.Connection;
+     (Message : {0};
+      Connect : in out {1}.Connection;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
 
    procedure Decode
-     (Message   : out %s;
-      Connect   : %s%s.Connection;
+     (Message   : out {0};
+      Connect   : {2}{1}.Connection;
       CRC_Valid : out Boolean);
    --  Get the message from the Connect and delete it
    --  from the Connect's buffer. CRC_Valid is set to
    --  True if x25crc is valid for the message.
 
    procedure Decode
-     (Message : out %s;
-      Connect : %s.Connection);
+     (Message : out {0};
+      Connect : {1}.Connection);
    --  Same as Above but does not check CRC
 
    procedure Decode
-     (Message   : out %s;
-      Connect   : %s%s.In_Connection;
+     (Message   : out {0};
+      Connect   : {2}{1}.In_Connection;
       CRC_Valid : out Boolean);
    --  Get the message from the Connect and delete it
    --  from the Connect's buffer. CRC_Valid is set to
    --  True if x25crc is valid for the message.
 
    procedure Decode
-     (Message : out %s;
-      Connect : %s.In_Connection);
+     (Message : out {0};
+      Connect : {1}.In_Connection);
    --  Same as Above but does not check CRC
 
    function Check_CRC
-     (Connect : %s%s.Connection)
+     (Connect : {2}{1}.Connection)
       return Boolean with Inline;
    --  Returns True if CRC is valid
 
    function Check_CRC
-     (Connect : %s%s.In_Connection)
+     (Connect : {2}{1}.In_Connection)
       return Boolean with Inline;
    --  Returns True if CRC is valid
 
-""" % (name, rev,
-       name, rev,
-       name, mode, rev,
-       name, rev,
-       name, mode, rev,
-       name, rev,
-       mode, rev,
-       mode, rev))
+"""
+    spec.write(out.format(name, rev, mode))
 
 def generate_message_methods_V2(name, spec):
-    spec.write("""   procedure Encode
-     (Message : %s;
-      Connect : in out %s.Connection;
+    out = """   procedure Encode
+     (Message : {0};
+      Connect : in out {1}.Connection;
       Sign    : in out Signature;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
 
    procedure Encode
-     (Message : %s;
-      Connect : in out %s.Out_Connection;
+     (Message : {0};
+      Connect : in out {1}.Out_Connection;
       Sign    : in out Signature;
       Buffer  : out Data_Buffer;
       Last    : out Positive);
 
-""" % (name, v2,
-       name, v2))
+"""
+    spec.write(out.format(name, v2))
 
 # Generate message body
 def generate_message_body_encode (name, rev, extra, body, is_v1, connection):
-    body.write("""
+    out = """
    ------------
    -- Encode --
    ------------
 
    procedure Encode
-     (Message : %s;
-      Connect : in out %s.%s;
+     (Message : {0};
+      Connect : in out {1}.{2};
       Buffer  : out Data_Buffer;
       Last    : out Positive)
    is
-      Local : Data_Buffer (1 .. %s'Value_Size / 8)
+      Local : Data_Buffer (1 .. {0}'Value_Size / 8)
         with Import, Address => Message'Address,
         Convention => Ada;
 
    begin
       Last := Buffer'First +
         Packet_Payload_First +
-        (%s'Value_Size / 8) - 1;
+        ({0}'Value_Size / 8) - 1;
       Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
-      Encode (Connect, %s_Id, %s, Buffer, Last);
+      Encode (Connect, {0}_Id, {3}, Buffer, Last);
    end Encode;
-""" % (name, rev, connection, name, name, name, extra))
+"""
+    body.write(out.format(name, rev, connection, extra))
 
     if not is_v1:
-        body.write("""
+        out = """
    ------------
    -- Encode --
    ------------
 
    procedure Encode
-     (Message : %s;
-      Connect : in out %s.%s;
-      Sign    : in out %s.Signature;
+     (Message : {0};
+      Connect : in out {1}.{2};
+      Sign    : in out {1}.Signature;
       Buffer  : out Data_Buffer;
       Last    : out Positive)
    is
-      Local : Data_Buffer (1 .. %s'Value_Size / 8)
+      Local : Data_Buffer (1 .. {0}'Value_Size / 8)
         with Import, Address => Message'Address,
         Convention => Ada;
 
    begin
       Last := Buffer'First +
         Packet_Payload_First +
-        (%s'Value_Size / 8) - 1;
+        ({0}'Value_Size / 8) - 1;
       Buffer (Buffer'First + Packet_Payload_First .. Last) := Local;
-      Encode (Connect, %s_Id, %s, Sign, Buffer, Last);
+      Encode (Connect, {0}_Id, {3}, Sign, Buffer, Last);
    end Encode;
-""" % (name, rev, connection, rev, name, name, name, extra))
+"""
+        body.write(out.format(name, rev, connection, extra))
 
 def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
     if is_v1:
