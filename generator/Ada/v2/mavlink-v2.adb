@@ -100,6 +100,12 @@ package body MAVLink.V2 is
       Header : V2_Header with Import,
         Address => Incoming.Income_Buffer'Address;
    begin
+      if Incoming.Last > 0
+        and then Incoming.Position >= Incoming.Last
+      then
+         Clear (Incoming);
+      end if;
+
       if Incoming.Position = 0
         and then Value /= Version_2_Code
       then
@@ -605,41 +611,6 @@ package body MAVLink.V2 is
    begin
       Get_Buffer (Self.Incoming, Buffer, Last);
    end Get_Buffer;
-
-   ------------------
-   -- Drop_Message --
-   ------------------
-
-   procedure Drop_Message (Incoming : in out Incoming_Data)
-   is
-      Len : constant Natural := Incoming.Position - Incoming.Last;
-   begin
-      Incoming.Income_Buffer
-        (Incoming.Income_Buffer'First ..
-           Incoming.Income_Buffer'First + Len - 1) :=
-        Incoming.Income_Buffer (Incoming.Last + 1 .. Incoming.Position);
-
-      Incoming.Position := Incoming.Income_Buffer'First + Len - 1;
-      Incoming.Last     := 0;
-   end Drop_Message;
-
-   ------------------
-   -- Drop_Message --
-   ------------------
-
-   procedure Drop_Message (Self : in out Connection) is
-   begin
-      Drop_Message (Self.Incoming);
-   end Drop_Message;
-
-   ------------------
-   -- Drop_Message --
-   ------------------
-
-   procedure Drop_Message (Self : in out In_Connection) is
-   begin
-      Drop_Message (Self.Incoming);
-   end Drop_Message;
 
    -----------
    -- Clear --

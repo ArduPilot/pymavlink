@@ -156,10 +156,6 @@ package MAVLink.V2 is
       Last   : out Natural) with Inline;
    --  Returns data from the internal buffer filled with Parse_Byte.
 
-   procedure Drop_Message (Self : in out Connection) with Inline;
-   --  Delete current message from the buffer.
-   --  Should be called only after Parse_Byte returned True
-
    procedure Clear (Self : in out Connection) with Inline;
    --  Delete all data from the incoming buffer
 
@@ -218,8 +214,6 @@ package MAVLink.V2 is
      (Self   : In_Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural) with Inline;
-
-   procedure Drop_Message (Self : in out In_Connection) with Inline;
 
    procedure Clear (Self : in out In_Connection) with Inline;
 
@@ -424,8 +418,6 @@ private
      (Incoming : Incoming_Data;
       Buffer   : out Data_Buffer;
       Last     : out Natural);
-
-   procedure Drop_Message (Incoming : in out Incoming_Data);
 
    procedure Clear (Incoming : in out Incoming_Data);
 

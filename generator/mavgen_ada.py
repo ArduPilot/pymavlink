@@ -601,11 +601,9 @@ def generate_message_representation(msg, spec, max_len):
 
 def generate_message_methods(name, rev, spec, is_v1):
     if is_v1:
-        mode = ""
-        c_mode = "in out "
-    else:
         mode = "in out "
-        c_mode = ""
+    else:
+        mode = ""
 
     spec.write("""   procedure Encode
      (Message : %s;
@@ -622,7 +620,7 @@ def generate_message_methods(name, rev, spec, is_v1):
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.Connection;
+      Connect   : %s%s.Connection;
       CRC_Valid : out Boolean);
    --  Get the message from the Connect and delete it
    --  from the Connect's buffer. CRC_Valid is set to
@@ -630,12 +628,12 @@ def generate_message_methods(name, rev, spec, is_v1):
 
    procedure Decode
      (Message : out %s;
-      Connect : %s%s.Connection);
+      Connect : %s.Connection);
    --  Same as Above but does not check CRC
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.In_Connection;
+      Connect   : %s%s.In_Connection;
       CRC_Valid : out Boolean);
    --  Get the message from the Connect and delete it
    --  from the Connect's buffer. CRC_Valid is set to
@@ -643,7 +641,7 @@ def generate_message_methods(name, rev, spec, is_v1):
 
    procedure Decode
      (Message : out %s;
-      Connect : %s%s.In_Connection);
+      Connect : %s.In_Connection);
    --  Same as Above but does not check CRC
 
    function Check_CRC
@@ -658,12 +656,12 @@ def generate_message_methods(name, rev, spec, is_v1):
 
 """ % (name, rev,
        name, rev,
-       name, rev,
        name, mode, rev,
        name, rev,
        name, mode, rev,
-       c_mode, rev,
-       c_mode, rev))
+       name, rev,
+       mode, rev,
+       mode, rev))
 
 def generate_message_methods_V2(name, spec):
     spec.write("""   procedure Encode
@@ -737,9 +735,9 @@ def generate_message_body_encode (name, rev, extra, body, is_v1, connection):
 
 def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
     if is_v1:
-        mode = ""
-    else:
         mode = "in out "
+    else:
+        mode = ""
 
     body.write("""
    ------------
@@ -748,10 +746,10 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
 
    procedure Decode
      (Message   : out %s;
-      Connect   : in out %s.%s;
+      Connect   : %s%s.%s;
       CRC_Valid : out Boolean)
    is
-""" % (name, rev, connection))
+""" % (name, mode, rev, connection))
 
     if is_v1:
         body.write("""      Buf : Data_Buffer
@@ -775,10 +773,7 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
    begin
       Get_Message_Data (Connect, Data, Last);
       Buf (1 .. Last) := Data (1 .. Last);
-
       CRC_Valid := Check_CRC (Connect);
-
-      Drop_Message (Connect);
 """ % (name, name))
     body.write("""   end Decode;
 
@@ -788,9 +783,9 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
 
    procedure Decode
      (Message : out %s;
-      Connect : %s%s.%s)
+      Connect : %s.%s)
    is
-""" % (name, mode, rev, connection))
+""" % (name, rev, connection))
     if is_v1:
         body.write("""      Buf : Data_Buffer
         (1 .. %s'Size / 8) := [others => 0]
@@ -812,7 +807,6 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
    begin
       Get_Message_Data (Connect, Data, Last);
       Buf (1 .. Last) := Data (1 .. Last);
-      Drop_Message (Connect);
 """ % (name, name))
     body.write("   end Decode;\n")
 
@@ -1291,7 +1285,6 @@ begin
    Set_Component_Id (In_Connect, 1);
    Set_System_Id (Out_Connect, 1);
    Set_Component_Id (Out_Connect, 1);
-   Drop_Message (In_Connect);
 """)
 
     if Has_Common:
@@ -1320,7 +1313,6 @@ begin
    pragma Assert (Link_Id = 1);
    pragma Assert (Timestamp = 200);
    pragma Assert (Signature = True);
-   Drop_Message (In_Connect);
 
    -- In / Out
    declare
