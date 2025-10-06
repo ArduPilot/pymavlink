@@ -1,4 +1,6 @@
 from setuptools.command.build_py import build_py
+from argparse import Namespace
+
 # Work around mbcs bug in distutils.
 # http://bugs.python.org/issue10945
 import codecs
@@ -69,36 +71,44 @@ def generate_content():
     # for now v2.0 uses same XML files as v1.0
     v20_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
 
+    external_dialects = glob.glob(os.path.join(mdef_path, '..', 'external', 'dialects', '**', '*.xml'), recursive=True)
+
     should_generate = not "NOGEN" in os.environ
+    should_generate_external_dialects = not "NOGEN_EXTERNAL_DIALECTS" in os.environ
+
     if should_generate:
-        if len(v10_dialects) == 0:
+        if len(v10_dialects) == 0 and len(v20_dialects) == 0:
             print("No XML message definitions found")
             sys.exit(1)
 
-        for xml in v10_dialects:
-            shutil.copy(xml, os.path.join(dialects_path, 'v10'))
-        for xml in v20_dialects:
-            shutil.copy(xml, os.path.join(dialects_path, 'v20'))
+        protocol_versions = [
+            (v10_dialects, 'v10', '1.0'),
+            (v20_dialects, 'v20', '2.0')
+        ]
 
-        for xml in v10_dialects:
-            dialect = os.path.basename(xml)[:-4]
-            wildcard = os.getenv("MAVLINK_DIALECT",'*')
-            if not fnmatch.fnmatch(dialect, wildcard):
-                continue
-            print("Building %s for protocol 1.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
-                print("Building failed %s for protocol 1.0" % xml)
-                sys.exit(1)
+        for xml_files, protocol_path, protocol in protocol_versions:
 
-        for xml in v20_dialects:
-            dialect = os.path.basename(xml)[:-4]
-            wildcard = os.getenv("MAVLINK_DIALECT",'*')
-            if not fnmatch.fnmatch(dialect, wildcard):
-                continue
-            print("Building %s for protocol 2.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
-                print("Building failed %s for protocol 2.0" % xml)
-                sys.exit(1)
+            if should_generate_external_dialects:
+                xml_files += external_dialects
+
+            for xml in xml_files:
+                dialect = os.path.basename(xml)[:-4]
+                wildcard = os.getenv("MAVLINK_DIALECT",'*')
+                if not fnmatch.fnmatch(dialect, wildcard):
+                    continue
+                print("Building %s for protocol %s" % (xml, protocol))
+                args = Namespace(
+                    output=os.path.join(dialects_path, protocol_path, dialect),
+                    language="python",
+                    wire_protocol=protocol,
+                    definitions=[xml],
+                    validate=mavgen.DEFAULT_VALIDATE,
+                    error_limit=mavgen.DEFAULT_ERROR_LIMIT,
+                    strict_units=mavgen.DEFAULT_STRICT_UNITS
+                )
+                if not mavgen.mavgen(args, args.definitions):
+                    print("Building failed %s for protocol %s" % (xml, protocol))
+                    sys.exit(1)
 
 
 class custom_build_py(build_py):
