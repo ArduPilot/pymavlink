@@ -4,6 +4,7 @@
 pragma Ada_2022;
 
 with Interfaces;              use Interfaces;
+with MAVLink.Raw_Floats;      use MAVLink.Raw_Floats;
 with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
 
 private with MAVLink.X25CRC;
@@ -38,8 +39,8 @@ package MAVLink.V1 is
      with Component_Size => 32;
    type Integer_64_Array is array (Natural range <>) of Interfaces.Integer_64
      with Component_Size => 64;
-   type Short_Float_Array is array (Natural range <>) of
-     Interfaces.IEEE_Float_32 with Component_Size => 32;
+   type Short_Float_Array is array (Natural range <>) of Raw_Float
+     with Component_Size => 32;
    type Long_Float_Array is array (Natural range <>) of Raw_Long_Float
      with Component_Size => 64;
 

@@ -78,7 +78,7 @@ field_types = {
     'int16_t' : 'Interfaces.Integer_16',
     'int32_t' : 'Interfaces.Integer_32',
     'int64_t' : 'Interfaces.Integer_64',
-    'float' : 'Interfaces.IEEE_Float_32',
+    'float' : 'Raw_Float',
     'double' : 'Raw_Long_Float'}
 
 field_array_types = {
@@ -93,51 +93,11 @@ field_array_types = {
     'float' : 'Short_Float_Array',
     'double' : 'Long_Float_Array'}
 
-array_to_float_v1 = {
-    'Short_Float_Array' : 'Interfaces.IEEE_Float_32',
-    'Long_Float_Array' : 'Raw_Long_Float'}
-
-field_values_v1 = {
-    'uint8_t' : '1',
-    'uint16_t' : '2',
-    'uint32_t' : '3',
-    'uint64_t' : '4',
-    'int8_t' : '5',
-    'int16_t' : '6',
-    'int32_t' : '7',
-    'int64_t' : '8',
-    'float' : '9.9',
-    'double' : 'To_Raw (10.10)'}
-
-field_array_values_v1 = {
-    'uint8_t' : '[others => 1]',
-    'uint16_t' : '[others => 2]',
-    'uint32_t' : '[others => 3]',
-    'uint64_t' : '[others => 4]',
-    'int8_t' : '[others => 5]',
-    'int16_t' : '[others => 6]',
-    'int32_t' : '[others => 7]',
-    'int64_t' : '[others => 8]',
-    'float' : '[others => 9.9]',
-    'double' : '[others => To_Raw (10.10)]'}
-
-field_v2_types = {
-    'uint8_t' : 'Interfaces.Unsigned_8',
-    'uint16_t' : 'Interfaces.Unsigned_16',
-    'uint32_t' : 'Interfaces.Unsigned_32',
-    'uint64_t' : 'Interfaces.Unsigned_64',
-    'int8_t' : 'Interfaces.Integer_8',
-    'int16_t' : 'Interfaces.Integer_16',
-    'int32_t' : 'Interfaces.Integer_32',
-    'int64_t' : 'Interfaces.Integer_64',
-    'float' : 'Raw_Float',
-    'double' : 'Raw_Long_Float'}
-
-array_to_float_v2 = {
+array_to_float = {
     'Short_Float_Array' : 'Raw_Float',
     'Long_Float_Array' : 'Raw_Long_Float'}
 
-field_values_v2 = {
+field_values = {
     'uint8_t' : '1',
     'uint16_t' : '2',
     'uint32_t' : '3',
@@ -149,7 +109,7 @@ field_values_v2 = {
     'float' : 'To_Raw (9.9)',
     'double' : 'To_Raw (10.10)'}
 
-field_array_values_v2 = {
+field_array_values = {
     'uint8_t' : '[others => 1]',
     'uint16_t' : '[others => 2]',
     'uint32_t' : '[others => 3]',
@@ -520,6 +480,10 @@ def generate_v1_types(directory, x, types_size):
     for t in x.enum:
         size = types_size[t.name]
 
+        if size is None:
+            if t.bitmask: size = calculate_bitmask_size(t)
+            else: size = calculate_enum_size(t)
+
         if size is not None:
             if t.bitmask:
                 outf.write(repr_bitmask(t, size))
@@ -867,7 +831,7 @@ def generate_v1_message(msg, spec, body, xml):
                 spec.write(tp)
 
         if field.invalid:
-            s = get_default(field.invalid, tp, array_to_float_v1)
+            s = get_default(field.invalid, tp, array_to_float)
             if s != "":
                 spec.write(" :=\n        %s" % s)
 
@@ -930,6 +894,7 @@ def generate_test_v1(directory, xml, bitmasks):
     f.write("""\nwith Ada.Text_IO;
 
 pragma Warnings (Off); --  prevent "not used"
+with MAVLink.Raw_Floats; use MAVLink.Raw_Floats;
 with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
 pragma Warnings (On);
 
@@ -970,7 +935,7 @@ begin
 
                     else:
                         if field.array_length:
-                            value = field_array_values_v1[field.type]
+                            value = field_array_values[field.type]
 
                         elif field.enum:
                             if field.enum in bitmasks:
@@ -981,7 +946,7 @@ begin
                                     find_package(xml, field.enum),
                                     normalize_enum_name(field.enum))
                         else:
-                            value = field_values_v1[field.type]
+                            value = field_values[field.type]
 
                 if first:
                     first = False
@@ -1020,8 +985,10 @@ end Test;""")
 #
 pre_files_v1 = (
     'mavlink_v1.gpr',
-    'mavlink.ads', 'mavlink-v1.ads', 'mavlink-v1.adb',
+    'mavlink.ads',
+    'mavlink-v1.ads', 'mavlink-v1.adb',
     'mavlink-x25crc.ads', 'mavlink-x25crc.adb',
+    'mavlink-raw_floats.ads',
     'mavlink-raw_long_floats.ads')
 
 def generate(directory, xml):
@@ -1139,11 +1106,11 @@ def generate_v2_message(msg, spec, body, xml):
                 spec.write(tp)
 
             else:
-                tp = field_v2_types[field.type]
+                tp = field_types[field.type]
                 spec.write(tp)
 
         if field.invalid:
-            s = get_default(field.invalid, tp, array_to_float_v2)
+            s = get_default(field.invalid, tp, array_to_float)
             if s != "":
                 spec.write(" :=\n        %s" % s)
 
@@ -1364,7 +1331,7 @@ begin
 
                     else:
                         if field.array_length:
-                            value = field_array_values_v2[field.type]
+                            value = field_array_values[field.type]
 
                         elif field.enum:
                             if field.enum in bitmasks:
@@ -1375,7 +1342,7 @@ begin
                                     find_package(xml, field.enum),
                                     normalize_enum_name(field.enum))
                         else:
-                            value = field_values_v2[field.type]
+                            value = field_values[field.type]
 
                 if first: 
                     first = False
@@ -1419,14 +1386,15 @@ end Test;""")
 pre_files_v1_for_v2 = (
     'mavlink-x25crc.ads',
     'mavlink-x25crc.adb',
+    'mavlink-raw_floats.ads',
     'mavlink-raw_long_floats.ads'
 )
 
 pre_files_v2 = (
     'mavlink_v2.gpr',
-    'mavlink.ads', 'mavlink-v2.ads', 'mavlink-v2.adb',
-    'mavlink-sha_256.ads', 'mavlink-sha_256.adb',
-    'mavlink-raw_floats.ads'
+    'mavlink.ads',
+    'mavlink-v2.ads', 'mavlink-v2.adb',
+    'mavlink-sha_256.ads', 'mavlink-sha_256.adb'
 )
 
 def generate_v2(directory, xml):
