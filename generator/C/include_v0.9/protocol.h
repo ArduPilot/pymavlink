@@ -34,6 +34,14 @@
 #define MAVLINK_END_UART_SEND(chan, length)
 #endif
 
+/*
+  to get warnings when any WIP message is used, add this:
+  #define MAVLINK_WIP __attribute__((warning("MAVLink work in progress")))
+*/
+#ifndef MAVLINK_WIP
+#define MAVLINK_WIP
+#endif
+
 #ifdef MAVLINK_SEPARATE_HELPERS
 #define MAVLINK_HELPER
 #else
