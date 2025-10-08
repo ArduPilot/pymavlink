@@ -984,7 +984,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if file_size % self.write_block_size != 0:
             write_blockcount += 1
 
-        self.write_list = Set(range(write_blockcount))
+        self.write_list = set(range(write_blockcount))
         self.write_acks = 0
         self.write_total = write_blockcount
         self.write_idx = 0
