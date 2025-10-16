@@ -394,7 +394,7 @@ def create_dialect_spec (directory, file_prefix, ver, x, xml, header=None):
         for id in ids:
             if id != ids[0]:
                 spec.write(",")
-            spec.write('\n         when %s => "%s"' % (str(id).ljust(n_len), str(id)))
+            spec.write('\n         when %s => "%s"' % (str(id).ljust(n_len), id_name[id]))
         spec.write(");\n\n")
     spec.write("end %s.%s;\n" % (ver, dialect.title()))
 

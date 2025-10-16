@@ -295,7 +295,7 @@ package body MAVLink.SHA_256 is
          R_SEA      : Data (1 .. Result'Size / 8) with Import,
            Address => Result'Address;
       begin
-         if System.Default_Bit_Order /= Hash_Bit_Order then
+         if System.Default_Bit_Order /= System.Low_Order_First then
             for J in Result'Range loop
                Result (J) := Swap (Result (J));
             end loop;

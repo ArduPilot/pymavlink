@@ -6,9 +6,7 @@ with System;
 
 package MAVLink.SHA_256 is
 
-   pragma Preelaborate;
-
-   Hash_Bit_Order : System.Bit_Order := System.Low_Order_First;
+   pragma Pure;
 
    type Context is private;
 
