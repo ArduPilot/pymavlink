@@ -275,6 +275,9 @@ class MissionItemProtocol(object):
                 w.x, w.y, w.z, w.autocontinue))
         f.close()
 
+    def include_wp_in_view_index(self, w):
+        return self.is_location_wp(w)
+
     def view_indexes(self, done=None):
         '''return a list waypoint indexes in view order'''
         ret = []
@@ -291,7 +294,7 @@ class MissionItemProtocol(object):
         while idx < self.count():
             w = self.wp(idx)
             if idx in done:
-                if self.is_location_wp(w):
+                if self.include_wp_in_view_index(w):
                     ret.append(idx)
                 break
             if w.command in [mavutil.mavlink.MAV_CMD_DO_LAND_START, mavutil.mavlink.MAV_CMD_DO_RETURN_PATH_START]:
@@ -306,10 +309,10 @@ class MissionItemProtocol(object):
             if w.command == mavutil.mavlink.MAV_CMD_DO_JUMP:
                 idx = int(w.param1)
                 w = self.wp(idx)
-                if self.is_location_wp(w):
+                if self.include_wp_in_view_index(w):
                     ret.append(idx)
                 continue
-            if self.is_location_wp(w):
+            if self.include_wp_in_view_index(w):
                 ret.append(idx)
             if w.command in [ mavutil.mavlink.MAV_CMD_NAV_LAND,
                               mavutil.mavlink.MAV_CMD_NAV_VTOL_LAND ]:
@@ -448,6 +451,17 @@ class MAVWPLoader(MissionItemProtocol):
         if w.x == 0 and w.y == 0:
             return False
         return self.is_location_command(w.command)
+
+    def is_destination_wp(self, w):
+        if w.command not in mavutil.mavlink.enums['MAV_CMD']:
+            return False
+        ret = getattr(mavutil.mavlink.enums['MAV_CMD'][w.command], 'is_destination', True)
+        if ret is None:
+            return self.is_location_wp(w)
+        return ret
+
+    def include_wp_in_view_index(self, w):
+        return self.is_destination_wp(w)
 
 
 def get_first_line_from_file(filename):
