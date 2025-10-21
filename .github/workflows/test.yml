@@ -30,7 +30,7 @@ jobs:
           sudo apt update
           sudo apt install -y libgtest-dev g++ tshark
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '16'
 
@@ -94,7 +94,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install lxml
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
       - name: Install mavlink message
