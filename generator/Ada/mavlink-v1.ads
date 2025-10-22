@@ -11,7 +11,7 @@ private with MAVLink.X25CRC;
 
 package MAVLink.V1 is
 
-   pragma Preelaborate;
+   pragma Pure;
 
    subtype Msg_Id is Interfaces.Unsigned_8;
 
@@ -76,6 +76,10 @@ package MAVLink.V1 is
    function Get_Target_Component_Id
      (Conn : Connection) return Interfaces.Unsigned_8 with Inline;
 
+   function Get_Message_Sequnce
+     (Conn : Connection) return Interfaces.Unsigned_8 with Inline;
+   --  Returns message's Seq
+
    function Get_Msg_Id (Conn : Connection) return Msg_Id with Inline;
 
    procedure Get_Buffer
@@ -100,6 +104,10 @@ package MAVLink.V1 is
 
    function Get_Target_Component_Id
      (Conn : In_Connection) return Interfaces.Unsigned_8 with Inline;
+
+   function Get_Message_Sequnce
+     (Conn : In_Connection) return Interfaces.Unsigned_8 with Inline;
+   --  Returns message's Seq
 
    function Get_Msg_Id (Conn : In_Connection) return Msg_Id with Inline;
 
@@ -155,6 +163,7 @@ private
 
 
    Pos_Len                 : constant Natural := 2;
+   Pos_Sequence            : constant Natural := 3;
    Pos_Target_System_Id    : constant Natural := 4;
    Pos_Target_Component_Id : constant Natural := 5;
    Pos_Msg_Id              : constant Natural := 6;
@@ -184,8 +193,12 @@ private
      (Conn : Connection) return Interfaces.Unsigned_8
    is (Conn.Incoming.In_Buf (Pos_Target_Component_Id));
 
+   function Get_Message_Sequnce
+     (Conn : Connection) return Interfaces.Unsigned_8
+   is (Conn.Incoming.In_Buf (Pos_Sequence));
+
    function Get_Msg_Id (Conn : Connection) return Msg_Id
-   is (Conn.Incoming.In_Buf (Pos_Msg_id));
+   is (Conn.Incoming.In_Buf (Pos_Msg_Id));
 
    function Get_Msg_Len (Conn : Connection) return Interfaces.Unsigned_8
    is (Conn.Incoming.In_Buf (Pos_Len));
@@ -220,8 +233,12 @@ private
      (Conn : In_Connection) return Interfaces.Unsigned_8
    is (Conn.Incoming.In_Buf (Pos_Target_Component_Id));
 
+   function Get_Message_Sequnce
+     (Conn : In_Connection) return Interfaces.Unsigned_8
+   is (Conn.Incoming.In_Buf (Pos_Sequence));
+
    function Get_Msg_Id (Conn : In_Connection) return Msg_Id
-   is (Conn.Incoming.In_Buf (Pos_Msg_id));
+   is (Conn.Incoming.In_Buf (Pos_Msg_Id));
 
    function Get_Msg_Len (Conn : In_Connection) return Interfaces.Unsigned_8
    is (Conn.Incoming.In_Buf (Pos_Len));

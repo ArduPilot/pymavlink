@@ -359,7 +359,7 @@ def create_dialect_spec (directory, file_prefix, ver, x, xml, header=None):
     spec.write("pragma Ada_2022;\n\n")
 
     spec.write("package %s.%s is\n\n" % (ver, dialect.title()))
-    spec.write("   pragma Preelaborate;\n\n")
+    spec.write("   pragma Pure;\n\n")
 
     ids = []
     id_name = {}
@@ -409,7 +409,7 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
     spec.write("pragma Ada_2022;\n\n")
 
     spec.write("package %s.%s.Types is\n\n" % (ver, dialect.title()))
-    spec.write("   pragma Preelaborate;\n\n")
+    spec.write("   pragma Pure;\n\n")
     return spec
 
 # Create file for the message spec
@@ -435,7 +435,7 @@ def create_message_pkg (x, f_name, p_name, ver, m, header=None):
             spec.write("with %s.%s.Types; use %s.%s.Types;\n" % (ver, inc, ver, inc))
 
     spec.write("\npackage %s is\n\n" % p_name)
-    spec.write("   pragma Preelaborate;\n\n")
+    spec.write("   pragma Pure;\n\n")
     return spec
 
 # Create file for the message body
@@ -986,8 +986,10 @@ end Test;""")
 pre_files_v1 = (
     'mavlink_v1.gpr',
     'mavlink.ads',
-    'mavlink-v1.ads', 'mavlink-v1.adb',
-    'mavlink-x25crc.ads', 'mavlink-x25crc.adb',
+    'mavlink-v1.ads',
+    'mavlink-v1.adb',
+    'mavlink-x25crc.ads',
+    'mavlink-x25crc.adb',
     'mavlink-raw_floats.ads',
     'mavlink-raw_long_floats.ads')
 
@@ -1384,6 +1386,7 @@ end Test;""")
 
 # Generate V2
 pre_files_v1_for_v2 = (
+    'mavlink.ads',
     'mavlink-x25crc.ads',
     'mavlink-x25crc.adb',
     'mavlink-raw_floats.ads',
@@ -1392,9 +1395,10 @@ pre_files_v1_for_v2 = (
 
 pre_files_v2 = (
     'mavlink_v2.gpr',
-    'mavlink.ads',
-    'mavlink-v2.ads', 'mavlink-v2.adb',
-    'mavlink-sha_256.ads', 'mavlink-sha_256.adb'
+    'mavlink-v2.ads',
+    'mavlink-v2.adb',
+    'mavlink-sha_256.ads',
+    'mavlink-sha_256.adb'
 )
 
 def generate_v2(directory, xml):

@@ -9,7 +9,7 @@ private with MAVLink.SHA_256;
 
 package MAVLink.V2 is
 
-   pragma Preelaborate;
+   pragma Pure;
 
    type Msg_Id is mod 2 ** 24 with Size => 24;
    --  Message ID has 3 bytes

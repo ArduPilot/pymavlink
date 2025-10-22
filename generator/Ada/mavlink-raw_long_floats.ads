@@ -6,7 +6,7 @@ private with Ada.Unchecked_Conversion;
 
 package MAVLink.Raw_Long_Floats is
 
-   pragma Preelaborate;
+   pragma Pure;
 
    type Raw_Long_Float is private;
 
