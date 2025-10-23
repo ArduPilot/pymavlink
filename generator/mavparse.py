@@ -175,6 +175,8 @@ class MAVEnumEntry(object):
         self.origin_line = origin_line
         self.has_location = has_location
 
+
+
 class MAVEnum(object):
     def __init__(self, name, linenumber, description='', bitmask=False):
         self.name = name
@@ -184,6 +186,20 @@ class MAVEnum(object):
         self.highest_value = 0
         self.linenumber = linenumber
         self.bitmask = bitmask
+        self.merged = False
+        self.copied = False
+
+    def copy(self):
+        newcopy = MAVEnum(self.name, self.linenumber, self.bitmask)
+        newcopy.description = self.description
+        newcopy.entry = self.entry[:]
+        newcopy.start_value = self.start_value
+        newcopy.highest_value = self.highest_value
+        newcopy.linenumber = self.linenumber
+        newcopy.bitmask = self.bitmask
+        newcopy.merged = self.merged
+        newcopy.copied = True
+        return newcopy
 
 class MAVXML(object):
     '''parse a mavlink XML file'''
@@ -305,11 +321,11 @@ class MAVXML(object):
             elif in_element == "mavlink.enums.enum.entry.param":
                 check_attrs(attrs, ['index'], 'enum param')
                 self.enum[-1].entry[-1].param.append(
-                                                MAVEnumParam(attrs['index'], 
-                                                        label=attrs.get('label', ''), units=attrs.get('units', ''), 
-                                                        enum=attrs.get('enum', ''), increment=attrs.get('increment', ''), 
-                                                        minValue=attrs.get('minValue', ''), 
-                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'), 
+                                                MAVEnumParam(attrs['index'],
+                                                        label=attrs.get('label', ''), units=attrs.get('units', ''),
+                                                        enum=attrs.get('enum', ''), increment=attrs.get('increment', ''),
+                                                        minValue=attrs.get('minValue', ''),
+                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'),
                                                         reserved=attrs.get('reserved', False), multiplier=attrs.get('multiplier','') ))
 
         def is_target_system_field(m, f):
@@ -347,7 +363,7 @@ class MAVXML(object):
         p.CharacterDataHandler = char_data
         p.ParseFile(f)
         f.close()
-   
+
 
         #Post process to add reserved params (for docs)
         for current_enum in self.enum:
@@ -358,13 +374,13 @@ class MAVXML(object):
                     continue
                 params_dict=dict()
                 for param_index in range (1,8):
-                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='', 
+                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
                                                         minValue='', maxValue='', default='0', reserved='True')
 
                 for a_param in enum_entry.param:
                     params_dict[int(a_param.index)] = a_param
                 enum_entry.param=params_dict.values()
-                
+
 
 
         self.message_lengths = {}
@@ -399,7 +415,7 @@ class MAVXML(object):
             m.target_system_ofs = 0
             m.target_component_ofs = 0
             m.field_offsets = {}
-            
+
             if self.sort_fields:
                 # when we have extensions we only sort up to the first extended field
                 sort_end = m.base_fields()
@@ -484,43 +500,10 @@ def message_checksum(msg):
             crc.accumulate([f.array_length])
     return (crc.crc&0xFF) ^ (crc.crc>>8)
 
-def merge_enums(xml):
-    '''merge enums between XML files'''
-    emap = {}
-    for x in xml:
-        newenums = []
-        for enum in x.enum:
-            if enum.name in emap:
-                emapitem = emap[enum.name]
-                # check for possible conflicting auto-assigned values after merge
-                if (emapitem.start_value <= enum.highest_value and emapitem.highest_value >= enum.start_value):
-                    for entry in emapitem.entry:
-                        # correct the value if necessary, but only if it was auto-assigned to begin with
-                        if entry.value <= enum.highest_value and entry.autovalue is True:
-                            entry.value = enum.highest_value + 1
-                            enum.highest_value = entry.value
-                # merge the entries
-                emapitem.entry.extend(enum.entry)
-                if not emapitem.description:
-                    emapitem.description = enum.description
-                print("Merged enum %s" % enum.name)
-            else:
-                newenums.append(enum)
-                emap[enum.name] = enum
-        x.enum = newenums
-    for e in emap:
-        # sort by value
-        emap[e].entry = sorted(emap[e].entry,
-                               key=operator.attrgetter('value'),
-                               reverse=False)
-        # add a ENUM_END
-        emap[e].entry.append(MAVEnumEntry("%s_ENUM_END" % emap[e].name,
-                                            emap[e].entry[-1].value+1, end_marker=True))
+
 
 def check_duplicates(xml):
     '''check for duplicate message IDs'''
-
-    merge_enums(xml)
 
     msgmap = {}
     msg_name_map = {}
