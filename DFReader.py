@@ -7,9 +7,6 @@ Released under GNU GPL version 3 or later
 
 Partly based on SDLog2Parser by Anton Babushkin
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
 
 import array
 import math
@@ -25,9 +22,11 @@ import io
 
 try:
     from . import mavutil
-except Exception:
+    from . import dfindexer
+except ImportError:
     # allows running uninstalled
     from pymavlink import mavutil
+    from pymavlink import dfindexer
 
 try:
     long        # Python 2 has long
@@ -125,7 +124,7 @@ class DFFormat(object):
             if self.msg_fmts[i] == 'a':
                 self.a_indexes.append(i)
 
-        # If this format was alrady defined, copy over units and instance info
+        # If this format was already defined, copy over units and instance info
         if oldfmt is not None:
             self.units = oldfmt.units
             if oldfmt.instance_field is not None:
@@ -170,7 +169,7 @@ class DFFormat(object):
             # Get the unit multiplier from the lookup table
             if mult_ids[i] in mult_lookup:
                 unitmult = mult_lookup[mult_ids[i]]
-                # Combine the multipler and unit to derive the real unit
+                # Combine the multiplier and unit to derive the real unit
                 if unitmult in MULT_TO_PREFIX:
                     self.units[i] = MULT_TO_PREFIX[unitmult]+self.units[i]
                 else:
@@ -228,7 +227,7 @@ class DFMessage(object):
         except Exception:
             raise AttributeError(field)
         if self.fmt.msg_fmts[i] == 'Z' and self.fmt.name == 'FILE':
-            # special case for FILE contens as bytes
+            # special case for FILE contents as bytes
             return self._elements[i]
         if isinstance(self._elements[i], bytes):
             try:
@@ -469,13 +468,20 @@ class DFReaderClock_usec(DFReaderClock):
     '''DFReaderClock_usec - use microsecond timestamps from messages'''
     def __init__(self):
         DFReaderClock.__init__(self)
+        self.first_us_stamp = None
 
     def find_time_base(self, gps, first_us_stamp):
         '''work out time basis for the log - even newer style'''
         t = self._gpsTimeToTime(gps.GWk, gps.GMS)
         self.set_timebase(t - gps.TimeUS*0.000001)
         # this ensures FMT messages get appropriate timestamp:
-        self.timestamp = self.timebase + first_us_stamp*0.000001
+        self.first_us_stamp = first_us_stamp
+
+    def rewind_event(self):
+        '''reset state on rewind'''
+        self.timestamp = self.timebase
+        if self.first_us_stamp is not None:
+            self.timestamp += self.first_us_stamp*0.000001
 
     def type_has_good_TimeMS(self, type):
         '''The TimeMS in some messages is not from *our* clock!'''
@@ -510,11 +516,20 @@ class DFReaderClock_usec(DFReaderClock):
 class DFReaderClock_msec(DFReaderClock):
     '''DFReaderClock_msec - a format where many messages have TimeMS in
     their formats, and GPS messages have a "T" field giving msecs'''
+    def __init__(self):
+        DFReaderClock.__init__(self)
+        self.first_ms_stamp = None
     def find_time_base(self, gps, first_ms_stamp):
         '''work out time basis for the log - new style'''
         t = self._gpsTimeToTime(gps.Week, gps.TimeMS)
         self.set_timebase(t - gps.T*0.001)
-        self.timestamp = self.timebase + first_ms_stamp*0.001
+        self.first_ms_stamp = first_ms_stamp
+
+    def rewind_event(self):
+        '''reset state on rewind'''
+        self.timestamp = self.timebase
+        if self.first_ms_stamp is not None:
+            self.timestamp += self.first_ms_stamp*0.001
 
     def set_message_timestamp(self, m):
         if 'TimeMS' == m._fieldnames[0]:
@@ -788,17 +803,18 @@ class DFReader(object):
         self.mult_lookup = {}  # lookup table of multipliers defined by MULT messages
         self.metadata = DFMetaData(self)
 
-    def _rewind(self):
+    def _rewind(self, keep_messages=False):
         '''reset state on rewind'''
         # be careful not to replace self.messages with a new hash;
         # some people have taken a reference to self.messages and we
         # need their messages to disappear to.  If they want their own
         # copy they can copy.copy it!
-        self.messages.clear()
-        self.messages = {
-            'MAV': self,
-            '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
-        }
+        if not keep_messages:
+            self.messages.clear()
+            self.messages = {
+                'MAV': self,
+                '__MAV__': self,  # avoids conflicts with messages actually called "MAV"
+            }
         if self._flightmodes is not None and len(self._flightmodes) > 0:
             self.flightmode = self._flightmodes[0][0]
         else:
@@ -827,7 +843,7 @@ class DFReader(object):
     def init_clock(self):
         '''work out time basis for the log'''
 
-        self._rewind()
+        self._rewind(keep_messages=True)
 
         # speculatively create a gps clock in case we don't find anything
         # better
@@ -841,6 +857,28 @@ class DFReader(object):
         first_ms_stamp = None
 
         have_good_clock = False
+        first_modern_gps_message = None
+
+        # Try first for a fast lookup for a modern GPS time
+        while True:
+            # Add PARM messages so that we also initialize the param dict
+            m = self.recv_match(type=['GPS', 'PARM'], strict=True)
+            if m is None:
+                break
+            if m.get_type() == 'PARM':
+                continue
+            if getattr(m, "TimeUS", None) is None or \
+               getattr(m, "GWk", None) is None or \
+               getattr(m, "GMS", None) is None:
+                # not a modern GPS message
+                break
+            first_modern_gps_message = m
+            if m.GWk > 0:
+                # We have a good GPS time; we just need to go back and get
+                # the first TimeUS timestamp to set the time base
+                break
+
+        self._rewind(keep_messages=True)
         while True:
             m = self.recv_msg()
             if m is None:
@@ -850,6 +888,17 @@ class DFReader(object):
 
             if first_us_stamp is None:
                 first_us_stamp = getattr(m, "TimeUS", None)
+                if first_modern_gps_message is not None and first_us_stamp is not None:
+                    # If we never got a valid time out of that message, then
+                    # we don't have a good clock
+                    if first_modern_gps_message.GWk <= 0:
+                        break
+                    # we have a valid GPS time and a valid TimeUS
+                    self.init_clock_usec()
+                    if not self._zero_time_base:
+                        self.clock.find_time_base(first_modern_gps_message, first_us_stamp)
+                    have_good_clock = True
+                    break
 
             if first_ms_stamp is None and (type != 'GPS' and type != 'GPS2'):
                 # Older GPS messages use TimeMS for msecs past start
@@ -909,7 +958,7 @@ class DFReader(object):
             elif first_ms_stamp is not None:
                 self.init_clock_msec()
 
-        self._rewind()
+        self._rewind(keep_messages=True)
 
         return
 
@@ -980,7 +1029,7 @@ class DFReader(object):
                 self.param_defaults[m.Name] = m.Default
         self._set_time(m)
 
-    def recv_match(self, condition=None, type=None, blocking=False):
+    def recv_match(self, condition=None, type=None, blocking=False, strict=False):
         '''recv the next message that matches the given condition
         type can be a string or a list of strings'''
         if type is not None:
@@ -990,7 +1039,7 @@ class DFReader(object):
                 type = set(type)
         while True:
             if type is not None:
-                self.skip_to_type(type)
+                self.skip_to_type(type, strict=strict)
             m = self.recv_msg()
             if m is None:
                 return None
@@ -1018,9 +1067,10 @@ class DFReader(object):
         if self._flightmodes is None:
             self._rewind()
             self._flightmodes = []
-            types = set(['MODE'])
+            # Adding 'PARM' here keeps MAVExplorer behaving the same as before
+            types = set(['MODE', 'PARM'])
             while True:
-                m = self.recv_match(type=types)
+                m = self.recv_match(type=types, strict=True)
                 if m is None:
                     break
                 tstamp = m._timestamp
@@ -1037,12 +1087,12 @@ class DFReader(object):
 
         self._rewind()
         return self._flightmodes
-    
+
     def close(self):
         '''close the log file'''
         self.data_map.close()
         self.filehandle.close()
-    
+
 
 class DFReader_binary(DFReader):
     '''parse a binary dataflash file'''
@@ -1070,14 +1120,23 @@ class DFReader_binary(DFReader):
         }
         self._zero_time_base = zero_time_base
         self.prev_type = None
+        default_fast_index = '1' if dfindexer.available else '0'
+        use_fast_indexer = os.getenv('PYMAVLINK_FAST_INDEX', default_fast_index) == '1'
+        if use_fast_indexer and not dfindexer.available:
+            print("Warning: dfindexer is not available. Falling back to legacy indexer.")
+            print("You may need to pip install pymavlink again with PYMAVLINK_FAST_INDEX=1")
+            use_fast_indexer = False
+        if use_fast_indexer and dfindexer.available:
+            self.init_arrays_fast(progress_callback=progress_callback)
+        else:
+            self.init_arrays(progress_callback=progress_callback)
         self.init_clock()
         self.prev_type = None
-        self._rewind()
-        self.init_arrays(progress_callback)
+        self._rewind(keep_messages=True)
 
-    def _rewind(self):
+    def _rewind(self, keep_messages=False):
         '''rewind to start of log'''
-        DFReader._rewind(self)
+        DFReader._rewind(self, keep_messages=keep_messages)
         self.offset = 0
         self.remaining = self.data_len
         self.type_nums = None
@@ -1224,6 +1283,147 @@ class DFReader_binary(DFReader):
             self._count += counts[i]
         self.offset = 0
 
+    def init_arrays_fast(self, progress_callback=None):
+        '''initialise arrays for fast recv_match(), but with Cython'''
+
+        self._count = 0
+        self.name_to_id = {}
+        self.id_to_name = {}
+        type_instances = {}
+
+        data = memoryview(self.data_map)
+        for f in self.formats.values():
+            if f.name == 'FMT':
+                fmt_fmt = f
+                break
+        fmt_type = fmt_fmt.type
+        type_offset = -1
+        size_offset = -1
+        offset = 3 # Header length
+        for i in range(len(fmt_fmt.columns)):
+            format_spec = FORMAT_TO_STRUCT[fmt_fmt.format[i]][0]
+            col_len = struct.calcsize(format_spec)
+            if fmt_fmt.columns[i] == 'Type':
+                type_offset = offset
+                assert col_len == 1, "Unexpected format for FMT.Type"
+            elif fmt_fmt.columns[i] == 'Length':
+                size_offset = offset
+                assert col_len == 1, "Unexpected format for FMT.Length"
+            offset += col_len
+
+        offsets = dfindexer.build_offsets(
+            data,
+            fmt_type,
+            fmt_fmt.len,
+            type_offset,
+            size_offset,
+            self.HEAD1,
+            self.HEAD2,
+            progress_callback=progress_callback
+        )
+
+        # Parse the FMT messages
+        for ofs in offsets[fmt_type]:
+            # Parse the FMT message
+            body = data[ofs+3:ofs+fmt_fmt.len]
+            elements = list(struct.unpack(fmt_fmt.msg_struct, body))
+            ftype = elements[0]
+            mfmt = DFFormat(
+                ftype,
+                null_term(elements[2]), elements[1],
+                null_term(elements[3]), null_term(elements[4]),
+                oldfmt=self.formats.get(ftype, None))
+            self.formats[ftype] = mfmt
+            self.name_to_id[mfmt.name] = mfmt.type
+            self.id_to_name[mfmt.type] = mfmt.name
+
+        # Parse the UNIT messages
+        if 'UNIT' in self.name_to_id:
+            mtype = self.name_to_id['UNIT']
+            fmt = self.formats[mtype]
+            mlen = fmt.len
+            for ofs in offsets[mtype]:
+                body = data[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                self.unit_lookup[chr(elements[1])] = null_term(elements[2])
+
+        # Parse the MULT messages
+        if 'MULT' in self.name_to_id:
+            mtype = self.name_to_id['MULT']
+            fmt = self.formats[mtype]
+            mlen = fmt.len
+            for ofs in offsets[mtype]:
+                body = data[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                # Even though the multiplier value is logged as a double, the
+                # values in log files look to be single-precision values that have
+                # been cast to a double.
+                # To ensure that the values saved here can be used to index the
+                # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
+                mult = float("%.7g" % (elements[2]))
+                self.mult_lookup[chr(elements[1])] = mult
+
+        # Parse the FMTU messages
+        if 'FMTU' in self.name_to_id:
+            mtype = self.name_to_id['FMTU']
+            fmt = self.formats[mtype]
+            mlen = fmt.len
+            for ofs in offsets[mtype]:
+                body = data[ofs+3:ofs+mlen]
+                if len(body)+3 < mlen:
+                    break
+                elements = list(struct.unpack(fmt.msg_struct, body))
+                ftype = int(elements[1])
+                if ftype in self.formats:
+                    fmt2 = self.formats[ftype]
+                    if 'UnitIds' in fmt.colhash:
+                        fmt2.set_unit_ids(null_term(elements[fmt.colhash['UnitIds']]), self.unit_lookup)
+                    if 'MultIds' in fmt.colhash:
+                        fmt2.set_mult_ids(null_term(elements[fmt.colhash['MultIds']]), self.mult_lookup)
+
+        # Parse the messages of each type to try to build the messages
+        # dictionary.
+        for mtype in range(256):
+            if mtype not in self.formats:
+                continue
+            fmt = self.formats[mtype]
+            omtype = offsets[mtype]
+            num_offsets = len(omtype)
+            if fmt.instance_field:
+                NMSG = num_offsets
+                if not mtype in type_instances:
+                    type_instances[mtype] = set()
+                if fmt.instance_len == 1:
+                    # hack to reduce load cost, only scan first 100 messages
+                    # for single byte instance values. This works nearly all the time, and allows
+                    # for full indexing for things like NVF which is string indexed, while not taking a huge amount of CPU
+                    # on IMU and other bulk data
+                    NMSG = min(NMSG, 100)
+            else:
+                NMSG = min(1, num_offsets)
+            for i in range(NMSG):
+                ofs = omtype[i]
+                if fmt.name not in self.messages:
+                    self.offset = ofs
+                    self._parse_next()
+                if fmt.instance_field is not None:
+                    # see if we've had this instance value before
+                    idata = data[ofs+3+fmt.instance_ofs:ofs+3+fmt.instance_ofs+fmt.instance_len]
+                    if not idata in type_instances[mtype]:
+                        # its a new one, need to parse it so we have the complete set of instances
+                        type_instances[mtype].add(idata)
+                        self.offset = ofs
+                        self._parse_next()
+
+        self.offsets = offsets
+        self.counts = [len(offsets[i]) for i in range(256)]
+        self._count = sum(self.counts)
+        self.offset = 0
+
     def last_timestamp(self):
         '''get the last timestamp in the log'''
         highest_offset = 0
@@ -1246,14 +1446,14 @@ class DFReader_binary(DFReader):
             m = self.recv_msg()
         return m._timestamp
 
-
-    def skip_to_type(self, type):
+    def skip_to_type(self, type, strict=False):
         '''skip fwd to next msg matching given type set'''
 
         if self.type_nums is None:
             # always add some key msg types so we can track flightmode, params etc
-            type = type.copy()
-            type.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
+            if not strict:
+                type = type.copy()
+                type.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.indexes = []
             self.type_nums = []
             for t in type:
@@ -1274,6 +1474,9 @@ class DFReader_binary(DFReader):
         if smallest_index >= 0:
             self.indexes[smallest_index] += 1
             self.offset = smallest_offset
+        if smallest_index == -1:
+            # no more messages
+            self.offset = self.data_len
 
     def _parse_next(self):
         '''read one message, returning it as an object'''
@@ -1420,7 +1623,7 @@ class DFReader_binary(DFReader):
                                                  fmt.format.encode('ascii'),
                                                  ','.join(fmt.columns).encode('ascii')])
         return ret
-    
+
 
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
@@ -1457,13 +1660,13 @@ class DFReader_text(DFReader):
         self.id_to_name = { 0x80 : 'FMT' }
         self._rewind()
         self._zero_time_base = zero_time_base
-        self.init_clock()
-        self._rewind()
         self.init_arrays(progress_callback)
+        self.init_clock()
+        self._rewind(keep_messages=True)
 
-    def _rewind(self):
+    def _rewind(self, keep_messages=False):
         '''rewind to start of log'''
-        DFReader._rewind(self)
+        DFReader._rewind(self, keep_messages=keep_messages)
         # find the first valid line
         self.offset = self.data_map.find(b'FMT, ')
         if self.offset == -1:
@@ -1518,13 +1721,14 @@ class DFReader_text(DFReader):
             self._count += self.counts[mtype]
         self.offset = 0
 
-    def skip_to_type(self, type):
+    def skip_to_type(self, type, strict=False):
         '''skip fwd to next msg matching given type set'''
 
         if self.type_list is None:
             # always add some key msg types so we can track flightmode, params etc
             self.type_list = type.copy()
-            self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
+            if not strict:
+                self.type_list.update(set(['MODE','MSG','PARM','STAT','ORGN','VER']))
             self.type_list = list(self.type_list)
             self.indexes = []
             self.type_nums = []

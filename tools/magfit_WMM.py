@@ -3,9 +3,6 @@
 '''
 fit best estimate of magnetometer offsets, diagonals, off-diagonals, cmot and scaling using WMM target
 '''
-# to allow print to file with both python 2 and 3
-from __future__ import print_function
-
 import sys, time, os, math, copy
 
 from argparse import ArgumentParser

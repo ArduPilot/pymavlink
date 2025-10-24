@@ -4,9 +4,6 @@ module for loading/saving waypoints
 Copyright the ArduPilot Project
 Released under GNU LGPL version 3 or later
 '''
-from __future__ import print_function
-from builtins import range
-from builtins import object
 
 import time, copy
 import logging
@@ -29,7 +26,7 @@ class MAVWPError(Exception):
 
 
 class MissionItemProtocol(object):
-    '''Base class for transfering items based on the MISSION_ITEM protocol'''
+    '''Base class for transferring items based on the MISSION_ITEM protocol'''
     def __init__(self, target_system=0, target_component=0):
         self.wpoints = []
         self.target_system = target_system
@@ -39,6 +36,7 @@ class MissionItemProtocol(object):
             mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION : (255,0,0),
             mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION : (0,255,0),
             mavutil.mavlink.MAV_CMD_DO_LAND_START: (255, 127, 0),
+            mavutil.mavlink.MAV_CMD_DO_RETURN_PATH_START: (127, 255, 0),
         }
 
     def count(self):
@@ -296,7 +294,7 @@ class MissionItemProtocol(object):
                 if self.is_location_wp(w):
                     ret.append(idx)
                 break
-            if w.command == mavutil.mavlink.MAV_CMD_DO_LAND_START:
+            if w.command in [mavutil.mavlink.MAV_CMD_DO_LAND_START, mavutil.mavlink.MAV_CMD_DO_RETURN_PATH_START]:
                 # these are starting points; we should never fly to
                 # one of these.... but we want an edge *from* one of these
                 if len(ret) == 0:

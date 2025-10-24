@@ -117,6 +117,7 @@
     <xs:enumeration value="mrad/s"/>   <!-- milli-radians per second -->
     <xs:enumeration value="deg"/>      <!-- degrees -->
     <xs:enumeration value="deg/2"/>    <!-- degrees/2 required from dagar for HIGH_LATENCY2 message-->
+    <xs:enumeration value="ddeg/s"/>   <!-- decidegrees per second, used to correct a mistake in the AIS_VESSEL message, not recommended elsewhere-->
     <xs:enumeration value="deg/s"/>    <!-- degrees per second -->
     <xs:enumeration value="cdeg"/>     <!-- centidegrees -->
     <xs:enumeration value="cdeg/s"/>   <!-- centidegrees per second -->
@@ -169,9 +170,11 @@
     <!-- flow -->
     <xs:enumeration value="g/min"/>    <!-- grams/minute -->
     <xs:enumeration value="cm^3/min"/> <!-- cubic centimetres/minute -->
+    <xs:enumeration value="L/h"/>      <!-- Litres/hour -->
     <!-- volume -->
     <xs:enumeration value="cm^3"/>     <!-- cubic centimetres -->
     <xs:enumeration value="l"/>        <!-- litres -->
+    <xs:enumeration value="L"/>        <!-- Litres -->
   </xs:restriction>
 </xs:simpleType>
 

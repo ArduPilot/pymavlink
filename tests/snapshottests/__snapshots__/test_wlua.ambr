@@ -4,10 +4,10 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, 
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, Ack: 1, Len: 45
       MAVLink Protocol (45)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -23,7 +23,15 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
               confirmation (uint8_t): 1
-              param1: Mode (MAV_MODE): Unknown (1)
+              param1: Mode (MAV_MODE_FLAG): 0x00000001 (1)
+                  .... ...1 = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED: True
+                  .... ..0. = MAV_MODE_FLAG_TEST_ENABLED: False
+                  .... .0.. = MAV_MODE_FLAG_AUTO_ENABLED: False
+                  .... 0... = MAV_MODE_FLAG_GUIDED_ENABLED: False
+                  ...0 .... = MAV_MODE_FLAG_STABILIZE_ENABLED: False
+                  ..0. .... = MAV_MODE_FLAG_HIL_ENABLED: False
+                  .0.. .... = MAV_MODE_FLAG_MANUAL_INPUT_ENABLED: False
+                  0... .... = MAV_MODE_FLAG_SAFETY_ARMED: False
               param2: Custom Mode (float): 5
               param3: Custom Submode (float): 0
               param4 (float): 0
@@ -32,10 +40,10 @@
               param7 (float): 0
           Message CRC: 0xdb93
       
-      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) o
+      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, 
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, Ack: 46, Len: 82
       MAVLink Protocol (82)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -65,10 +73,10 @@
               text (char): Mode change to LOITER failed: requires position
           Message CRC: 0x647a
       
-      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706, Ack: 12611, Len: 45
       MAVLink Protocol (45)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -84,7 +92,8 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
               confirmation (uint8_t): 1
-              param1: Arm (float): 0
+              param1: Arm (MAV_BOOL): 0x00000000 (0)
+                  ...0 = MAV_BOOL_TRUE: False
               param2: Force (float): 0
               param3 (float): 0
               param4 (float): 0
@@ -93,10 +102,10 @@
               param7 (float): 0
           Message CRC: 0xf9df
       
-      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) o
+      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 126
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 12611, Ack: 751, Len: 88
       MAVLink Protocol (88)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -152,10 +161,10 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, 
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, Ack: 1, Len: 45
       MAVLink Protocol (45)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -171,7 +180,15 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_DO_SET_MODE (176)
               confirmation (uint8_t): 1
-              param1: Mode (MAV_MODE): Unknown (1)
+              param1: Mode (MAV_MODE_FLAG): 0x00000001 (1)
+                  .... ...1 = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED: True
+                  .... ..0. = MAV_MODE_FLAG_TEST_ENABLED: False
+                  .... .0.. = MAV_MODE_FLAG_AUTO_ENABLED: False
+                  .... 0... = MAV_MODE_FLAG_GUIDED_ENABLED: False
+                  ...0 .... = MAV_MODE_FLAG_STABILIZE_ENABLED: False
+                  ..0. .... = MAV_MODE_FLAG_HIL_ENABLED: False
+                  .0.. .... = MAV_MODE_FLAG_MANUAL_INPUT_ENABLED: False
+                  0... .... = MAV_MODE_FLAG_SAFETY_ARMED: False
               param2: Custom Mode (float): 5
               param3: Custom Submode (float): 0
               param4 (float): 0
@@ -180,10 +197,10 @@
               param7 (float): 0
           Message CRC: 0xdb93
       
-      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) o
+      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, 
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, Ack: 46, Len: 82
       MAVLink Protocol (82)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -213,10 +230,10 @@
               text (char): Mode change to LOITER failed: requires position
           Message CRC: 0x647a
       
-      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706, Ack: 12611, Len: 45
       MAVLink Protocol (45)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -232,7 +249,8 @@
               target_component (uint8_t): 1
               command (MAV_CMD): MAV_CMD_COMPONENT_ARM_DISARM (400)
               confirmation (uint8_t): 1
-              param1: Arm (float): 0
+              param1: Arm (MAV_BOOL): 0x00000000 (0)
+                  ...0 = MAV_BOOL_TRUE: False
               param2: Force (float): 0
               param3 (float): 0
               param4 (float): 0
@@ -241,10 +259,10 @@
               param7 (float): 0
           Message CRC: 0xf9df
       
-      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) o
+      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 126
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 12611, Ack: 751, Len: 88
       MAVLink Protocol (88)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -300,10 +318,10 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Frame 1: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, 
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 1, Ack: 1, Len: 45
       MAVLink Protocol (45)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -321,10 +339,10 @@
           Unparsable payload: 0000803f0000a04000000000000000000000000000000000
           Message CRC: 0xdb93
       
-      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) o
+      Frame 2: 138 bytes on wire (1104 bits), 138 bytes captured (1104 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, 
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 1, Ack: 46, Len: 82
       MAVLink Protocol (82)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -342,10 +360,10 @@
           Unparsable payload: b000040000000000fafa9276fd300000db0101fd0000044d
           Message CRC: 0x647a
       
-      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on 
+      Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706
+      Transmission Control Protocol, Src Port: 62025, Dst Port: 5760, Seq: 706, Ack: 12611, Len: 45
       MAVLink Protocol (45)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -363,10 +381,10 @@
           Unparsable payload: 000000000000000000000000000000000000000000000000
           Message CRC: 0xf9df
       
-      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) o
+      Frame 4: 144 bytes on wire (1152 bits), 144 bytes captured (1152 bits) on interface lo0, id 0
       Null/Loopback
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 126
+      Transmission Control Protocol, Src Port: 5760, Dst Port: 62025, Seq: 12611, Ack: 751, Len: 88
       MAVLink Protocol (88)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -393,7 +411,7 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 131 bytes on wire (1048 bits), 131 bytes captured (1048 bits) o
+      Frame 1: 131 bytes on wire (1048 bits), 131 bytes captured (1048 bits) on interface lo, id 0
       Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
       User Datagram Protocol, Src Port: 34942, Dst Port: 18570
@@ -408,25 +426,28 @@
               Component id: MAV_COMP_ID_AUTOPILOT1 (1)
               Message id: AUTOPILOT_VERSION (148)
           Payload: AUTOPILOT_VERSION (148)
-              capabilities (MAV_PROTOCOL_CAPABILITY): 0x000000000000f36f (6231
-                  .... .... .... .... ...1 = MAV_PROTOCOL_CAPABILITY_MISSION_F
-                  .... .... .... .... ..1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLO
-                  .... .... .... .... .1.. = MAV_PROTOCOL_CAPABILITY_MISSION_I
-                  .... .... .... .... 1... = MAV_PROTOCOL_CAPABILITY_COMMAND_I
-                  .... .... .... ...0 .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENC
-                  .... .... .... ..1. .... = MAV_PROTOCOL_CAPABILITY_FTP: True
-                  .... .... .... .1.. .... = MAV_PROTOCOL_CAPABILITY_SET_ATTIT
-                  .... .... .... 0... .... = MAV_PROTOCOL_CAPABILITY_SET_POSIT
-                  .... .... ...1 .... .... = MAV_PROTOCOL_CAPABILITY_SET_POSIT
-                  .... .... ..1. .... .... = MAV_PROTOCOL_CAPABILITY_TERRAIN: 
-                  .... .... .0.. .... .... = MAV_PROTOCOL_CAPABILITY_SET_ACTUA
-                  .... .... 0... .... .... = MAV_PROTOCOL_CAPABILITY_FLIGHT_TE
-                  .... ...1 .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPASS_C
-                  .... ..1. .... .... .... = MAV_PROTOCOL_CAPABILITY_MAVLINK2:
-                  .... .1.. .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_F
-                  .... 1... .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_R
-                  ...0 .... .... .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED2
-                  ..0. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENC
+              capabilities (MAV_PROTOCOL_CAPABILITY): 0x000000000000f36f (62319)
+                  .... .... .... .... .... ...1 = MAV_PROTOCOL_CAPABILITY_MISSION_FLOAT: True
+                  .... .... .... .... .... ..1. = MAV_PROTOCOL_CAPABILITY_PARAM_FLOAT: True
+                  .... .... .... .... .... .1.. = MAV_PROTOCOL_CAPABILITY_MISSION_INT: True
+                  .... .... .... .... .... 1... = MAV_PROTOCOL_CAPABILITY_COMMAND_INT: True
+                  .... .... .... .... ...0 .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_BYTEWISE: False
+                  .... .... .... .... ..1. .... = MAV_PROTOCOL_CAPABILITY_FTP: True
+                  .... .... .... .... .1.. .... = MAV_PROTOCOL_CAPABILITY_SET_ATTITUDE_TARGET: True
+                  .... .... .... .... 0... .... = MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_LOCAL_NED: False
+                  .... .... .... ...1 .... .... = MAV_PROTOCOL_CAPABILITY_SET_POSITION_TARGET_GLOBAL_INT: True
+                  .... .... .... ..1. .... .... = MAV_PROTOCOL_CAPABILITY_TERRAIN: True
+                  .... .... .... .0.. .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED3: False
+                  .... .... .... 0... .... .... = MAV_PROTOCOL_CAPABILITY_FLIGHT_TERMINATION: False
+                  .... .... ...1 .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION: True
+                  .... .... ..1. .... .... .... = MAV_PROTOCOL_CAPABILITY_MAVLINK2: True
+                  .... .... .1.. .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_FENCE: True
+                  .... .... 1... .... .... .... = MAV_PROTOCOL_CAPABILITY_MISSION_RALLY: True
+                  .... ...0 .... .... .... .... = MAV_PROTOCOL_CAPABILITY_RESERVED2: False
+                  .... ..0. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_PARAM_ENCODE_C_CAST: False
+                  .... .0.. .... .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPONENT_IMPLEMENTS_GIMBAL_MANAGER: False
+                  .... 0... .... .... .... .... = MAV_PROTOCOL_CAPABILITY_COMPONENT_ACCEPTS_GCS_CONTROL: False
+                  ...0 .... .... .... .... .... = MAV_PROTOCOL_CAPABILITY_GRIPPER: False
               flight_sw_version (uint32_t): 67307007
               middleware_sw_version (uint32_t): 0
               os_sw_version (uint32_t): 0
@@ -469,7 +490,7 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 70 bytes on wire (560 bits), 70 bytes captured (560 bits) on in
+      Frame 1: 70 bytes on wire (560 bits), 70 bytes captured (560 bits) on interface lo, id 0
       Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
       User Datagram Protocol, Src Port: 57304, Dst Port: 14550
@@ -498,10 +519,10 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 115 bytes on wire (920 bits), 115 bytes captured (920 bits) on 
+      Frame 1: 115 bytes on wire (920 bits), 115 bytes captured (920 bits) on interface lo, id 0
       Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
-      Transmission Control Protocol, Src Port: 54026, Dst Port: 5760, Seq: 1, 
+      Transmission Control Protocol, Src Port: 54026, Dst Port: 5760, Seq: 1, Ack: 1, Len: 49
       MAVLink Protocol (49)
           Header
               Magic value / version: MAVLink 2.0 (0xfd)
@@ -520,7 +541,7 @@
               command (MAV_CMD): MAV_CMD_NAV_VTOL_LAND (85)
               current (uint8_t): 0
               autocontinue (uint8_t): 1
-              param1: Land Options (NAV_VTOL_LAND_OPTIONS): NAV_VTOL_LAND_OPTI
+              param1: Land Options (NAV_VTOL_LAND_OPTIONS): NAV_VTOL_LAND_OPTIONS_DEFAULT (0)
               param2 (float): 0
               param3: Approach Altitude (float) m: 0
               param4: Yaw (float) deg: 0
@@ -538,7 +559,7 @@
     'returncode': 0,
     'stderr': '',
     'stdout': '''
-      Frame 1: 97 bytes on wire (776 bits), 97 bytes captured (776 bits) on in
+      Frame 1: 97 bytes on wire (776 bits), 97 bytes captured (776 bits) on interface lo, id 0
       Ethernet II, Src: 00:00:00:00:00:00, Dst: 00:00:00:00:00:00
       Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
       User Datagram Protocol, Src Port: 52752, Dst Port: 14550
@@ -564,6 +585,44 @@
               cog (uint16_t) [cdeg]: 0
               satellites_visible (uint8_t): 16
           Message CRC: 0x1911
+      
+  
+    ''',
+  })
+# ---
+# name: test_wlua[common.xml-file_transfer_protocol.pcapng]
+  dict({
+    'returncode': 0,
+    'stderr': '',
+    'stdout': '''
+      Frame 1: 139 bytes on wire (1112 bits), 139 bytes captured (1112 bits) on interface \Device\NPF_Loopback, id 0
+      Null/Loopback
+      Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+      User Datagram Protocol, Src Port: 50261, Dst Port: 14550
+      MAVLink Protocol (107)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 95
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 35
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: FILE_TRANSFER_PROTOCOL (110)
+          Payload: FILE_TRANSFER_PROTOCOL (110)
+              target_network (uint8_t): 0
+              target_system (uint8_t): 255
+              target_component (uint8_t): 230
+              payload (uint8_t[251])
+                  seq_number: 142
+                  payload_session: 1
+                  opcode: MAV_FTP_OPCODE_ACK (128)
+                  payload_size: 80
+                  req_opcode: MAV_FTP_OPCODE_BURSTREADFILE (15)
+                  burst_complete: 0
+                  payload_offset: 11120
+                  payload_data: cdcc4c3e0374414646494e495459000000000194535243
+          Message CRC: 0xb843
       
   
     ''',

@@ -13,8 +13,6 @@ hint:
 Copyright Sept 2012 David "Buzz" Bussenschutt
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
 import time
 
 from pymavlink import mavutil

@@ -19,7 +19,6 @@ Current Swift implementation supports only first version of MAVLink protocol.
 ## Requirements
 
 - Swift 3.0.1
-- Python 2+
 
 ## Generating Platform-specific Source Files
 

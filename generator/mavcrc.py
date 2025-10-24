@@ -5,7 +5,6 @@ Copyright Andrew Tridgell
 Released under GNU LGPL version 3 or later
 '''
 import sys
-from builtins import object
 
 try:
     import fastcrc

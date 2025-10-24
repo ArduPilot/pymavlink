@@ -6,8 +6,6 @@ assumed to be in the format that qgroundcontrol uses, which consists
 of a series of MAVLink packets, each with a 64 bit timestamp
 header. The timestamp is in microseconds since 1970 (unix epoch)
 '''
-from __future__ import print_function
-
 import array
 import fnmatch
 import json
@@ -27,7 +25,7 @@ parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps", dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
 parser.add_argument("--planner", action='store_true', help="use planner file format")
 parser.add_argument("--robust", action='store_true', help="Enable robust parsing (skip over bad data)")
-parser.add_argument("-f", "--follow", action='store_true', help="keep waiting for more data at end of file")
+parser.add_argument("-f", "--follow", action='store_true', help="keep waiting for more data at end of file (not implemented for .bin, .log, .csv")
 parser.add_argument("--condition", default=None, help="select packets by condition")
 parser.add_argument("-q", "--quiet", action='store_true', help="don't display packets")
 parser.add_argument("-o", "--output", default=None, help="output matching packets to give file")
@@ -44,6 +42,7 @@ parser.add_argument("--no-bad-data", action='store_true', help="Don't output cor
 parser.add_argument("--show-source", action='store_true', help="Show source system ID and component ID")
 parser.add_argument("--show-seq", action='store_true', help="Show sequence numbers")
 parser.add_argument("--show-types", action='store_true', help="Shows all message types available on opened log")
+parser.add_argument("--show-loss", action='store_true', help="Shows changes in lost messages")
 parser.add_argument("--source-system", type=int, default=None, help="filter by source system ID")
 parser.add_argument("--source-component", type=int, default=None, help="filter by source component ID")
 parser.add_argument("--link", type=int, default=None, help="filter by comms link ID")
@@ -214,6 +213,8 @@ if (isbin or islog) and args.format == 'csv':
     # we need FMT messages for column headings
     match_types.append("FMT")
 
+last_loss = 0
+
 # Keep track of data from the current timestep. If the following timestep has the same data, it's stored in here as well. Output should therefore have entirely unique timesteps.
 MAT = {}    # Dictionary to hold output data for 'mat' format option
 while True:
@@ -235,6 +236,9 @@ while True:
 
     if output is not None:
         if (isbin or islog) and m_type == "FMT":
+            output.write(m.get_msgbuf())
+            continue
+        if (isbin or islog) and m_type in ["FMTU", "MULT", "UNIT"]:
             output.write(m.get_msgbuf())
             continue
         if (isbin or islog) and (m_type == "PARM" and args.parms):
@@ -366,6 +370,10 @@ while True:
         if args.show_seq:
             s += " seq=%u" % m.get_seq()
         print(s)
+    if args.show_loss:
+        if last_loss != mlog.mav_loss:
+            print("lost %d messages" % (mlog.mav_loss - last_loss))
+            last_loss = mlog.mav_loss
 
 # Export the .mat file
 if args.format == 'mat':

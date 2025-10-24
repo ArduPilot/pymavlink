@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Test that the wlua generator works in Wireshark
 """
-import os
+import os, re
 import shutil
 import subprocess
 
@@ -50,6 +50,8 @@ except ImportError:
         ("common.xml", "mission_item_int.pcapng"),
         # test multipliers on eph and epv params of GPS_RAW_INT are handled
         ("common.xml", "gps_raw_int.pcapng"),
+        # test custom dissector for FILE_TRANSFER_PROTOCOL
+        ("common.xml", "file_transfer_protocol.pcapng"),
     ],
 )
 def test_wlua(request, tmp_path, snapshot, mdef, pcap):
@@ -86,14 +88,17 @@ def test_wlua(request, tmp_path, snapshot, mdef, pcap):
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        universal_newlines=True,
+        text=True,
         check=False,
     )
     # note that, with text output, tshark truncates hex dump lines at 80-ish or 100-ish characters.
     # Truncate them preemptively so this isn't reflected in the diff.
     # This doesn't lose any info we really care about.
-    truncated_stdout = ''.join([line[:72]+"\n" for line in actual.stdout.splitlines()])
-    
+    stdout_lines = actual.stdout.splitlines()
+    for i in range(len(stdout_lines)):
+        if re.search(r"[0-9a-f]{60}", stdout_lines[i]):
+            stdout_lines[i] = stdout_lines[i][:72]
+    truncated_stdout = '\n'.join(stdout_lines) + '\n'
     props_to_match = {
         "stdout": truncated_stdout,
         "stderr": actual.stderr,

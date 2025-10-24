@@ -1,10 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 regression tests for mavwp.py
 """
 
-from __future__ import absolute_import, print_function
 import unittest
 import os
 import pkg_resources
@@ -204,7 +203,7 @@ class MAVWPTest(unittest.TestCase):
         self.assertTrue(loader.is_location_command(mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS))
 
 class RallyTest(unittest.TestCase):
-    '''tests functions related to loading waypoints and transfering them
+    '''tests functions related to loading waypoints and transferring them
     via the mission-item-protocol'''
     def test_rally_load(self):
         '''test loading rally points from old RALLY style file'''

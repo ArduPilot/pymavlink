@@ -3,8 +3,6 @@
 '''
 estimate COMPASS_MOT_* parameters for throttle based compensation
 '''
-from __future__ import print_function
-from builtins import range
 import math
 
 from argparse import ArgumentParser

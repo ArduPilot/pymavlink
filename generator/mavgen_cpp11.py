@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 parse a MAVLink protocol XML file and generate a C++ implementation
 
@@ -8,8 +8,6 @@ Copyright Andrew Tridgell 2011
 Copyright Vladimir Ermakov 2016
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
 import sys, textwrap, os, time
 from . import mavparse, mavtemplate
 import collections
@@ -427,7 +425,7 @@ def generate_one(basename, xml):
             underlying_type = types[-1]
 
         # template do not support "if"
-        # filter out ENUM_END, it often > than unterlying type may handle
+        # filter out ENUM_END, it often > than underlying type may handle
         e.entry_flt = []
         for f in e.entry:
             f.name_trim = enum_remove_prefix(e.name, f.name)
