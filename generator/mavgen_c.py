@@ -231,7 +231,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t packet;
 ${{scalar_fields:    packet.${name} = ${putname};
 }}
-${{array_fields:    mav_array_assign_${type}(packet.${name}, ${name}, ${array_length});
+${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${array_length});
 }}
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_${name}_LEN);
 #endif
@@ -303,7 +303,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t packet;
 ${{scalar_fields:    packet.${name} = ${putname};
 }}
-${{array_fields:    mav_array_assign_${type}(packet.${name}, ${name}, ${array_length});
+${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${array_length});
 }}
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_${name}_LEN);
 #endif
@@ -375,7 +375,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t packet;
 ${{scalar_fields:    packet.${name} = ${putname};
 }}
-${{array_fields:    mav_array_assign_${type}(packet.${name}, ${name}, ${array_length});
+${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${array_length});
 }}
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_${name}, (const char *)&packet, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC);
 #endif
@@ -416,7 +416,7 @@ ${{array_fields:    _mav_put_${type}_array(buf, ${wire_offset}, ${name}, ${array
     mavlink_${name_lower}_t *packet = (mavlink_${name_lower}_t *)msgbuf;
 ${{scalar_fields:    packet->${name} = ${putname};
 }}
-${{array_fields:    mav_array_assign_${type}(packet->${name}, ${name}, ${array_length});
+${{array_fields:    mav_array_memcpy(packet->${name}, ${name}, sizeof(${type})*${array_length});
 }}
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_${name}, (const char *)packet, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC);
 #endif
