@@ -180,6 +180,13 @@ static inline void byte_copy_8(char *dst, const char *src)
 */
 static inline void mav_array_memcpy(void *dest, const void *src, size_t n)
 {
+    // It would be tempting to do a strcpy/strncpy for the char[] type. Unfortunately, some
+    // existing MAVLink messages such as PARAM_EXT_VALUE.param_value use the char[] type for
+    // arbitrary data (including null), and would break.
+    //
+    // It would be nice to change such char[] types to uint8_t[] but that would change the
+    // CRC_EXTRA.
+
 	if (src == NULL) {
 		memset(dest, 0, n);
 	} else {
