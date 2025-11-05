@@ -171,6 +171,8 @@ def generate_message_h(directory, m):
 #pragma once
 // MESSAGE ${name} PACKING
 
+#include <stdint.h>
+
 #define MAVLINK_MSG_ID_${name} ${id}
 
 ${MAVPACKED_START}
