@@ -74,7 +74,7 @@ Starting from September 2022, mavnative, a C extension for parsing mavlink, was 
 From the pymavlink directory, you can use :
 
 ```bash
-sudo MDEF=PATH_TO_message_definitions python3 -m pip install . -v
+MDEF=PATH_TO_message_definitions python3 -m pip install . -v
 ```
 
 Since pip installation is executed from /tmp, it is necessary to point to the directory containing message definitions with MDEF. MDEF should not be set to any particular message version directory but the parent folder instead. If you have cloned from mavlink/mavlink then this is ```/mavlink/message_definitions``` . Using pip should auto install dependencies and allow you to keep them up-to-date. 
@@ -82,7 +82,7 @@ Since pip installation is executed from /tmp, it is necessary to point to the di
 Or:
 
 ```bash
-sudo python3 setup.py install
+python3 -m pip install .
 ```
 
 ### Ardupilot Custom Modes
