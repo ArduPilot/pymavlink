@@ -449,12 +449,12 @@ ${MSG_ATTRIBUTE}static inline ${return_type} mavlink_msg_${name_lower}_get_${nam
  */
 ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_decode(const mavlink_message_t* msg, mavlink_${name_lower}_t* ${name_lower})
 {
+    memset(${name_lower}, 0, MAVLINK_MSG_ID_${name}_LEN);
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
 ${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${decode_right});
 }}
 #else
-        uint8_t len = msg->len < MAVLINK_MSG_ID_${name}_LEN? msg->len : MAVLINK_MSG_ID_${name}_LEN;
-        memset(${name_lower}, 0, MAVLINK_MSG_ID_${name}_LEN);
+    uint8_t len = msg->len < MAVLINK_MSG_ID_${name}_LEN? msg->len : MAVLINK_MSG_ID_${name}_LEN;
     memcpy(${name_lower}, _MAV_PAYLOAD(msg), len);
 #endif
 }
