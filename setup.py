@@ -76,9 +76,15 @@ def generate_content():
             sys.exit(1)
 
         for xml in v10_dialects:
-            shutil.copy(xml, os.path.join(dialects_path, 'v10'))
+            new_xml = os.path.join(dialects_path, 'v10', os.path.basename(xml))
+            if os.path.exists(new_xml):
+                os.remove(new_xml)
+            os.symlink(xml, new_xml)
         for xml in v20_dialects:
-            shutil.copy(xml, os.path.join(dialects_path, 'v20'))
+            new_xml = os.path.join(dialects_path, 'v20', os.path.basename(xml))
+            if os.path.exists(new_xml):
+                os.remove(new_xml)
+            os.symlink(xml, new_xml)
 
         for xml in v10_dialects:
             dialect = os.path.basename(xml)[:-4]
