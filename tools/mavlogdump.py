@@ -86,7 +86,10 @@ mlog = mavutil.mavlink_connection(filename, planner_format=args.planner,
 
 output = None
 if args.output:
-    output = open(args.output, mode='wb')
+    if args.format == 'csv':
+        output = open(args.output, mode='w')
+    else:
+        output = open(args.output, mode='wb')
 
 types = args.types
 if types is not None:
@@ -227,6 +230,8 @@ while True:
         if m.Name == types[0]:
             fields += m.Columns.split(',')
             print(args.csv_sep.join(fields))
+            if output:
+                output.write(args.csv_sep.join(fields) + "\n")
 
     if args.reduce and reduce_msg(m_type, args.reduce):
         continue
@@ -234,7 +239,7 @@ while True:
     if args.reduce_rate > 0 and reduce_rate_msg(m, args.reduce_rate):
         continue
 
-    if output is not None:
+    if output is not None and args.format != 'csv':
         if (isbin or islog) and m_type == "FMT":
             output.write(m.get_msgbuf())
             continue
@@ -274,7 +279,7 @@ while True:
     timestamp = getattr(m, '_timestamp', 0.0)
 
     # If we're just logging, pack in the timestamp and data into the output file.
-    if output:
+    if output and args.format != 'csv':
         if not (isbin or islog):
             output.write(struct.pack('>Q', int(timestamp*1.0e6)))
         try:
@@ -327,6 +332,9 @@ while True:
             csv_out = [str(data[y.split('.')[-1]]) if y.split('.')[0] == m_type and y.split('.')[-1] in data else "" for y in fields]
         csv_out[0] = "{:.8f}".format(timestamp)
         print(args.csv_sep.join(csv_out))
+        if output:
+            output.write(args.csv_sep.join(csv_out) + "\n")
+
 
     # MAT format outputs data to a .mat file specified through the
     # --mat_file option
