@@ -51,6 +51,11 @@ def generate(basename, xml):
         mavlink_msg_file.write("local %s = {}\n" % m.name)
         mavlink_msg_file.write("%s.id = %u\n" % (m.name, m.id))
         mavlink_msg_file.write("%s.crc_extra = %u\n" % (m.name, m.crc_extra))
+        mavlink_msg_file.write("%s.min_msg_len = %u\n" % (m.name, m.wire_min_length))
+        mavlink_msg_file.write("%s.max_msg_len = %u\n" % (m.name, m.wire_length))
+        mavlink_msg_file.write("%s.flags = %u\n" % (m.name, m.message_flags))
+        mavlink_msg_file.write("%s.target_system_ofs = %u\n" % (m.name, m.target_system_ofs))
+        mavlink_msg_file.write("%s.target_component_ofs = %u\n" % (m.name, m.target_component_ofs))
         mavlink_msg_file.write("%s.fields = {\n" % m.name)
         for i in range(0, len(m.ordered_fields)):
             field = m.ordered_fields[i]
