@@ -196,12 +196,15 @@ function mavlink_msgs.decode(message, msg_map)
   return result
 end
 
----Encode the payload section of a given message
+---Encode the payload section of a given message and return metadata
 ---@param msgname string -- name of message to encode
 ---@param message table -- table containing key value pairs representing the data fields in the message
 ---@return integer -- message id
 ---@return string -- encoded payload
-function mavlink_msgs.encode(msgname, message)
+---@return integer -- min message length
+---@return integer -- max message length
+---@return integer -- crc extra byte
+function mavlink_msgs.encode_full(msgname, message)
   local message_map = require("{module_root_rel}mavlink_msg_" .. msgname)
   if not message_map then
     -- we don't know how to encode this message, bail on it
@@ -227,7 +230,21 @@ function mavlink_msgs.encode(msgname, message)
       packedIndex = packedIndex + 1
     end
   end
-  return message_map.id, string.pack(packString, table.unpack(packedTable))
+  return message_map.id,
+         string.pack(packString, table.unpack(packedTable)),
+         message_map.min_msg_len,
+         message_map.max_msg_len,
+         message_map.crc_extra
+end
+
+---Encode the payload section of a given message
+---@param msgname string -- name of message to encode
+---@param message table -- table containing key value pairs representing the data fields in the message
+---@return integer -- message id
+---@return string -- encoded payload
+function mavlink_msgs.encode(msgname, message)
+  local message_id, encoded_message, _, _, _ = mavlink_msgs.encode_full(msgname, message)
+  return message_id, encoded_message
 end
 
 return mavlink_msgs
