@@ -34,6 +34,14 @@
 #define MAVLINK_END_UART_SEND(chan, length)
 #endif
 
+/*
+  to get warnings when any WIP message is used, add this:
+  #define MAVLINK_WIP __attribute__((warning("MAVLink work in progress")))
+*/
+#ifndef MAVLINK_WIP
+#define MAVLINK_WIP
+#endif
+
 #ifdef MAVLINK_SEPARATE_HELPERS
 #define MAVLINK_HELPER
 #else
@@ -161,6 +169,13 @@ static inline void byte_copy_8(char *dst, const char *src)
 */
 static void mav_array_memcpy(void *dest, const void *src, size_t n)
 {
+    // It would be tempting to do a strcpy/strncpy for the char[] type. Unfortunately, some
+    // existing MAVLink messages such as PARAM_EXT_VALUE.param_value use the char[] type for
+    // arbitrary data (including null), and would break.
+    //
+    // It would be nice to change such char[] types to uint8_t[] but that would change the
+    // CRC_EXTRA.
+
 	if (src == NULL) {
 		memset(dest, 0, n);
 	} else {

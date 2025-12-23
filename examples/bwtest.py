@@ -1,9 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 check bandwidth of link
 '''
-from __future__ import print_function
 import time
 
 from pymavlink import mavutil

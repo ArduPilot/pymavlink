@@ -5,7 +5,6 @@ Copyright Andrew Tridgell
 Released under GNU LGPL version 3 or later
 '''
 import sys
-from builtins import object
 
 try:
     import fastcrc
@@ -23,13 +22,7 @@ class x25crc_slow(object):
 
     def accumulate(self, buf):
         """add in some more bytes (it also accepts strings)"""
-        if sys.version_info[0] == 2:
-            if type(buf) is str:
-                buf = bytearray(buf)
-            elif type(buf).__name__ == 'unicode':
-                # we can't use the identifier unicode in python3
-                buf = bytearray(buf.encode())
-        elif type(buf) is str:
+        if type(buf) is str:
             buf = buf.encode()
 
         accum = self.crc
@@ -54,13 +47,7 @@ class x25crc_fast(object):
 
     def accumulate(self, buf):
         """add in some more bytes (it also accepts strings)"""
-        if sys.version_info[0] == 2:
-            if type(buf) is str:
-                buf = bytearray(buf)
-            elif type(buf).__name__ == 'unicode':
-                # we can't use the identifier unicode in python3
-                buf = bytearray(buf.encode())
-        elif type(buf) is str:
+        if type(buf) is str:
             buf = bytes(buf.encode())
         elif type(buf) is list:
             buf = bytes(buf)

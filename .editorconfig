@@ -14,4 +14,4 @@ indent_size = 4
 end_of_line = lf
 charset = utf-8
 trim_trailing_whitespace = false # These are the correct rules for Pymavlink coding standards, but fixing up old files causes git spam
-insert_final_newline = false
+insert_final_newline = true

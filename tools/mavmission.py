@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 extract mavlink mission from log
 '''
-from __future__ import print_function
-
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--output", default='mission.txt', help="output file")

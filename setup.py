@@ -1,6 +1,4 @@
-from __future__ import absolute_import, print_function
 from setuptools.command.build_py import build_py
-from io import open
 # Work around mbcs bug in distutils.
 # http://bugs.python.org/issue10945
 import codecs
@@ -11,11 +9,37 @@ except LookupError:
     func = lambda name, enc=ascii: {True: enc}.get(name=='mbcs')
     codecs.register(func)
 
-from setuptools import setup
-import glob, os, shutil, fnmatch, sys
+from setuptools import setup, Extension
+from Cython.Build import cythonize
+import glob, os, shutil, fnmatch, sys, platform, warnings
 
 sys.path.insert(0, os.path.dirname(__file__))
 from __init__ import __version__
+
+# Option for building the fast indexer Cython module
+build_fast_index = True
+# Disable by default on Windows and macOS
+if platform.system() in ("Windows", "Darwin"):
+    build_fast_index = False
+# Allow an environment variable to override the default
+if os.getenv("PYMAVLINK_FAST_INDEX", None) == "0":
+    build_fast_index = False
+elif os.getenv("PYMAVLINK_FAST_INDEX", None) == "1":
+    build_fast_index = True
+# Handle command line arguments
+if "--no-fast-index" in sys.argv:
+    build_fast_index = False
+    sys.argv.remove("--no-fast-index")
+if "--fast-index" in sys.argv:
+    build_fast_index = True
+    sys.argv.remove("--fast-index")
+
+# Debug build option for Cython
+debug_build = False
+if "--cython-debug" in sys.argv:
+    debug_build = True
+    sys.argv.remove("--cython-debug")
+
 
 def generate_content():
     # generate the file content...
@@ -62,11 +86,8 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 1.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=True):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0):
                 print("Building failed %s for protocol 1.0" % xml)
-                sys.exit(1)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_1_0, with_type_annotations=False):
-                print("Building failed %s (Python2) for protocol 1.0" % xml)
                 sys.exit(1)
 
         for xml in v20_dialects:
@@ -75,11 +96,8 @@ def generate_content():
             if not fnmatch.fnmatch(dialect, wildcard):
                 continue
             print("Building %s for protocol 2.0" % xml)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=True):
+            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0):
                 print("Building failed %s for protocol 2.0" % xml)
-                sys.exit(1)
-            if not mavgen.mavgen_python_dialect(dialect, mavparse.PROTOCOL_2_0, with_type_annotations=False):
-                print("Building failed %s (Python2) for protocol 2.0" % xml)
                 sys.exit(1)
 
 
@@ -93,6 +111,53 @@ class custom_build_py(build_py):
 with open("README.md", "r", encoding = "utf-8") as fh:
     long_description = fh.read()
 
+ext_modules = []
+
+def test_python_h_available():
+    import tempfile
+    import distutils.ccompiler
+    import distutils.sysconfig
+    import sysconfig
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "test_python_h.c")
+        with open(test_file, "w") as f:
+            f.write("#include <Python.h>\nint main() { return 0; }")
+
+        try:
+            compiler = distutils.ccompiler.new_compiler()
+            distutils.sysconfig.customize_compiler(compiler)
+
+            # Add Python include dir (e.g. /usr/include/python3.11 or C:\... on Windows)
+            python_inc = sysconfig.get_path("include")
+            compiler.add_include_dir(python_inc)
+
+            # Compile only (no linking)
+            compiler.compile([test_file], output_dir=tmpdir)
+            return True
+        except Exception as e:
+            warnings.warn(f"Disabling fast index: missing Python.h ({e})")
+            return False
+
+if build_fast_index and not test_python_h_available():
+    build_fast_index = False
+
+if build_fast_index:
+    extra_compile_args = ["-g", "-Og"] if debug_build else ["-O2"]
+    extra_link_args = ["-g"] if debug_build else []
+    ext_modules += cythonize([
+        Extension(
+            name="pymavlink.dfindexer.dfindexer_cy",
+            sources=[
+                "dfindexer/dfindexer_cy.pyx",
+                "dfindexer/dfindexer.c"
+            ],
+            include_dirs=["pymavlink/dfindexer"],
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+        )
+    ], language_level=3)
+
 setup (name = 'pymavlink',
        version = __version__,
        description = 'Python MAVLink code',
@@ -104,7 +169,6 @@ setup (name = 'pymavlink',
                     'Intended Audience :: Science/Research',
                     'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
                     'Operating System :: OS Independent',
-                    'Programming Language :: Python :: 2.7',
                     'Programming Language :: Python :: 3.6',
                     'Programming Language :: Python :: 3.7',
                     'Programming Language :: Python :: 3.8',
@@ -131,9 +195,9 @@ setup (name = 'pymavlink',
                    'pymavlink.generator',
                    'pymavlink.dialects',
                    'pymavlink.dialects.v10',
-                   'pymavlink.dialects.v10.python2',
                    'pymavlink.dialects.v20',
-                   'pymavlink.dialects.v20.python2'],
+                   'pymavlink.dfindexer',
+                   ],
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
                    'tools/mavtogpx.py', 'tools/magfit_gps.py',
@@ -151,13 +215,13 @@ setup (name = 'pymavlink',
                    'tools/mavfft.py',
                    'tools/mavfft_isb.py',
                    'tools/mavsummarize.py',
-                   'tools/MPU6KSearch.py',
                    'tools/mavlink_bitmask_decoder.py',
                    'tools/magfit_WMM.py',
        ],
        install_requires=[
-            'future',
             'lxml',
+            'fastcrc',
        ],
+       ext_modules=ext_modules,
        cmdclass={'build_py': custom_build_py},
        )

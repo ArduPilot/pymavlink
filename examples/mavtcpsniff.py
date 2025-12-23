@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 connect as a client to two tcpip ports on localhost with mavlink packets.    pass them both directions, and show packets in human-readable format on-screen.
@@ -13,8 +13,6 @@ hint:
 Copyright Sept 2012 David "Buzz" Bussenschutt
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
 import time
 
 from pymavlink import mavutil

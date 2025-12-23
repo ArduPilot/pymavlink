@@ -171,7 +171,6 @@ templatefooter = '''
 #------------------------------------------------
 
 def is_packet_and_field_in_long_list(pname,fname):
-    global llines
     for l in llines:
         if ( pname+'.'+fname in l ) : 
             return (True, l)
@@ -195,7 +194,7 @@ def do_make_output(mt,v,lines):
             continue
         hexdata = line.strip().replace(' ',', 0x')
         hexdata = '0x'+hexdata
-        # ckeck if signing bit is set on this packet: 0xfd, 0x09, 0x01 <-- that 1
+        # check if signing bit is set on this packet: 0xfd, 0x09, 0x01 <-- that 1
         signchar = hexdata[15]
         signint = int(signchar,16)
         signbit = signint % 2; # lowest bit to true/false

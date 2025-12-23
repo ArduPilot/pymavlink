@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 extract ISBH and ISBD messages from AP_Logging files into a csv file
 '''
-from __future__ import print_function
-
 import numpy
 import os
 import sys

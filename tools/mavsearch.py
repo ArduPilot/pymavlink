@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 search a set of log files for a condition
 '''
-from __future__ import print_function
-
 from pymavlink import mavutil
 
 from argparse import ArgumentParser

@@ -17,9 +17,6 @@ After doing this, Wireshark should be able to show details of MAVLink packets.
 Copyright Holger Steinhaus 2012
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
-from builtins import range
 
 import os
 from math import ceil
@@ -78,12 +75,13 @@ time_usec_threshold = UInt64.new(0,0x40000)
 -- function to append human-readable time onto unix_time_us fields
 local function time_usec_decode(value)
     if value > time_usec_threshold then
-        d = os.date("%Y-%m-%d %H:%M:%S",value:tonumber() / 1000000.0)
+        s = math.floor(value:tonumber() / 1000000.0)
         us = value % 1000000
+        d = os.date("%Y-%m-%d %H:%M:%S",s)
         us = string.format("%06d",us:tonumber())
-        ok, tz = pcall(os.date," %Z",value:tonumber() / 1000000.0)
+        ok, tz = pcall(os.date," %Z",s)
         if not ok then
-            tz = os.date(" %z",value:tonumber() / 1000000.0)
+            tz = os.date(" %z",s)
         end
         return " (" .. d .. "." .. us .. tz .. ")"
     elseif value < 1000000 then
@@ -124,6 +122,17 @@ f.signature_time = ProtoField.absolute_time("mavlink_proto.signature_time", "Tim
 f.signature_signature = ProtoField.bytes("mavlink_proto.signature_signature", "Signature")
 f.rawheader = ProtoField.bytes("mavlink_proto.rawheader", "Unparsable header fragment")
 f.rawpayload = ProtoField.bytes("mavlink_proto.rawpayload", "Unparsable payload")
+
+-- fields for FILE_TRANSFER_PROTOCOL.payload dissector
+f.FILE_TRANSFER_PROTOCOL_payload_seq_number = ProtoField.uint16("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_seq_number", "seq_number")
+f.FILE_TRANSFER_PROTOCOL_payload_session = ProtoField.uint8("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_session", "payload_session")
+f.FILE_TRANSFER_PROTOCOL_payload_opcode = ProtoField.uint8("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_opcode", "opcode", base.DEC, enumEntryName.MAV_FTP_OPCODE)
+f.FILE_TRANSFER_PROTOCOL_payload_size = ProtoField.uint8("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_size", "payload_size")
+f.FILE_TRANSFER_PROTOCOL_payload_req_opcode = ProtoField.uint8("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_req_opcode", "req_opcode", base.DEC, enumEntryName.MAV_FTP_OPCODE)
+f.FILE_TRANSFER_PROTOCOL_payload_burst_complete = ProtoField.uint8("mavlink_proto.FILE_TRANSFER_PROTOCOL_burst_complete", "burst_complete")
+f.FILE_TRANSFER_PROTOCOL_payload_offset = ProtoField.int32("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_offset", "payload_offset")
+f.FILE_TRANSFER_PROTOCOL_payload_data = ProtoField.bytes("mavlink_proto.FILE_TRANSFER_PROTOCOL_payload_data", "payload_data")
+
 """)
 
 
@@ -188,8 +197,10 @@ def generate_field_or_param(outf, field_or_param, name, label, physical_type, fi
             values = "enumEntryName." + field_or_param.enum
         else:
             values = values + ", base.HEX_DEC"
+            if field_type.startswith("ftypes.INT"):
+                field_type = field_type.replace("INT", "UINT")
         # force display type of enums to uint32 so we can show the names
-        if field_type in ("ftypes.FLOAT", "ftypes.DOUBLE", "ftypes.INT32"):
+        if field_type in ("ftypes.FLOAT", "ftypes.DOUBLE"):
             field_type = "ftypes.UINT32"
     else:
         display_type = physical_type
@@ -282,6 +293,35 @@ function dissect_flags_${enumname}(tree, name, tvbrange, value)
 end
 """)
 
+def generate_ftp_payload_dissector(outf, msg, field, offset):
+    t.write(outf,
+"""
+    ftptree = tree:add(padded(offset + ${foffset}, ${fsize}), "payload (uint8_t[${fsize}])")
+    tvbrange = padded(offset + ${foffset} + 0, 2)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_seq_number, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 2, 1)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_session, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 3, 1)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_opcode, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 4, 1)
+    payload_size = tvbrange:le_int()
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_size, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 5, 1)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_req_opcode, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 6, 1)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_burst_complete, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 8, 4)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_offset, tvbrange)
+    tvbrange = padded(offset + ${foffset} + 12, payload_size)
+    subtree = ftptree:add_le(f.FILE_TRANSFER_PROTOCOL_payload_data, tvbrange)
+""", {'foffset': offset, 'fsize': field.array_length})
+
+
+# Define custom field dissectors
+custom_field_dissector = {
+    'FILE_TRANSFER_PROTOCOL.payload': generate_ftp_payload_dissector
+}
+
 unit_decoder_mapping = {
     'degE7': 'string.format(\" (%.7f deg)\",value/1E7)',
     'us': 'time_usec_decode(value)',
@@ -295,6 +335,12 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
     assert isinstance(field, mavparse.MAVField)
     assert cmd is None or isinstance(cmd, mavparse.MAVEnumEntry)
     assert param is None or isinstance(param, mavparse.MAVEnumParam)
+
+    # If a custom dissector function is defined, use it instead
+    msg_field = f"{msg.name}.{field.name}"
+    if msg_field in custom_field_dissector:
+        custom_field_dissector[msg_field](outf, msg, field, offset)
+        return
 
     _, _, tvb_func, size, count = get_field_info(field)
 
@@ -345,7 +391,6 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
 """, {'foffset': offset + i * size, 'fbytes': size, 'ftvbfunc': tvb_func, 'fvar': field_var})
 
         unit = field.units.replace("[","").replace("]","")
-        global unit_decoder_mapping
         if unit in unit_decoder_mapping:
             if not value_extracted:
                 t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})

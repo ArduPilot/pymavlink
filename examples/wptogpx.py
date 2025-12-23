@@ -1,11 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 example program to extract GPS data from a waypoint file, and create a GPX
 file, for loading into google earth
 '''
-from __future__ import print_function
-from builtins import range
 
 import time
 

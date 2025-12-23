@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 calculate GPS CEP from DF or mavlink log for all present GPS modules
 
 This assumes the GPS modules were not moving during the test
 '''
-from builtins import range
 
 import os
 
@@ -29,7 +28,6 @@ class Sample:
         self.fix_type = fix_type
 
 def add_data(sysid, gps_id, lat, lon, alt, fix_type):
-    global DATA
     if not sysid in DATA:
         DATA[sysid] = {}
     if not gps_id in DATA[sysid]:

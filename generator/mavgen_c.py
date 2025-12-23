@@ -1,15 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 parse a MAVLink protocol XML file and generate a C implementation
 
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from future.utils import iteritems
-
-from builtins import range
-from builtins import object
 
 import os
 from . import mavparse, mavtemplate
@@ -167,10 +162,16 @@ ${{include_list:#include "../${base}/${base}.h"
 
 def generate_message_h(directory, m):
     '''generate per-message header for a XML file'''
+    if m.wip:
+        m.MSG_ATTRIBUTE = 'MAVLINK_WIP\n'
+    else:
+        m.MSG_ATTRIBUTE = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w')
     t.write(f, '''
 #pragma once
 // MESSAGE ${name} PACKING
+
+#include <stdint.h>
 
 #define MAVLINK_MSG_ID_${name} ${id}
 
@@ -218,7 +219,7 @@ ${{arg_fields: * @param ${name} ${units} ${description}
 }}
  * @return length of the message in bytes (excluding serial stream start sign)
  */
-static inline uint16_t mavlink_msg_${name_lower}_pack(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg,
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_pack(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg,
                               ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
@@ -289,7 +290,7 @@ ${{arg_fields: * @param ${name} ${units} ${description}
 }}
  * @return length of the message in bytes (excluding serial stream start sign)
  */
-static inline uint16_t mavlink_msg_${name_lower}_pack_chan(uint8_t system_id, uint8_t component_id, uint8_t chan,
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_pack_chan(uint8_t system_id, uint8_t component_id, uint8_t chan,
                                mavlink_message_t* msg,
                                    ${{arg_fields:${array_const}${type} ${array_prefix}${name},}})
 {
@@ -321,7 +322,7 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
  * @param msg The MAVLink message to compress the data into
  * @param ${name_lower} C-struct to read the message contents from
  */
-static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
     return mavlink_msg_${name_lower}_pack(system_id, component_id, msg,${{arg_fields: ${name_lower}->${name},}});
 }
@@ -335,7 +336,7 @@ static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t system_id, uint8
  * @param msg The MAVLink message to compress the data into
  * @param ${name_lower} C-struct to read the message contents from
  */
-static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
     return mavlink_msg_${name_lower}_pack_chan(system_id, component_id, chan, msg,${{arg_fields: ${name_lower}->${name},}});
 }
@@ -363,7 +364,7 @@ ${{arg_fields: * @param ${name} ${units} ${description}
  */
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-static inline void mavlink_msg_${name_lower}_send(mavlink_channel_t chan,${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
+${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send(mavlink_channel_t chan,${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_${name}_LEN];
@@ -387,7 +388,7 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
  * @param chan MAVLink channel to send the message
  * @param struct The MAVLink struct to serialize
  */
-static inline void mavlink_msg_${name_lower}_send_struct(mavlink_channel_t chan, const mavlink_${name_lower}_t* ${name_lower})
+${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_struct(mavlink_channel_t chan, const mavlink_${name_lower}_t* ${name_lower})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     mavlink_msg_${name_lower}_send(chan,${{arg_fields: ${name_lower}->${name},}});
@@ -398,13 +399,13 @@ static inline void mavlink_msg_${name_lower}_send_struct(mavlink_channel_t chan,
 
 #if MAVLINK_MSG_ID_${name}_LEN <= MAVLINK_MAX_PAYLOAD_LEN
 /*
-  This variant of _send() can be used to save stack space by re-using
+  This variant of _send() can be used to save stack space by reusing
   memory from the receive buffer.  The caller provides a
   mavlink_message_t which is the size of a full mavlink message. This
   is usually the receive buffer for the channel, and allows a reply to an
   incoming message with minimum stack space usage.
  */
-static inline void mavlink_msg_${name_lower}_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan, ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
+${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan, ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char *buf = (char *)msgbuf;
@@ -434,7 +435,7 @@ ${{fields:
  *
  * @return ${units} ${description}
  */
-static inline ${return_type} mavlink_msg_${name_lower}_get_${name}(const mavlink_message_t* msg${get_arg})
+${MSG_ATTRIBUTE}static inline ${return_type} mavlink_msg_${name_lower}_get_${name}(const mavlink_message_t* msg${get_arg})
 {
     return _MAV_RETURN_${type}${array_tag}(msg, ${array_return_arg} ${wire_offset});
 }
@@ -446,7 +447,7 @@ static inline ${return_type} mavlink_msg_${name_lower}_get_${name}(const mavlink
  * @param msg The message to decode
  * @param ${name_lower} C-struct to decode the message contents into
  */
-static inline void mavlink_msg_${name_lower}_decode(const mavlink_message_t* msg, mavlink_${name_lower}_t* ${name_lower})
+${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_decode(const mavlink_message_t* msg, mavlink_${name_lower}_t* ${name_lower})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
 ${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${decode_right});
@@ -675,7 +676,7 @@ def generate_one(basename, xml):
     # form message name array
     xml.message_name_array = ''
     # sort by names
-    for msgid, name in sorted(iteritems(xml.message_names), key=lambda k_v: (k_v[1], k_v[0])):
+    for msgid, name in sorted(xml.message_names.items(), key=lambda k_v: (k_v[1], k_v[0])):
         xml.message_name_array += '{ "%s", %u }, ' % (name, msgid)
     xml.message_name_array = xml.message_name_array[:-2]
 

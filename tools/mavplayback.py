@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 play back a mavlink log as a FlightGear FG NET stream, and as a
@@ -6,12 +6,6 @@ realtime mavlink stream
 
 Useful for visualising flights
 '''
-from __future__ import print_function
-from future import standard_library
-standard_library.install_aliases()
-
-from builtins import object
-
 import os
 import sys
 import time

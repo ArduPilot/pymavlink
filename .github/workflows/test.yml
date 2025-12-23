@@ -1,39 +1,36 @@
 name: test pymavlink
 
 on: [push, pull_request]
-# paths:
-# - "*"
-# - "!README.md" <-- don't rebuild on doc change
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false  # don't cancel if a job from the matrix fails
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.x']
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Set up Python ${{ matrix.python-version }}
 
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install flake8 pytest pytest-mock numpy
-          if [ "${{ matrix.python-version }}" != "3.5" ]
-          then
-            pip install mypy
-          fi
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python3 -m pip install --upgrade pip
+          python3 -m pip install flake8 mypy numpy pytest pytest-mock
+          pip install -r requirements.txt
           sudo apt update
           sudo apt install -y libgtest-dev g++ tshark
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v6
         with:
           node-version: '16'
 
@@ -41,16 +38,9 @@ jobs:
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub web ui editor is 127 chars wide
-          SELECT=C,E10,E11,E401,E502,E703,E8,E9,F,W191,W291,W292,W293,W391
-          flake8 . --count --exit-zero --select=${SELECT} --max-complexity=10 --max-line-length=127 --statistics
       # NOTE: we must do all testing on the installed python package, not
       # on the build tree. Otherwise the testing is invalid and may not
       # indicate the code actually works
-      #
-      # Set pythonpath
-
-      # install
       - name: Install mavlink message
         run: |
           git clone https://github.com/ArduPilot/mavlink.git
@@ -58,17 +48,17 @@ jobs:
 
       - name: Install pymavlink
         run: |
-          python setup.py build install
+          python3 -m pip install .
 
       - name: Lint generated python code
         run: |
-          if [ "${{ matrix.python-version }}" = "3.5" ]
-          then
-            flake8 --ignore='W503,E203,E501,E741' --statistics dialects/v10/python2/*.py dialects/v20/python2/*.py
-          else
-            flake8 --ignore='W503,E203,E501,E741' --statistics dialects/
+            flake8 --config=.github/workflows/flake8-generated.cfg --statistics dialects/
+
+      - name: Type check generated python code
+        if: matrix.python-version != '3.7'
+        run: |
+            # Latest version of mypy that supports Python 3.7 is too old
             mypy --config-file ./.github/workflows/mypy-generated.ini dialects/v10/*.py dialects/v20/*.py
-          fi
 
       - name: Generate messages
         run: |
@@ -83,28 +73,28 @@ jobs:
 
       - name: Test with pytest
         run: |
-          python -m pytest
+          python3 -m pytest
 
 
   node-tests:
     name: Node ${{ matrix.node-version }} test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['12', '14', '16', '18', '20']
+        node-version: ['12', '14', '16', '18', '20', 'lts/*']
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
         with:
           submodules: 'recursive'
       - name: Set up Python 3.8
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           python-version: 3.8
       - name: Install dependencies
         run: |
-          pip install future lxml
-      - uses: actions/setup-node@v2
+          pip install lxml
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
       - name: Install mavlink message

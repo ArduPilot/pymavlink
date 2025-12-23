@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 parse a MAVLink protocol XML file and generate a python implementation
 
@@ -6,8 +6,6 @@ Copyright Andrii Fil root.fi36@gmail.com 2022
 Based on mavgen_python.py
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-
 import os
 import os.path
 import math

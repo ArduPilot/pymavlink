@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 calculate GPS lag from DF log
@@ -14,8 +14,6 @@ The code really only works when there is significant acceleration as well.
 You'll need to fly quite aggressively on a copter to get a result.
 
 '''
-from __future__ import print_function
-from builtins import range
 
 import os
 
