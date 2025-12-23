@@ -317,6 +317,9 @@ class MAVXML(object):
 
                 # append the new entry
                 self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, False, autovalue, self.filename, p.CurrentLineNumber, has_location=has_location))
+            elif in_element == "mavlink.enums.enum.entry.deprecated":
+                check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
+                self.enum[-1].entry[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])                
             elif in_element == "mavlink.enums.enum.entry.wip":
                 self.enum[-1].entry[-1].wip = True
             elif in_element == "mavlink.enums.enum.entry.param":
