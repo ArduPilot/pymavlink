@@ -138,11 +138,6 @@ GEN = """-------------------------------------------
 --  DO NOT EDIT. This file is generated. --
 -------------------------------------------\n\n"""
 
-types = []
-filelist = []
-types_size = {}
-types_files = {}
-
 # format text as a comment with lines < 79
 def format_comment(text, tab):
     sp = text.split()
@@ -267,9 +262,7 @@ def repr_bitmask(enum, size):
     return s
 
 # Generate enumeration type
-def repr_enum(enum, size):
-    global types_files
-
+def repr_enum(enum, size, types_files):
     enum_name = normalize_enum_name(enum.name)
     s = "   type %s is new Interfaces.Unsigned_%i;\n" % (enum_name, size * 8)
     if enum.deprecated:
@@ -411,9 +404,7 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
     return spec
 
 # Create file for the message spec
-def create_message_pkg (x, f_name, p_name, ver, m, header=None):
-    global types_files
-
+def create_message_pkg (x, f_name, p_name, ver, m, types_files, header=None):
     spec = open(f_name + ".ads", "w")
     spec.write(GEN)
     if header: spec.write(header)
@@ -445,17 +436,14 @@ def create_message_body (f_name, p_name):
 
 # Prepare information about types
 def calculate_types_size(xml):
-    global types
-    global filelist
-    global types_size
-    global types_files
-
+    types = []
+    types_size = {}
+    types_files = {}
     msgs = []
 
     for x in xml:
         msgs.extend(x.message)
         types.extend(x.enum)
-        filelist.append(os.path.basename(x.filename))
         for enum in x.enum:
             types_files |= {enum.name: x}
 
@@ -469,9 +457,10 @@ def calculate_types_size(xml):
                     types_size[f.enum] = f.type_length
                 else:
                     assert types_size[f.enum] == f.type_length, "Different size for one enum"
+    return types, types_size, types_files
 
 # Generate v1 types
-def generate_v1_types(directory, x, types_size):
+def generate_v1_types(directory, x, types_files, types_size):
     dialect = pkg_name(x)
     outf = create_types_spec (directory, v1_file, v1, x, copy)
 
@@ -486,19 +475,17 @@ def generate_v1_types(directory, x, types_size):
             if t.bitmask:
                 outf.write(repr_bitmask(t, size))
             else:
-                outf.write(repr_enum(t, size))
+                outf.write(repr_enum(t, size, types_files))
             outf.write("\n")
     outf.write("end %s.%s.Types;\n" % (v1, dialect.title()))
 
 # return default value for record field
-def get_default(value, type_name, array_to_float):
-    global types
-
+def get_default(value, type_name, array_to_float, types):
     if value[0] == '[':
         if type_name in array_to_float:
-            return "[others => %s]" % get_default(value[1:-1], array_to_float[type_name], array_to_float)
+            return "[others => %s]" % get_default(value[1:-1], array_to_float[type_name], array_to_float, types)
         else:
-            return "[others => %s]" % get_default(value[1:-1], type_name, array_to_float)
+            return "[others => %s]" % get_default(value[1:-1], type_name, array_to_float, types)
 
     elif value[:2] == '0x':
         res = "16#%s#" % value[2:]
@@ -514,7 +501,7 @@ def get_default(value, type_name, array_to_float):
             return res
 
         elif value[:3].upper() == "NAN":
-            return get_default(NAN, type_name, array_to_float)
+            return get_default(NAN, type_name, array_to_float, types)
 
         else:
             if type_name.find("IEEE") != -1:
@@ -796,7 +783,7 @@ def generate_message_body(name, rev, extra, body, is_v1):
     generate_message_body_crc(rev, extra, body, "In_Connection", is_v1)
 
 # Generate message for the V1
-def generate_v1_message(msg, spec, body, xml):
+def generate_v1_message(msg, spec, body, xml, types):
     name = normalize_message_name(msg.name)
 
     max_len = 0
@@ -829,7 +816,7 @@ def generate_v1_message(msg, spec, body, xml):
                 spec.write(tp)
 
         if field.invalid:
-            s = get_default(field.invalid, tp, array_to_float)
+            s = get_default(field.invalid, tp, array_to_float, types)
             if s != "":
                 spec.write(" :=\n        %s" % s)
 
@@ -995,9 +982,9 @@ def generate(directory, xml):
     '''generate complete Ada implementation'''
     mavparse.mkdir_p(directory)
 
-    global types_size
     bitmasks = []
-    calculate_types_size(xml)
+
+    types, types_size, types_files = calculate_types_size(xml)
 
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'Ada')
@@ -1011,15 +998,15 @@ def generate(directory, xml):
             if t.bitmask: bitmasks.append(t.name)
 
         create_dialect_spec (directory, v1_file, v1, x, xml, copy)
-        generate_v1_types(directory, x, types_size)
+        generate_v1_types(directory, x, types_files, types_size)
 
         #Generate messages
         for m in x.message:
             f_name, p_name = get_pakage_name(x, m, directory, v1, "v1")
 
-            spec = create_message_pkg (x, f_name, p_name, v1, m, copy)
+            spec = create_message_pkg (x, f_name, p_name, v1, m, types_files, copy)
             body = create_message_body (f_name, p_name)
-            generate_v1_message(m, spec, body, xml)
+            generate_v1_message(m, spec, body, xml, types)
             spec.write("end %s;\n" % p_name)
             body.write("\nend %s;\n" % p_name)
     generate_test_v1(directory, xml, bitmasks)
@@ -1058,7 +1045,7 @@ def calculate_bitmask_size(bitmask):
     return math.ceil(c / 8)
 
 # generate types and place them into Mavlink.`dialect` package
-def generate_v2_types (directory, x, types_size):
+def generate_v2_types (directory, x, types_files, types_size):
     name = pkg_name(x)
     spec = create_types_spec (directory, v2_file, v2, x)
 
@@ -1072,13 +1059,13 @@ def generate_v2_types (directory, x, types_size):
 
         else:
             if size is None: size = calculate_enum_size(t)
-            spec.write(repr_enum(t, size))
+            spec.write(repr_enum(t, size, types_files))
         spec.write("\n")
 
     spec.write("end %s.%s.Types;\n" % (v2, name))
 
 #Generate message
-def generate_v2_message(msg, spec, body, xml):
+def generate_v2_message(msg, spec, body, xml, types):
     name = normalize_message_name(msg.name)
 
     max_len = 0
@@ -1110,7 +1097,7 @@ def generate_v2_message(msg, spec, body, xml):
                 spec.write(tp)
 
         if field.invalid:
-            s = get_default(field.invalid, tp, array_to_float)
+            s = get_default(field.invalid, tp, array_to_float, types)
             if s != "":
                 spec.write(" :=\n        %s" % s)
 
@@ -1403,9 +1390,9 @@ def generate_v2(directory, xml):
     '''generate complete Ada implementation for v2'''
     mavparse.mkdir_p(directory)
 
-    global types_size
     bitmasks = []
-    calculate_types_size(xml)
+
+    types, types_size, types_files = calculate_types_size(xml)
 
     basepath = os.path.dirname(os.path.realpath(__file__))
     srcpath = os.path.join(basepath, 'Ada')
@@ -1422,15 +1409,15 @@ def generate_v2(directory, xml):
 
         # Mavlink.`dialect`
         create_dialect_spec (directory, v2_file, v2, x, xml)
-        generate_v2_types (directory, x, types_size)
+        generate_v2_types (directory, x, types_files, types_size)
 
         #Generate messages
         for m in x.message:
             f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
 
-            spec = create_message_pkg (x, f_name, p_name, v2, m)
+            spec = create_message_pkg (x, f_name, p_name, v2, m, types_files)
             body = create_message_body (f_name, p_name)
-            generate_v2_message(m, spec, body, xml)
+            generate_v2_message(m, spec, body, xml, types)
             spec.write("end %s;\n" % p_name)
             body.write("\nend %s;\n" % p_name)
 
