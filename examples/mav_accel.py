@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 show accel calibration for a set of logs
 '''
-from __future__ import print_function
-
 from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument("--no-timestamps", dest="notimestamps", action='store_true', help="Log doesn't have timestamps")

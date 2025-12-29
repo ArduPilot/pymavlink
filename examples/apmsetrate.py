@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 set stream rate on an APM
 '''
-from __future__ import print_function
-from builtins import range
 
 import sys
 

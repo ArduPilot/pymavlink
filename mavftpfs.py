@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import errno
 import os
@@ -12,7 +12,7 @@ from pymavlink import mavutil
 
 from mavftp import MAVFTP
 
-# this allows us to support acessing the special files
+# this allows us to support accessing the special files
 base_file_paths = ["/", "@ROMFS", "@SYS"]
 
 

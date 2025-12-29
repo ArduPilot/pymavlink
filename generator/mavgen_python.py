@@ -1,13 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 parse a MAVLink protocol XML file and generate a python implementation
 
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 """
-from __future__ import print_function
-
-from builtins import range
 
 import os
 import sys
@@ -15,95 +12,6 @@ import textwrap
 from . import mavtemplate
 
 t = mavtemplate.MAVTemplate()
-
-
-def extend_with_type_info(extended, enable_type_annotations):
-    types = {
-        "int": ("int", 0),
-        "bool": ("bool", False),
-        "float": ("float", 0),
-        "str": ("str", ""),
-        "bytes": ("bytes", b""),
-        "bytearray": ("bytearray", bytearray(b"")),
-        "none": ("None", None),
-        "object": ("object", None),
-        "str_list": ("List[str]", None),
-        "int_list": ("List[int]", None),
-        "str_float_int": ("Union[str, float, int]", None),
-        "any": ("Any", None),
-        "mavlink": ('"MAVLink"', None),
-        "mavlink_header": ("MAVLink_header", None),
-        "mavlink_message": ("MAVLink_message", None),
-        "mavlink_message_type": ('Type[MAVLink_message]', None),
-        "mavlink_message_attr": ("Union[bytes, float, int]", None),
-        "mavlink_message_assign_attr_list": (
-            "List[Union[bytes, float, int, Sequence[float], Sequence[int]]]",
-            None,
-        ),
-        "mavlink_message_list": ("List[MAVLink_message]", None),
-        "mavlink_message_signed_callback": ('Callable[["MAVLink", int], bool]', None),
-        "dict_str_to_str_float_int": ("Dict[str, Union[str, float, int]]", None),
-        "dict_str_to_dict_int_to_enumentry": ("Dict[str, Dict[int, EnumEntry]]", None),
-        "dict_int_to_str": ("Dict[int, str]", None),
-        "dict_str_to_str": ("Dict[str, str]", None),
-        "dict_int_int_int_to_int": ("Dict[Tuple[int, int, int], int]", None),
-        "dict_int_to_mavlink_message_type": ("Dict[int, Type[MAVLink_message]]", None),
-        "tuple_int": ("Tuple[int]", None),
-        "tuple_int_int": ("Tuple[int, int]", None),
-        "tuple_int_int_int": ("Tuple[int, int, int]", None),
-        "tuple_bytes_five_int": ("Tuple[bytes, int, int, int, int, int]", None),
-        "tuple_bytes_eight_int": ("Tuple[bytes, int, int, int, int, int, int, int, int]", None),
-        "tuple_bytes_int_float_repeat": ("Tuple[Union[bytes, int, float], ...]", None),
-        "intseq": ("Sequence[int]", None),
-        "intseq_floatseq": ("Union[Sequence[int], Sequence[float]]", None),
-        "args": ("Iterable[Any]", None),
-        "kwargs": ("Mapping[str, Any]", None),
-        "generic_callback": ("Callable[..., None]", None),
-    }
-
-    res = extended
-    if enable_type_annotations:
-        res[
-            "typing_imports"
-        ] = """from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast"""
-        for type_name, type_info in types.items():
-            res["type_" + type_name] = ": " + type_info[0]
-            res["type_" + type_name + "_ret"] = " -> " + type_info[0]
-            res["type_" + type_name + "_cast"] = type_info[0]
-            if type_info[1] is not None:
-                res["type_" + type_name + "_default"] = (
-                    ": " + type_info[0] + " = " + repr(type_info[1])
-                )
-            res["type_optional_" + type_name] = ": Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_ret"] = " -> Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_cast"] = "Optional[" + type_info[0] + "]"
-            res["type_optional_" + type_name + "_default"] = (
-                ": Optional[" + type_info[0] + "] = None"
-            )
-
-    else:
-        res[
-            "typing_imports"
-        ] = '''
-
-def cast(type_str, arg):
-    """
-    No-op for Python2 used instead of typing.cast()
-    """
-    return arg
-'''
-        for type_name, type_info in types.items():
-            res["type_" + type_name] = ""
-            res["type_" + type_name + "_ret"] = ""
-            res["type_" + type_name + "_cast"] = '"' + type_info[0] + '"'
-            if type_info[1] is not None:
-                res["type_" + type_name + "_default"] = "=" + repr(type_info[1])
-            res["type_optional_" + type_name] = ""
-            res["type_optional_" + type_name + "_ret"] = ""
-            res["type_optional_" + type_name + "_cast"] = '"Optional[' + type_info[0] + ']"'
-            res["type_optional_" + type_name + "_default"] = "=None"
-
-    return res
 
 
 def generate_preamble(outf, msgs, basename, args, xml):
@@ -131,7 +39,7 @@ import struct
 import sys
 import time
 from builtins import object, range
-${typing_imports}
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Type, Union
 
 WIRE_PROTOCOL_VERSION = "${wire_protocol_version}"
 DIALECT = "${DIALECT}"
@@ -144,9 +52,6 @@ HEADER_LEN_V2 = 10
 MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 MAVLINK_IFLAG_SIGNED = 0x01
-
-if sys.version_info[0] == 2:
-    logging.basicConfig()
 
 logger = logging.getLogger(__name__)
 
@@ -167,19 +72,32 @@ MAVLINK_TYPE_INT64_T = 8
 MAVLINK_TYPE_FLOAT = 9
 MAVLINK_TYPE_DOUBLE = 10
 
+# CRC calculation using fastcrc, falling back to a pure Python implementation
+# if fastcrc is not available
+try:
+    import fastcrc
+    mcrf4xx = fastcrc.crc16.mcrf4xx
+except Exception:
+    mcrf4xx = None  # type: ignore
 
-class x25crc(object):
+
+BytesLike = Union[List[int], Tuple[int], bytes, bytearray, str]
+
+
+class _x25crc_slow(object):
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
 
-    def __init__(self, buf${type_optional_intseq_default})${type_none_ret}:
+    crc: int
+
+    def __init__(self, buf: Optional[BytesLike] = None):
         self.crc = 0xFFFF
         if buf is not None:
             self.accumulate(buf)
 
-    def accumulate(self, buf${type_intseq})${type_none_ret}:
-        """add in some more bytes (it also accepts python2 strings)"""
-        if sys.version_info[0] == 2 and type(buf) is str:
-            buf = bytearray(buf)
+    def accumulate(self, buf: BytesLike) -> None:
+        """add in some more bytes (it also accepts strings)"""
+        if isinstance(buf, str):
+            buf = buf.encode()
 
         accum = self.crc
         for b in buf:
@@ -189,10 +107,32 @@ class x25crc(object):
         self.crc = accum
 
 
+class _x25crc_fast(object):
+    """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
+
+    def __init__(self, buf: Optional[BytesLike] = None):
+        self.crc = 0xFFFF
+        if buf is not None:
+            self.accumulate(buf)
+
+    def accumulate(self, buf: BytesLike) -> None:
+        """add in some more bytes (it also accepts strings)"""
+        if isinstance(buf, str):
+            buf_as_bytes = bytes(buf.encode())
+        elif isinstance(buf, (list, tuple, bytearray)):
+            buf_as_bytes = bytes(buf)
+        else:
+            buf_as_bytes = buf
+        self.crc = mcrf4xx(buf_as_bytes, self.crc)
+
+
+x25crc = _x25crc_fast if mcrf4xx is not None else _x25crc_slow
+
+
 class MAVLink_header(object):
     """MAVLink message header"""
 
-    def __init__(self, msgId${type_int}, incompat_flags${type_int_default}, compat_flags${type_int_default}, mlen${type_int_default}, seq${type_int_default}, srcSystem${type_int_default}, srcComponent${type_int_default})${type_none_ret}:
+    def __init__(self, msgId: int, incompat_flags: int = 0, compat_flags: int = 0, mlen: int = 0, seq: int = 0, srcSystem: int = 0, srcComponent: int = 0) -> None:
         self.mlen = mlen
         self.seq = seq
         self.srcSystem = srcSystem
@@ -201,7 +141,7 @@ class MAVLink_header(object):
         self.incompat_flags = incompat_flags
         self.compat_flags = compat_flags
 
-    def pack(self, force_mavlink1${type_bool_default})${type_bytes_ret}:
+    def pack(self, force_mavlink1: bool = False) -> bytes:
         if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             return struct.pack(
                 "<BBBBBBBHB",
@@ -231,79 +171,77 @@ class MAVLink_message(object):
 
     id = 0
     msgname = ""
-    fieldnames${type_str_list} = []
-    ordered_fieldnames${type_str_list} = []
-    fieldtypes${type_str_list} = []
-    fielddisplays_by_name${type_dict_str_to_str} = {}
-    fieldenums_by_name${type_dict_str_to_str} = {}
-    fieldunits_by_name${type_dict_str_to_str} = {}
+    fieldnames: List[str] = []
+    ordered_fieldnames: List[str] = []
+    fieldtypes: List[str] = []
+    fielddisplays_by_name: Dict[str, str] = {}
+    fieldenums_by_name: Dict[str, str] = {}
+    fieldunits_by_name: Dict[str, str] = {}
     native_format = bytearray(b"")
-    orders${type_int_list} = []
-    lengths${type_int_list} = []
-    array_lengths${type_int_list} = []
+    orders: List[int] = []
+    lengths: List[int] = []
+    array_lengths: List[int] = []
     crc_extra = 0
     unpacker = struct.Struct("")
-    instance_field${type_optional_str} = None
+    instance_field: Optional[str] = None
     instance_offset = -1
 
-    def __init__(self, msgId${type_int}, name${type_str})${type_none_ret}:
+    def __init__(self, msgId: int, name: str) -> None:
         self._header = MAVLink_header(msgId)
-        self._payload${type_optional_bytes} = None
+        self._payload: Optional[bytes] = None
         self._msgbuf = bytearray(b"")
-        self._crc${type_optional_int} = None
-        self._fieldnames${type_str_list} = []
+        self._crc: Optional[int] = None
+        self._fieldnames: List[str] = []
         self._type = name
         self._signed = False
-        self._link_id${type_optional_int} = None
-        self._instances${type_optional_dict_str_to_str} = None
-        self._instance_field${type_optional_str} = None
+        self._link_id: Optional[int] = None
+        self._instances: Optional[Dict[str, str]] = None
+        self._instance_field: Optional[str] = None
 
-    def format_attr(self, field${type_str})${type_str_float_int_ret}:
+    def format_attr(self, field: str) -> Union[str, float, int]:
         """override field getter"""
-        raw_attr = cast(${type_mavlink_message_attr_cast}, getattr(self, field))
+        raw_attr: Union[bytes, float, int] = getattr(self, field)
         if isinstance(raw_attr, bytes):
-            if sys.version_info[0] == 2:
-                return raw_attr.rstrip(b"\\x00")
             return raw_attr.decode(errors="backslashreplace").rstrip("\\x00")
         return raw_attr
 
-    def get_msgbuf(self)${type_bytearray_ret}:
+    def get_msgbuf(self) -> bytearray:
         return self._msgbuf
 
-    def get_header(self)${type_mavlink_header_ret}:
+    def get_header(self) -> MAVLink_header:
         return self._header
 
-    def get_payload(self)${type_optional_bytes_ret}:
+    def get_payload(self) -> Optional[bytes]:
         return self._payload
 
-    def get_crc(self)${type_optional_int_ret}:
+    def get_crc(self) -> Optional[int]:
         return self._crc
 
-    def get_fieldnames(self)${type_str_list_ret}:
+    def get_fieldnames(self) -> List[str]:
         return self._fieldnames
 
-    def get_type(self)${type_str_ret}:
+    def get_type(self) -> str:
         return self._type
 
-    def get_msgId(self)${type_int_ret}:
+    def get_msgId(self) -> int:
         return self._header.msgId
 
-    def get_srcSystem(self)${type_int_ret}:
+    def get_srcSystem(self) -> int:
         return self._header.srcSystem
 
-    def get_srcComponent(self)${type_int_ret}:
+    def get_srcComponent(self) -> int:
         return self._header.srcComponent
 
-    def get_seq(self)${type_int_ret}:
+    def get_seq(self) -> int:
         return self._header.seq
 
-    def get_signed(self)${type_bool_ret}:
+    def get_signed(self) -> bool:
         return self._signed
 
-    def get_link_id(self)${type_optional_int_ret}:
+    def get_link_id(self) -> Optional[int]:
         return self._link_id
 
-    def __str__(self)${type_str_ret}:
+    def __str__(self) -> str:
         ret = "%s {" % self._type
         for a in self._fieldnames:
             v = self.format_attr(a)
@@ -311,10 +249,10 @@ class MAVLink_message(object):
         ret = ret[0:-2] + "}"
         return ret
 
-    def __ne__(self, other${type_object})${type_bool_ret}:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def __eq__(self, other${type_object})${type_bool_ret}:
+    def __eq__(self, other: object) -> bool:
         if other is None:
             return False
 
@@ -342,17 +280,17 @@ class MAVLink_message(object):
 
         return True
 
-    def to_dict(self)${type_dict_str_to_str_float_int_ret}:
-        d${type_dict_str_to_str_float_int} = {}
+    def to_dict(self) -> Dict[str, Union[str, float, int]]:
+        d: Dict[str, Union[str, float, int]] = {}
         d["mavpackettype"] = self._type
         for a in self._fieldnames:
             d[a] = self.format_attr(a)
         return d
 
-    def to_json(self)${type_str_ret}:
+    def to_json(self) -> str:
         return json.dumps(self.to_dict())
 
-    def sign_packet(self, mav${type_mavlink})${type_none_ret}:
+    def sign_packet(self, mav: "MAVLink") -> None:
         assert mav.signing.secret_key is not None
 
         h = hashlib.new("sha256")
@@ -363,15 +301,12 @@ class MAVLink_message(object):
         self._msgbuf += sig
         mav.signing.timestamp += 1
 
-    def _pack(self, mav${type_mavlink}, crc_extra${type_int}, payload${type_bytes}, force_mavlink1${type_bool_default})${type_bytes_ret}:
+    def _pack(self, mav: "MAVLink", crc_extra: int, payload: bytes, force_mavlink1: bool = False) -> bytes:
         plen = len(payload)
         if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
             # variable length arrays and smaller packets
-            if sys.version_info[0] == 2:
-                nullbyte = chr(0)
-            else:
-                nullbyte = 0
+            nullbyte = 0
             while plen > 1 and payload[plen - 1] == nullbyte:
                 plen -= 1
         self._payload = payload[:plen]
@@ -399,10 +334,10 @@ class MAVLink_message(object):
             self.sign_packet(mav)
         return bytes(self._msgbuf)
 
-    def pack(self, mav${type_mavlink}, force_mavlink1${type_bool_default})${type_bytes_ret}:
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
         raise NotImplementedError("MAVLink_message cannot be serialized directly")
 
-    def __getitem__(self, key${type_str})${type_str_ret}:
+    def __getitem__(self, key: str) -> str:
         """support indexing, allowing for multi-instance sensors in one message"""
         if self._instances is None:
             raise IndexError()
@@ -420,7 +355,7 @@ class mavlink_msg_deprecated_name_property(object):
     `mavlink_msg_deprecated_name_property()`.
     """
 
-    def __get__(self, instance${type_optional_mavlink_message}, owner${type_mavlink_message_type})${type_str_ret}:
+    def __get__(self, instance: Optional[MAVLink_message], owner: Type[MAVLink_message]) -> str:
         if instance is not None:
             logger.error("Using .name on a MAVLink_message is not supported, use .get_type() instead.")
             raise AttributeError("Class {} has no attribute 'name'".format(owner.__name__))
@@ -437,10 +372,8 @@ msg_name =  msg.msgname if hasattr(msg, "msgname") else msg.name"""
     )
 
 
-def generate_enums(outf, enums, enable_type_annotations):
+def generate_enums(outf, enums):
     print("Generating enums")
-
-    type_info = extend_with_type_info({}, enable_type_annotations)
 
     t.write(
         outf,
@@ -450,21 +383,24 @@ def generate_enums(outf, enums, enable_type_annotations):
 
 
 class EnumEntry(object):
-    def __init__(self, name${type_str}, description${type_str})${type_none_ret}:
+    def __init__(self, name: str, description: str) -> None:
         self.name = name
         self.description = description
-        self.param${type_dict_int_to_str} = {}
+        self.param: Dict[int, str] = {}
         self.has_location = False
 
+class Enum(Dict[int, EnumEntry]):
+    def __init__(self) -> None:
+        self.bitmask = False
 
-enums${type_dict_str_to_dict_int_to_enumentry} = {}
-""",
-        type_info,
+enums: Dict[str, Enum] = {}
+"""
     )
 
     for e in enums:
         outf.write("\n# %s\n" % e.name)
-        outf.write('enums["%s"] = {}\n' % e.name)
+        outf.write('enums["%s"] = Enum()\n' % e.name)
+        outf.write(f'enums["{e.name}"].bitmask = {e.bitmask}\n');
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
             description = entry.description.replace("\t", "    ")
@@ -518,16 +454,42 @@ def byname_hash_from_field_attribute(m, attribute):
     return ", ".join(strings)
 
 
-def generate_classes(outf, msgs, enable_type_annotations):
+def generate_classes(outf, msgs, enums):
     print("Generating class definitions")
     wrapper = textwrap.TextWrapper(initial_indent="    ", subsequent_indent="    ")
     for m in msgs:
         classname = "MAVLink_%s_message" % m.name.lower()
         fieldname_str = ", ".join(['"%s"' % s for s in m.fieldnames])
         ordered_fieldname_str = ", ".join(['"%s"' % s for s in m.ordered_fieldnames])
-        fielddisplays_str = byname_hash_from_field_attribute(m, "display")
-        fieldenums_str = byname_hash_from_field_attribute(m, "enum")
         fieldunits_str = byname_hash_from_field_attribute(m, "units")
+
+        # Parse display and enums, possibly setting display based on enum
+        m_display = []
+        m_enum = []
+        for field in m.fields:
+            display = getattr(field, "display", None)
+            enum_name = getattr(field, "enum", None)
+
+            display_valid = not (display is None or display == "")
+            enum_valid = not (enum_name is None or enum_name == "")
+
+            if not display_valid and enum_valid:
+                # Set display based on enum
+                for enum in enums:
+                    if enum.name == enum_name:
+                        if enum.bitmask == True:
+                            display = "bitmask"
+                            display_valid = True
+                        break
+
+            if display_valid:
+                m_display.append('"%s": "%s"' % (field.name, display))
+
+            if enum_valid:
+                m_enum.append('"%s": "%s"' % (field.name, enum_name))
+
+        fielddisplays_str = ", ".join(m_display)
+        fieldenums_str = ", ".join(m_enum)
 
         fieldtypes_str = ", ".join(['"%s"' % s for s in m.fieldtypes])
         if m.instance_field is not None:
@@ -542,15 +504,9 @@ def generate_classes(outf, msgs, enable_type_annotations):
             fname = m.fieldnames[i]
             if m.extensions_start is not None and i >= m.extensions_start:
                 fdefault = m.fielddefaults[i]
-                if enable_type_annotations:
-                    arg_fields.append("%s: %s = %s" % (fname, mavpytype(m.fields[i]), fdefault))
-                else:
-                    arg_fields.append("%s=%s" % (fname, fdefault))
+                arg_fields.append("%s: %s = %s" % (fname, mavpytype(m.fields[i]), fdefault))
             else:
-                if enable_type_annotations:
-                    arg_fields.append("%s: %s" % (fname, mavpytype(m.fields[i])))
-                else:
-                    arg_fields.append(fname)
+                arg_fields.append("%s: %s" % (fname, mavpytype(m.fields[i])))
 
         init_fields = []
         for f in m.fields:
@@ -585,9 +541,9 @@ ${docstring}
     fieldnames = [${field_names}]
     ordered_fieldnames = [${ordered_field_names}]
     fieldtypes = [${field_types}]
-    fielddisplays_by_name${type_dict_str_to_str} = {${field_displays}}
-    fieldenums_by_name${type_dict_str_to_str} = {${field_nums}}
-    fieldunits_by_name${type_dict_str_to_str} = {${field_units}}
+    fielddisplays_by_name: Dict[str, str] = {${field_displays}}
+    fieldenums_by_name: Dict[str, str] = {${field_nums}}
+    fieldunits_by_name: Dict[str, str] = {${field_units}}
     native_format = bytearray(b"${native_fmtstr}")
     orders = ${orders}
     lengths = ${lengths}
@@ -604,7 +560,7 @@ ${docstring}
         self._instance_offset = ${classname}.instance_offset
         ${init_fields}
 
-    def pack(self, mav${type_mavlink}, force_mavlink1${type_bool_default})${type_bytes_ret}:
+    def pack(self, mav: "MAVLink", force_mavlink1: bool = False) -> bytes:
         return self._pack(mav, self.crc_extra, self.unpacker.pack(${pack_fields}), force_mavlink1=force_mavlink1)
 
 
@@ -612,7 +568,6 @@ ${docstring}
 # Done with setattr to hide the class variable from mypy.
 setattr(${classname}, "name", mavlink_msg_deprecated_name_property())
 ''',
-            extend_with_type_info(
                 {
                     "classname": classname,
                     "docstring": wrapper.fill(m.description.strip()),
@@ -635,8 +590,6 @@ setattr(${classname}, "name", mavlink_msg_deprecated_name_property())
                     "init_fields": "\n        ".join(init_fields),
                     "pack_fields": ", ".join(pack_fields),
                 },
-                enable_type_annotations,
-            ),
         )
 
 
@@ -725,7 +678,7 @@ def generate_mavlink_class(outf, msgs, xml):
         """
 
 
-mavlink_map${type_dict_int_to_mavlink_message_type} = {
+mavlink_map: Dict[int, Type[MAVLink_message]] = {
 """,
         xml,
     )
@@ -742,7 +695,7 @@ mavlink_map${type_dict_int_to_mavlink_message_type} = {
 class MAVError(Exception):
     """MAVLink error class"""
 
-    def __init__(self, msg${type_str})${type_none_ret}:
+    def __init__(self, msg: str) -> None:
         Exception.__init__(self, msg)
         self.message = msg
 
@@ -752,7 +705,7 @@ class MAVLink_bad_data(MAVLink_message):
     a piece of bad data in a mavlink stream
     """
 
-    def __init__(self, data${type_bytes}, reason${type_str})${type_none_ret}:
+    def __init__(self, data: bytes, reason: str) -> None:
         MAVLink_message.__init__(self, MAVLINK_MSG_ID_BAD_DATA, "BAD_DATA")
         self._fieldnames = ["data", "reason"]
         self.data = data
@@ -760,12 +713,9 @@ class MAVLink_bad_data(MAVLink_message):
         self._msgbuf = bytearray(data)
         self._instance_field = None
 
-    def __str__(self)${type_str_ret}:
+    def __str__(self) -> str:
         """Override the __str__ function from MAVLink_messages because non-printable characters are common in to be the reason for this message to exist."""
-        if sys.version_info[0] == 2:
-            hexstr = ["{:x}".format(ord(i)) for i in self.data]
-        else:
-            hexstr = ["{:x}".format(i) for i in self.data]
+        hexstr = ["{:x}".format(i) for i in self.data]
         return "%s {%s, data:%s}" % (self._type, self.reason, hexstr)
 
 
@@ -774,32 +724,29 @@ class MAVLink_unknown(MAVLink_message):
     a message that we don't have in the XML used when built
     """
 
-    def __init__(self, msgid${type_int}, data${type_bytes})${type_none_ret}:
+    def __init__(self, msgid: int, data: bytes) -> None:
         MAVLink_message.__init__(self, MAVLINK_MSG_ID_UNKNOWN, "UNKNOWN_%u" % msgid)
         self._fieldnames = ["data"]
         self.data = data
         self._msgbuf = bytearray(data)
         self._instance_field = None
 
-    def __str__(self)${type_str_ret}:
+    def __str__(self) -> str:
         """Override the __str__ function from MAVLink_messages because non-printable characters are common."""
-        if sys.version_info[0] == 2:
-            hexstr = ["{:x}".format(ord(i)) for i in self.data]
-        else:
-            hexstr = ["{:x}".format(i) for i in self.data]
+        hexstr = ["{:x}".format(i) for i in self.data]
         return "%s {data:%s}" % (self._type, hexstr)
 
 
 class MAVLinkSigning(object):
     """MAVLink signing state class"""
 
-    def __init__(self)${type_none_ret}:
-        self.secret_key${type_optional_bytes} = None
+    def __init__(self) -> None:
+        self.secret_key: Optional[bytes] = None
         self.timestamp = 0
         self.link_id = 0
         self.sign_outgoing = False
-        self.allow_unsigned_callback${type_optional_mavlink_message_signed_callback} = None
-        self.stream_timestamps${type_dict_int_int_int_to_int} = {}
+        self.allow_unsigned_callback: Optional[Callable[["MAVLink", int], bool]] = None
+        self.stream_timestamps: Dict[Tuple[int, int, int], int] = {}
         self.sig_count = 0
         self.badsig_count = 0
         self.goodsig_count = 0
@@ -807,20 +754,23 @@ class MAVLinkSigning(object):
         self.reject_count = 0
 
 
+MAVLinkV1Header = Tuple[bytes, int, int, int, int, int]
+MAVLinkV2Header = Tuple[bytes, int, int, int, int, int, int, int, int]
+
 class MAVLink(object):
     """MAVLink protocol handling class"""
 
-    def __init__(self, file${type_any}, srcSystem${type_int_default}, srcComponent${type_int_default}, use_native${type_bool_default})${type_none_ret}:
+    def __init__(self, file: Any, srcSystem: int = 0, srcComponent: int = 0, use_native: bool = False) -> None:
         self.seq = 0
         self.file = file
         self.srcSystem = srcSystem
         self.srcComponent = srcComponent
-        self.callback${type_optional_generic_callback} = None
-        self.callback_args${type_optional_args} = None
-        self.callback_kwargs${type_optional_kwargs} = None
-        self.send_callback${type_optional_generic_callback} = None
-        self.send_callback_args${type_optional_args} = None
-        self.send_callback_kwargs${type_optional_kwargs} = None
+        self.callback: Optional[Callable[..., None]] = None
+        self.callback_args: Optional[Iterable[Any]] = None
+        self.callback_kwargs: Optional[Mapping[str, Any]] = None
+        self.send_callback: Optional[Callable[..., None]] = None
+        self.send_callback_args: Optional[Iterable[Any]] = None
+        self.send_callback_kwargs: Optional[Mapping[str, Any]] = None
         self.buf = bytearray()
         self.buf_index = 0
         self.expected_length = HEADER_LEN_V1 + 2
@@ -843,17 +793,17 @@ class MAVLink(object):
         self.mav_csum_unpacker = struct.Struct("<H")
         self.mav_sign_unpacker = struct.Struct("<IH")
 
-    def set_callback(self, callback${type_generic_callback}, *args${type_any}, **kwargs${type_any})${type_none_ret}:
+    def set_callback(self, callback: Callable[..., None], *args: Any, **kwargs: Any) -> None:
         self.callback = callback
         self.callback_args = args
         self.callback_kwargs = kwargs
 
-    def set_send_callback(self, callback${type_generic_callback}, *args${type_any}, **kwargs${type_any})${type_none_ret}:
+    def set_send_callback(self, callback: Callable[..., None], *args: Any, **kwargs: Any) -> None:
         self.send_callback = callback
         self.send_callback_args = args
         self.send_callback_kwargs = kwargs
 
-    def send(self, mavmsg${type_mavlink_message}, force_mavlink1${type_bool_default})${type_none_ret}:
+    def send(self, mavmsg: MAVLink_message, force_mavlink1: bool = False) -> None:
         """send a MAVLink message"""
         buf = mavmsg.pack(self, force_mavlink1=force_mavlink1)
         self.file.write(buf)
@@ -863,10 +813,10 @@ class MAVLink(object):
         if self.send_callback is not None and self.send_callback_args is not None and self.send_callback_kwargs is not None:
             self.send_callback(mavmsg, *self.send_callback_args, **self.send_callback_kwargs)
 
-    def buf_len(self)${type_int_ret}:
+    def buf_len(self) -> int:
         return len(self.buf) - self.buf_index
 
-    def bytes_needed(self)${type_int_ret}:
+    def bytes_needed(self) -> int:
         """return number of bytes needed for next parsing stage"""
         ret = self.expected_length - self.buf_len()
 
@@ -874,12 +824,12 @@ class MAVLink(object):
             return 1
         return ret
 
-    def __callbacks(self, msg${type_mavlink_message})${type_none_ret}:
+    def __callbacks(self, msg: MAVLink_message) -> None:
         """this method exists only to make profiling results easier to read"""
         if self.callback is not None and self.callback_args is not None and self.callback_kwargs is not None:
             self.callback(msg, *self.callback_args, **self.callback_kwargs)
 
-    def parse_char(self, c${type_intseq})${type_optional_mavlink_message_ret}:
+    def parse_char(self, c: Sequence[int]) -> Optional[MAVLink_message]:
         """input some data bytes, possibly returning a new message"""
         self.buf.extend(c)
 
@@ -899,18 +849,21 @@ class MAVLink(object):
 
         return m
 
-    def __parse_char_legacy(self)${type_optional_mavlink_message_ret}:
+    def __parse_char_legacy(self) -> Optional[MAVLink_message]:
         """input some data bytes, possibly returning a new message"""
         header_len = HEADER_LEN_V1
         if self.buf_len() >= 1 and self.buf[self.buf_index] == PROTOCOL_MARKER_V2:
             header_len = HEADER_LEN_V2
 
-        m${type_optional_mavlink_message} = None
+        m: Optional[MAVLink_message] = None
         if self.buf_len() >= 1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V2:
             magic = self.buf[self.buf_index]
             self.buf_index += 1
             if self.robust_parsing:
-                m = MAVLink_bad_data(bytearray([magic]), "Bad prefix")
+                invalid_prefix_start = self.buf_index - 1
+                while self.buf_len() >= 1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V1 and self.buf[self.buf_index] != PROTOCOL_MARKER_V2:
+                    self.buf_index += 1
+                m = MAVLink_bad_data(self.buf[invalid_prefix_start : self.buf_index], "Bad prefix")
                 self.expected_length = header_len + 2
                 self.total_receive_errors += 1
                 return m
@@ -922,10 +875,8 @@ class MAVLink(object):
         self.have_prefix_error = False
         if self.buf_len() >= 3:
             sbuf = self.buf[self.buf_index : 3 + self.buf_index]
-            (magic, self.expected_length, incompat_flags) = cast(
-                ${type_tuple_int_int_int_cast},
-                self.mav20_h3_unpacker.unpack(sbuf),
-            )
+            unpacked_h3: Tuple[int, int, int] = self.mav20_h3_unpacker.unpack(sbuf)
+            magic, self.expected_length, incompat_flags = unpacked_h3
             if magic == PROTOCOL_MARKER_V2 and (incompat_flags & MAVLINK_IFLAG_SIGNED):
                 self.expected_length += MAVLINK_SIGNATURE_BLOCK_LEN
             self.expected_length += header_len + 2
@@ -948,7 +899,7 @@ class MAVLink(object):
             return m
         return None
 
-    def parse_buffer(self, s${type_intseq})${type_optional_mavlink_message_list_ret}:
+    def parse_buffer(self, s: Sequence[int]) -> Optional[List[MAVLink_message]]:
         """input some data bytes, possibly returning a list of new messages"""
         m = self.parse_char(s)
         if m is None:
@@ -960,16 +911,14 @@ class MAVLink(object):
                 return ret
             ret.append(m)
 
-    def check_signature(self, msgbuf${type_bytearray}, srcSystem${type_int}, srcComponent${type_int})${type_bool_ret}:
+    def check_signature(self, msgbuf: bytearray, srcSystem: int, srcComponent: int) -> bool:
         """check signature on incoming message"""
         assert self.signing.secret_key is not None
 
         timestamp_buf = msgbuf[-12:-6]
         link_id = msgbuf[-13]
-        (tlow, thigh) = cast(
-            ${type_tuple_int_int_cast},
-            self.mav_sign_unpacker.unpack(timestamp_buf),
-        )
+        tbytes: Tuple[int, int] = self.mav_sign_unpacker.unpack(timestamp_buf)
+        tlow, thigh = tbytes
         timestamp = tlow + (thigh << 32)
 
         # see if the timestamp is acceptable
@@ -985,8 +934,10 @@ class MAVLink(object):
             if timestamp + 6000 * 1000 < self.signing.timestamp:
                 logger.info("bad new stream %s %s", timestamp / (100.0 * 1000 * 60 * 60 * 24 * 365), self.signing.timestamp / (100.0 * 1000 * 60 * 60 * 24 * 365))
                 return False
-            self.signing.stream_timestamps[stream_key] = timestamp
             logger.info("new stream")
+
+        # set the streams timestamp so we reject timestamps that go backwards
+        self.signing.stream_timestamps[stream_key] = timestamp
 
         h = hashlib.new("sha256")
         h.update(self.signing.secret_key)
@@ -1002,32 +953,27 @@ class MAVLink(object):
         self.signing.timestamp = max(self.signing.timestamp, timestamp)
         return True
 
-    def decode(self, msgbuf${type_bytearray})${type_mavlink_message_ret}:
+    def decode(self, msgbuf: bytearray) -> MAVLink_message:
         """decode a buffer as a MAVLink message"""
         # decode the header
         if msgbuf[0] != PROTOCOL_MARKER_V1:
             headerlen = 10
             try:
-                magic, mlen, incompat_flags, compat_flags, seq, srcSystem, srcComponent, msgIdlow, msgIdhigh = cast(
-                    ${type_tuple_bytes_eight_int_cast},
-                    self.mav20_unpacker.unpack(msgbuf[:headerlen]),
-                )
+                header_v2: MAVLinkV2Header = self.mav20_unpacker.unpack(msgbuf[:headerlen])
             except struct.error as emsg:
                 raise MAVError("Unable to unpack MAVLink header: %s" % emsg)
+            magic, mlen, incompat_flags, compat_flags, seq, srcSystem, srcComponent, msgIdlow, msgIdhigh = header_v2
             msgId = msgIdlow | (msgIdhigh << 16)
-            mapkey = msgId
         else:
             headerlen = 6
             try:
-                magic, mlen, seq, srcSystem, srcComponent, msgId = cast(
-                    ${type_tuple_bytes_five_int_cast},
-                    self.mav10_unpacker.unpack(msgbuf[:headerlen]),
-                )
-                incompat_flags = 0
-                compat_flags = 0
+                header_v1: MAVLinkV1Header = self.mav10_unpacker.unpack(msgbuf[:headerlen])
             except struct.error as emsg:
                 raise MAVError("Unable to unpack MAVLink header: %s" % emsg)
-            mapkey = msgId
+            magic, mlen, seq, srcSystem, srcComponent, msgId = header_v1
+            incompat_flags = 0
+            compat_flags = 0
+        mapkey = msgId
         if (incompat_flags & MAVLINK_IFLAG_SIGNED) != 0:
             signature_len = MAVLINK_SIGNATURE_BLOCK_LEN
         else:
@@ -1049,10 +995,7 @@ class MAVLink(object):
 
         # decode the checksum
         try:
-            (crc,) = cast(
-                ${type_tuple_int_cast},
-                self.mav_csum_unpacker.unpack(msgbuf[-(2 + signature_len) :][:2]),
-            )
+            crc: int = self.mav_csum_unpacker.unpack(msgbuf[-(2 + signature_len) :][:2])[0]
         except struct.error as emsg:
             raise MAVError("Unable to unpack MAVLink CRC: %s" % emsg)
         crcbuf = msgbuf[1 : -(2 + signature_len)]
@@ -1099,14 +1042,11 @@ class MAVLink(object):
             raise MAVError("Bad message of type %s length %u needs %s" % (msgtype, len(mbuf), csize))
         mbuf = mbuf[:csize]
         try:
-            t = cast(
-                ${type_tuple_bytes_int_float_repeat_cast},
-                msgtype.unpacker.unpack(mbuf),
-            )
+            t: Tuple[Union[bytes, int, float], ...] = msgtype.unpacker.unpack(mbuf)
         except struct.error as emsg:
             raise MAVError("Unable to unpack MAVLink payload type=%s payloadLength=%u: %s" % (msgtype, len(mbuf), emsg))
 
-        tlist${type_mavlink_message_assign_attr_list} = list(t)
+        tlist: List[Union[bytes, float, int, Sequence[Union[bytes, float, int]]]] = list(t)
         # handle sorted fields
         if ${sort_fields}:
             if sum(len_map) == len(len_map):
@@ -1124,7 +1064,7 @@ class MAVLink(object):
                     if L == 1 or isinstance(field, bytes):
                         tlist.append(field)
                     else:
-                        tlist.append(cast(${type_intseq_floatseq_cast}, list(t[tip : (tip + L)])))
+                        tlist.append(list(t[tip : (tip + L)]))
 
         # terminate any strings
         for i, elem in enumerate(tlist):
@@ -1151,7 +1091,7 @@ class MAVLink(object):
     )
 
 
-def generate_methods(outf, msgs, enable_type_annotations):
+def generate_methods(outf, msgs):
     print("Generating methods")
 
     def field_descriptions(fields):
@@ -1179,27 +1119,16 @@ def generate_methods(outf, msgs, enable_type_annotations):
         field_names = []
         for i in range(len(m.fields)):
             f = m.fields[i]
-            if enable_type_annotations:
-                python_type = mavpytype(f)
-                if f.omit_arg:
-                    field_names.append("%s: %s = %s" % (f.name, python_type, f.const_value))
-                elif m.extensions_start is not None and i >= m.extensions_start:
-                    fdefault = m.fielddefaults[i]
-                    field_names.append("%s: %s = %s" % (f.name, python_type, fdefault))
-                else:
-                    field_names.append("%s: %s" % (f.name, python_type))
+            python_type = mavpytype(f)
+            if f.omit_arg:
+                field_names.append("%s: %s = %s" % (f.name, python_type, f.const_value))
+            elif m.extensions_start is not None and i >= m.extensions_start:
+                fdefault = m.fielddefaults[i]
+                field_names.append("%s: %s = %s" % (f.name, python_type, fdefault))
             else:
-                if f.omit_arg:
-                    field_names.append("%s=%s" % (f.name, f.const_value))
-                elif m.extensions_start is not None and i >= m.extensions_start:
-                    fdefault = m.fielddefaults[i]
-                    field_names.append("%s=%s" % (f.name, fdefault))
-                else:
-                    field_names.append("%s" % f.name)
+                field_names.append("%s: %s" % (f.name, python_type))
 
-        self_ret_type = ""
-        if enable_type_annotations:
-            self_ret_type = " -> MAVLink_" + m.name.lower() + "_message"
+        self_ret_type = " -> MAVLink_" + m.name.lower() + "_message"
 
         t.write(
             outf,
@@ -1211,13 +1140,12 @@ def generate_methods(outf, msgs, enable_type_annotations):
         """
         return MAVLink_${NAMELOWER}_message(${FIELDNAMES})
 
-    def ${NAMELOWER}_send(self, ${ARG_FIELDNAMES}, force_mavlink1${type_bool_default})${type_none_ret}:
+    def ${NAMELOWER}_send(self, ${ARG_FIELDNAMES}, force_mavlink1: bool = False) -> None:
         """
         ${COMMENT}
         """
         self.send(self.${NAMELOWER}_encode(${FIELDNAMES}), force_mavlink1=force_mavlink1)
 ''',
-            extend_with_type_info(
                 {
                     "NAMELOWER": m.name.lower(),
                     "ARG_FIELDNAMES": ", ".join(field_names),
@@ -1225,12 +1153,10 @@ def generate_methods(outf, msgs, enable_type_annotations):
                     "FIELDNAMES": ", ".join(m.fieldnames),
                     "self_ret_type": self_ret_type,
                 },
-                enable_type_annotations,
-            ),
         )
 
 
-def generate(basename, xml, enable_type_annotations=False):
+def generate(basename, xml):
     """generate complete python implementation"""
     if basename.endswith(".py"):
         filename = basename
@@ -1271,12 +1197,12 @@ def generate(basename, xml, enable_type_annotations=False):
 
     print("Generating %s" % filename)
     outf = open(filename, "w")
-    xml = extend_with_type_info(xml[0].__dict__, enable_type_annotations)
+    xml = xml[0].__dict__
     generate_preamble(outf, msgs, basename, filelist, xml)
-    generate_enums(outf, enums, enable_type_annotations)
+    generate_enums(outf, enums)
     generate_message_ids(outf, msgs)
-    generate_classes(outf, msgs, enable_type_annotations)
+    generate_classes(outf, msgs, enums)
     generate_mavlink_class(outf, msgs, xml)
-    generate_methods(outf, msgs, enable_type_annotations)
+    generate_methods(outf, msgs)
     outf.close()
     print("Generated %s OK" % filename)

@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 show changes in flight modes
 '''
-from __future__ import print_function
-
 import datetime
 import os
 import time

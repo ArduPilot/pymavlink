@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # vector3 and rotation matrix classes
 # This follows the conventions in the ArduPilot code,
@@ -22,8 +22,6 @@
 
 '''rotation matrix class
 '''
-from __future__ import print_function
-
 from math import sin, cos, sqrt, asin, atan2, pi, acos, radians
 
 
@@ -138,14 +136,12 @@ class Vector3(object):
 
     def rotate_by_id(self, rot_id):
         '''rotate a vector using a rotation enum ID'''
-        global rotations
         if rot_id >= len(rotations):
             return None
         return rotations[rot_id].r * self
 
     def rotate_by_inverse_id(self, rot_id):
         '''rotate a vector using a inverse rotation enum ID'''
-        global rotations
         if rot_id >= len(rotations):
             return None
         return rotations[rot_id].rt * self

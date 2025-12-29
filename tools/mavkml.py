@@ -1,12 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 simple kml export for logfiles
 Thomas Gubler <thomasgubler@gmail.com>
 '''
-from __future__ import print_function
-
-from builtins import range
 
 from argparse import ArgumentParser
 import simplekml
@@ -33,7 +30,6 @@ kml_linestrings = []
 
 def add_to_linestring(position_data, kml_linestring):
     '''add a point to the kml file'''
-    global kml
 
     # add altitude offset
     position_data[2] += float(args.aoff)
@@ -42,7 +38,6 @@ def add_to_linestring(position_data, kml_linestring):
 
 def save_kml(filename):
     '''saves the kml file'''
-    global kml
     kml.save(filename)
     print("KML written to %s" % filename)
 

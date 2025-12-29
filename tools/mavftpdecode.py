@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 decode FTP file transfers from tlog
@@ -30,7 +30,7 @@ class Transfer(object):
 
     def extract(self):
         self.blocks.sort(key = lambda x: x.offset)
-        data = bytes()
+        data = b""
         for b in self.blocks:
             if b.offset != len(data):
                 print("gap at %u" % len(data))
@@ -60,12 +60,8 @@ def param_decode(data):
     count = 0
     params = []
 
-    if sys.version_info.major < 3:
-        pad_byte = chr(0)
-        last_name = ''
-    else:
-        pad_byte = 0
-        last_name = bytes()
+    pad_byte = 0
+    last_name = b""
     ret = []
 
     while True:

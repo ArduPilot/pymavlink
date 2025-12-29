@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 estimate attitude from an ArduPilot replay log using a python state estimator
 '''
-from __future__ import print_function
-from builtins import range
 
 import os
 

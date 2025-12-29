@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# This requires the python future library
-# On MS windows, cygwin usually does not provide that.
-# The workaround is then to issue on a cygwin prompt:
-#   easy_install-2.7 pip
-#   pip install future
-
 set -e
 set -x
 
@@ -18,11 +12,13 @@ tools/mavgen.py --lang C $MDEF/v1.0/all.xml -o generator/C/include_v2.0 --wire-p
 tools/mavgen.py --lang C++11 $MDEF/v1.0/all.xml -o generator/CPP11/include_v2.0 --wire-protocol=2.0
 
 pushd generator/C/test/posix
-make clean testmav1.0_ardupilotmega testmav2.0_ardupilotmega
+make clean testmav1.0_ardupilotmega testmav2.0_ardupilotmega test_issues
 
-# these test tools emit the test packet as hexadecimal and human-readable, other tools consume it as a cross-reference, we ignore the hex here.
+# these test tools emit the test packet as hexadecimal and human-readable,
+# other tools consume it as a cross-reference, we ignore the hex here.
 ./testmav1.0_ardupilotmega | egrep -v '(^fe|^fd)'
 ./testmav2.0_ardupilotmega | egrep -v '(^fe|^fd)'
+./test_issues
 popd
 
 pushd generator/CPP11/test/posix

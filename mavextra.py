@@ -1,14 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 useful extra functions for use by mavlink clients
 
 Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import object
 from builtins import sum as builtin_sum
+from functools import lru_cache
 
 from math import *
 
@@ -217,7 +215,6 @@ average_data = {}
 
 def average(var, key, N):
     '''average over N points'''
-    global average_data
     if not key in average_data:
         average_data[key] = [var]*N
         return var
@@ -230,7 +227,6 @@ derivative_data = {}
 
 def second_derivative_5(var, key):
     '''5 point 2nd derivative'''
-    global derivative_data
     from . import mavutil
     tnow = mavutil.mavfile_global.timestamp
 
@@ -249,7 +245,6 @@ def second_derivative_5(var, key):
 
 def second_derivative_9(var, key):
     '''9 point 2nd derivative'''
-    global derivative_data
     from . import mavutil
     tnow = mavutil.mavfile_global.timestamp
 
@@ -273,7 +268,6 @@ def lowpass(var, key, factor):
     '''a simple lowpass filter'''
     if isnan(var):
         return None
-    global lowpass_data
     if not key in lowpass_data:
         lowpass_data[key] = var
     else:
@@ -290,7 +284,6 @@ lowpass_hz_data = {}
 
 def lowpassHz(var, key, sample_rate_hz, cutoff_hz):
     '''a simple lowpass filter with specified frequency'''
-    global lowpass_hz_data
     alpha = lpalpha(sample_rate_hz, cutoff_hz)
     if not key in lowpass_hz_data:
         lowpass_hz_data[key] = var
@@ -302,7 +295,6 @@ last_diff = {}
 
 def diff(var, key):
     '''calculate differences between values'''
-    global last_diff
     ret = 0
     if not key in last_diff:
         last_diff[key] = var
@@ -317,7 +309,6 @@ def delta(var, key, tusec=None):
     '''calculate slope'''
     if isnan(var):
         return None
-    global last_delta
     if tusec is not None:
         tnow = tusec * 1.0e-6
     else:
@@ -339,7 +330,6 @@ last_sum = {}
 
 def sum(var, key):
     '''sum variable'''
-    global last_sum
     ret = 0
     if not key in last_sum:
         last_sum[key] = 0
@@ -350,7 +340,6 @@ last_integral = {}
 
 def integral(var, key, timeus):
     '''integrate variable'''
-    global last_integral
     ret = 0
     if not key in last_integral:
         last_integral[key] = (0,timeus)
@@ -364,7 +353,6 @@ def integral(var, key, timeus):
 
 def delta_angle(var, key, tusec=None):
     '''calculate slope of an angle'''
-    global last_delta
     if tusec is not None:
         tnow = tusec * 1.0e-6
     else:
@@ -1093,9 +1081,10 @@ def ekf1_pos(EKF1):
   from . import mavutil
   self = mavutil.mavfile_global
   if ekf_origin is None:
-      if not 'ORGN' in self.messages:
+      # Look for the ORGN[0] message explicitly
+      if not 'ORGN[0]' in self.messages:
           return None
-      ekf_origin = self.messages['ORGN']
+      ekf_origin = self.messages['ORGN[0]']
       (ekf_origin.Lat, ekf_origin.Lng) = (ekf_origin.Lat, ekf_origin.Lng)
   (lat,lon) = gps_offset(ekf_origin.Lat, ekf_origin.Lng, EKF1.PE, EKF1.PN)
   alt = ekf_origin.Alt - EKF1.PD
@@ -1577,15 +1566,8 @@ def sim_body_rates(SIM):
 
 def reset_state_data():
     '''reset state data, used on log rewind'''
-    global average_data
-    global derivative_data
-    global lowpass_data
-    global last_diff
-    global last_delta
     global first_fix
     global dcm_state
-    global last_sum
-    global last_integral
     average_data.clear()
     derivative_data.clear()
     lowpass_data.clear()
@@ -1598,6 +1580,7 @@ def reset_state_data():
 # terrain functions, using MAVProxy elevation module
 EleModel = None
 
+@lru_cache(maxsize=10000)
 def terrain_height(lat,lon):
     '''get terrain height'''
     global EleModel
@@ -1611,14 +1594,17 @@ def terrain_margin_lat_lon(lat1,lon1,alt1,lat2,lon2,alt2):
     return minimum height above terrain on path between two positions (AMSL)
     '''
     distance = distance_lat_lon(lat1, lon1, lat2, lon2)
-    steps = distance / 10
+    steps = distance / 20
     dlat = (lat2-lat1) / steps
     dlon = (lon2-lon1) / steps
     dalt = (alt2-alt1) / steps
     min_margin = None
 
     for i in range(max(1,int(steps))):
-        talt = terrain_height(lat1,lon1)
+        # round lat/lon to approx 1m to give LRU cache a chance
+        lat_round = int(lat1 * 1e5)*1e-5
+        lon_round = int(lon1 * 1e5)*1e-5
+        talt = terrain_height(lat_round,lon_round)
         margin = alt1 - talt
         if min_margin is None or margin < min_margin:
             min_margin = margin
@@ -1678,3 +1664,11 @@ def RotateMag(MAG,rotation):
     '''rotate a MAG message by rotation enumeration'''
     v = Vector3(MAG.MagX,MAG.MagY,MAG.MagZ)
     return v.rotate_by_id(rotation)
+
+def feet(meters):
+    '''convert value from meters to feet'''
+    return meters/0.3048
+
+def knots(mps):
+    '''convert value from m/s to knots'''
+    return mps/0.51444

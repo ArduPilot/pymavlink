@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
 
-from __future__ import print_function
 from pymavlink import mavutil
 
 master = mavutil.mavlink_connection("udp::14555", dialect="array_test")

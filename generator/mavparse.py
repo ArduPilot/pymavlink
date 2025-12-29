@@ -322,9 +322,6 @@ class MAVXML(object):
                 self.enum[-1].entry[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])                
             elif in_element == "mavlink.enums.enum.entry.wip":
                 self.enum[-1].entry[-1].wip = True
-            elif in_element == "mavlink.enums.enum.entry.deprecated":
-                check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
-                self.enum[-1].entry[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])
             elif in_element == "mavlink.enums.enum.entry.param":
                 check_attrs(attrs, ['index'], 'enum param')
                 self.enum[-1].entry[-1].param.append(

@@ -1,11 +1,9 @@
 
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # parse and construct FlightGear NET FDM packets
 # Andrew Tridgell, November 2011
 # released under GNU GPL version 2 or later
 
-from builtins import range
-from builtins import object
 import struct, math
 
 class fgFDMError(Exception):

@@ -1,11 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Generate a message using different MAVLink versions, put in a buffer and then read from it.
 """
-
-from __future__ import print_function
-from builtins import object
 
 from pymavlink.dialects.v10 import ardupilotmega as mavlink1
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2

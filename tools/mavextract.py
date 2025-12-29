@@ -1,10 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 extract one mode type from a log
 '''
-from __future__ import print_function
-
 import os
 import struct
 

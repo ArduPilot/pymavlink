@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 merge 2 logs into a 3rd log, mapping some messages from LOG2 to new message names
@@ -104,7 +104,7 @@ while True:
         break
 
     if m2 is None and m1 is not None:
-        # pass-thru m1
+        # pass through m1
         output.write(m1.get_msgbuf())
         m1 = None
         continue
@@ -116,7 +116,7 @@ while True:
         continue
 
     if m1._timestamp < m2._timestamp:
-        # m1 is older, pass-thru m1
+        # m1 is older, pass through m1
         #print("write m1", m2._timestamp - m1._timestamp)
         output.write(m1.get_msgbuf())
         m1 = None
