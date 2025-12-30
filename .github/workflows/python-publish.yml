@@ -76,7 +76,7 @@ jobs:
     env:
       PYTHON_VERSION: ${{ matrix.python_version }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up QEMU
       if: matrix.is_riscv
       uses: docker/setup-qemu-action@v3
@@ -91,13 +91,13 @@ jobs:
       shell: bash
       run: echo "CIBW_BUILD=cp${PYTHON_VERSION/./}-*" >> $GITHUB_ENV
     - name: Build wheels
-      uses: pypa/cibuildwheel@v3.2.1
+      uses: pypa/cibuildwheel@v3.3.0
       env:
         PYMAVLINK_FAST_INDEX: "1"
         CIBW_BUILD: ${{ matrix.cibw_build }}
         CIBW_ARCHS: ${{ matrix.cibw_archs }}
     - name: Upload wheels
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.name }}
         path: wheelhouse/*.whl
@@ -106,7 +106,7 @@ jobs:
   build-sdist:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
@@ -124,7 +124,7 @@ jobs:
     - name: Build sdist
       run: pipx run build --sdist
     - name: Upload sdist
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: sdist
         path: dist/*.tar.gz
@@ -135,7 +135,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         path: dist
         merge-multiple: true
@@ -144,7 +144,7 @@ jobs:
       run: ls -lh dist/
 
     - name: Upload final dist artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: dist
         path: dist/*
