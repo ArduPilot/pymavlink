@@ -36,6 +36,7 @@ jobs:
               machines = [
                   ("linux", "ubuntu-latest", "auto64 auto32"),
                   ("linux-arm", "ubuntu-24.04-arm", "auto"),
+                  ("linux-riscv64", "ubuntu-latest", "riscv64"),
                   ("macos", "macos-latest", "arm64 x86_64 universal2"),
                   ("windows", "windows-latest", "auto64 auto32"),
                   ("windows-arm", "windows-11-arm", "auto"),
@@ -59,6 +60,7 @@ jobs:
                       "python_version": py,
                       "cibw_build": f"cp{py.replace('.', '')}-*",
                       "cibw_archs": cibw_archs,
+                      "is_riscv": name == "linux-riscv64"
                   })
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
@@ -75,6 +77,11 @@ jobs:
       PYTHON_VERSION: ${{ matrix.python_version }}
     steps:
     - uses: actions/checkout@v5
+    - name: Set up QEMU
+      if: matrix.is_riscv
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: riscv64
     - name: Install mavlink definitions
       shell: bash
       run: |
