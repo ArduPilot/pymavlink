@@ -1,7 +1,7 @@
--- Package body for crc checksum
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Package body for crc checksum
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
-package body X25CRC is
+package body MAVLink.X25CRC is
 
    procedure Reset (Element : in out Checksum) is
    begin
@@ -17,7 +17,8 @@ package body X25CRC is
       Tmp := Unsigned_16 (Value) xor (Element.Value and 16#FF#);
       Tmp := (Tmp xor Shift_Left (Tmp, 4)) and 16#FF#;
       Element.Value :=
-        Shift_Right (Element.Value, 8) xor Shift_Left (Tmp, 8) xor Shift_Left (Tmp, 3) xor Shift_Right (Tmp, 4);
+        Shift_Right (Element.Value, 8) xor Shift_Left (Tmp, 8) xor
+        Shift_Left (Tmp, 3) xor Shift_Right (Tmp, 4);
    end Update;
 
-end X25CRC;
+end MAVLink.X25CRC;
