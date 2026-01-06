@@ -137,6 +137,25 @@ def set_dialect(dialect, with_type_annotations=None):
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
+def set_mavlink_version(version):
+    '''set the MAVLink version to work with.
+    For example, set_mavlink_version(2.0)
+    '''
+    v = float(version)
+    if v not in [2.0, 1.0, 0.9]:
+        raise ValueError("Wrong MAVLink version")
+
+    if v == 2.0:
+        os.environ.pop('MAVLINK09', None)
+        os.environ['MAVLINK20'] = '1'
+    elif v == 1.0:
+        os.environ.pop('MAVLINK09', None)
+        os.environ.pop('MAVLINK20', None)
+    elif v == 0.9:
+        os.environ.pop('MAVLINK20', None)
+        os.environ['MAVLINK09'] = '1'
+    set_dialect(current_dialect)
+
 class mavfile_state(object):
     '''state for a particular system id'''
     def __init__(self):
