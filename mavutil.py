@@ -310,22 +310,15 @@ class mavfile(object):
             magic = ord(buf[0])
         except:
             magic = buf[0]
-        if not magic in [ 85, 254, 253 ]:
-            return
-        self.first_byte = False
-        if self.WIRE_PROTOCOL_VERSION == "0.9" and magic == 254:
-            self.WIRE_PROTOCOL_VERSION = "1.0"
-            set_dialect(current_dialect)
-        elif self.WIRE_PROTOCOL_VERSION == "1.0" and magic == 85:
-            self.WIRE_PROTOCOL_VERSION = "0.9"
-            os.environ['MAVLINK09'] = '1'
-            set_dialect(current_dialect)
-        elif self.WIRE_PROTOCOL_VERSION != "2.0" and magic == 253:
-            self.WIRE_PROTOCOL_VERSION = "2.0"
-            os.environ['MAVLINK20'] = '1'
-            set_dialect(current_dialect)
+        if magic == 254:
+            set_mavlink_version(1.0)
+        elif magic == 85:
+            set_mavlink_version(0.9)
+        elif magic == 253:
+            set_mavlink_version(2.0)
         else:
             return
+        self.first_byte = False
         # switch protocol 
         (callback, callback_args, callback_kwargs) = (self.mav.callback,
                                                       self.mav.callback_args,
