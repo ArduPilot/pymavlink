@@ -1367,7 +1367,7 @@ def generate(basename, xml):
 
 
     print("Generating %s" % filename)
-    outf = open(filename, "w")
+    outf = open(filename, "w", encoding="utf-8")
     generate_preamble(outf, msgs, filelist, xml[0])
     generate_enums(outf, enums, xml[0])
     generate_message_ids(outf, msgs, xml[0])
@@ -1379,7 +1379,7 @@ def generate(basename, xml):
 
     testfilename = filename.replace('.js','.tests.js')
     print("Generating TESTS %s" % testfilename)
-    outf = open(testfilename, "w")
+    outf = open(testfilename, "w", encoding="utf-8")
     generate_tests_preamble(outf, msgs, filelist, xml[0])
     generate_tests_mavlink_class(outf, msgs, xml[0])
     generate_tests_footer(outf, xml[0])
