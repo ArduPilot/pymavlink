@@ -103,14 +103,22 @@ OffsetArray* scan_offsets(const uint8_t *data, size_t len,
             uint8_t type_in_fmt = data[i + type_offset];
             uint8_t len_in_fmt = data[i + length_offset];
             if (len_in_fmt < 3) {
-                panic("Invalid length in FMT message at %zu", i);
+                if (len - i >= 528 || len < 528) {
+                    fprintf(stderr, "Invalid length in FMT message at %zu\n", i);
+                }
+                i++;
+                continue;
             }
             lengths[type_in_fmt] = len_in_fmt;
         }
 
         uint8_t mlen = lengths[mtype];
         if (mlen == 0) {
-            panic("Invalid length in FMT message at %zu", i);
+            if (len - i >= 528 || len < 528) {
+                fprintf(stderr, "unknown msg type 0x%02x (%u) at %zu\n", mtype, mtype, i);
+            }
+            i++;
+            continue;
         }
 
         OffsetArray *arr = &results[mtype];
