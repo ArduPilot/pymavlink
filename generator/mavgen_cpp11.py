@@ -53,8 +53,8 @@ def generate_main_hpp(directory, xml):
     f = open(os.path.join(directory, xml.basename + ".hpp"), mode='w')
     t.write(f, '''
 /** @file
- *	@brief MAVLink comm protocol generated from ${basename}.xml
- *	@see http://mavlink.org
+ *  @brief MAVLink comm protocol generated from ${basename}.xml
+ *  @see http://mavlink.org
  */
 
 #pragma once
@@ -188,8 +188,8 @@ def generate_gtestsuite_hpp(directory, xml):
     f = open(os.path.join(directory, "gtestsuite.hpp"), mode='w')
     t.write(f, '''
 /** @file
- *	@brief MAVLink comm testsuite protocol generated from ${basename}.xml
- *	@see http://mavlink.org
+ *  @brief MAVLink comm testsuite protocol generated from ${basename}.xml
+ *  @see http://mavlink.org
  */
 
 #pragma once
