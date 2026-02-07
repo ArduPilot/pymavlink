@@ -2,7 +2,7 @@
 
 /*
   sha-256 implementation for MAVLink based on Heimdal sources, with
-  modifications to suit mavlink headers
+  modifications to suit mavlink headers and optimizations for small systems
  */
 /*
  * Copyright (c) 1995 - 2001 Kungliga Tekniska Högskolan
@@ -102,14 +102,26 @@ MAVLINK_HELPER void mavlink_sha256_init(mavlink_sha256_ctx *m)
     m->counter[7] = 0x5be0cd19;
 }
 
-static inline void mavlink_sha256_calc(mavlink_sha256_ctx *m, uint32_t *in)
+static inline void mavlink_sha256_calc(mavlink_sha256_ctx *m)
 {
     uint32_t AA, BB, CC, DD, EE, FF, GG, HH;
     int i;
 
     // use the 16-word input as a ring buffer to compute the message schedule
     // alongside the compression function as we only need the last 16 words
-    uint32_t *s = in;
+    uint32_t *s = m->u.save_u32;
+    // first we pack the 64 input bytes into 16 words over the top of the bytes;
+    // these are the first 16 message schedule entries
+    unsigned char *b = (unsigned char*)s; // cast s to not violate strict aliasing
+    for (i = 0; i < 16; i++) {
+        uint32_t w = 0;
+        w |= (((uint32_t)*b++)<<24); // bytes are always packed big-endian
+        w |= (((uint32_t)*b++)<<16);
+        w |= (((uint32_t)*b++)<<8);
+        w |= (((uint32_t)*b++)<<0);
+        *s++ = w;
+    }
+    s = m->u.save_u32; // restart schedule at first word for compression loop
 
     AA = m->counter[0];
     BB = m->counter[1];
@@ -174,18 +186,7 @@ MAVLINK_HELPER void mavlink_sha256_update(mavlink_sha256_ctx *m, const void *v, 
         p += l;
         len -= l;
         if(offset == 64){
-            int i;
-            uint32_t current[16];
-            const uint32_t *u = m->u.save_u32;
-            for (i = 0; i < 16; i++){
-                const uint8_t *p1 = (const uint8_t *)&u[i];
-                uint8_t *p2 = (uint8_t *)&current[i];
-                p2[0] = p1[3];
-                p2[1] = p1[2];
-                p2[2] = p1[1];
-                p2[3] = p1[0];
-            }
-            mavlink_sha256_calc(m, current);
+            mavlink_sha256_calc(m);
             offset = 0;
         }
     }
