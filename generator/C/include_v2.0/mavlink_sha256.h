@@ -102,7 +102,7 @@ MAVLINK_HELPER void mavlink_sha256_init(mavlink_sha256_ctx *m)
     m->counter[7] = 0x5be0cd19;
 }
 
-static inline void mavlink_sha256_calc(mavlink_sha256_ctx *m)
+static void mavlink_sha256_calc(mavlink_sha256_ctx *m)
 {
     uint32_t AA, BB, CC, DD, EE, FF, GG, HH;
     int i;
@@ -197,23 +197,29 @@ MAVLINK_HELPER void mavlink_sha256_update(mavlink_sha256_ctx *m, const void *v, 
  */
 MAVLINK_HELPER void mavlink_sha256_final_48(mavlink_sha256_ctx *m, uint8_t result[6])
 {
-    unsigned char zeros[72];
     unsigned offset = (m->sz[0] / 8) % 64;
-    unsigned int dstart = (120 - offset - 1) % 64 + 1;
     uint8_t *p = (uint8_t *)&m->counter[0];
-    
-    *zeros = 0x80;
-    memset (zeros + 1, 0, sizeof(zeros) - 1);
-    zeros[dstart+7] = (m->sz[0] >> 0) & 0xff;
-    zeros[dstart+6] = (m->sz[0] >> 8) & 0xff;
-    zeros[dstart+5] = (m->sz[0] >> 16) & 0xff;
-    zeros[dstart+4] = (m->sz[0] >> 24) & 0xff;
-    zeros[dstart+3] = (m->sz[1] >> 0) & 0xff;
-    zeros[dstart+2] = (m->sz[1] >> 8) & 0xff;
-    zeros[dstart+1] = (m->sz[1] >> 16) & 0xff;
-    zeros[dstart+0] = (m->sz[1] >> 24) & 0xff;
 
-    mavlink_sha256_update(m, zeros, dstart + 8);
+    // to finalize the hash, we append to the current 64-byte block a 0x80,
+    // enough zeros to align to the 56th byte of a block (possibly the next
+    // one!) then the 8 byte length counter
+    m->u.save_bytes[offset++] = 0x80;
+    if (offset > 56) { // not enough space for length
+        memset(&m->u.save_bytes[offset], 0, 64-offset); // zero remainder
+        mavlink_sha256_calc(m); // process the block
+        offset = 0; // start at the beginning of the next one
+    }
+    memset(&m->u.save_bytes[offset], 0, 56-offset); // zero up to length
+    // unpack length into bytes at the end of the block
+    m->u.save_bytes[56] = (m->sz[1] >> 24) & 0xFF;
+    m->u.save_bytes[57] = (m->sz[1] >> 16) & 0xFF;
+    m->u.save_bytes[58] = (m->sz[1] >> 8) & 0xFF;
+    m->u.save_bytes[59] = (m->sz[1] >> 0) & 0xFF;
+    m->u.save_bytes[60] = (m->sz[0] >> 24) & 0xFF;
+    m->u.save_bytes[61] = (m->sz[0] >> 16) & 0xFF;
+    m->u.save_bytes[62] = (m->sz[0] >> 8) & 0xFF;
+    m->u.save_bytes[63] = (m->sz[0] >> 0) & 0xFF;
+    mavlink_sha256_calc(m); // process last block
 
     // this ordering makes the result consistent with taking the first
     // 6 bytes of more conventional sha256 functions. It assumes
