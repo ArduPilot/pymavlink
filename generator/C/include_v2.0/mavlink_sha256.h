@@ -105,8 +105,11 @@ MAVLINK_HELPER void mavlink_sha256_init(mavlink_sha256_ctx *m)
 static inline void mavlink_sha256_calc(mavlink_sha256_ctx *m, uint32_t *in)
 {
     uint32_t AA, BB, CC, DD, EE, FF, GG, HH;
-    uint32_t data[64];
     int i;
+
+    // use the 16-word input as a ring buffer to compute the message schedule
+    // alongside the compression function as we only need the last 16 words
+    uint32_t *s = in;
 
     AA = m->counter[0];
     BB = m->counter[1];
@@ -117,16 +120,18 @@ static inline void mavlink_sha256_calc(mavlink_sha256_ctx *m, uint32_t *in)
     GG = m->counter[6];
     HH = m->counter[7];
 
-    for (i = 0; i < 16; ++i)
-        data[i] = in[i];
-    for (i = 16; i < 64; ++i)
-        data[i] = sigma1(data[i-2]) + data[i-7] + 
-            sigma0(data[i-15]) + data[i - 16];
-
     for (i = 0; i < 64; i++) {
-        uint32_t T1, T2;
+        uint32_t T1, T2, data;
 
-        T1 = HH + Sigma1(EE) + Ch(EE, FF, GG) + mavlink_sha256_constant_256[i] + data[i];
+        if (i < 16) {
+            data = s[i];
+        } else {
+            data = sigma1(s[(i-2)&15]) + s[(i-7)&15] +
+                   sigma0(s[(i-15)&15]) + s[(i-16)&15];
+            s[i&15] = data; // note that (i-16)&15 is the same entry as i&15
+        }
+
+        T1 = HH + Sigma1(EE) + Ch(EE, FF, GG) + mavlink_sha256_constant_256[i] + data;
         T2 = Sigma0(AA) + Maj(AA,BB,CC);
                              
         HH = GG;
