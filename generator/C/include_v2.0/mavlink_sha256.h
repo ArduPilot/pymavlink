@@ -198,7 +198,7 @@ MAVLINK_HELPER void mavlink_sha256_update(mavlink_sha256_ctx *m, const void *v, 
 MAVLINK_HELPER void mavlink_sha256_final_48(mavlink_sha256_ctx *m, uint8_t result[6])
 {
     unsigned offset = (m->sz[0] / 8) % 64;
-    uint8_t *p = (uint8_t *)&m->counter[0];
+    uint32_t c0, c1;
 
     // to finalize the hash, we append to the current 64-byte block a 0x80,
     // enough zeros to align to the 56th byte of a block (possibly the next
@@ -221,15 +221,15 @@ MAVLINK_HELPER void mavlink_sha256_final_48(mavlink_sha256_ctx *m, uint8_t resul
     m->u.save_bytes[63] = (m->sz[0] >> 0) & 0xFF;
     mavlink_sha256_calc(m); // process last block
 
-    // this ordering makes the result consistent with taking the first
-    // 6 bytes of more conventional sha256 functions. It assumes
-    // little-endian ordering of m->counter
-    result[0] = p[3];
-    result[1] = p[2];
-    result[2] = p[1];
-    result[3] = p[0];
-    result[4] = p[7];
-    result[5] = p[6];
+    // take first six bytes of hash result in big endian counter variables
+    c0 = m->counter[0];
+    c1 = m->counter[1];
+    result[0] = (c0 >> 24) & 0xFF;
+    result[1] = (c0 >> 16) & 0xFF;
+    result[2] = (c0 >> 8) & 0xFF;
+    result[3] = (c0 >> 0) & 0xFF;
+    result[4] = (c1 >> 24) & 0xFF;
+    result[5] = (c1 >> 16) & 0xFF;
 }
 
 // prevent conflicts with users of the header
