@@ -51,12 +51,12 @@ namespace mavlink {
 #endif
 
 typedef struct {
-    uint32_t sz[2];
-    uint32_t counter[8];
     union {
         unsigned char save_bytes[64];
         uint32_t save_u32[16];
     } u;
+    uint32_t counter[8];
+    uint32_t sz[2];
 } mavlink_sha256_ctx;
 
 #define Ch(x,y,z) (((x) & (y)) ^ ((~(x)) & (z)))
@@ -90,8 +90,6 @@ static const uint32_t mavlink_sha256_constant_256[64] = {
 
 MAVLINK_HELPER void mavlink_sha256_init(mavlink_sha256_ctx *m)
 {
-    m->sz[0] = 0;
-    m->sz[1] = 0;
     m->counter[0] = 0x6a09e667;
     m->counter[1] = 0xbb67ae85;
     m->counter[2] = 0x3c6ef372;
@@ -100,6 +98,8 @@ MAVLINK_HELPER void mavlink_sha256_init(mavlink_sha256_ctx *m)
     m->counter[5] = 0x9b05688c;
     m->counter[6] = 0x1f83d9ab;
     m->counter[7] = 0x5be0cd19;
+    m->sz[0] = 0;
+    m->sz[1] = 0;
 }
 
 static void mavlink_sha256_calc(mavlink_sha256_ctx *m)
