@@ -3,6 +3,9 @@
 /*
   sha-256 implementation for MAVLink based on Heimdal sources, with
   modifications to suit mavlink headers and optimizations for small systems
+
+  WARNING: this implementation cannot hash more than 512MB into the same
+           context! this applies to the total of all update calls.
  */
 /*
  * Copyright (c) 1995 - 2001 Kungliga Tekniska Högskolan
@@ -56,7 +59,7 @@ typedef struct {
         uint32_t save_u32[16];
     } u;
     uint32_t counter[8];
-    uint32_t sz[2];
+    uint32_t sz; // accumulated size in bytes (not bits!)
 } mavlink_sha256_ctx;
 
 #define Ch(x,y,z) (((x) & (y)) ^ ((~(x)) & (z)))
@@ -98,8 +101,7 @@ MAVLINK_HELPER void mavlink_sha256_init(mavlink_sha256_ctx *m)
     m->counter[5] = 0x9b05688c;
     m->counter[6] = 0x1f83d9ab;
     m->counter[7] = 0x5be0cd19;
-    m->sz[0] = 0;
-    m->sz[1] = 0;
+    m->sz = 0;
 }
 
 static void mavlink_sha256_calc(mavlink_sha256_ctx *m)
@@ -169,13 +171,10 @@ static void mavlink_sha256_calc(mavlink_sha256_ctx *m)
 MAVLINK_HELPER void mavlink_sha256_update(mavlink_sha256_ctx *m, const void *v, uint32_t len)
 {
     const unsigned char *p = (const unsigned char *)v;
-    uint32_t old_sz = m->sz[0];
     uint32_t offset;
 
-    m->sz[0] += len * 8;
-    if (m->sz[0] < old_sz)
-        ++m->sz[1];
-    offset = (old_sz / 8) % 64;
+    offset = m->sz % 64;
+    m->sz += len;
     while(len > 0){
         uint32_t l = 64 - offset;
         if (len < l) {
@@ -197,28 +196,25 @@ MAVLINK_HELPER void mavlink_sha256_update(mavlink_sha256_ctx *m, const void *v, 
  */
 MAVLINK_HELPER void mavlink_sha256_final_48(mavlink_sha256_ctx *m, uint8_t result[6])
 {
-    unsigned offset = (m->sz[0] / 8) % 64;
-    uint32_t c0, c1;
+    uint32_t c0, c1, bit_length;
+    unsigned offset = m->sz % 64;
+    bit_length = m->sz * 8;
 
     // to finalize the hash, we append to the current 64-byte block a 0x80,
     // enough zeros to align to the 56th byte of a block (possibly the next
-    // one!) then the 8 byte length counter
+    // one!) then the 8 byte bit length counter
     m->u.save_bytes[offset++] = 0x80;
     if (offset > 56) { // not enough space for length
         memset(&m->u.save_bytes[offset], 0, 64-offset); // zero remainder
         mavlink_sha256_calc(m); // process the block
         offset = 0; // start at the beginning of the next one
     }
-    memset(&m->u.save_bytes[offset], 0, 56-offset); // zero up to length
-    // unpack length into bytes at the end of the block
-    m->u.save_bytes[56] = (m->sz[1] >> 24) & 0xFF;
-    m->u.save_bytes[57] = (m->sz[1] >> 16) & 0xFF;
-    m->u.save_bytes[58] = (m->sz[1] >> 8) & 0xFF;
-    m->u.save_bytes[59] = (m->sz[1] >> 0) & 0xFF;
-    m->u.save_bytes[60] = (m->sz[0] >> 24) & 0xFF;
-    m->u.save_bytes[61] = (m->sz[0] >> 16) & 0xFF;
-    m->u.save_bytes[62] = (m->sz[0] >> 8) & 0xFF;
-    m->u.save_bytes[63] = (m->sz[0] >> 0) & 0xFF;
+    memset(&m->u.save_bytes[offset], 0, 60-offset); // zero up to length
+    // unpack bit length into bytes
+    m->u.save_bytes[60] = (bit_length >> 24) & 0xFF;
+    m->u.save_bytes[61] = (bit_length >> 16) & 0xFF;
+    m->u.save_bytes[62] = (bit_length >> 8) & 0xFF;
+    m->u.save_bytes[63] = (bit_length >> 0) & 0xFF;
     mavlink_sha256_calc(m); // process last block
 
     // take first six bytes of hash result in big endian counter variables
