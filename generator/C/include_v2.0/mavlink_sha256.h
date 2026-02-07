@@ -51,12 +51,12 @@ namespace mavlink {
 #endif
 
 typedef struct {
-  uint32_t sz[2];
-  uint32_t counter[8];
-  union {
-      unsigned char save_bytes[64];
-      uint32_t save_u32[16];
-  } u;
+    uint32_t sz[2];
+    uint32_t counter[8];
+    union {
+        unsigned char save_bytes[64];
+        uint32_t save_u32[16];
+    } u;
 } mavlink_sha256_ctx;
 
 #define Ch(x,y,z) (((x) & (y)) ^ ((~(x)) & (z)))
@@ -64,10 +64,10 @@ typedef struct {
 
 #define ROTR(x,n)   (((x)>>(n)) | ((x) << (32 - (n))))
 
-#define Sigma0(x)	(ROTR(x,2)  ^ ROTR(x,13) ^ ROTR(x,22))
-#define Sigma1(x)	(ROTR(x,6)  ^ ROTR(x,11) ^ ROTR(x,25))
-#define sigma0(x)	(ROTR(x,7)  ^ ROTR(x,18) ^ ((x)>>3))
-#define sigma1(x)	(ROTR(x,17) ^ ROTR(x,19) ^ ((x)>>10))
+#define Sigma0(x)       (ROTR(x,2)  ^ ROTR(x,13) ^ ROTR(x,22))
+#define Sigma1(x)       (ROTR(x,6)  ^ ROTR(x,11) ^ ROTR(x,25))
+#define sigma0(x)       (ROTR(x,7)  ^ ROTR(x,18) ^ ((x)>>3))
+#define sigma1(x)       (ROTR(x,17) ^ ROTR(x,19) ^ ((x)>>10))
 
 static const uint32_t mavlink_sha256_constant_256[64] = {
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
@@ -118,25 +118,25 @@ static inline void mavlink_sha256_calc(mavlink_sha256_ctx *m, uint32_t *in)
     HH = m->counter[7];
 
     for (i = 0; i < 16; ++i)
-	data[i] = in[i];
+        data[i] = in[i];
     for (i = 16; i < 64; ++i)
-	data[i] = sigma1(data[i-2]) + data[i-7] + 
-	    sigma0(data[i-15]) + data[i - 16];
+        data[i] = sigma1(data[i-2]) + data[i-7] + 
+            sigma0(data[i-15]) + data[i - 16];
 
     for (i = 0; i < 64; i++) {
-	uint32_t T1, T2;
+        uint32_t T1, T2;
 
-	T1 = HH + Sigma1(EE) + Ch(EE, FF, GG) + mavlink_sha256_constant_256[i] + data[i];
-	T2 = Sigma0(AA) + Maj(AA,BB,CC);
-			     
-	HH = GG;
-	GG = FF;
-	FF = EE;
-	EE = DD + T1;
-	DD = CC;
-	CC = BB;
-	BB = AA;
-	AA = T1 + T2;
+        T1 = HH + Sigma1(EE) + Ch(EE, FF, GG) + mavlink_sha256_constant_256[i] + data[i];
+        T2 = Sigma0(AA) + Maj(AA,BB,CC);
+                             
+        HH = GG;
+        GG = FF;
+        FF = EE;
+        EE = DD + T1;
+        DD = CC;
+        CC = BB;
+        BB = AA;
+        AA = T1 + T2;
     }
 
     m->counter[0] += AA;
@@ -157,32 +157,32 @@ MAVLINK_HELPER void mavlink_sha256_update(mavlink_sha256_ctx *m, const void *v, 
 
     m->sz[0] += len * 8;
     if (m->sz[0] < old_sz)
-	++m->sz[1];
+        ++m->sz[1];
     offset = (old_sz / 8) % 64;
     while(len > 0){
-	uint32_t l = 64 - offset;
+        uint32_t l = 64 - offset;
         if (len < l) {
             l = len;
         }
-	memcpy(m->u.save_bytes + offset, p, l);
-	offset += l;
-	p += l;
-	len -= l;
-	if(offset == 64){
-	    int i;
-	    uint32_t current[16];
-	    const uint32_t *u = m->u.save_u32;
-	    for (i = 0; i < 16; i++){
+        memcpy(m->u.save_bytes + offset, p, l);
+        offset += l;
+        p += l;
+        len -= l;
+        if(offset == 64){
+            int i;
+            uint32_t current[16];
+            const uint32_t *u = m->u.save_u32;
+            for (i = 0; i < 16; i++){
                 const uint8_t *p1 = (const uint8_t *)&u[i];
                 uint8_t *p2 = (uint8_t *)&current[i];
                 p2[0] = p1[3];
                 p2[1] = p1[2];
                 p2[2] = p1[1];
                 p2[3] = p1[0];
-	    }
-	    mavlink_sha256_calc(m, current);
-	    offset = 0;
-	}
+            }
+            mavlink_sha256_calc(m, current);
+            offset = 0;
+        }
     }
 }
 
