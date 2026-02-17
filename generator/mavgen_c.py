@@ -399,7 +399,7 @@ ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_struct(mavlink
 
 #if MAVLINK_MSG_ID_${name}_LEN <= MAVLINK_MAX_PAYLOAD_LEN
 /*
-  This variant of _send() can be used to save stack space by reusing
+  This variant of _send() can be used to save stack space by re-using
   memory from the receive buffer.  The caller provides a
   mavlink_message_t which is the size of a full mavlink message. This
   is usually the receive buffer for the channel, and allows a reply to an
@@ -594,7 +594,7 @@ class mav_include(object):
     def __init__(self, base):
         self.base = base
 
-def generate_one(basename, xml):
+def generate_one(basename, xml, opts=None):
     '''generate headers for one XML file'''
 
     directory = os.path.join(basename, xml.basename)
@@ -729,7 +729,9 @@ def generate_one(basename, xml):
                     f.c_test_value = "%sLL" % f.test_value                    
                 else:
                     f.c_test_value = f.test_value
-        if m.needs_pack:
+        # Check if forced struct packing is enabled (useful for platforms like ESP32)
+        force_pack = getattr(opts, 'force_pack', False)
+        if m.needs_pack or force_pack:
             m.MAVPACKED_START = "MAVPACKED("
             m.MAVPACKED_END = ")"
         else:
@@ -761,11 +763,11 @@ def generate_one(basename, xml):
     generate_testsuite_h(directory, xml)
 
 
-def generate(basename, xml_list):
+def generate(basename, xml_list, opts=None):
     '''generate complete MAVLink C implemenation'''
 
     for idx in range(len(xml_list)):
         xml = xml_list[idx]
         xml.xml_hash = hash(xml.basename)        
-        generate_one(basename, xml)
+        generate_one(basename, xml, opts)
     copy_fixed_headers(basename, xml_list[0])
