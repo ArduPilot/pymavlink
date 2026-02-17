@@ -242,7 +242,7 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 	} else {
 		msg->magic = MAVLINK_STX;
 	}
-	msg->len = mavlink1?min_length:_mav_trim_payload(_MAV_PAYLOAD(msg), length);
+	msg->len = mavlink1?min_length:length;
 	msg->sysid = system_id;
 	msg->compid = component_id;
 	msg->incompat_flags = 0;
