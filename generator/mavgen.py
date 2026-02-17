@@ -88,7 +88,7 @@ def mavgen(opts, args):
             includeadded = False
             for x in xml[:]:
                 for i in x.include:
-                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
+                    fname = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(x.filename)), i))
                     # Only parse new include files
                     if fname in all_files:
                         continue
@@ -148,7 +148,7 @@ def mavgen(opts, args):
                 #check if all its includes were already done
                 all_includes_done = True
                 for i in x.include:
-                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
+                    fname = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(x.filename)), i))
                     if fname not in [d.filename for d in done]:
                         all_includes_done = False
                         break
@@ -160,7 +160,7 @@ def mavgen(opts, args):
                 #print("  all includes ready, add" )
                 #now update it with the facts from all it's includes
                 for i in x.include:
-                    fname = os.path.abspath(os.path.join(os.path.dirname(x.filename), i))
+                    fname = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(x.filename)), i))
                     #print("  include file %s" % i )
                     #Find the corresponding x
                     for ix in xml:
