@@ -20,7 +20,6 @@
 <xs:attribute name="id" type="mavlinkMsgId"/> <!-- used in message elements -->
 <xs:attribute name="print_format" type="xs:string"/> <!-- used in field elements -->
 <xs:attribute name="enum" type="xs:string"/> <!-- used in field,param elements -->
-<xs:attribute name="display" type="xs:string"/> <!-- used in field elements -->
 <xs:attribute name="units" type="SI_Unit"/> <!-- this will get changed on the fly to xs:string if no strict-units command line option is used -->
 <xs:attribute name="multiplier" type="factor"/>
 <xs:attribute name="instance" type="xs:boolean"/>
@@ -258,7 +257,6 @@
         <xs:attribute ref="name" use="required"/>
         <xs:attribute ref="print_format" />
         <xs:attribute ref="enum" />
-        <xs:attribute ref="display" />
         <xs:attribute ref="units" />
         <xs:attribute ref="increment"/>
         <xs:attribute ref="minValue"/>
