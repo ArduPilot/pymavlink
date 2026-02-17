@@ -961,6 +961,35 @@ MAVLINK_HELPER unsigned int mavlink_get_proto_version(uint8_t chan)
 }
 
 /**
+ * convenience wrapper - like mavlink_parse_char, but allows a caller
+ * to specify a buffer into which messages should be parsed, rather
+ * than relying on mapping a channel to the same objects.
+ */
+MAVLINK_HELPER uint8_t mavlink_parse_char_buffer(mavlink_message_t* rxmsg,
+                                                 mavlink_status_t* status,
+                                                 uint8_t c,
+                                                 mavlink_message_t* r_message,
+                                                 mavlink_status_t* r_mavlink_status)
+{
+    uint8_t msg_received = mavlink_frame_char_buffer(rxmsg, status, c, r_message, r_mavlink_status);
+    if (msg_received == MAVLINK_FRAMING_BAD_CRC ||
+	msg_received == MAVLINK_FRAMING_BAD_SIGNATURE) {
+	    // we got a bad CRC. Treat as a parse failure
+	    _mav_parse_error(status);
+	    status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
+	    status->parse_state = MAVLINK_PARSE_STATE_IDLE;
+	    if (c == MAVLINK_STX)
+	    {
+		    status->parse_state = MAVLINK_PARSE_STATE_GOT_STX;
+		    rxmsg->len = 0;
+		    mavlink_start_checksum(rxmsg);
+	    }
+	    return 0;
+    }
+    return msg_received;
+}
+
+/**
  * This is a convenience function which handles the complete MAVLink parsing.
  * the function will parse one byte at a time and return the complete packet once
  * it could be successfully decoded. This function will return 0 or 1.
@@ -1003,24 +1032,11 @@ MAVLINK_HELPER unsigned int mavlink_get_proto_version(uint8_t chan)
  */
 MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_message_t* r_message, mavlink_status_t* r_mavlink_status)
 {
-    uint8_t msg_received = mavlink_frame_char(chan, c, r_message, r_mavlink_status);
-    if (msg_received == MAVLINK_FRAMING_BAD_CRC ||
-	msg_received == MAVLINK_FRAMING_BAD_SIGNATURE) {
-	    // we got a bad CRC. Treat as a parse failure
-	    mavlink_message_t* rxmsg = mavlink_get_channel_buffer(chan);
-	    mavlink_status_t* status = mavlink_get_channel_status(chan);
-	    _mav_parse_error(status);
-	    status->msg_received = MAVLINK_FRAMING_INCOMPLETE;
-	    status->parse_state = MAVLINK_PARSE_STATE_IDLE;
-	    if (c == MAVLINK_STX)
-	    {
-		    status->parse_state = MAVLINK_PARSE_STATE_GOT_STX;
-		    rxmsg->len = 0;
-		    mavlink_start_checksum(rxmsg);
-	    }
-	    return 0;
-    }
-    return msg_received;
+    return mavlink_parse_char_buffer(mavlink_get_channel_buffer(chan),
+                                     mavlink_get_channel_status(chan),
+                                     c,
+                                     r_message,
+                                     r_mavlink_status);
 }
 
 /**
