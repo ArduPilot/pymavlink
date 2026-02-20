@@ -221,6 +221,8 @@ setup (name = 'pymavlink',
        install_requires=[
             'lxml',
             'fastcrc',
+            # importlib.resources.files() requires Python 3.9+; use backport for older versions
+            'importlib_resources; python_version < "3.9"',
        ],
        ext_modules=ext_modules,
        cmdclass={'build_py': custom_build_py},

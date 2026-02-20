@@ -7,7 +7,6 @@ test for trimming under Python 3
 
 import unittest
 import os
-import pkg_resources
 import sys
 from pymavlink import mavutil
 

@@ -4,7 +4,11 @@ Module to test MAVXML
 """
 
 import unittest
-import pkg_resources
+try:
+    from importlib.resources import files as importlib_files
+except ImportError:
+    # importlib.resources.files() requires Python 3.9+; use backport for older versions
+    from importlib_resources import files as importlib_files
 
 from pymavlink.generator.mavparse import MAVXML
 from pymavlink.generator.mavparse import MAVParseError
@@ -17,15 +21,13 @@ class MAVXMLTest(unittest.TestCase):
     def test_fields_number(self):
         """Test that a message can have at most 64 fields"""
         test_filename = "64-fields.xml"
-        test_filepath = pkg_resources.resource_filename(__name__,
-                                                        test_filename)
+        test_filepath = importlib_files(__spec__.parent).joinpath(test_filename)
         xml = MAVXML(test_filepath)
         count = len(xml.message[0].fields)
         self.assertEqual(count, 64)
 
         test_filename = "65-fields.xml"
-        test_filepath = pkg_resources.resource_filename(__name__,
-                                                        test_filename)
+        test_filepath = importlib_files(__spec__.parent).joinpath(test_filename)
         with self.assertRaises(MAVParseError):
             _ = MAVXML(test_filepath)
 
