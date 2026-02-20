@@ -6,7 +6,11 @@ regression tests for mavwp.py
 
 import unittest
 import os
-import pkg_resources
+try:
+    from importlib.resources import files as importlib_files
+except ImportError:
+    # importlib.resources.files() requires Python 3.9+; use backport for older versions
+    from importlib_resources import files as importlib_files
 import sys
 
 os.environ["MAVLINK20"] = "1"
@@ -213,13 +217,13 @@ class RallyTest(unittest.TestCase):
         self.assertTrue(loader.is_location_command(mavutil.mavlink.MAV_CMD_NAV_RALLY_POINT))
 
         # test loading a QGC WPL 110 file:
-        rally_filepath = pkg_resources.resource_filename(__name__, "rally-110.txt")
+        rally_filepath = importlib_files(__spec__.parent).joinpath("rally-110.txt")
         loader.load(rally_filepath)
         self.assertEqual(loader.count(), 2)
         self.assertEqual(loader.wp(0).command, mavutil.mavlink.MAV_CMD_NAV_RALLY_POINT)
 
         # test loading tradition "RALLY" style format:
-        rally_filepath = pkg_resources.resource_filename(__name__, "rally.txt")
+        rally_filepath = importlib_files(__spec__.parent).joinpath("rally.txt")
         loader.load(rally_filepath)
         self.assertEqual(loader.count(), 2)
         self.assertEqual(loader.wp(0).command, mavutil.mavlink.MAV_CMD_NAV_RALLY_POINT)
@@ -233,15 +237,13 @@ class FenceTest(unittest.TestCase):
         self.assertTrue(loader.is_location_command(mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_EXCLUSION))
 
         # test loading a QGC WPL 110 file:
-        fence_filepath = pkg_resources.resource_filename(__name__,
-                                                         "fence-110.txt")
+        fence_filepath = importlib_files(__spec__.parent).joinpath("fence-110.txt")
         loader.load(fence_filepath)
         self.assertEqual(loader.count(), 10)
         self.assertEqual(loader.wp(3).command, mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION)
 
         # test loading tradition lat/lng-pair style format:
-        fence_filepath = pkg_resources.resource_filename(__name__,
-                                                         "fence.txt")
+        fence_filepath = importlib_files(__spec__.parent).joinpath("fence.txt")
         loader.load(fence_filepath)
         # there are 6 lines in the file - one return point, four fence
         # points and a "fence closing point".  We don't store the
