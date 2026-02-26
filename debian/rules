@@ -1,0 +1,106 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+PY3VERS	:= $(shell py3versions -vs)
+PY3VER	:= $(shell py3versions -vd)
+
+include /usr/share/dpkg/pkg-info.mk
+include /usr/share/python3/python.mk
+
+# Some locales trigger reproducibility issues in html documentation
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
+MAVLINK_URI ?= https://github.com/ArduPilot/mavlink.git
+MAVLINK_DIR = $(CURDIR)/debian/tmp/mavlink
+MDEF = $(MAVLINK_DIR)/message_definitions
+
+prebuild: prebuild-stamp
+prebuild-stamp:
+	mkdir -p debian/tmp
+	git clone --depth 1 $(MAVLINK_URI) $(MAVLINK_DIR) || { \
+	    echo "MAVLink repository already exists or failed to clone."; \
+	    exit 1; \
+	}
+	touch $@
+
+build-arch: build
+build-indep: build
+build: build3-stamp
+
+build3-stamp: $(PY3VERS:%=build3-python%) doc-build3-python$(PY3VER)
+	touch $@
+
+build3-python%: prebuild
+	MDEF=$(MDEF) python$* setup.py build
+	touch $@
+
+doc-build3-python$(PY3VER): build3-python$(PY3VER)
+	touch $@
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build*-stamp build*-python* dbg-build*-python* prebuild-stamp
+	rm -rf build dist __pycache__
+	-find -name '*.py[co]' | xargs rm -f
+	rm -rf [23].[0-9]
+	rm -rf debian/tmp
+	dh_clean
+
+install: build install-prereq $(PY3VERS:%=install3-python%)
+	-find debian -name '*.py[co]' | xargs rm -f
+	-find debian -name __pycache__ | xargs rm -rf
+	rm -rf debian/python*-pymavlink/usr/lib/python
+
+install-prereq:
+	dh_testdir
+	dh_testroot
+	dh_prep
+
+install3-python%:
+	mkdir -p debian/python3-pymavlink/usr/bin
+	mkdir -p debian/python3-pymavlink/$(call py_libdir, $*)
+	NOGEN=1 python$* setup.py install \
+		--root=$(CURDIR)/debian/python3-pymavlink --install-layout=deb
+
+# Build architecture-independent files here.
+binary-indep: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -i
+	dh_installdocs -i
+	dh_installexamples -i samples/*
+	dh_compress -i -X.xml -X.py \
+	    -X.html -X.css -X.asc -X.png -Xapi-objects.txt
+	dh_fixperms -i
+	dh_installdeb -i
+	dh_shlibdeps -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+#	dh_installchangelogs -a CHANGES.txt
+#	dh_installdocs -a CREDITS.txt README.rst TODO.txt
+	dh_installdocs -a README.md
+#	dh_installexamples -a examples/*
+	dh_python3 -a
+	dh_strip -ppython3-pymavlink
+	dh_compress -a -X.xml -X.py \
+	    -X.html -X.css -X.asc -X.png -Xapi-objects.txt
+	dh_fixperms -a
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install
