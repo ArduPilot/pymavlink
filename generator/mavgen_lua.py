@@ -51,6 +51,11 @@ def generate(basename, xml):
         mavlink_msg_file.write("local %s = {}\n" % m.name)
         mavlink_msg_file.write("%s.id = %u\n" % (m.name, m.id))
         mavlink_msg_file.write("%s.crc_extra = %u\n" % (m.name, m.crc_extra))
+        mavlink_msg_file.write("%s.min_msg_len = %u\n" % (m.name, m.wire_min_length))
+        mavlink_msg_file.write("%s.max_msg_len = %u\n" % (m.name, m.wire_length))
+        mavlink_msg_file.write("%s.flags = %u\n" % (m.name, m.message_flags))
+        mavlink_msg_file.write("%s.target_system_ofs = %u\n" % (m.name, m.target_system_ofs))
+        mavlink_msg_file.write("%s.target_component_ofs = %u\n" % (m.name, m.target_component_ofs))
         mavlink_msg_file.write("%s.fields = {\n" % m.name)
         for i in range(0, len(m.ordered_fields)):
             field = m.ordered_fields[i]
@@ -191,12 +196,15 @@ function mavlink_msgs.decode(message, msg_map)
   return result
 end
 
----Encode the payload section of a given message
+---Encode the payload section of a given message and return metadata
 ---@param msgname string -- name of message to encode
 ---@param message table -- table containing key value pairs representing the data fields in the message
 ---@return integer -- message id
 ---@return string -- encoded payload
-function mavlink_msgs.encode(msgname, message)
+---@return integer -- min message length
+---@return integer -- max message length
+---@return integer -- crc extra byte
+function mavlink_msgs.encode_full(msgname, message)
   local message_map = require("{module_root_rel}mavlink_msg_" .. msgname)
   if not message_map then
     -- we don't know how to encode this message, bail on it
@@ -222,7 +230,21 @@ function mavlink_msgs.encode(msgname, message)
       packedIndex = packedIndex + 1
     end
   end
-  return message_map.id, string.pack(packString, table.unpack(packedTable))
+  return message_map.id,
+         string.pack(packString, table.unpack(packedTable)),
+         message_map.min_msg_len,
+         message_map.max_msg_len,
+         message_map.crc_extra
+end
+
+---Encode the payload section of a given message
+---@param msgname string -- name of message to encode
+---@param message table -- table containing key value pairs representing the data fields in the message
+---@return integer -- message id
+---@return string -- encoded payload
+function mavlink_msgs.encode(msgname, message)
+  local message_id, encoded_message, _, _, _ = mavlink_msgs.encode_full(msgname, message)
+  return message_id, encoded_message
 end
 
 return mavlink_msgs
