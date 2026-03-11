@@ -106,8 +106,7 @@ OffsetArray* scan_offsets(const uint8_t *data, size_t len,
                 if (len - i >= 528 || len < 528) {
                     fprintf(stderr, "Invalid length in FMT message at %zu\n", i);
                 }
-                i++;
-                continue;
+                break;
             }
             lengths[type_in_fmt] = len_in_fmt;
         }
@@ -117,8 +116,7 @@ OffsetArray* scan_offsets(const uint8_t *data, size_t len,
             if (len - i >= 528 || len < 528) {
                 fprintf(stderr, "unknown msg type 0x%02x (%u) at %zu\n", mtype, mtype, i);
             }
-            i++;
-            continue;
+            break;
         }
 
         OffsetArray *arr = &results[mtype];
