@@ -32,10 +32,13 @@ def test_typescript_generator_uses_scoped_node_mavlink_package():
 
     assert ok is True
 
-    heartbeat = (output_dir / "messages" / "heartbeat.ts").read_text(encoding="utf-8")
-    registry = (output_dir / "message-registry.ts").read_text(encoding="utf-8")
+    generated_typescript_files = sorted(output_dir.rglob("*.ts"))
+    assert generated_typescript_files
 
-    assert "@ifrunistuttgart/node-mavlink" in heartbeat
-    assert "from 'node-mavlink'" not in heartbeat
-    assert "@ifrunistuttgart/node-mavlink" in registry
-    assert "from 'node-mavlink'" not in registry
+    file_contents = {
+        path.relative_to(output_dir).as_posix(): path.read_text(encoding="utf-8")
+        for path in generated_typescript_files
+    }
+
+    assert "@ifrunistuttgart/node-mavlink" in file_contents["message-registry.ts"]
+    assert "from 'node-mavlink'" not in "\n".join(file_contents.values())
