@@ -171,7 +171,7 @@ def append_static_code(filename, outf):
     
     print("Appending content of %s" % filename)
     
-    with open(filepath) as inf:
+    with open(filepath, encoding='utf-8') as inf:
         for line in inf:
             outf.write(line) 
 
