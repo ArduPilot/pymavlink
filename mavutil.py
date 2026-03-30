@@ -1264,20 +1264,34 @@ class mavtcp(mavfile):
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
 
     def close(self):
-        self.port.close()
+        if self.port is not None:
+            self.port.close()
+            self.port = None
+
+    def _mark_socket_disconnected(self):
+        if self.port is not None:
+            try:
+                self.port.close()
+            except OSError:
+                pass
+            self.port = None
 
     def handle_disconnect(self):
         print("Connection reset or closed by peer on TCP socket")
+        self._mark_socket_disconnected()
         self.reconnect()
 
     def handle_eof(self):
         # EOF
         print("EOF on TCP socket")
+        self._mark_socket_disconnected()
         self.reconnect()
 
     def recv(self,n=None):
         if self.port is None:
             self.reconnect()
+            if self.port is None:
+                raise ConnectionError("TCP socket is not connected")
         if n is None:
             n = self.mav.bytes_needed()
         try:
