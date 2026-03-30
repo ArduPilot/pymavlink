@@ -840,12 +840,12 @@ class MAVLink(object):
         if m is not None:
             self.total_packets_received += 1
             self.__callbacks(m)
-        else:
-            # XXX The idea here is if we've read something and there's nothing left in
-            # the buffer, reset it to 0 which frees the memory
-            if self.buf_len() == 0 and self.buf_index != 0:
-                self.buf = bytearray()
-                self.buf_index = 0
+
+        # See if there's nothing left in the buffer, reset it to 0
+        # which frees the memory
+        if self.buf_index != 0 and self.buf_len() == 0:
+            self.buf = bytearray()
+            self.buf_index = 0
 
         return m
 

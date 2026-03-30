@@ -1,9 +1,9 @@
--- Package for crc checksum
--- Copyright Fil Andrii root.fi36@gmail.com 2022
+--  Package for crc checksum
+--  Copyright Fil Andrii root.fi36@gmail.com 2022
 
 with Interfaces; use Interfaces;
 
-package X25CRC is
+package MAVLink.X25CRC is
 
    pragma Pure (X25CRC);
 
@@ -25,4 +25,4 @@ package X25CRC is
    procedure Reset (Element : in out Checksum);
    procedure Update (Element : in out Checksum; Value : Unsigned_8);
 
-end X25CRC;
+end MAVLink.X25CRC;

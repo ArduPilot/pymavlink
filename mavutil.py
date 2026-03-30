@@ -19,10 +19,10 @@ import ssl
 from pymavlink.generator.mavcrc import x25crc as x25crc
 
 # adding these extra imports allows pymavlink to be used directly with pyinstaller
-# without having complex spec files. To allow for installs that don't have ardupilotmega
+# without having complex spec files. To allow for installs that don't have the "all" dialect
 # at all we avoid throwing an exception if it isn't installed
 try:
-    from pymavlink.dialects.v10 import ardupilotmega
+    from pymavlink.dialects.v10 import all
 except Exception:
     pass
 
@@ -45,7 +45,7 @@ global_link_id = 0
 
 # Use a globally-set MAVLink dialect if one has been specified as an environment variable.
 if not 'MAVLINK_DIALECT' in os.environ:
-    os.environ['MAVLINK_DIALECT'] = 'ardupilotmega'
+    os.environ['MAVLINK_DIALECT'] = 'all'
 
 def mavlink10():
     '''return True if using MAVLink 1.0 or later'''
@@ -529,8 +529,12 @@ class mavfile(object):
                 return None
             if type is not None and not m.get_type() in type:
                 continue
-            if not evaluate_condition(condition, self.messages):
-                continue
+            if hasattr(m, "get_srcSystem"):
+                if m.get_srcSystem() not in self.sysid_state or not evaluate_condition(condition, self.sysid_state[m.get_srcSystem()].messages):
+                    continue
+            else:
+                if not evaluate_condition(condition, self.messages):
+                    continue
             return m
 
     def check_condition(self, condition):
@@ -1672,8 +1676,12 @@ class mavmmaplog(mavlogfile):
                 return None
             if type is not None and not m.get_type() in type:
                 continue
-            if not evaluate_condition(condition, self.messages):
-                continue
+            if hasattr(m, "get_srcSystem"):
+                if m.get_srcSystem() not in self.sysid_state or not evaluate_condition(condition, self.sysid_state[m.get_srcSystem()].messages):
+                    continue
+            else:
+                if not evaluate_condition(condition, self.messages):
+                    continue
             return m
         
     def flightmode_list(self):

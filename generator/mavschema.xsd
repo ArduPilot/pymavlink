@@ -73,6 +73,7 @@
   </xs:simpleType>
 </xs:attribute>
 <xs:attribute name="replaced_by" type="xs:string"/> <!-- used in elements: superseded, deprecated -->
+<xs:attribute name="remove_on_date" type="xs:string"/> <!-- optional in elements: deprecated -->
 
 <!-- mavlink message IDs are unsigned 24-bit values. -->
 <xs:simpleType name="mavlinkMsgId" id="mavlinkMsgId">
@@ -242,7 +243,9 @@
             <xs:element ref="description" minOccurs="0"/>
         </xs:sequence>
         <xs:attribute ref="since" use="required"/>
+        <xs:attribute ref="remove_on_date"/>
         <xs:attribute ref="replaced_by" use="required"/>
+
     </xs:complexType>
 </xs:element>
 
@@ -259,7 +262,7 @@
         <xs:attribute ref="units" />
         <xs:attribute ref="increment"/>
         <xs:attribute ref="minValue"/>
-        <xs:attribute ref="maxValue"/>        
+        <xs:attribute ref="maxValue"/>
         <xs:attribute ref="multiplier"/>
         <xs:attribute ref="default" />
         <xs:attribute ref="instance" />

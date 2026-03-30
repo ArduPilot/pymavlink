@@ -505,10 +505,10 @@ PUB newPacket()
     parse_state := PARSE_STATE_IDLE
     inPacket~
     payloadIndex~
-	
+
 PUB getPacket(): packetAddr
-	packetAddr := @inPacket
-	return packetAddr
+    packetAddr := @inPacket
+    return packetAddr
 
 PUB parse_char(c)
     CASE_FAST parse_state
