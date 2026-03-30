@@ -56,7 +56,7 @@ def mavgen(opts, args):
     if opts.validate:
         try:
             from lxml import etree
-            with open(schemaFile, 'r') as f:
+            with open(schemaFile, 'r', encoding='utf-8') as f:
                 xmlschema_root = etree.parse(f)
                 if not opts.strict_units:
                     # replace the strict "SI_Unit" list of known unit strings with a more generic "xs:string" type
@@ -195,7 +195,7 @@ def mavgen(opts, args):
            here because it relies on the XML libs that were loaded in mavgen(), so it can't be called standalone"""
         xmlvalid = True
         try:
-            with open(xmlfile, 'r') as f:
+            with open(xmlfile, 'r', encoding='utf-8') as f:
                 xmldocument = etree.parse(f)
                 xmlschema.assertValid(xmldocument)
                 forbidden_names_re = re.compile("^(break$|case$|class$|catch$|const$|continue$|debugger$|default$|delete$|do$|else$|\
