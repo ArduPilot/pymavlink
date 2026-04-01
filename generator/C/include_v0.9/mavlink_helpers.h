@@ -153,6 +153,8 @@ MAVLINK_HELPER void _mavlink_resend_uart(mavlink_channel_t chan, const mavlink_m
 
 /**
  * @brief Pack a message to send it over a serial byte stream
+ *
+ * The buffer must be large enough to hold the whole packet. MAVLINK_MAX_PACKET_LEN defines the maximum length of a packet.
  */
 MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buffer, const mavlink_message_t *msg)
 {
