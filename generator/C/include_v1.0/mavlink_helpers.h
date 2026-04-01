@@ -55,10 +55,14 @@ MAVLINK_HELPER void mavlink_reset_channel_status(uint8_t chan)
 /**
  * @brief Finalize a MAVLink message with channel assignment
  *
- * This function calculates the checksum and sets length and aircraft id correctly.
+ * This function calculates the checksum and sets length, system id and compenent id correctly.
+ *
  * It assumes that the message id and the payload are already correctly set. This function
  * can also be used if the message header has already been written before (as in mavlink_msg_xxx_pack
  * instead of mavlink_msg_xxx_pack_headerless), it just introduces little extra overhead.
+ *
+ * If you don't want to keep track of a mavlink_status_t or have only one MAVLink connection see
+ * @ref mavlink_finalize_message_chan and @ref mavlink_finalize_message.
  *
  * @param msg Message to finalize
  * @param system_id Id of the sending (this) system, 1-127
@@ -95,10 +99,16 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, 
 /**
  * @brief Finalize a MAVLink message with channel assignment
  *
- * This function calculates the checksum and sets length and aircraft id correctly.
+ * This function calculates the checksum and sets length, system id and compenent id correctly.
+ *
  * It assumes that the message id and the payload are already correctly set. This function
  * can also be used if the message header has already been written before (as in mavlink_msg_xxx_pack
  * instead of mavlink_msg_xxx_pack_headerless), it just introduces little extra overhead.
+ *
+ * This is a convenience function for senders with multiple MAVLink connections who prefer to track
+ * a channel number for each connection instead of maintaining a mavlink_status_t required by
+ * @ref mavlink_finalize_message_buffer.
+ * If you have only one MAVLink connection, you can simply use @ref mavlink_finalize_message.
  *
  * @param msg Message to finalize
  * @param system_id Id of the sending (this) system, 1-127
@@ -136,6 +146,19 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, ui
 
 /**
  * @brief Finalize a MAVLink message with MAVLINK_COMM_0 as default channel
+ *
+ * This function calculates the checksum and sets length, system id and compenent id correctly.
+ *
+ * It assumes that the message id and the payload are already correctly set. This function
+ * can also be used if the message header has already been written before (as in mavlink_msg_xxx_pack
+ * instead of mavlink_msg_xxx_pack_headerless), it just introduces little extra overhead.
+ *
+ * This is a convenience function for senders with only one MAVLink connection, who don't need to keep
+ * track of message sequence numbers per connections. Otherwise use @ref mavlink_finalize_message_chan.
+ *
+ * @param msg Message to finalize
+ * @param system_id Id of the sending (this) system, 1-127
+ * @param length Message length
  */
 #if MAVLINK_CRC_EXTRA
 MAVLINK_HELPER uint16_t mavlink_finalize_message(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id, 
