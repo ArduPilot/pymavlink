@@ -1,0 +1,7 @@
+version=4
+opts="\
+    compression=gzip, \
+    dversionmangle=s/\+(?:git)?[0-9]*(?:\+g[0-9a-f]*)//, \
+    downloadurlmangle=s#/tag/#/download/#;s#(v?@ANY_VERSION@)$#$1/@PACKAGE@-$2.tar.gz#, \
+    filenamemangle=s#v?@ANY_VERSION@#@PACKAGE@-$1.tar.gz#" \
+https://github.com/ArduPilot/@PACKAGE@/tags .*/releases/tag/v?@ANY_VERSION@
