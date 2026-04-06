@@ -84,7 +84,7 @@ def protocol_module(identifier, repository, dialect):
                     repo_path = tempfile.mkdtemp()
                     if args_verbosity >= 1:
                         print("Cloning from", repository, "to", repo_path)
-                    subprocess.check_call(['git', 'clone', '--recursive', repository, repo_path])
+                    subprocess.check_call(['git', 'clone', '--recurse-submodules', repository, repo_path])
 
             assert os.path.isdir(repo_path), "Has a local copy of mavlink repository"
             try:
