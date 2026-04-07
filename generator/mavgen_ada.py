@@ -344,7 +344,7 @@ def create_dialect_spec (directory, file_prefix, ver, x, xml, header=None):
     print("Generate " + dialect.title())
 
     # Create file
-    spec = open(os.path.join(directory, file_prefix + dialect + ".ads"), "w")
+    spec = open(os.path.join(directory, file_prefix + dialect + ".ads"), "w", encoding='utf-8')
     spec.write(GEN)
     if header: spec.write(header)
     spec.write("pragma Ada_2022;\n\n")
@@ -394,7 +394,7 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
     dialect = file_name(x)
 
     # Create file
-    spec = open(os.path.join(directory, file_prefix + dialect + "-types.ads"), "w")
+    spec = open(os.path.join(directory, file_prefix + dialect + "-types.ads"), "w", encoding='utf-8')
     spec.write(GEN)
     if header: spec.write(header)
     spec.write("pragma Ada_2022;\n\n")
@@ -405,7 +405,7 @@ def create_types_spec (directory, file_prefix, ver, x, header=None):
 
 # Create file for the message spec
 def create_message_pkg (x, f_name, p_name, ver, m, types_files, header=None):
-    spec = open(f_name + ".ads", "w")
+    spec = open(f_name + ".ads", "w", encoding='utf-8')
     spec.write(GEN)
     if header: spec.write(header)
     if m.deprecated:
@@ -429,7 +429,7 @@ def create_message_pkg (x, f_name, p_name, ver, m, types_files, header=None):
 
 # Create file for the message body
 def create_message_body (f_name, p_name):
-    body = open(f_name + ".adb", "w")
+    body = open(f_name + ".adb", "w", encoding='utf-8')
     body.write(GEN)
     body.write("package body %s is\n" % p_name)
     return body
@@ -837,7 +837,7 @@ def generate_test_project(directory, ver):
     dir = os.path.join(directory, 'tests')
     mavparse.mkdir_p(dir)
 
-    f = open(os.path.join(dir, "test.gpr"), "w")
+    f = open(os.path.join(dir, "test.gpr"), "w", encoding='utf-8')
     f.write("""with "../mavlink_%s.gpr";
 project Test is
 
@@ -865,7 +865,7 @@ def generate_test_v1(directory, xml, bitmasks):
     dir = os.path.join(directory, 'tests')
     generate_test_project(directory, "v1")
 
-    f = open(os.path.join(dir, "test.adb"), "w")
+    f = open(os.path.join(dir, "test.adb"), "w", encoding='utf-8')
     f.write("\npragma Warnings (Off); --  prevent `not used`\n")
     for x in xml:
         f.write("with %s.%s.Types;\n" % (v1, file_name(x).title()))
@@ -1128,7 +1128,7 @@ def generate_test_v2(directory, xml, bitmasks):
     dir = os.path.join(directory, 'tests')
     generate_test_project(directory, "v2")
 
-    f = open(os.path.join(dir, "test.adb"), "w")
+    f = open(os.path.join(dir, "test.adb"), "w", encoding='utf-8')
 
     f.write("\npragma Warnings (Off); --  prevent `not used`\n")
     for x in xml:
@@ -1425,7 +1425,7 @@ def generate_v2(directory, xml):
             for m in c.message:
                 f_name, p_name = get_pakage_name(x, m, directory, v2, "v2")
                 fc_name, pc_name = get_pakage_name(c, m, directory, v2, "v2")
-                spec = open(f_name + ".ads", "w")
+                spec = open(f_name + ".ads", "w", encoding='utf-8')
                 spec.write(GEN)
                 if m.deprecated:
                     spec.write(get_deprecated(m.deprecated, 0))

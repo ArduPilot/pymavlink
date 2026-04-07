@@ -16,7 +16,7 @@ def generate_enums(basename, xml):
     directory = os.path.join(basename, '''enums''')
     mavparse.mkdir_p(directory)
     for en in xml.enum:
-        f = open(os.path.join(directory, en.name+".java"), mode='w')
+        f = open(os.path.join(directory, en.name+".java"), mode='w', encoding='utf-8')
         t.write(f, '''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
  *
@@ -54,7 +54,7 @@ def generate_CRC(directory, xml):
     for msgid, crc in sorted(xml.message_crcs.items()):
         xml.message_crcs_array += 'MAVLINK_MESSAGE_CRCS.put(%u, %u);\n        ' % (msgid, crc)
 
-    f = open(os.path.join(directory, "CRC.java"), mode='w')
+    f = open(os.path.join(directory, "CRC.java"), mode='w', encoding='utf-8')
     t.write(f,'''
 /* AUTO-GENERATED FILE.  DO NOT MODIFY.
  *
@@ -140,7 +140,7 @@ public class CRC {
 
 def generate_message_h(directory, m):
     '''generate per-message header for a XML file'''
-    f = open(os.path.join(directory, 'msg_%s.java' % m.name_lower), mode='w')
+    f = open(os.path.join(directory, 'msg_%s.java' % m.name_lower), mode='w', encoding='utf-8')
 
     (path_head, path_tail) = os.path.split(directory)
     if path_tail == "":
@@ -281,7 +281,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
 
 
 def generate_MAVLinkMessage(directory, xml_list):
-    f = open(os.path.join(directory, "MAVLinkPacket.java"), mode='w')
+    f = open(os.path.join(directory, "MAVLinkPacket.java"), mode='w', encoding='utf-8')
 
     imports = []
 

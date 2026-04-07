@@ -29,7 +29,7 @@ def generate_enums(dir, enums):
     for e in enums:
         filename = e.name.replace('_', '-')
         filename = filename.lower()
-        with open('{}/{}.ts'.format(dir, filename), "w") as f:
+        with open('{}/{}.ts'.format(dir, filename), "w", encoding='utf-8') as f:
             f.write("export enum {} {{\n".format(camelcase(e.name)))
             for entry in e.entry:
                 f.write(
@@ -47,7 +47,7 @@ def generate_classes(dir, registry, msgs, xml):
     if not os.path.isdir(dir):
         os.mkdir(dir)
 
-    with open(registry, "w") as registry_f:
+    with open(registry, "w", encoding='utf-8') as registry_f:
         registry_f.write(f"import {{MAVLinkMessage}} from '{NODE_MAVLINK_PACKAGE}';\n")
         for m in msgs:
             filename = m.name.replace('_', '-')
@@ -57,7 +57,7 @@ def generate_classes(dir, registry, msgs, xml):
             for i in range(0, len(m.fieldnames)):
                 m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
 
-            with open('{}/{}.ts'.format(dir, filename), "w") as f:
+            with open('{}/{}.ts'.format(dir, filename), "w", encoding='utf-8') as f:
                 if xml.wire_protocol_version == '1.0':
                     raise Exception('WireProtocolException', 'Please use WireProtocol = 2.0 only.')
 
@@ -110,7 +110,7 @@ def generate_classes(dir, registry, msgs, xml):
 
 
 def generate_tsconfig(basename):
-    with open('{}/tsconfig.json'.format(basename), "w") as f:
+    with open('{}/tsconfig.json'.format(basename), "w", encoding='utf-8') as f:
         f.write(
             "{\n  \"compilerOptions\": {\n    \"target\": \"es5\",\n    \"module\": \"commonjs\","
             "\n    \"declaration\": true,\n    \"declarationMap\": true,\n    \"sourceMap\": true,"

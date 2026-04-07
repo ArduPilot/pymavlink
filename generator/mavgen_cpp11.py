@@ -50,7 +50,7 @@ EType = collections.namedtuple('EType', ('type', 'max'))
 
 def generate_main_hpp(directory, xml):
     '''generate main header per XML file'''
-    f = open(os.path.join(directory, xml.basename + ".hpp"), mode='w')
+    f = open(os.path.join(directory, xml.basename + ".hpp"), mode='w', encoding='utf-8')
     t.write(f, '''
 /** @file
  *  @brief MAVLink comm protocol generated from ${basename}.xml
@@ -113,7 +113,7 @@ ${{include_list:#include "../${base}/${base}.hpp"
 
 def generate_message_hpp(directory, m):
     '''generate per-message header for a XML file'''
-    f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w')
+    f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 // MESSAGE ${name} support class
 
@@ -185,7 +185,7 @@ ${{ordered_fields:        map >> ${name};${ser_whitespace}// offset: ${wire_offs
 
 def generate_gtestsuite_hpp(directory, xml):
     '''generate gtestsuite.hpp per XML file'''
-    f = open(os.path.join(directory, "gtestsuite.hpp"), mode='w')
+    f = open(os.path.join(directory, "gtestsuite.hpp"), mode='w', encoding='utf-8')
     t.write(f, '''
 /** @file
  *  @brief MAVLink comm testsuite protocol generated from ${basename}.xml

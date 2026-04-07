@@ -369,7 +369,7 @@ def generate(basename, xml_list):
     if not os.path.exists(directory): 
         os.makedirs(directory) 
 
-    f = open(os.path.join(directory, "mavlink.cs"), mode='w')
+    f = open(os.path.join(directory, "mavlink.cs"), mode='w', encoding='utf-8')
 
     generate_message_header(f, xml_list)
 

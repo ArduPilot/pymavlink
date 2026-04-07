@@ -35,7 +35,7 @@ def generate(basename, xml):
     # create the output directory if needed
     if not os.path.exists(basename):
         os.makedirs(basename)
-    outf = open("%s/mavlink_msgs.lua" % basename, "w")
+    outf = open("%s/mavlink_msgs.lua" % basename, "w", encoding='utf-8')
     if 'modules' not in basename:
         print("ERROR: mavlink_msgs.lua must be generated in the modules directory or subdirectory")
         return
@@ -47,7 +47,7 @@ def generate(basename, xml):
 
     # dump the actual symbol table
     for m in msgs:
-        mavlink_msg_file = open("%s/mavlink_msg_%s.lua" % (basename, m.name), "w")
+        mavlink_msg_file = open("%s/mavlink_msg_%s.lua" % (basename, m.name), "w", encoding='utf-8')
         mavlink_msg_file.write("local %s = {}\n" % m.name)
         mavlink_msg_file.write("%s.id = %u\n" % (m.name, m.id))
         mavlink_msg_file.write("%s.crc_extra = %u\n" % (m.name, m.crc_extra))

@@ -780,7 +780,7 @@ def generate(basename, xml):
             m.len_map[n] = m.fieldlengths[i]
 
     print("Generating %s" % filename)
-    outf = open(filename, "w")
+    outf = open(filename, "w", encoding='utf-8')
     dialect = xml[0].filename
     dialect = dialect[dialect.rindex("/")+1:-4]  # remove .xml; we don't use os.sep here it's jank
     xml = xml[0].__dict__
@@ -793,6 +793,6 @@ def generate(basename, xml):
     print("Generated %s OK" % filename)
     # generates a handler skeleton
     handlername = filename[:-6] + "_handler.spin2"
-    outf = open(handlername, "w")   
+    outf = open(handlername, "w", encoding='utf-8')   
     generate_case(outf, msgs, dialect)
     generate_handler(outf, msgs)

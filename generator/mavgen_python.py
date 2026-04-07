@@ -1196,7 +1196,7 @@ def generate(basename, xml):
             m.len_map[n] = m.fieldlengths[i]
 
     print("Generating %s" % filename)
-    outf = open(filename, "w")
+    outf = open(filename, "w", encoding='utf-8')
     xml = xml[0].__dict__
     generate_preamble(outf, msgs, basename, filelist, xml)
     generate_enums(outf, enums)
