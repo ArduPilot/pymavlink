@@ -12,7 +12,7 @@ t = mavtemplate.MAVTemplate()
 
 def generate_mavlink(directory, xml):
     '''generate MVMavlink header and implementation'''
-    f = open(os.path.join(directory, "MVMavlink.h"), mode='w')
+    f = open(os.path.join(directory, "MVMavlink.h"), mode='w', encoding='utf-8')
     t.write(f,'''
 //
 //  MVMavlink.h
@@ -75,7 +75,7 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
 @end
 ''', xml)
     f.close()
-    f = open(os.path.join(directory, "MVMavlink.m"), mode='w')
+    f = open(os.path.join(directory, "MVMavlink.m"), mode='w', encoding='utf-8')
     t.write(f,'''
 //
 //  MVMavlink.m
@@ -113,7 +113,7 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
 
 def generate_base_message(directory, xml):
     '''Generate base MVMessage header and implementation'''
-    f = open(os.path.join(directory, 'MVMessage.h'), mode='w')
+    f = open(os.path.join(directory, 'MVMessage.h'), mode='w', encoding='utf-8')
     t.write(f, '''
 //
 //  MVMessage.h
@@ -155,7 +155,7 @@ def generate_base_message(directory, xml):
 @end
 ''', xml)
     f.close()
-    f = open(os.path.join(directory, 'MVMessage.m'), mode='w')
+    f = open(os.path.join(directory, 'MVMessage.m'), mode='w', encoding='utf-8')
     t.write(f, '''
 //
 //  MVMessage.m
@@ -228,7 +228,7 @@ ${{message:      @${id} : [MVMessage${name_camel_case} class],
 
 def generate_message_definitions_h(directory, xml):
     '''generate headerfile containing includes for all messages'''
-    f = open(os.path.join(directory, "MV" + camel_case_from_underscores(xml.basename) + "Messages.h"), mode='w')
+    f = open(os.path.join(directory, "MV" + camel_case_from_underscores(xml.basename) + "Messages.h"), mode='w', encoding='utf-8')
     t.write(f, '''
 //
 //  MV${basename_camel_case}Messages.h
@@ -245,7 +245,7 @@ ${{message:#import "MVMessage${name_camel_case}.h"
 
 def generate_message(directory, m):
     '''generate per-message header and implementation file'''
-    f = open(os.path.join(directory, 'MVMessage%s.h' % m.name_camel_case), mode='w')
+    f = open(os.path.join(directory, 'MVMessage%s.h' % m.name_camel_case), mode='w', encoding='utf-8')
     t.write(f, '''
 //
 //  MVMessage${name_camel_case}.h
@@ -273,7 +273,7 @@ ${{fields://! ${description}
 @end
 ''', m)
     f.close()
-    f = open(os.path.join(directory, 'MVMessage%s.m' % m.name_camel_case), mode='w')
+    f = open(os.path.join(directory, 'MVMessage%s.m' % m.name_camel_case), mode='w', encoding='utf-8')
     t.write(f, '''
 //
 //  MVMessage${name_camel_case}.m

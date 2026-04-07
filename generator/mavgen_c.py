@@ -13,7 +13,7 @@ t = mavtemplate.MAVTemplate()
 
 def generate_version_h(directory, xml):
     '''generate version.h'''
-    f = open(os.path.join(directory, "version.h"), mode='w')
+    f = open(os.path.join(directory, "version.h"), mode='w', encoding='utf-8')
     t.write(f,'''
 /** @file
  *  @brief MAVLink comm protocol built from ${basename}.xml
@@ -34,7 +34,7 @@ def generate_version_h(directory, xml):
 
 def generate_mavlink_h(directory, xml):
     '''generate mavlink.h'''
-    f = open(os.path.join(directory, "mavlink.h"), mode='w')
+    f = open(os.path.join(directory, "mavlink.h"), mode='w', encoding='utf-8')
     t.write(f,'''
 /** @file
  *  @brief MAVLink comm protocol built from ${basename}.xml
@@ -75,7 +75,7 @@ def generate_mavlink_h(directory, xml):
 
 def generate_main_h(directory, xml):
     '''generate main header per XML file'''
-    f = open(os.path.join(directory, xml.basename + ".h"), mode='w')
+    f = open(os.path.join(directory, xml.basename + ".h"), mode='w', encoding='utf-8')
     t.write(f, '''
 /** @file
  *  @brief MAVLink comm protocol generated from ${basename}.xml
@@ -166,7 +166,7 @@ def generate_message_h(directory, m):
         m.MSG_ATTRIBUTE = 'MAVLINK_WIP\n'
     else:
         m.MSG_ATTRIBUTE = ''
-    f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w')
+    f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 #pragma once
 // MESSAGE ${name} PACKING
@@ -464,7 +464,7 @@ ${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${d
 
 def generate_testsuite_h(directory, xml):
     '''generate testsuite.h per XML file'''
-    f = open(os.path.join(directory, "testsuite.h"), mode='w')
+    f = open(os.path.join(directory, "testsuite.h"), mode='w', encoding='utf-8')
     t.write(f, '''
 /** @file
  *    @brief MAVLink comm protocol testsuite generated from ${basename}.xml

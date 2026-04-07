@@ -745,7 +745,7 @@ def generate(basename, xml):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
 
     print("Generating %s" % filename)
-    outf = open(filename, "w")
+    outf = open(filename, "w", encoding='utf-8')
     generate_preamble(outf)
     generate_msg_table(outf, msgs)
     generate_enum_table(outf, enums)

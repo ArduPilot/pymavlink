@@ -33,7 +33,7 @@ def generate_mavlink(directory, filelist, xml_list, msgs):
     mavparse.mkdir_p(directory)
     filename = 'MAVLink.swift'
     filepath = os.path.join(directory, filename)
-    outf = open(filepath, "w")
+    outf = open(filepath, "w", encoding='utf-8')
     generate_header(outf, filelist, xml_list, filename)
     append_static_code('MAVLink.swift', outf)
     generate_message_mappings_array(outf, msgs)
@@ -67,7 +67,7 @@ def generate_enums(directory, filelist, xml_list, enums):
             continue
         filename = "%s%sEnum.swift" % (enum.swift_name, enum.basename)
         filepath = os.path.join(directory, filename)
-        outf = open(filepath, "w")
+        outf = open(filepath, "w", encoding='utf-8')
         generate_header(outf, filelist, xml_list, filename)
         t.write(outf, """
 ${formatted_description}public enum ${swift_name}: ${raw_value_type} {
@@ -96,7 +96,7 @@ def generate_optionsets(directory, filelist, xml_list, enums):
             entry.parent_swift_name = enum.swift_name
         filename = "%s%sOptionSet.swift" % (enum.swift_name, enum.basename)
         filepath = os.path.join(directory, filename)
-        outf = open(filepath, "w")
+        outf = open(filepath, "w", encoding='utf-8')
         generate_header(outf, filelist, xml_list, filename)
         t.write(outf, """
 ${formatted_description}public struct ${swift_name}: OptionSet {
@@ -135,7 +135,7 @@ def generate_messages(directory, filelist, xml_list, msgs):
     for msg in msgs:
         filename = "%s%sMsg.swift" % (msg.swift_name, msg.basename)
         filepath = os.path.join(directory, filename)
-        outf = open(filepath, "w")
+        outf = open(filepath, "w", encoding='utf-8')
         generate_header(outf, filelist, xml_list, filename)
         t.write(outf, """
 import Foundation

@@ -704,7 +704,7 @@ def generate(basename, xml):
             m.order_map[i] = m.ordered_fieldnames.index(m.fieldnames[i])
 
     print("Generating %s" % filename)
-    outf = open(filename, "w")
+    outf = open(filename, "w", encoding='utf-8')
     generate_preamble(outf, msgs, filelist, xml[0])
     generate_enums(outf, enums, xml[0])
     generate_message_ids(outf, msgs, xml[0])
