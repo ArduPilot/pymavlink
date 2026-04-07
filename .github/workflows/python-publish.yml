@@ -41,19 +41,17 @@ jobs:
                   ("windows", "windows-latest", "auto64 auto32"),
                   ("windows-arm", "windows-11-arm", "auto"),
               ]
-              py_versions = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+              py_versions = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
           else:
               machines = [
                   ("linux", "ubuntu-latest", "native"),
                   ("windows", "windows-latest", "native"),
               ]
-              py_versions = ["3.8", "3.14"] # Chosing the two most likely to break in PRs
+              py_versions = ["3.9", "3.14"] # Chosing the two most likely to break in PRs
 
           matrix = {"include": []}
           for (name, runner, cibw_archs) in machines:
               for py in py_versions:
-                  if name == "windows-arm" and py == "3.8": # The windows arm runner does not support Python 3.8
-                      continue
                   matrix["include"].append({
                       "name": f"python{py}-{name}",
                       "os": runner,
