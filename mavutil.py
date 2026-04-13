@@ -1284,7 +1284,7 @@ class mavtcp(mavfile):
             data = self.port.recv(n)
         except socket.error as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
-                return ""
+                return b""
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
                 self.handle_disconnect()
             raise
