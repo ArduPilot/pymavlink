@@ -201,6 +201,7 @@ setup (name = 'pymavlink',
                    'pymavlink.dfindexer',
                    'pymavlink.tools',
                    ],
+       # TODO: calls to the individual tools should be deprecated in favor of running python -m
        scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
                    'tools/mavgraph.py', 'tools/mavparmdiff.py',
                    'tools/mavtogpx.py', 'tools/magfit_gps.py',
