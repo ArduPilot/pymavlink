@@ -55,7 +55,7 @@ def get_field_info(field):
 
 def generate_preamble(outf):
     print("Generating preamble")
-    t.write(outf, 
+    t.write(outf,
 """
 -- Wireshark dissector for the MAVLink protocol (please see https://mavlink.io/en for details)
 
@@ -102,10 +102,10 @@ protocolVersions = {
 }
 
 """ )
-    
-    
+
+
 def generate_body_fields(outf):
-    t.write(outf, 
+    t.write(outf,
 """
 f.magic = ProtoField.uint8("mavlink_proto.magic", "Magic value / version", base.HEX, protocolVersions)
 f.length = ProtoField.uint8("mavlink_proto.length", "Payload length")
@@ -234,7 +234,7 @@ def generate_msg_fields(outf, msg, enums):
         mavlink_type, field_type, _, _, count = get_field_info(f)
 
         for i in range(0,count):
-            if count>1: 
+            if count>1:
                 array_text = '[' + str(i) + ']'
                 index_text = '_' + str(i)
             else:
@@ -420,20 +420,20 @@ def generate_payload_dissector(outf, msg, cmds, enums, cmd=None):
 
     # function header
     if cmd is not None:
-        t.write(outf, 
+        t.write(outf,
 """
 -- dissect payload of message type ${msgname} with command ${cmdname}
 function payload_fns.payload_${msgid}_cmd${cmdid}(buffer, tree, msgid, offset, limit, pinfo)
 """, {'msgid': msg.id, 'msgname': msg.name, 'cmdid': cmd.value, 'cmdname': cmd.name})
     else:
-        t.write(outf, 
+        t.write(outf,
 """
 -- dissect payload of message type ${msgname}
 function payload_fns.payload_${msgid}(buffer, tree, msgid, offset, limit, pinfo)
 """, {'msgid': msg.id, 'msgname': msg.name})
 
     # validate and pad payload if necessary
-    t.write(outf, 
+    t.write(outf,
 """
     local padded, field_offset, value, subtree, tvbrange
     if (offset + ${msgbytes} > limit) then
@@ -466,7 +466,7 @@ function payload_fns.payload_${msgid}(buffer, tree, msgid, offset, limit, pinfo)
         return
     end
 """, {'msgid': msg.id})
-    
+
     for field in msg.fields:
         # detect command params
         param = None
@@ -482,14 +482,14 @@ function payload_fns.payload_${msgid}(buffer, tree, msgid, offset, limit, pinfo)
 
         generate_field_dissector(outf, msg, field, msg.field_offsets[field.name], enums, cmd, param)
 
-    t.write(outf, 
+    t.write(outf,
 """
 end
 """)
-    
+
 
 def generate_packet_dis(outf):
-    t.write(outf, 
+    t.write(outf,
 """
 -- dissector function
 function mavlink_proto.dissector(buffer,pinfo,tree)
@@ -696,12 +696,12 @@ end
 
 
 """)
-    
+
 
 
 def generate_epilog(outf):
     print("Generating epilog")
-    t.write(outf, 
+    t.write(outf,
 """   
 -- bind protocol dissector to USER0 linktype
 
@@ -718,6 +718,7 @@ udp_dissector_table:add(18570, mavlink_proto)
 -- register common Mavlink TCP ports
 
 DissectorTable.get("tcp.port"):add("5760-5763", mavlink_proto)
+DissectorTable.get("tcp.port"):add("5790", mavlink_proto)
 
 """)
 
@@ -753,17 +754,17 @@ def generate(basename, xml):
 
     for c in cmds:
         generate_cmd_params(outf, c, enums)
-    
+
     for m in msgs:
         generate_msg_fields(outf, m, enums)
 
     for e in enums:
         if e.bitmask:
             generate_flag_enum_dissector(outf, e)
-    
+
     for m in msgs:
         generate_payload_dissector(outf, m, cmds, enums)
-    
+
     generate_packet_dis(outf)
 #    generate_enums(outf, enums)
 #    generate_message_ids(outf, msgs)
