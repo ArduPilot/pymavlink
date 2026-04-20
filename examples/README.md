@@ -2,6 +2,7 @@
 
 | File            | Description   |
 | --------------- |:--------------|
+| mavexample_ardupilot_copter.py | ArduPilot copter control example, takeoff, play a missions, guided mode and RTL. |
 | mavtest.py      |  Demonstrates creating a mavlink message, putting it on a buffer and then decoding from said buffer. |
 | bwtest.py       |  Check bandwidth of link. Display results on terminal. |
 | mav_accel.py    |  Show accelerometer calibration for a set of logs.  |
