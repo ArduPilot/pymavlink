@@ -496,7 +496,7 @@ class MAVXML(object):
 def message_checksum(msg):
     '''calculate CRC-16/MCRF4XX checksum of the key fields of a message, so we
        can detect incompatible XML changes'''
-    from .mavcrc import x25crc
+    from pymavlink.generator.mavcrc import x25crc
     crc = x25crc()
     crc.accumulate_str(msg.name + ' ')
     # in order to allow for extensions the crc does not include
