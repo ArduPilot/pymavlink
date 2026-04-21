@@ -314,15 +314,13 @@ class mavfile(object):
         self.first_byte = False
         if self.WIRE_PROTOCOL_VERSION == "0.9" and magic == 254:
             self.WIRE_PROTOCOL_VERSION = "1.0"
-            set_dialect(current_dialect)
+            set_mavlink_version(1.0)
         elif self.WIRE_PROTOCOL_VERSION == "1.0" and magic == 85:
             self.WIRE_PROTOCOL_VERSION = "0.9"
-            os.environ['MAVLINK09'] = '1'
-            set_dialect(current_dialect)
+            set_mavlink_version(0.9)
         elif self.WIRE_PROTOCOL_VERSION != "2.0" and magic == 253:
             self.WIRE_PROTOCOL_VERSION = "2.0"
-            os.environ['MAVLINK20'] = '1'
-            set_dialect(current_dialect)
+            set_mavlink_version(2.0)
         else:
             return
         # switch protocol 
