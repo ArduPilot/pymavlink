@@ -196,8 +196,9 @@
 <xs:attribute name="reserved" type="xs:boolean" default="false"/>      <!-- parameter is reserved -->
 
 <!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
-<xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- entry has lat/lon/alt location -->
-<xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- entry is a destination -->
+<xs:attribute name="hasLocation" type="xs:boolean" default="true"/>    <!-- entry is an ROI or other non-destination (lat/lon/alt location in params 5, 6, 7). -->
+<xs:attribute name="isDestination" type="xs:boolean" default="true"/>  <!-- entry is a waypoint/destination (lat/lon/alt in params 5, 6, 7) -->
+<xs:attribute name="altitudeOnly" type="xs:boolean" default="true"/>  <!-- entry contains an altitude but no lat/lon (alt in param 7) -->
 <xs:attribute name="missionOnly" type="xs:boolean" default="true"/>  <!-- entry only makes sense in missions, not commands -->
 
 <!-- definition of complex elements -->
@@ -286,9 +287,10 @@
         </xs:sequence>
         <xs:attribute ref="value" />
         <xs:attribute ref="name" use="required"/>
-        <xs:attribute ref="hasLocation"/>
+        <xs:attribute ref="hasLocation"/> <!-- should be choice with altitudeOnly, but can't enforce in XSD1.0 -->
+        <xs:attribute ref="altitudeOnly"/>
         <xs:attribute ref="isDestination"/>
-        <xs:attribute ref="missionOnly"/>
+        <xs:attribute ref="missionOnly"/> 
     </xs:complexType>
 </xs:element>
 
