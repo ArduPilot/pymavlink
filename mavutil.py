@@ -312,8 +312,7 @@ class mavfile:
         self.first_byte = False
         if self.WIRE_PROTOCOL_VERSION != "2.0" and magic == 253:
             self.WIRE_PROTOCOL_VERSION = "2.0"
-            os.environ['MAVLINK20'] = '1'
-            set_dialect(current_dialect)
+            set_mavlink_version(2.0)
         else:
             return
         # switch protocol 
