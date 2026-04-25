@@ -70,7 +70,9 @@ MAVLINK_HELPER void mavlink_quaternion_to_dcm(const float quaternion[4], float d
 MAVLINK_HELPER void mavlink_dcm_to_euler(const float dcm[3][3], float* roll, float* pitch, float* yaw)
 {
     float phi, theta, psi;
-    theta = asin(-dcm[2][0]);
+    /* Clamp to [-1, 1] so floating-point rounding in
+       mavlink_quaternion_to_dcm() cannot drive asin() into NaN. */
+    theta = asin(fmin(1.0, fmax(-1.0, -dcm[2][0])));
 
     if (fabsf(theta - (float)M_PI_2) < 1.0e-3f) {
         phi = 0.0f;
