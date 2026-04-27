@@ -387,6 +387,7 @@ class EnumEntry(object):
         self.name = name
         self.description = description
         self.param: Dict[int, str] = {}
+        self.label: Dict[int, str] = {}
         self.has_location = False
 
 class Enum(Dict[int, EnumEntry]):
@@ -428,6 +429,11 @@ enums: Dict[str, Enum] = {}
                     outf.write(
                         'enums["%s"][%d].param[%d] = """%s"""\n'
                         % (e.name, int(entry.value), int(param.index), description)
+                    )
+                if param.label:
+                    outf.write(
+                        'enums["%s"][%d].label[%d] = """%s"""\n'
+                        % (e.name, int(entry.value), int(param.index), param.label)
                     )
 
 
