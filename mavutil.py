@@ -137,6 +137,11 @@ def set_dialect(dialect, with_type_annotations=None):
 def set_mavlink_version(version):
     '''set the MAVLink version to work with.
     For example, set_mavlink_version(2.0)
+
+    Warning: If the currently loaded dialect is specific to a single MAVLink 
+    version (e.g., a v2-only dialect) and you switch to an incompatible version,
+    this function will raise a FileNotFoundError because the underlying
+    set_dialect() call will fail to find the corresponding XML file
     '''
     v = float(version)
     if v == 2.0:
