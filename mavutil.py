@@ -2538,40 +2538,41 @@ px4_map = { "MANUAL":        (mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | mavlin
 
 
 def interpret_px4_mode(base_mode, custom_mode):
+    # Dispatch on custom_main_mode (authoritative per PX4's px4_custom_mode.h);
+    # base_mode is no longer reliable for mode identity on PX4 v1.12+ (#793).
+    del base_mode
     custom_main_mode = (custom_mode & 0xFF0000)   >> 16
     custom_sub_mode  = (custom_mode & 0xFF000000) >> 24
 
-    if base_mode & mavlink.MAV_MODE_FLAG_MANUAL_INPUT_ENABLED != 0: #manual modes
-        if custom_main_mode == PX4_CUSTOM_MAIN_MODE_MANUAL:
-            return "MANUAL"
-        elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_ACRO:
-            return "ACRO"
-        elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_RATTITUDE:
-            return "RATTITUDE"
-        elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_STABILIZED:
-            return "STABILIZED"
-        elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_ALTCTL:
-            return "ALTCTL"
-        elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_POSCTL:
-            return "POSCTL"
-    elif (base_mode & auto_mode_flags) == auto_mode_flags: #auto modes
-        if custom_main_mode & PX4_CUSTOM_MAIN_MODE_AUTO != 0:
-            if custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_MISSION:
-                return "MISSION"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF:
-                return "TAKEOFF"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER:
-                return "LOITER"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET:
-                return "FOLLOWME"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_RTL:
-                return "RTL"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LAND:
-                return "LAND"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_RTGS:
-                return "RTGS"
-            elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_OFFBOARD:
-                return "OFFBOARD"
+    if custom_main_mode == PX4_CUSTOM_MAIN_MODE_MANUAL:     
+        return "MANUAL"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_ACRO:       
+        return "ACRO"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_RATTITUDE:  
+        return "RATTITUDE"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_STABILIZED: 
+        return "STABILIZED"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_ALTCTL:     
+        return "ALTCTL"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_POSCTL:     
+        return "POSCTL"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_OFFBOARD:   
+        return "OFFBOARD"
+    elif custom_main_mode == PX4_CUSTOM_MAIN_MODE_AUTO:
+        if custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_MISSION:       
+            return "MISSION"
+        elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF:       
+            return "TAKEOFF"
+        elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER:        
+            return "LOITER"
+        elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET: 
+            return "FOLLOWME"
+        elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_RTL:           
+            return "RTL"
+        elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LAND:          
+            return "LAND"
+        elif custom_sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_RTGS:          
+            return "RTGS"
     return "UNKNOWN"
 
 def mode_mapping_byname(mav_type):
