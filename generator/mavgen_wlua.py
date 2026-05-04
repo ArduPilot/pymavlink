@@ -673,22 +673,24 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
 
         -- SIGNATURE ----------------------------------
 
-        if (version == 0xfd and incompatibility_flag == 0x01) then
-            local signature = subtree:add("Signature")
+        if (version == 0xfd and bit.band(incompatibility_flag, 0x01) ~= 0) then
+            if (offset + 13 <= buffer:len()) then
+                local signature = subtree:add("Signature")
 
-            local link = buffer(offset,1)
-            signature:add(f.signature_link, link)
-            offset = offset + 1
+                local link = buffer(offset,1)
+                signature:add(f.signature_link, link)
+                offset = offset + 1
 
-            local signature_time = buffer(offset,6):le_uint64()
-            local time_secs = signature_time / 100000
-            local time_nsecs = (signature_time - (time_secs * 100000)) * 10000
-            signature:add(f.signature_time, buffer(offset,6), NSTime.new(signature_time_ref + time_secs:tonumber(), time_nsecs:tonumber()))
-            offset = offset + 6
+                local signature_time = buffer(offset,6):le_uint64()
+                local time_secs = signature_time / 100000
+                local time_nsecs = (signature_time - (time_secs * 100000)) * 10000
+                signature:add(f.signature_time, buffer(offset,6), NSTime.new(signature_time_ref + time_secs:tonumber(), time_nsecs:tonumber()))
+                offset = offset + 6
 
-            local signature_signature = buffer(offset,6)
-            signature:add(f.signature_signature, signature_signature)
-            offset = offset + 6
+                local signature_signature = buffer(offset,6)
+                signature:add(f.signature_signature, signature_signature)
+                offset = offset + 6
+            end
         end
 
     end
