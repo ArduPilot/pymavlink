@@ -5,7 +5,7 @@
   "repository": "private",
   "dependencies": {
     "babel-eslint": "^10.0.3",
-    "glob": "^7.1.6",
+    "glob": "^13.0.6",
     "jspack": "file:local_modules/jspack",
     "long": "file:local_modules/long",
     "mocha": "^10.2.0",
@@ -14,7 +14,7 @@
     "winston": "3.2.1"
   },
   "devDependencies": {
-    "eslint": "^6.1.0",
+    "eslint": "^10.0.0",
     "mocha": "",
     "should": "",
     "sinon": "^15.2.0"
