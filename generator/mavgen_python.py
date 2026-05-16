@@ -188,7 +188,7 @@ class MAVLink_message(object):
 
     def __init__(self, msgId: int, name: str) -> None:
         self._header = MAVLink_header(msgId)
-        self._payload: Optional[bytes] = None
+        self._payload: Optional[Union[bytes, bytearray]] = None
         self._msgbuf = bytearray(b"")
         self._crc: Optional[int] = None
         self._fieldnames: List[str] = []
@@ -211,7 +211,7 @@ class MAVLink_message(object):
     def get_header(self) -> MAVLink_header:
         return self._header
 
-    def get_payload(self) -> Optional[bytes]:
+    def get_payload(self) -> Optional[Union[bytes, bytearray]]:
         return self._payload
 
     def get_crc(self) -> Optional[int]:
@@ -711,7 +711,7 @@ class MAVLink_bad_data(MAVLink_message):
     a piece of bad data in a mavlink stream
     """
 
-    def __init__(self, data: bytes, reason: str) -> None:
+    def __init__(self, data: Union[bytes, bytearray], reason: str) -> None:
         MAVLink_message.__init__(self, MAVLINK_MSG_ID_BAD_DATA, "BAD_DATA")
         self._fieldnames = ["data", "reason"]
         self.data = data
@@ -730,7 +730,7 @@ class MAVLink_unknown(MAVLink_message):
     a message that we don't have in the XML used when built
     """
 
-    def __init__(self, msgid: int, data: bytes) -> None:
+    def __init__(self, msgid: int, data: Union[bytes, bytearray]) -> None:
         MAVLink_message.__init__(self, MAVLINK_MSG_ID_UNKNOWN, "UNKNOWN_%u" % msgid)
         self._fieldnames = ["data"]
         self.data = data
