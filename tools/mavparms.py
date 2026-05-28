@@ -58,7 +58,7 @@ if (args.changesOnly is False):
             MAV_PARAM_TYPE_REAL32 = 9
             sysid = 1
             compid = 1
-            print("%u %u %-15s %.6f %u" %
+            print("\t".join(["%u", "%u", "%-15s", "%.6f", "%u"]) %
                   (sysid, compid, p, parms[p], MAV_PARAM_TYPE_REAL32))
         else:
             print("%-15s %.6f" % (p, parms[p]))
