@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 '''
-example program that dumps a Mavlink log file. The log file is
-assumed to be in the format that qgroundcontrol uses, which consists
+Dumps out the contents a log file in the requsted format.
+The input log file may by a dataflash file in binary (.bin, .px4log)
+or text (.log) format, or a telemetry log (.tlog, .log) consisting of
 of a series of MAVLink packets, each with a 64 bit timestamp
 header. The timestamp is in microseconds since 1970 (unix epoch)
 '''
@@ -62,6 +63,7 @@ if not args.mav10:
 import inspect
 
 from pymavlink import mavutil
+from pymavlink import DFReader
 
 
 if args.profile:
@@ -96,10 +98,9 @@ nottypes = args.nottypes
 if nottypes is not None:
     nottypes = nottypes.split(',')
 
-ext = os.path.splitext(filename)[1]
-isbin = ext in ['.bin', '.BIN', '.px4log']
-islog = ext in ['.log', '.LOG'] # NOTE: "islog" does not mean a tlog
-istlog = ext in ['.tlog', '.TLOG']
+isbin = isinstance(mlog,DFReader.DFReader_binary)
+islog = isinstance(mlog,DFReader.DFReader_text) # NOTE: "islog" does not mean a tlog
+istlog = isinstance(mlog,mavutil.mavmmaplog)
 
 # list of msgs to reduce in rate when --reduce is used
 reduction_msgs = ['NKF*', 'XKF*', 'IMU*', 'AHR2', 'BAR*', 'ATT', 'BAT*', 'CTUN', 'NTUN', 'GP*', 'IMT*', 'MAG*', 'PL', 'POS', 'POW*', 'RATE', 'RC*', 'RFND', 'UBX*', 'VIBE', 'NKQ*', 'MOT*', 'CTRL', 'FTS*', 'DSF', 'CST*', 'LOS*', 'UWB*']

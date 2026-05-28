@@ -1628,8 +1628,10 @@ class DFReader_binary(DFReader):
 def DFReader_is_text_log(filename):
     '''return True if a file appears to be a valid text log'''
     with open(filename, 'r') as f:
-        ret = (f.read(8000).find('FMT,') != -1)
-
+        try:
+            ret = (f.read(8000).find('FMT,') != -1)
+        except UnicodeDecodeError:
+            ret = False
     return ret
 
 
