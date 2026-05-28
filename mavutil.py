@@ -1010,8 +1010,15 @@ class mavserial(mavfile):
             waiting = self.port.inWaiting()
             if waiting < n:
                 n = waiting
-        ret = self.port.read(n)
-        return ret
+        try:
+            return self.port.read(n)
+        except Exception:
+            if not self.portdead:
+                print("Device %s is dead" % self.device)
+            self.portdead = True
+            if self.autoreconnect:
+                self.reset()
+            return bytes()
 
     def write(self, buf):
         try:
