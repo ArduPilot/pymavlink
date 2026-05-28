@@ -187,7 +187,14 @@
 </xs:simpleType>
 
 <!-- definition param elements attributes (like the ones used on MAV_CMD for example) -->
-<xs:attribute name="index" type="xs:unsignedByte"/>                    <!-- parameter index -->
+<xs:attribute name="index">                                            <!-- parameter index -->
+  <xs:simpleType>
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1"/>
+      <xs:maxInclusive value="7"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:attribute>
 <xs:attribute name="label" type="xs:string"/>                          <!-- parameter label (name) -->
 <xs:attribute name="decimalPlaces" type="xs:unsignedByte"/>            <!-- parameter number of decimal places to be displayed in the GUI -->
 <xs:attribute name="increment" type="xs:float"/>                       <!-- parameter increment -->
@@ -282,7 +289,7 @@
                 <xs:element ref="deprecated"/>
             </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
-            <xs:element ref="param" minOccurs="0" maxOccurs="unbounded" />
+            <xs:element ref="param" minOccurs="0" maxOccurs="7" />
         </xs:sequence>
         <xs:attribute ref="value" />
         <xs:attribute ref="name" use="required"/>
