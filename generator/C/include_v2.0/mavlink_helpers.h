@@ -724,15 +724,6 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		} else {
 			status->parse_state = MAVLINK_PARSE_STATE_GOT_PAYLOAD;
 		}
-#ifdef MAVLINK_CHECK_MESSAGE_LENGTH
-        if (rxmsg->len < mavlink_min_message_length(rxmsg) ||
-            rxmsg->len > mavlink_max_message_length(rxmsg))
-        {
-			_mav_parse_error(status);
-			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
-			break;
-        }
-#endif
 		break;
                 
 	case MAVLINK_PARSE_STATE_GOT_MSGID3:
