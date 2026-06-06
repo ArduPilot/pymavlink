@@ -108,6 +108,7 @@ _HEADER_TOP = """\
 #pragma once
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -140,34 +141,33 @@ static inline int is_sentinel(float v)
 /* is_coord_sentinel(): additionally treats INT32_MAX-derived values as
  * sentinel.  MISSION_ITEM_INT / COMMAND_INT use INT32_MAX (≈ 2.15e9
  * as float) in params 5/6 to mean "use current position". */
-static inline int is_coord_sentinel(float v, int is_int_frame)
+static inline int is_coord_sentinel(float v, bool is_int)
 {{
-\treturn is_sentinel(v) || (is_int_frame && (v >= 2.0e9f || v <= -2.0e9f));
+\treturn is_sentinel(v) || (is_int && (v >= 2.0e9f || v <= -2.0e9f));
 }}
 
 /* -------------------------------------------------------------------
- * Implicit geographic range helpers
+ * Geographic range helpers — call these directly after check_range()
+ * when you know the frame is global and has_location(cmd) == 1.
  *
- * is_int_frame=1: raw int32 (MISSION_ITEM_INT, or COMMAND_INT global
- *   before /1e7 conversion in handle_message_command_int).
+ * is_int=true: COMMAND_INT / MISSION_ITEM_INT — p5/p6 are int32 × 1e7.
  *   lat ∈ [−9×10⁸, 9×10⁸]   (±90°  × 1e7)
  *   lon ∈ [−1.8×10⁹, 1.8×10⁹]  (±180° × 1e7)
- * is_int_frame=0: float degrees (COMMAND_LONG, or COMMAND_INT after
- *   the receiver has applied the 1e7 scale).
+ * is_int=false: COMMAND_LONG — p5/p6 are float degrees.
  *   lat ∈ [−90, 90],  lon ∈ [−180, 180]
  * ------------------------------------------------------------------- */
-static inline int lat_in_range(float v, int is_int_frame)
+static inline int lat_in_range(float v, bool is_int)
 {{
-\tif (is_coord_sentinel(v, is_int_frame)) return 1;
-\treturn is_int_frame ? (v >= -9e8f   && v <= 9e8f)
-\t                    : (v >= -90.0f  && v <= 90.0f);
+\tif (is_coord_sentinel(v, is_int)) return 1;
+\treturn is_int ? (v >= -9e8f   && v <= 9e8f)
+\t             : (v >= -90.0f  && v <= 90.0f);
 }}
 
-static inline int lon_in_range(float v, int is_int_frame)
+static inline int lon_in_range(float v, bool is_int)
 {{
-\tif (is_coord_sentinel(v, is_int_frame)) return 1;
-\treturn is_int_frame ? (v >= -1.8e9f  && v <= 1.8e9f)
-\t                    : (v >= -180.0f  && v <= 180.0f);
+\tif (is_coord_sentinel(v, is_int)) return 1;
+\treturn is_int ? (v >= -1.8e9f  && v <= 1.8e9f)
+\t             : (v >= -180.0f  && v <= 180.0f);
 }}
 
 """
@@ -225,25 +225,20 @@ static inline int _bound_is_set(float v)
 \treturn (bits & 0x7F800000u) != 0x7F800000u;
 }}
 
-/* check_range(): validate params against XML-defined and implicit bounds.
+/* check_range(): validate params 1-7 against XML-defined bounds only.
  *
  * Returns:
- *   0   all params in range (or sentinel)
+ *   0   all params in range (or sentinel); also returned when the command
+ *       has no range data — unknown commands are accepted, not rejected.
  *   1-7 1-based index of the first param that fails a range check
- *  -1   command has no range data (not in table; validation not applied)
  *
- * is_int_frame=1  MISSION_ITEM_INT, or COMMAND_INT with global frame
- *   (p5/p6 are raw int32 values stored as float, scale 1e7 degrees).
- * is_int_frame=0  COMMAND_LONG, or COMMAND_INT after the receiver has
- *   applied 1e7 or 1e4 scaling (p5/p6 are float degrees or metres).
- * Pass 0.0f for p5/p6 to suppress the geographic range check (e.g. for
- * COMMAND_INT with a local frame where p5/p6 are metres not degrees). */
-static inline int check_range(uint16_t cmd, int is_int_frame,
+ * Geographic range (lat/lon) is NOT checked here — call lat_in_range() and
+ * lon_in_range() separately when you know the frame is global. */
+static inline int check_range(uint16_t cmd,
 \tfloat p1, float p2, float p3, float p4,
 \tfloat p5, float p6, float p7)
 {{
 \tconst float params[7] = {{p1, p2, p3, p4, p5, p6, p7}};
-\tint found = 0;
 
 \t/* Binary search: find any entry for this cmd in param_bounds. */
 \tunsigned lo = 0u, hi = param_bounds_count;
@@ -257,7 +252,6 @@ static inline int check_range(uint16_t cmd, int is_int_frame,
 \t\t/* Walk all entries for this cmd. */
 \t\tfor (unsigned i = start;
 \t\t     i < param_bounds_count && param_bounds[i].cmd == cmd; ++i) {{
-\t\t\tfound = 1;
 \t\t\tconst unsigned pidx = (unsigned)param_bounds[i].param - 1u;
 \t\t\tconst float v = params[pidx];
 \t\t\tif (is_sentinel(v)) {{ continue; }}
@@ -269,14 +263,7 @@ static inline int check_range(uint16_t cmd, int is_int_frame,
 \t\tbreak;
 \t}}
 
-\t/* Implicit lat/lon range for location-bearing commands. */
-\tif (has_location(cmd) == 1) {{
-\t\tif (!lat_in_range(p5, is_int_frame)) {{ return 5; }}
-\t\tif (!lon_in_range(p6, is_int_frame)) {{ return 6; }}
-\t\tfound = 1;
-\t}}
-
-\treturn found ? 0 : -1;
+\treturn 0;
 }}
 
 #ifdef __cplusplus
