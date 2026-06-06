@@ -7,8 +7,7 @@ Outputs a header with:
   - Helper functions: is_sentinel, lat_in_range, lon_in_range,
                       cmd_flags, has_location, is_destination, check_range
 
-Only commands in SUPPORTED_CMDS (matching SupportedCommandParams in
-mavlink_command_params.h) are included in the tables.
+All commands with bounds or flags defined in the XML are included in the tables.
 """
 
 import argparse
@@ -27,13 +26,6 @@ if __name__ == "__main__" and __package__ is None:
         sys.path.insert(0, _root)
 
 from pymavlink.generator import mavparse
-
-# Must match SupportedCommandParams[] in src/modules/mavlink/mavlink_command_params.h
-SUPPORTED_CMDS = {
-    16, 17, 19, 20, 21, 22, 31, 80, 84, 85, 93, 112, 114, 176, 177, 178, 179, 189,
-    195, 196, 197, 201, 206, 211, 212, 214, 400, 420, 530, 532, 534, 2000, 2001,
-    2003, 2500, 2501, 3000, 4501, 5000, 5001, 5002, 5003, 5004, 5100, 42600,
-}
 
 
 def load_with_includes(xml_path):
@@ -76,11 +68,8 @@ def generate(xml_path, output_path):
     if mav_cmd is None:
         raise RuntimeError("MAV_CMD enum not found in %s" % xml_path)
 
-    # Collect entries for supported commands, sorted by cmd value
-    entries = sorted(
-        (e for e in mav_cmd.entry if int(e.value) in SUPPORTED_CMDS),
-        key=lambda e: int(e.value),
-    )
+    # Collect all MAV_CMD entries, sorted by cmd value
+    entries = sorted(mav_cmd.entry, key=lambda e: int(e.value))
 
     # Build param bounds table — only params with at least one bound defined
     bounds = []  # list of (cmd, param_1based, lo_float, hi_float)
