@@ -768,7 +768,8 @@ def generate(basename, xml_list):
         xml = xml_list[idx]
         xml.xml_hash = hash(xml.basename)
         generate_one(basename, xml)
+        directory = os.path.join(basename, xml.basename)
+        output_path = os.path.join(directory, "mav_cmd_helpers.h")
+        mavgen_c_cmd_helpers.generate(xml.filename, output_path)
+        print("Generated %s" % output_path)
     copy_fixed_headers(basename, xml_list[0])
-    output_path = os.path.join(basename, "mavlink_cmd_helpers.h")
-    mavgen_c_cmd_helpers.generate(xml_list[0].filename, output_path)
-    print("Generated %s" % output_path)

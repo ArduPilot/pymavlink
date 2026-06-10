@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate mavlink_cmd_helpers.h — per-MAV_CMD range-check tables and helpers.
+"""Generate mav_cmd_helpers.h — per-MAV_CMD range-check tables and helpers.
 
 Outputs a header with:
   - param_bounds[]     explicit min/max from XML minValue/maxValue attributes
   - cmd_flags_table[]  hasLocation and isDestination flags from XML
-  - Helper functions: is_sentinel, lat_in_range, lon_in_range,
+  - Helper functions: is_float_param_invalid, lat_in_range, lon_in_range,
                       cmd_flags, has_location, is_destination, check_range
 
 All commands with bounds or flags defined in the XML are included in the tables.
@@ -112,62 +112,63 @@ _HEADER_TOP = """\
 #include <stdint.h>
 
 #ifdef __cplusplus
-namespace mavlink_cmd_helpers {{
+namespace mav_cmd_helpers {{
 #endif
 
-/* -------------------------------------------------------------------
- * Sentinel detection
+/**
+ * @brief Tests if a parameter value is set to an invalid/default value (NaN, possibly 0, or INT32_MAX-derived).
  *
- * is_sentinel(): non-zero if v means "param not provided".
- * NaN is the MAVLink standard sentinel.
- * ±0.0 is also accepted by default: many GCS tools send 0 for unused
- * fields rather than NaN.
+ * Returns non-zero if param_val is NaN or ±0.0, which are commonly used default values
+ * for float parameters that are not in use.
+ * When is_int is true (COMMAND_INT / MISSION_ITEM_INT encoding), also treats values with
+ * magnitude ≥ 2.0×10⁹ as invalid; INT32_MAX (≈ 2.15×10⁹) is used in p5/p6 to mean
+ * "use current position". The threshold is set below INT32_MAX but above the maximum
+ * valid coordinate (±1.8×10⁹).
  *
- * Define MAVLINK_CMD_STRICT_SENTINEL (e.g. -DMAVLINK_CMD_STRICT_SENTINEL
- * in a test build) to reject ±0.0 and require NaN only — useful for
- * auditing senders that send 0 instead of NaN.
- * ------------------------------------------------------------------- */
-static inline int is_sentinel(float v)
+ * Define MAV_CMD_STRICT_NAN_INVALID to reject ±0.0 and require NaN only.
+ *
+ * @param param_val  Parameter value to test.
+ * @param is_int     True for COMMAND_INT / MISSION_ITEM_INT encoding (activates INT32_MAX check).
+ * @return Non-zero if param_val is invalid, zero otherwise.
+ */
+static inline int param_invalid(float param_val, bool is_int)
 {{
 \tuint32_t bits;
-\t__builtin_memcpy(&bits, &v, sizeof(bits));
-\tif ((bits & 0x7F800000u) == 0x7F800000u) return 1; /* NaN — always a sentinel */
-#ifndef MAVLINK_CMD_STRICT_SENTINEL
-\tif (!(bits & 0x7FFFFFFFu)) return 1;                /* ±0.0 — default sentinel */
+\t__builtin_memcpy(&bits, &param_val, sizeof(bits));
+\tif ((bits & 0x7F800000u) == 0x7F800000u) return 1; /* NaN — always invalid */
+#ifndef MAV_CMD_STRICT_NAN_INVALID
+\tif (!(bits & 0x7FFFFFFFu)) return 1;                /* ±0.0 — invalid by default */
 #endif
+\tif (is_int && (param_val >= 2.0e9f || param_val <= -2.0e9f)) return 1; /* INT32_MAX — invalid */
 \treturn 0;
 }}
 
-/* is_coord_sentinel(): additionally treats INT32_MAX-derived values as
- * sentinel.  MISSION_ITEM_INT / COMMAND_INT use INT32_MAX (≈ 2.15e9
- * as float) in params 5/6 to mean "use current position". */
-static inline int is_coord_sentinel(float v, bool is_int)
-{{
-\treturn is_sentinel(v) || (is_int && (v >= 2.0e9f || v <= -2.0e9f));
-}}
-
-/* -------------------------------------------------------------------
- * Geographic range helpers — call these directly after check_range()
- * when you know the frame is global and has_location(cmd) == 1.
+/**
+ * @brief Tests if lat is in range for a latitude.
  *
- * is_int=true: COMMAND_INT / MISSION_ITEM_INT — p5/p6 are int32 × 1e7.
- *   lat ∈ [−9×10⁸, 9×10⁸]   (±90°  × 1e7)
- *   lon ∈ [−1.8×10⁹, 1.8×10⁹]  (±180° × 1e7)
- * is_int=false: COMMAND_LONG — p5/p6 are float degrees.
- *   lat ∈ [−90, 90],  lon ∈ [−180, 180]
- * ------------------------------------------------------------------- */
-static inline int lat_in_range(float v, bool is_int)
+ * @param lat    Latitude to test.
+ * @param is_int True for COMMAND_INT / MISSION_ITEM_INT (int32 × 1e7, range ±9×10⁸);
+ *               false for COMMAND_LONG (float degrees, range ±90).
+ * @return 1 if in range, 0 if out of range or NaN.
+ */
+static inline int lat_in_range(float lat, bool is_int)
 {{
-\tif (is_coord_sentinel(v, is_int)) return 1;
-\treturn is_int ? (v >= -9e8f   && v <= 9e8f)
-\t             : (v >= -90.0f  && v <= 90.0f);
+\treturn is_int ? (lat >= -9e8f   && lat <= 9e8f)
+\t             : (lat >= -90.0f  && lat <= 90.0f);
 }}
 
-static inline int lon_in_range(float v, bool is_int)
+/**
+ * @brief Tests if lon is in range for a longitude.
+ *
+ * @param lon    Longitude to test.
+ * @param is_int True for COMMAND_INT / MISSION_ITEM_INT (int32 × 1e7, range ±1.8×10⁹);
+ *               false for COMMAND_LONG (float degrees, range ±180).
+ * @return 1 if in range, 0 if out of range or NaN.
+ */
+static inline int lon_in_range(float lon, bool is_int)
 {{
-\tif (is_coord_sentinel(v, is_int)) return 1;
-\treturn is_int ? (v >= -1.8e9f  && v <= 1.8e9f)
-\t             : (v >= -180.0f  && v <= 180.0f);
+\treturn is_int ? (lon >= -1.8e9f  && lon <= 1.8e9f)
+\t             : (lon >= -180.0f  && lon <= 180.0f);
 }}
 
 """
@@ -184,12 +185,12 @@ struct CmdFlags {{ uint16_t cmd; uint8_t flags; }};
 
 _HEADER_BOTTOM = """\
 
-/* -------------------------------------------------------------------
- * Public helpers
- * ------------------------------------------------------------------- */
-
-/* cmd_flags(): binary search for command attribute flags.
- * Returns the flags byte, or -1 if cmd is not in the table. */
+/**
+ * @brief Binary-search lookup for per-command attribute flags.
+ *
+ * @param cmd MAV_CMD command ID.
+ * @return Flags byte (CMD_FLAG_HAS_LOCATION | CMD_FLAG_IS_DESTINATION), or -1 if unknown.
+ */
 static inline int cmd_flags(uint16_t cmd)
 {{
 \tunsigned lo = 0u, hi = cmd_flags_count;
@@ -202,38 +203,46 @@ static inline int cmd_flags(uint16_t cmd)
 \treturn -1;
 }}
 
-/* has_location(): 1 if cmd carries lat/lon/alt, 0 if not, -1 if unknown. */
+/**
+ * @brief Test if a command carries lat/lon/alt.
+ *
+ * @param cmd MAV_CMD command ID.
+ * @return 1 if the command has location, 0 if not, -1 if unknown.
+ */
 static inline int has_location(uint16_t cmd)
 {{
 \tconst int f = cmd_flags(cmd);
 \treturn f < 0 ? -1 : ((f & (int)CMD_FLAG_HAS_LOCATION) != 0);
 }}
 
-/* is_destination(): 1 if cmd is a waypoint destination, 0 if not, -1 if unknown. */
+/**
+ * @brief Test if a command is a waypoint destination.
+ *
+ * @param cmd MAV_CMD command ID.
+ * @return 1 if the command is a destination, 0 if not, -1 if unknown.
+ */
 static inline int is_destination(uint16_t cmd)
 {{
 \tconst int f = cmd_flags(cmd);
 \treturn f < 0 ? -1 : ((f & (int)CMD_FLAG_IS_DESTINATION) != 0);
 }}
 
-/* _bound_is_set(): non-zero if v is a finite bound (not NaN / ±Inf).
- * Used internally by check_range(); bit-manipulation avoids isnan(). */
-static inline int _bound_is_set(float v)
+/* Internal: non-zero if bound is a finite value (not NaN / ±Inf). Bit-manipulation avoids isnan(). */
+static inline int _bound_is_set(float bound)
 {{
 \tuint32_t bits;
-\t__builtin_memcpy(&bits, &v, sizeof(bits));
+\t__builtin_memcpy(&bits, &bound, sizeof(bits));
 \treturn (bits & 0x7F800000u) != 0x7F800000u;
 }}
 
-/* check_range(): validate params 1-7 against XML-defined bounds only.
+/**
+ * @brief Validate MAVLink command parameters against XML-defined bounds.
  *
- * Returns:
- *   0   all params in range (or sentinel); also returned when the command
- *       has no range data — unknown commands are accepted, not rejected.
- *   1-7 1-based index of the first param that fails a range check
- *
- * Geographic range (lat/lon) is NOT checked here — call lat_in_range() and
- * lon_in_range() separately when you know the frame is global. */
+ * @param cmd            MAV_CMD command ID.
+ * @param p1,p2,p3,p4,p5,p6,p7  Command parameters 1–7.
+ * @return 0 if all params are in range or param_invalid values (e.g. NaN); 1–7 (1-based index of
+ *         the first failing parameter) otherwise.
+ */
 static inline int check_range(uint16_t cmd,
 \tfloat p1, float p2, float p3, float p4,
 \tfloat p5, float p6, float p7)
@@ -253,11 +262,11 @@ static inline int check_range(uint16_t cmd,
 \t\tfor (unsigned i = start;
 \t\t     i < param_bounds_count && param_bounds[i].cmd == cmd; ++i) {{
 \t\t\tconst unsigned pidx = (unsigned)param_bounds[i].param - 1u;
-\t\t\tconst float v = params[pidx];
-\t\t\tif (is_sentinel(v)) {{ continue; }}
-\t\t\tif (_bound_is_set(param_bounds[i].lo) && v < param_bounds[i].lo)
+\t\t\tconst float param_val = params[pidx];
+\t\t\tif (param_invalid(param_val, false)) {{ continue; }}
+\t\t\tif (_bound_is_set(param_bounds[i].lo) && param_val < param_bounds[i].lo)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
-\t\t\tif (_bound_is_set(param_bounds[i].hi) && v > param_bounds[i].hi)
+\t\t\tif (_bound_is_set(param_bounds[i].hi) && param_val > param_bounds[i].hi)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
 \t\t}}
 \t\tbreak;
@@ -267,7 +276,7 @@ static inline int check_range(uint16_t cmd,
 }}
 
 #ifdef __cplusplus
-}} /* namespace mavlink_cmd_helpers */
+}} /* namespace mav_cmd_helpers */
 #endif
 """
 
