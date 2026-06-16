@@ -89,7 +89,10 @@ def add_message(messages, mtype, msg):
         messages[mtype] = msg
         return
     instance_value = getattr(msg, msg._instance_field)
-    if not mtype in messages:
+    if not mtype in messages or messages[mtype]._instances is None:
+        # first instance-valued message for this type, or a previous message
+        # of this type was stored without an instance value (._instances is
+        # None), so the per-instance dict was never created
         messages[mtype] = copy.copy(msg)
         messages[mtype]._instances = {}
         messages[mtype]._instances[instance_value] = msg
