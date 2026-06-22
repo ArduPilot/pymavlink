@@ -28,3 +28,10 @@ include/mavlink/v1.0
 dfindexer/dfindexer_cy.c
 dfindexer/*.so
 dfindexer/*.pyd
+
+# test output artifacts
+.tmp/
+tmp.dump
+prms.txt
+test_wp-wp.txt
+test_wp-wp2.txt
