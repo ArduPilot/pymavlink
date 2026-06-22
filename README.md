@@ -50,6 +50,26 @@ Using pip you can install the required dependencies for pymavlink :
 sudo python3 -m pip install --upgrade lxml
 ```
 
+### On macOS
+
+lxml's native dependencies (libxml2 and libxslt) can be installed with [Homebrew](https://brew.sh) :
+
+```bash
+brew install libxml2 libxslt
+```
+
+Install the Python dependencies with pip so they land in the same Python environment as pymavlink (Homebrew's `numpy`/`pytest` install into Homebrew's own Python interpreter, which is typically not the one running pymavlink) :
+
+```bash
+python3 -m pip install --upgrade lxml
+```
+
+Optional for FFT scripts and tests:
+
+```bash
+python3 -m pip install --upgrade numpy pytest
+```
+
 ### On Windows
 
 Lxml can be installed with a Windows installer from here : https://pypi.org/project/lxml
