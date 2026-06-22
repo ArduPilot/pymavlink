@@ -2220,6 +2220,10 @@ def auto_detect_serial_unix(preferred_list=['*']):
     '''try to auto-detect serial ports on unix'''
     import glob
     glist = glob.glob('/dev/ttyS*') + glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*') + glob.glob('/dev/serial/by-id/*')
+    if sys.platform == 'darwin':
+        # macOS names USB serial devices /dev/cu.usbmodem* and /dev/cu.usbserial*
+        # (use cu.* rather than tty.* so opening does not block on carrier detect)
+        glist += glob.glob('/dev/cu.usbmodem*') + glob.glob('/dev/cu.usbserial*')
     ret = []
     others = []
     # try preferred ones first
