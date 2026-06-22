@@ -39,6 +39,8 @@ class TestMAVFTPPayloadDecoding(unittest.TestCase):
         self.mav_ftp = MAVFTP(self.mock_master, target_system=1, target_component=1)
 
     def tearDown(self):
+        # Release the UDP socket so the next test can re-bind the port.
+        self.mock_master.close()
         self.log_stream.seek(0)
         self.log_stream.truncate(0)
 
