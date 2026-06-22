@@ -94,7 +94,8 @@ Starting from September 2022, mavnative, a C extension for parsing mavlink, was 
 From the pymavlink directory, you can use :
 
 ```bash
-MDEF=PATH_TO_message_definitions python3 -m pip install . -v
+(cd ..; git clone https://github.com/ArduPilot/mavlink.git)
+MDEF=$PWD/../mavlink/message_definitions python3 -m pip install . -v
 ```
 
 Since pip installation is executed from /tmp, it is necessary to point to the directory containing message definitions with MDEF. MDEF should not be set to any particular message version directory but the parent folder instead. If you have cloned from mavlink/mavlink then this is ```/mavlink/message_definitions``` . Using pip should auto install dependencies and allow you to keep them up-to-date. 
@@ -104,6 +105,21 @@ Or:
 ```bash
 python3 -m pip install .
 ```
+
+## Running the tests
+
+From inside the pymavlink directory, fetch the message definitions alongside
+the checkout and run the suite with `pytest`:
+
+```bash
+(cd ..; git clone https://github.com/ArduPilot/mavlink.git)
+MDEF=$PWD/../mavlink/message_definitions PYTHONPATH=.. python3 -m pytest
+```
+
+`MDEF` points at the message definitions used to generate the dialects; if you
+already have an ArduPilot checkout, point it at that `mavlink/message_definitions`
+instead. `PYTHONPATH=..` imports the local checkout rather than a pip-installed
+copy.
 
 ### Ardupilot Custom Modes
 
