@@ -20,7 +20,7 @@ python3 generator/mavgen.py \
 ```
 
 The `mav_cmd_helpers.h` in this case would be generated to the root of each of the generated dialect folders.
-Include the result directly — it is a single self-contained `#pragma once` header with no library dependencies (only `<math.h>` and `<stdint.h>`).
+Include the result directly — it is a single self-contained `#pragma once` header with no library dependencies (only `<math.h>`, `<stdint.h>`, and `<string.h>`).
 
 ## API
 

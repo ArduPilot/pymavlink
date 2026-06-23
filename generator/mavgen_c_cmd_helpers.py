@@ -114,6 +114,7 @@ _HEADER_TOP = """\
 
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef __cplusplus
 namespace mav_cmd_helpers {{
@@ -134,7 +135,7 @@ namespace mav_cmd_helpers {{
 static inline int param_invalid(float param_val)
 {{
 \tuint32_t bits;
-\t__builtin_memcpy(&bits, &param_val, sizeof(bits));
+\tmemcpy(&bits, &param_val, sizeof(bits));
 \tif ((bits & 0x7F800000u) == 0x7F800000u) return 1; /* NaN — always invalid */
 #ifndef MAV_CMD_STRICT_NAN_INVALID
 \tif (!(bits & 0x7FFFFFFFu)) return 1;                /* ±0.0 — invalid by default */
@@ -260,7 +261,7 @@ static inline int is_destination(uint16_t cmd)
 static inline int _bound_is_set(float bound)
 {{
 \tuint32_t bits;
-\t__builtin_memcpy(&bits, &bound, sizeof(bits));
+\tmemcpy(&bits, &bound, sizeof(bits));
 \treturn (bits & 0x7F800000u) != 0x7F800000u;
 }}
 
