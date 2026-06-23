@@ -257,21 +257,25 @@ static inline int is_destination(uint16_t cmd)
 \treturn f < 0 ? -1 : ((f & (int)CMD_FLAG_IS_DESTINATION) != 0);
 }}
 
-/* Internal: non-zero if bound is a finite value (not NaN / ±Inf). Bit-manipulation avoids isnan(). */
-static inline int _bound_is_set(float bound)
+/* Internal: non-zero if v is a finite value (not NaN / ±Inf). Bit-manipulation avoids isnan(). */
+static inline int _is_finite(float v)
 {{
 \tuint32_t bits;
-\tmemcpy(&bits, &bound, sizeof(bits));
+\tmemcpy(&bits, &v, sizeof(bits));
 \treturn (bits & 0x7F800000u) != 0x7F800000u;
 }}
 
 /**
  * @brief Validate MAVLink command parameters against XML-defined bounds.
  *
+ * NaN/Inf params are treated as "not set" and skipped. A literal 0 IS range-checked,
+ * so a param whose XML minimum is greater than 0 will reject 0 (we prefer a false
+ * positive here — ranges can be relaxed later — over letting a bad value through).
+ *
  * @param cmd            MAV_CMD command ID.
  * @param p1,p2,p3,p4,p5,p6,p7  Command parameters 1–7.
- * @return 0 if all params are in range or param_invalid values (e.g. NaN); 1–7 (1-based index of
- *         the first failing parameter) otherwise.
+ * @return 0 if every bounded param is in range or unset; otherwise 1–7, the 1-based
+ *         index of the first failing parameter.
  */
 static inline int check_range(uint16_t cmd,
 \tfloat p1, float p2, float p3, float p4,
@@ -293,10 +297,11 @@ static inline int check_range(uint16_t cmd,
 \t\t     i < param_bounds_count && param_bounds[i].cmd == cmd; ++i) {{
 \t\t\tconst unsigned pidx = (unsigned)param_bounds[i].param - 1u;
 \t\t\tconst float param_val = params[pidx];
-\t\t\tif (param_invalid(param_val)) {{ continue; }}
-\t\t\tif (_bound_is_set(param_bounds[i].lo) && param_val < param_bounds[i].lo)
+\t\t\t/* Skip NaN/Inf "not set" params; a real 0 IS range-checked below. */
+\t\t\tif (!_is_finite(param_val)) {{ continue; }}
+\t\t\tif (_is_finite(param_bounds[i].lo) && param_val < param_bounds[i].lo)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
-\t\t\tif (_bound_is_set(param_bounds[i].hi) && param_val > param_bounds[i].hi)
+\t\t\tif (_is_finite(param_bounds[i].hi) && param_val > param_bounds[i].hi)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
 \t\t}}
 \t\tbreak;

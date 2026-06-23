@@ -39,8 +39,8 @@ Include the result directly — it is a single self-contained `#pragma once` hea
 ### Using the methods
 
 The methods are intended to be used in command handlers and during mission upload to reject MAV_CMD with passed values that are out of range.
-The `check_range()` method returns `0` if all the passed params are all in range, have no range, or are the sentinel values - NaN/0/INT32MAX-for-param5or6, and otherwise returns the value of the first out of range param.
-The `lat_in_range()` and `lon_in_range()` can further be used to check that lat/lon values aren't passed ranges that are bigger than valid lat/lon values.
+The `check_range()` method returns `0` if every bounded param is in range or has no range. NaN/Inf params are treated as "not set" and skipped, but a literal `0` *is* range-checked — so a param whose minimum is greater than `0` will reject `0`. This prefers a false positive (which can be relaxed by updating the XML ranges) over letting a bad value through. Otherwise it returns the 1-based index of the first out-of-range param.
+The `lat_in_range_*()` and `lon_in_range_*()` helpers can further be used to check that lat/lon values aren't bigger than valid lat/lon ranges.
 
 This code shows how you might check a mission item.
 The result is either 0, or the param number of the first out of range param.
