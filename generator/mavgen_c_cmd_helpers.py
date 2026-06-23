@@ -117,7 +117,7 @@ _HEADER_TOP = """\
 #include <string.h>
 
 #ifdef __cplusplus
-namespace mav_cmd_helpers {{
+extern "C" {{
 #endif
 
 /**
@@ -306,7 +306,7 @@ static inline int check_range(uint16_t cmd,
 }}
 
 #ifdef __cplusplus
-}} /* namespace mav_cmd_helpers */
+}} /* extern "C" */
 #endif
 """
 
