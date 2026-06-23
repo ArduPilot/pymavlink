@@ -264,20 +264,23 @@ static inline int is_destination(uint16_t cmd)
 \treturn f < 0 ? -1 : ((f & (int)CMD_FLAG_IS_DESTINATION) != 0);
 }}
 
-/* Internal: non-zero if v is a finite value (not NaN / ±Inf). Bit-manipulation avoids isnan(). */
-static inline int _is_finite(float v)
+/* Internal: non-zero if v is NaN (exponent all ones, non-zero mantissa). Inf is NOT NaN.
+ * Bit-manipulation avoids isnan(). Bounds use NaN as the "unbounded" sentinel, so this
+ * also answers "is this bound set?" — bounds are only ever finite or NaN, never Inf. */
+static inline int _is_nan(float v)
 {{
 \tuint32_t bits;
 \tmemcpy(&bits, &v, sizeof(bits));
-\treturn (bits & 0x7F800000u) != 0x7F800000u;
+\treturn (bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu) != 0u;
 }}
 
 /**
  * @brief Validate MAVLink command parameters against XML-defined bounds.
  *
- * NaN/Inf params are treated as "not set" and skipped. A literal 0 IS range-checked,
- * so a param whose XML minimum is greater than 0 will reject 0 (we prefer a false
- * positive here — ranges can be relaxed later — over letting a bad value through).
+ * Only NaN params are treated as "not set" and skipped. A literal 0 IS range-checked,
+ * so a param whose XML minimum is greater than 0 will reject 0; likewise ±Inf is checked
+ * and fails against any bound on the violated side. (We prefer a false positive here —
+ * ranges can be relaxed later — over letting a bad value through.)
  *
  * @param cmd            MAV_CMD command ID.
  * @param p1,p2,p3,p4,p5,p6,p7  Command parameters 1–7.
@@ -307,11 +310,11 @@ static inline int check_range(uint16_t cmd,
 \t\t\t * or extended table entry indexing past params[7] (pidx wraps if param==0). */
 \t\t\tif (pidx >= 7u) {{ continue; }}
 \t\t\tconst float param_val = params[pidx];
-\t\t\t/* Skip NaN/Inf "not set" params; a real 0 IS range-checked below. */
-\t\t\tif (!_is_finite(param_val)) {{ continue; }}
-\t\t\tif (_is_finite(param_bounds[i].lo) && param_val < param_bounds[i].lo)
+\t\t\t/* Skip only NaN "not set" params; a real 0 and ±Inf ARE range-checked below. */
+\t\t\tif (_is_nan(param_val)) {{ continue; }}
+\t\t\tif (!_is_nan(param_bounds[i].lo) && param_val < param_bounds[i].lo)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
-\t\t\tif (_is_finite(param_bounds[i].hi) && param_val > param_bounds[i].hi)
+\t\t\tif (!_is_nan(param_bounds[i].hi) && param_val > param_bounds[i].hi)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
 \t\t}}
 \t\tbreak;
