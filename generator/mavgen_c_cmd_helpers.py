@@ -71,8 +71,15 @@ def generate(xml_path, output_path):
         # the whole mavgen run.
         return False
 
-    # Collect all MAV_CMD entries, sorted by cmd value
-    entries = sorted(mav_cmd.entry, key=lambda e: int(e.value))
+    # Collect all MAV_CMD entries, sorted by cmd value, excluding marker entries:
+    # the synthetic MAV_CMD_ENUM_END (end_marker) and the *_LAST NOP entries that only
+    # mark the upper bound of a command group. Neither is a real, sendable command, so
+    # neither belongs in the validation tables.
+    def _is_marker(e):
+        return e.end_marker or e.name.endswith("_LAST")
+
+    entries = sorted((e for e in mav_cmd.entry if not _is_marker(e)),
+                     key=lambda e: int(e.value))
 
     # Build param bounds table — only params with at least one bound defined
     bounds = []  # list of (cmd, param_1based, lo_float, hi_float)
