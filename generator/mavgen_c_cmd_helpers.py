@@ -66,7 +66,10 @@ def generate(xml_path, output_path):
 
     mav_cmd = next((e for e in root.enum if e.name == "MAV_CMD"), None)
     if mav_cmd is None:
-        raise RuntimeError("MAV_CMD enum not found in %s" % xml_path)
+        # This dialect (and its includes) defines no MAV_CMD enum, so there is
+        # nothing to range-check. Skip generating the header rather than failing
+        # the whole mavgen run.
+        return False
 
     # Collect all MAV_CMD entries, sorted by cmd value
     entries = sorted(mav_cmd.entry, key=lambda e: int(e.value))
@@ -99,6 +102,8 @@ def generate(xml_path, output_path):
 
     with open(output_path, "w") as out:
         _write(out, bounds, flags)
+
+    return True
 
 
 _HEADER_TOP = """\
@@ -327,5 +332,7 @@ if __name__ == "__main__":
     parser.add_argument("xml", help="Root MAVLink XML dialect file (e.g. common.xml)")
     parser.add_argument("--output", required=True, help="Output .h file path")
     args = parser.parse_args()
-    generate(args.xml, args.output)
-    print("Generated", args.output)
+    if generate(args.xml, args.output):
+        print("Generated", args.output)
+    else:
+        print("Skipped %s: no MAV_CMD enum in %s" % (args.output, args.xml))
