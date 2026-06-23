@@ -113,7 +113,6 @@ _HEADER_TOP = """\
 #pragma once
 
 #include <math.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -121,22 +120,18 @@ namespace mav_cmd_helpers {{
 #endif
 
 /**
- * @brief Tests if a parameter value is set to an invalid/default value (NaN, possibly 0, or INT32_MAX-derived).
+ * @brief Tests if a float command parameter is set to an invalid/default value (NaN or ±0.0).
  *
- * Returns non-zero if param_val is NaN or ±0.0, which are commonly used default values
- * for float parameters that are not in use.
- * When is_int is true (COMMAND_INT / MISSION_ITEM_INT encoding), also treats values with
- * magnitude ≥ 2.0×10⁹ as invalid; INT32_MAX (≈ 2.15×10⁹) is used in p5/p6 to mean
- * "use current position". The threshold is set below INT32_MAX but above the maximum
- * valid coordinate (±1.8×10⁹).
- *
+ * NaN and ±0.0 are commonly used as "not in use" defaults for float parameters.
  * Define MAV_CMD_STRICT_NAN_INVALID to reject ±0.0 and require NaN only.
  *
+ * This is for the float-encoded params (p1–p4, p7, and COMMAND_LONG p5/p6). For the
+ * int32 (degE7) coordinate fields of COMMAND_INT / MISSION_ITEM_INT, use coord_invalid_int().
+ *
  * @param param_val  Parameter value to test.
- * @param is_int     True for COMMAND_INT / MISSION_ITEM_INT encoding (activates INT32_MAX check).
  * @return Non-zero if param_val is invalid, zero otherwise.
  */
-static inline int param_invalid(float param_val, bool is_int)
+static inline int param_invalid(float param_val)
 {{
 \tuint32_t bits;
 \t__builtin_memcpy(&bits, &param_val, sizeof(bits));
@@ -144,36 +139,65 @@ static inline int param_invalid(float param_val, bool is_int)
 #ifndef MAV_CMD_STRICT_NAN_INVALID
 \tif (!(bits & 0x7FFFFFFFu)) return 1;                /* ±0.0 — invalid by default */
 #endif
-\tif (is_int && (param_val >= 2.0e9f || param_val <= -2.0e9f)) return 1; /* INT32_MAX — invalid */
 \treturn 0;
 }}
 
 /**
- * @brief Tests if lat is in range for a latitude.
+ * @brief Tests if an int32 (degE7) coordinate is set to the "use current position" sentinel.
  *
- * @param lat    Latitude to test.
- * @param is_int True for COMMAND_INT / MISSION_ITEM_INT (int32 × 1e7, range ±9×10⁸);
- *               false for COMMAND_LONG (float degrees, range ±90).
- * @return 1 if in range, 0 if out of range or NaN.
+ * COMMAND_INT / MISSION_ITEM_INT use INT32_MAX in the x/y (lat/lon) fields to mean
+ * "use the current position".
+ *
+ * @param coord  Coordinate value (latitude or longitude), int32 degrees × 1e7.
+ * @return Non-zero if coord is the INT32_MAX sentinel, zero otherwise.
  */
-static inline int lat_in_range(float lat, bool is_int)
+static inline int coord_invalid_int(int32_t coord)
 {{
-\treturn is_int ? (lat >= -9e8f   && lat <= 9e8f)
-\t             : (lat >= -90.0f  && lat <= 90.0f);
+\treturn coord == INT32_MAX;
 }}
 
 /**
- * @brief Tests if lon is in range for a longitude.
+ * @brief Tests if lat is a valid latitude, COMMAND_INT / MISSION_ITEM_INT encoding (int32 degE7).
  *
- * @param lon    Longitude to test.
- * @param is_int True for COMMAND_INT / MISSION_ITEM_INT (int32 × 1e7, range ±1.8×10⁹);
- *               false for COMMAND_LONG (float degrees, range ±180).
+ * @param lat  Latitude, int32 degrees × 1e7 (range ±9×10⁸ for ±90°).
+ * @return 1 if in range, 0 if out of range.
+ */
+static inline int lat_in_range_int(int32_t lat)
+{{
+\treturn lat >= -900000000 && lat <= 900000000;
+}}
+
+/**
+ * @brief Tests if lat is a valid latitude, COMMAND_LONG encoding (float degrees).
+ *
+ * @param lat  Latitude in float degrees (range ±90).
  * @return 1 if in range, 0 if out of range or NaN.
  */
-static inline int lon_in_range(float lon, bool is_int)
+static inline int lat_in_range_float(float lat)
 {{
-\treturn is_int ? (lon >= -1.8e9f  && lon <= 1.8e9f)
-\t             : (lon >= -180.0f  && lon <= 180.0f);
+\treturn lat >= -90.0f && lat <= 90.0f;
+}}
+
+/**
+ * @brief Tests if lon is a valid longitude, COMMAND_INT / MISSION_ITEM_INT encoding (int32 degE7).
+ *
+ * @param lon  Longitude, int32 degrees × 1e7 (range ±1.8×10⁹ for ±180°).
+ * @return 1 if in range, 0 if out of range.
+ */
+static inline int lon_in_range_int(int32_t lon)
+{{
+\treturn lon >= -1800000000 && lon <= 1800000000;
+}}
+
+/**
+ * @brief Tests if lon is a valid longitude, COMMAND_LONG encoding (float degrees).
+ *
+ * @param lon  Longitude in float degrees (range ±180).
+ * @return 1 if in range, 0 if out of range or NaN.
+ */
+static inline int lon_in_range_float(float lon)
+{{
+\treturn lon >= -180.0f && lon <= 180.0f;
 }}
 
 """
@@ -268,7 +292,7 @@ static inline int check_range(uint16_t cmd,
 \t\t     i < param_bounds_count && param_bounds[i].cmd == cmd; ++i) {{
 \t\t\tconst unsigned pidx = (unsigned)param_bounds[i].param - 1u;
 \t\t\tconst float param_val = params[pidx];
-\t\t\tif (param_invalid(param_val, false)) {{ continue; }}
+\t\t\tif (param_invalid(param_val)) {{ continue; }}
 \t\t\tif (_bound_is_set(param_bounds[i].lo) && param_val < param_bounds[i].lo)
 \t\t\t\t{{ return (int)param_bounds[i].param; }}
 \t\t\tif (_bound_is_set(param_bounds[i].hi) && param_val > param_bounds[i].hi)
