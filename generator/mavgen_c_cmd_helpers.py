@@ -303,6 +303,9 @@ static inline int check_range(uint16_t cmd,
 \t\tfor (unsigned i = start;
 \t\t     i < param_bounds_count && param_bounds[i].cmd == cmd; ++i) {{
 \t\t\tconst unsigned pidx = (unsigned)param_bounds[i].param - 1u;
+\t\t\t/* Defensive: params are 1–7 in valid XML, but guard against a malformed
+\t\t\t * or extended table entry indexing past params[7] (pidx wraps if param==0). */
+\t\t\tif (pidx >= 7u) {{ continue; }}
 \t\t\tconst float param_val = params[pidx];
 \t\t\t/* Skip NaN/Inf "not set" params; a real 0 IS range-checked below. */
 \t\t\tif (!_is_finite(param_val)) {{ continue; }}
