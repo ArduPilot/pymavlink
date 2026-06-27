@@ -44,15 +44,15 @@ using msgid_t = uint32_t;
  */
 struct Message {
 	static constexpr msgid_t MSG_ID = UINT32_MAX;
-	static constexpr size_t LENGTH = 0;
-	static constexpr size_t MIN_LENGTH = 0;
+	static constexpr uint8_t LENGTH = 0;
+	static constexpr uint8_t MIN_LENGTH = 0;
 	static constexpr uint8_t CRC_EXTRA = 0;
 	static constexpr auto NAME = "BASE";
 
 	struct Info {
 		msgid_t id;
-		size_t length;
-		size_t min_length;
+		uint8_t length;
+		uint8_t min_length;
 		uint8_t crc_extra;
 	};
 
