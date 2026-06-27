@@ -241,6 +241,9 @@ def mavgen(opts, args):
 
     print("Found %u MAVLink message types in %u XML files" % (
         mavparse.total_msgs(xml), len(xml)))
+    
+    # ensure output directory exists
+    os.makedirs(opts.output, exist_ok=True)
 
     # convert language option to lowercase and validate
     opts.language = opts.language.lower()
