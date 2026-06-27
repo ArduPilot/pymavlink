@@ -137,6 +137,29 @@ def set_dialect(dialect, with_type_annotations=None):
     current_dialect = dialect
     mavlink = mod
 
+def set_mavlink_version(version):
+    '''set the MAVLink version to work with.
+    For example, set_mavlink_version(2.0)
+
+    Warning: If the currently loaded dialect is specific to a single MAVLink 
+    version (e.g., a v2-only dialect) and you switch to an incompatible version,
+    this function will raise a FileNotFoundError because the underlying
+    set_dialect() call will fail to find the corresponding XML file
+    '''
+    v = float(version)
+    if v == 2.0:
+        os.environ.pop('MAVLINK09', None)
+        os.environ['MAVLINK20'] = '1'
+    elif v == 1.0:
+        os.environ.pop('MAVLINK09', None)
+        os.environ.pop('MAVLINK20', None)
+    elif v == 0.9:
+        os.environ.pop('MAVLINK20', None)
+        os.environ['MAVLINK09'] = '1'
+    else:
+        raise ValueError("Wrong MAVLink version")
+    set_dialect(current_dialect)
+
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
 
@@ -299,15 +322,13 @@ class mavfile(object):
         self.first_byte = False
         if self.WIRE_PROTOCOL_VERSION == "0.9" and magic == 254:
             self.WIRE_PROTOCOL_VERSION = "1.0"
-            set_dialect(current_dialect)
+            set_mavlink_version(1.0)
         elif self.WIRE_PROTOCOL_VERSION == "1.0" and magic == 85:
             self.WIRE_PROTOCOL_VERSION = "0.9"
-            os.environ['MAVLINK09'] = '1'
-            set_dialect(current_dialect)
+            set_mavlink_version(0.9)
         elif self.WIRE_PROTOCOL_VERSION != "2.0" and magic == 253:
             self.WIRE_PROTOCOL_VERSION = "2.0"
-            os.environ['MAVLINK20'] = '1'
-            set_dialect(current_dialect)
+            set_mavlink_version(2.0)
         else:
             return
         # switch protocol 
