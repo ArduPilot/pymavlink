@@ -184,6 +184,25 @@ public partial class MAVLink
                 {
                     lengthtoread += MAVLINK_SIGNATURE_BLOCK_LEN;
                 }
+                if ((buffer[2] & ~MAVLINK_IFLAG_MASK) > 0)
+                {
+                    // incompatible flags we do not understand (e.g. the
+                    // MAVLink2.1 32 bit sysid extended headers). Consume the
+                    // frame to keep the stream in sync but drop it
+                    int extlen = 0;
+                    if ((buffer[2] & MAVLINK_IFLAG_SYSID32) > 0)
+                        extlen += 3;
+                    if ((buffer[2] & MAVLINK_IFLAG_TARGETTED) > 0)
+                        extlen += 5;
+                    var discard = new byte[lengthtoread + extlen - (headerlengthstx - 2)];
+                    try
+                    {
+                        ReadWithTimeout(BaseStream, discard, 0, discard.Length);
+                    }
+                    catch (EndOfStreamException) { }
+                    badCRC++;
+                    return null;
+                }
             }
             else
             {

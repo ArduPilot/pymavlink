@@ -135,6 +135,9 @@ ${MAVHEAD}.MAVLINK_TYPE_FLOAT    = 9
 ${MAVHEAD}.MAVLINK_TYPE_DOUBLE   = 10
 
 ${MAVHEAD}.MAVLINK_IFLAG_SIGNED = 0x01
+${MAVHEAD}.MAVLINK_IFLAG_SYSID32 = 0x02   // MAVLink2.1 32 bit sysid header, not supported by this parser
+${MAVHEAD}.MAVLINK_IFLAG_TARGETTED = 0x04 // MAVLink2.1 extended target header, not supported by this parser
+${MAVHEAD}.MAVLINK_IFLAG_MASK = 0x01      // mask of incompat bits this parser understands
 ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 // Mavlink headers incorporate sequence, source system (platform) and source component. 
@@ -685,8 +688,18 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
         this.expected_length = unpacked[1] + ${MAVHEAD}.HEADER_LEN + 2 // length of message + header + CRC (ie non-signed length)
         this.incompat_flags = unpacked[2];
         // mavlink2 only..  in mavlink1, incompat_flags var above is actually the 'seq', but for this test its ok.
-        if ((magic == ${MAVHEAD}.PROTOCOL_MARKER_V2 ) && ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED )){
-            this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
+        if (magic == ${MAVHEAD}.PROTOCOL_MARKER_V2 ) {
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED ){
+                this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
+            }
+            // MAVLink2.1 extended headers: account for their length so the
+            // stream stays in sync, the frame is rejected in decode()
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SYSID32 ){
+                this.expected_length += 3;
+            }
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED ){
+                this.expected_length += 5;
+            }
         }
     }
 
@@ -917,6 +930,10 @@ var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
 
     if (magic != this.protocol_marker) {
         throw new Error("Invalid MAVLink prefix ("+magic+")");
+    }
+
+    if (incompat_flags & ~${MAVHEAD}.MAVLINK_IFLAG_MASK) {
+        throw new Error("Unsupported incompat_flags ("+incompat_flags+")");
     }
 
     // is packet supposed to be signed?

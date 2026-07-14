@@ -143,7 +143,9 @@ ${message_infos_array}
     public const byte MAVLINK_VERSION = ${version};
 
     public const byte MAVLINK_IFLAG_SIGNED=  0x01;
-    public const byte MAVLINK_IFLAG_MASK   = 0x01;
+    public const byte MAVLINK_IFLAG_SYSID32 = 0x02;
+    public const byte MAVLINK_IFLAG_TARGETTED = 0x04;
+    public const byte MAVLINK_IFLAG_MASK   = 0x01; // mask of bits this parser understands
 
     public struct message_info
     {
