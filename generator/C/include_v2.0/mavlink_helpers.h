@@ -760,9 +760,14 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 			}
 			rxmsg->ck[0] = c;
 
-			// zero-fill the packet to cope with short incoming packets
-				if (e && status->packet_idx < e->max_msg_len) {
-					memset(&_MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx], 0, e->max_msg_len - status->packet_idx);
+			// zero-fill the packet to cope with short incoming packets.
+			// Clamp to MAVLINK_MAX_PAYLOAD_LEN: e->max_msg_len comes from the
+			// message table and can exceed the payload buffer size when the
+			// buffer has been shrunk via MAVLINK_MAX_PAYLOAD_LEN, which would
+			// otherwise overflow the buffer.
+				uint8_t fill_len = e->max_msg_len < MAVLINK_MAX_PAYLOAD_LEN ? e->max_msg_len : MAVLINK_MAX_PAYLOAD_LEN;
+				if (e && status->packet_idx < fill_len) {
+					memset(&_MAV_PAYLOAD_NON_CONST(rxmsg)[status->packet_idx], 0, fill_len - status->packet_idx);
 			}
 		}
 		break;
