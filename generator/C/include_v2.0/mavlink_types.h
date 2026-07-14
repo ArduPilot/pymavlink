@@ -24,15 +24,22 @@ namespace mavlink {
 #define MAVLINK_MAX_PAYLOAD_LEN 255 ///< Maximum payload length
 #endif
 
-#define MAVLINK_CORE_HEADER_LEN 9 ///< Length of core header (of the comm. layer)
+#define MAVLINK_CORE_HEADER_LEN 9 ///< Length of minimum core header (of the comm. layer)
 #define MAVLINK_CORE_HEADER_MAVLINK1_LEN 5 ///< Length of MAVLink1 core header (of the comm. layer)
-#define MAVLINK_NUM_HEADER_BYTES (MAVLINK_CORE_HEADER_LEN + 1) ///< Length of all header bytes, including core and stx
+#define MAVLINK_NUM_HEADER_BYTES (MAVLINK_CORE_HEADER_LEN + 1) ///< Length of minimum header bytes, including core and stx
 #define MAVLINK_NUM_CHECKSUM_BYTES 2
 #define MAVLINK_NUM_NON_PAYLOAD_BYTES (MAVLINK_NUM_HEADER_BYTES + MAVLINK_NUM_CHECKSUM_BYTES)
 
 #define MAVLINK_SIGNATURE_BLOCK_LEN 13
 
-#define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN) ///< Maximum packet length
+// extra header bytes when MAVLINK_IFLAG_SYSID32 is set (sysid grows 1->4 bytes)
+#define MAVLINK_SYSID32_HEADER_EXTRA 3
+// extra header bytes when MAVLINK_IFLAG_TARGETTED is set (target_sysid[4] + target_compid[1])
+#define MAVLINK_TARGETTED_HEADER_EXTRA 5
+#define MAVLINK_MAX_EXT_HEADER_BYTES (MAVLINK_SYSID32_HEADER_EXTRA + MAVLINK_TARGETTED_HEADER_EXTRA)
+#define MAVLINK_MAX_HEADER_LEN (MAVLINK_NUM_HEADER_BYTES + MAVLINK_MAX_EXT_HEADER_BYTES)
+
+#define MAVLINK_MAX_PACKET_LEN (MAVLINK_MAX_PAYLOAD_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES + MAVLINK_MAX_EXT_HEADER_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN) ///< Maximum packet length
 
 /**
  * Old-style 4 byte param union
@@ -100,7 +107,7 @@ typedef struct param_union_extended {
  */
 MAVPACKED(
 typedef struct __mavlink_system {
-    uint8_t sysid;   ///< Used by the MAVLink message_xx_send() convenience function
+    uint32_t sysid;  ///< Used by the MAVLink message_xx_send() convenience function
     uint8_t compid;  ///< Used by the MAVLink message_xx_send() convenience function
 }) mavlink_system_t;
 
@@ -112,12 +119,14 @@ typedef struct __mavlink_message {
 	uint8_t incompat_flags; ///< flags that must be understood
 	uint8_t compat_flags;   ///< flags that can be ignored if not understood
 	uint8_t seq;            ///< Sequence of packet
-	uint8_t sysid;          ///< ID of message sender system/aircraft
+	uint32_t sysid;         ///< ID of message sender system/aircraft
 	uint8_t compid;         ///< ID of the message sender component
 	uint32_t msgid:24;      ///< ID of message in payload
 	uint64_t payload64[(MAVLINK_MAX_PAYLOAD_LEN+MAVLINK_NUM_CHECKSUM_BYTES+7)/8];
 	uint8_t ck[2];          ///< incoming checksum bytes
 	uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
+	uint32_t target_sysid;  ///< extended target system ID, valid only when (incompat_flags & MAVLINK_IFLAG_TARGETTED)
+	uint8_t target_compid;  ///< extended target component ID, valid only when (incompat_flags & MAVLINK_IFLAG_TARGETTED)
 }) mavlink_message_t;
 
 typedef enum {
@@ -200,7 +209,16 @@ typedef enum {
     MAVLINK_PARSE_STATE_GOT_CRC1,
     MAVLINK_PARSE_STATE_GOT_BAD_CRC1,
     MAVLINK_PARSE_STATE_SIGNATURE_WAIT,
-    MAVLINK_PARSE_STATE_SIGNATURE_WAIT_BAD_CRC
+    MAVLINK_PARSE_STATE_SIGNATURE_WAIT_BAD_CRC,
+    // new states appended to keep existing state numbering stable
+    MAVLINK_PARSE_STATE_GOT_SYSID1,           // got 1 of 4 sysid bytes (SYSID32)
+    MAVLINK_PARSE_STATE_GOT_SYSID2,           // got 2 of 4 sysid bytes
+    MAVLINK_PARSE_STATE_GOT_SYSID3,           // got 3 of 4 sysid bytes, GOT_SYSID follows
+    MAVLINK_PARSE_STATE_GOT_MSGID3_TARGETTED, // got full msgid, extended target follows
+    MAVLINK_PARSE_STATE_GOT_TARGET_SYSID0,    // got 1 of 4 target sysid bytes
+    MAVLINK_PARSE_STATE_GOT_TARGET_SYSID1,    // got 2 of 4 target sysid bytes
+    MAVLINK_PARSE_STATE_GOT_TARGET_SYSID2,    // got 3 of 4 target sysid bytes
+    MAVLINK_PARSE_STATE_GOT_TARGET_SYSID3,    // got 4 target sysid bytes, target compid follows
 } mavlink_parse_state_t; ///< The state machine for the comm parser
 
 typedef enum {
@@ -276,7 +294,7 @@ typedef struct __mavlink_signing_streams {
     uint16_t num_signing_streams;
     struct __mavlink_signing_stream {
         uint8_t link_id;              ///< ID of the link (MAVLINK_CHANNEL)
-        uint8_t sysid;                ///< Remote system ID
+        uint32_t sysid;               ///< Remote system ID
         uint8_t compid;               ///< Remote component ID
         uint8_t timestamp_bytes[6];   ///< Timestamp, in microseconds since UNIX epoch GMT
     } stream[MAVLINK_MAX_SIGNING_STREAMS];
@@ -305,8 +323,15 @@ typedef struct __mavlink_msg_entry {
 /*
   incompat_flags bits
  */
-#define MAVLINK_IFLAG_SIGNED  0x01
-#define MAVLINK_IFLAG_MASK    0x01 // mask of all understood bits
+#define MAVLINK_IFLAG_SIGNED    0x01 // this message has a MAVLink2 signature attached
+#define MAVLINK_IFLAG_SYSID32   0x02 // this message uses a 32 bit system ID
+#define MAVLINK_IFLAG_TARGETTED 0x04 // this message has target sysid/compid in an extended header
+#define MAVLINK_IFLAG_MASK      0x07 // mask of all understood bits
+
+/*
+  compat_flags bits
+ */
+#define MAVLINK_CFLAG_SYSID32 0x01 // system is capable of understanding 32 bit system ID
 
 #ifdef MAVLINK_USE_CXX_NAMESPACE
 } // namespace mavlink
