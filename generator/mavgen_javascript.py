@@ -1201,7 +1201,7 @@ var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
     }
 
     m._signed = sig_ok;
-    if (m._signed) { m._link_id = msgbuf[-13]; }
+    if (m._signed) { m._link_id = msgbuf.slice(-13)[0]; }
  
     m._msgbuf = msgbuf;
     m._payload = payloadBuf;
