@@ -44,7 +44,7 @@ class MissionItemProtocol(object):
         return len(self.wpoints)
 
     def wp(self, i):
-        '''alias for backwards compatability'''
+        '''alias for backwards compatibility'''
         return self.item(i)
 
     def item(self, i):
