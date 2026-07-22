@@ -14,7 +14,7 @@ test:
 valgrindtest:
 	for p in ${ALLPROTOCOLS}; do make -f Makefile valgrindprogs TESTPROTOCOL=$$p || exit 1; done
 
-build: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL} test_issues
+build: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL} test_issues test_issue_2555
 
 testprogs: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL}
 	./testmav2.0_${TESTPROTOCOL}
@@ -25,7 +25,7 @@ valgrindprogs: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL}
 	valgrind -q ./testmav1.0_${TESTPROTOCOL}
 
 clean:
-	rm -rf *.o *~ testmav1.0* testmav2.0* sha256_test test_issues
+	rm -rf *.o *~ testmav1.0* testmav2.0* sha256_test test_issues test_issue_2555
 
 testmav1.0_${TESTPROTOCOL}: testmav.c $(COMMON)
 	$(CC) $(CFLAGS) -I../../include_v1.0 -I../../include_v1.0/${TESTPROTOCOL} -o $@ testmav.c
@@ -56,3 +56,6 @@ parse_tlog: parse_tlog.c
 
 test_issues: test_issues.c
 	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/all -o $@ test_issues.c
+
+test_issue_2555: test_issue_2555.c
+	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/common -o $@ test_issue_2555.c
