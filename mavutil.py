@@ -335,6 +335,12 @@ class mavfile(object):
         '''default close method'''
         raise RuntimeError('no close() method supplied')
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def write(self, buf):
         '''default write method'''
         raise RuntimeError('no write() method supplied')
