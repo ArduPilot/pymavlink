@@ -748,6 +748,11 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
                         if (status->flags & MAVLINK_STATUS_FLAG_IN_MAVLINK1) {
                             rxmsg->incompat_flags = 0;
                             rxmsg->compat_flags = 0;
+                            // MAVLink1 skips the GOT_LENGTH state, so clear the
+                            // target IDs here too; a stale target from a previous
+                            // frame would make this one unrepresentable on send
+                            rxmsg->target_sysid = 0;
+                            rxmsg->target_compid = 0;
                             status->parse_state = MAVLINK_PARSE_STATE_GOT_COMPAT_FLAGS;
                         } else {
                             status->parse_state = MAVLINK_PARSE_STATE_GOT_LENGTH;

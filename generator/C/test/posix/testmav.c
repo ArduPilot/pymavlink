@@ -379,6 +379,62 @@ static void test_sysid32(void)
         assert(out.sysid == 0x0A000001UL);
     }
 
+    // a re-used receive buffer must not leak an extended target from a
+    // previous frame into a following MAVLink1 frame, which would make
+    // that frame unrepresentable when forwarding on a mixed-version link
+    {
+        mavlink_message_t msg;
+        mavlink_status_t ostatus;
+        static mavlink_message_t rxmsg;
+        static mavlink_status_t rstatus;
+        mavlink_message_t out;
+        mavlink_status_t status_out;
+        uint8_t buf1[MAVLINK_MAX_PACKET_LEN];
+
+        memset(&rxmsg, 0, sizeof(rxmsg));
+        memset(&rstatus, 0, sizeof(rstatus));
+
+        // first frame: MAVLink2, targeted at a 32 bit sysid
+        memset(&msg, 0, sizeof(msg));
+        mavlink_msg_command_long_pack(42, 11, &msg, 0x0A000002UL, 250, 300, 1,
+                                      1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f);
+        uint16_t len = mavlink_msg_to_send_buffer(buf1, &msg);
+        uint8_t ret = MAVLINK_FRAMING_INCOMPLETE;
+        for (uint16_t k=0; k<len; k++) {
+            uint8_t r = mavlink_frame_char_buffer(&rxmsg, &rstatus, buf1[k], &out, &status_out);
+            if (r != MAVLINK_FRAMING_INCOMPLETE) {
+                ret = r;
+            }
+        }
+        assert(ret == MAVLINK_FRAMING_OK);
+        assert(mavlink_msg_get_target_sysid(&out, entry) == 0x0A000002UL);
+
+        // second frame: plain MAVLink1, small IDs, same parser buffer
+        memset(&msg, 0, sizeof(msg));
+        memset(&ostatus, 0, sizeof(ostatus));
+        ostatus.flags = MAVLINK_STATUS_FLAG_OUT_MAVLINK1;
+        assert(mavlink_msg_command_long_pack_status(42, 11, &ostatus, &msg, 7, 250, 300, 1,
+                                                    1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f) > 0);
+        len = mavlink_msg_to_send_buffer(buf1, &msg);
+        assert(len > 0);
+        ret = MAVLINK_FRAMING_INCOMPLETE;
+        for (uint16_t k=0; k<len; k++) {
+            uint8_t r = mavlink_frame_char_buffer(&rxmsg, &rstatus, buf1[k], &out, &status_out);
+            if (r != MAVLINK_FRAMING_INCOMPLETE) {
+                ret = r;
+            }
+        }
+        assert(ret == MAVLINK_FRAMING_OK);
+        assert(out.magic == MAVLINK_STX_MAVLINK1);
+        assert(out.target_sysid == 0);
+        assert(out.target_compid == 0);
+
+        // and it must still be forwardable
+        uint8_t buf2[MAVLINK_MAX_PACKET_LEN];
+        assert(mavlink_msg_to_send_buffer(buf2, &out) == len);
+        assert(memcmp(buf1, buf2, len) == 0);
+    }
+
     printf("32 bit sysid tests OK\n");
 }
 
