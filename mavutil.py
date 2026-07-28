@@ -13,8 +13,9 @@ import copy
 import json
 import re
 import platform
+import mmap
 from types import ModuleType
-from typing import Any
+from typing import Any, IO, cast
 from pymavlink import mavexpression
 import ssl
 
@@ -330,7 +331,7 @@ class mavfile(object):
                                                                                                 send_callback_args,
                                                                                                 send_callback_kwargs)
 
-    def recv(self, n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         '''default recv method'''
         raise RuntimeError('no recv() method supplied')
 
@@ -955,20 +956,21 @@ def set_close_on_exec(fd):
         pass
 
 class FakeSerial:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
-    def read(self, len):
+    def read(self, len: int) -> str:
         return ""
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         raise Exception("write always fails")
-    def inWaiting(self):
+    def inWaiting(self) -> int:
         return 0
-    def close(self):
+    def close(self) -> None:
         pass
 
 class mavserial(mavfile):
     '''a serial mavlink port'''
-    def __init__(self, device, baud=115200, autoreconnect=False, source_system=255, source_component=0, use_native=default_native, force_connected=False):
+    def __init__(self, device: str, baud: int | str = 115200, autoreconnect: bool = False, source_system: int = 255,
+                 source_component: int = 0, use_native: bool = default_native, force_connected: bool = False) -> None:
         import serial
         if ',' in device and not os.path.exists(device):
             device, baud = device.split(',')
@@ -980,8 +982,8 @@ class mavserial(mavfile):
         # baudrate. This works around a kernel bug on some Linux kernels where the baudrate
         # is not set correctly
         try:
-            self.port = serial.Serial(self.device, 1200, timeout=0,
-                                      dsrdtr=False, rtscts=False, xonxoff=False)
+            self.port: Any = serial.Serial(self.device, 1200, timeout=0,
+                                           dsrdtr=False, rtscts=False, xonxoff=False)
         except serial.SerialException as e:
             if not force_connected:
                 raise e
@@ -996,7 +998,7 @@ class mavserial(mavfile):
         mavfile.__init__(self, fd, device, source_system=source_system, source_component=source_component, use_native=use_native)
         self.rtscts = False
 
-    def set_rtscts(self, enable):
+    def set_rtscts(self, enable: bool) -> None:
         '''enable/disable RTS/CTS if applicable'''
         try:
             self.port.setRtsCts(enable)
@@ -1004,18 +1006,18 @@ class mavserial(mavfile):
             self.port.rtscts = enable
         self.rtscts = enable
 
-    def set_baudrate(self, baudrate):
+    def set_baudrate(self, baudrate: int | str) -> None:
         '''set baudrate'''
         try:
             self.port.setBaudrate(baudrate)
         except Exception:
             # for pySerial 3.0, which doesn't have setBaudrate()
             self.port.baudrate = baudrate
-    
-    def close(self):
+
+    def close(self) -> None:
         self.port.close()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         if n is None:
             n = self.mav.bytes_needed()
         if self.fd is None:
@@ -1025,7 +1027,7 @@ class mavserial(mavfile):
         ret = self.port.read(n)
         return ret
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> int | None:
         try:
             return self.port.write(bytes(buf))
         except Exception:
@@ -1035,13 +1037,16 @@ class mavserial(mavfile):
             if self.autoreconnect:
                 self.reset()
             return -1
-            
-    def reset(self):
+
+    def reset(self) -> bool:
         import serial
         try:
             try:
-                newport = serial.Serial(self.device, self.baud, timeout=0,
-                                        dsrdtr=False, rtscts=False, xonxoff=False)
+                # self.baud may be a str here (from the "device,baud" comma syntax
+                # handled in __init__); pyserial accepts it at runtime despite its
+                # stub declaring int only.
+                newport: Any = serial.Serial(self.device, cast(int, self.baud), timeout=0,
+                                             dsrdtr=False, rtscts=False, xonxoff=False)
             except serial.SerialException as e:
                 if not self.force_connected:
                     raise e
@@ -1065,7 +1070,8 @@ class mavserial(mavfile):
 
 class mavudp(mavfile):
     '''a UDP mavlink socket'''
-    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native, timeout=0):
+    def __init__(self, device: str, input: bool = True, broadcast: bool = False, source_system: int = 255,
+                 source_component: int = 0, use_native: bool = default_native, timeout: float = 0) -> None:
         a = device.split(':')
         if len(a) != 2:
             raise ValueError("UDP ports must be specified as host:port")
@@ -1084,18 +1090,18 @@ class mavudp(mavfile):
             if platform.system() == "Windows":
                 self.port.bind(('0.0.0.0', int(a[1])))
         set_close_on_exec(self.port.fileno())
-        self.port.setblocking(0)
-        self.last_address = None
+        self.port.setblocking(False)
+        self.last_address: tuple[str, int] | None = None
         self.timeout = timeout
-        self.clients = set()
-        self.clients_last_alive = {}
-        self.resolved_destination_addr = None
+        self.clients: set[tuple[str, int]] = set()
+        self.clients_last_alive: dict[tuple[str, int], float] = {}
+        self.resolved_destination_addr: str | None = None
         mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
 
-    def close(self):
+    def close(self) -> None:
         self.port.close()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         try:
             data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
         except socket.error as e:
@@ -1109,11 +1115,11 @@ class mavudp(mavfile):
             self.last_address = new_addr
         return data
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         try:
             if self.udp_server:
                 current_time = time.time()
-                to_remove = set()
+                to_remove: set[tuple[str, int]] = set()
                 for address in self.clients:
                     if len(self.clients) == 1 or self.timeout <= 0 or self.clients_last_alive[address] + self.timeout > current_time:
                         self.port.sendto(buf, address)
@@ -1136,7 +1142,7 @@ class mavudp(mavfile):
         except socket.error:
             pass
 
-    def recv_msg(self):
+    def recv_msg(self) -> Any:
         '''message receive routine for UDP link'''
         self.pre_message()
         s = self.recv()
@@ -1152,7 +1158,8 @@ class mavudp(mavfile):
 
 class mavmcast(mavfile):
     '''a UDP multicast mavlink socket'''
-    def __init__(self, device, broadcast=False, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, device: str, broadcast: bool = False, source_system: int = 255,
+                 source_component: int = 0, use_native: bool = default_native) -> None:
         a = device.split(':')
         mcast_ip = "239.255.145.50"
         mcast_port = 14550
@@ -1174,13 +1181,13 @@ class mavmcast(mavfile):
             self.port.bind((mcast_ip, mcast_port))
         mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
         self.port.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        self.port.setblocking(0)
+        self.port.setblocking(False)
         set_close_on_exec(self.port.fileno())
 
         # now the sending socket
         self.port_out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.port_out.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.port_out.setblocking(0)
+        self.port_out.setblocking(False)
         self.port_out.connect((mcast_ip, mcast_port))
         set_close_on_exec(self.port_out.fileno())
         self.myport = None
@@ -1189,11 +1196,11 @@ class mavmcast(mavfile):
                          source_system=source_system, source_component=source_component,
                          input=False, use_native=use_native)
 
-    def close(self):
+    def close(self) -> None:
         self.port.close()
         self.port_out.close()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         try:
             data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
             if self.myport is None:
@@ -1210,13 +1217,13 @@ class mavmcast(mavfile):
             return ''
         return data
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         try:
             self.port_out.send(buf)
         except socket.error as e:
             pass
 
-    def recv_msg(self):
+    def recv_msg(self) -> Any:
         '''message receive routine for UDP link'''
         self.pre_message()
         s = self.recv()
@@ -1234,12 +1241,12 @@ class mavmcast(mavfile):
 class mavtcp(mavfile):
     '''a TCP mavlink socket'''
     def __init__(self,
-                 device,
-                 autoreconnect=False,
-                 source_system=255,
-                 source_component=0,
-                 retries=6,
-                 use_native=default_native):
+                 device: str,
+                 autoreconnect: bool = False,
+                 source_system: int = 255,
+                 source_component: int = 0,
+                 retries: int = 6,
+                 use_native: bool = default_native) -> None:
         a = device.split(':')
         if len(a) != 2:
             raise ValueError("TCP ports must be specified as host:port")
@@ -1250,9 +1257,11 @@ class mavtcp(mavfile):
         self.retries = retries
         self.do_connect()
 
-        mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
+        # do_connect() always leaves self.port set to a connected socket or raises
+        mavfile.__init__(self, cast(socket.socket, self.port).fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
-    def do_connect(self):
+    def do_connect(self) -> None:
+        self.port: socket.socket | None = None
         if sys.platform != 'darwin':
             self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         retries = self.retries
@@ -1274,23 +1283,24 @@ class mavtcp(mavfile):
                     raise e
                 print(e, "sleeping")
                 time.sleep(1)
-        self.port.setblocking(0)
+        self.port.setblocking(False)
         set_close_on_exec(self.port.fileno())
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
 
-    def close(self):
-        self.port.close()
+    def close(self) -> None:
+        if self.port is not None:
+            self.port.close()
 
-    def handle_disconnect(self):
+    def handle_disconnect(self) -> None:
         print("Connection reset or closed by peer on TCP socket")
         self.reconnect()
 
-    def handle_eof(self):
+    def handle_eof(self) -> None:
         # EOF
         print("EOF on TCP socket")
         self.reconnect()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes:
         if self.port is None:
             self.reconnect()
         if n is None:
@@ -1308,7 +1318,7 @@ class mavtcp(mavfile):
 
         return data
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         if self.port is None:
             try:
                 self.reconnect()
@@ -1323,7 +1333,7 @@ class mavtcp(mavfile):
                 self.handle_disconnect()
             pass
 
-    def reconnect(self):
+    def reconnect(self) -> None:
         if self.autoreconnect:
             print("Attempting reconnect")
             if self.port is not None:
@@ -1334,7 +1344,8 @@ class mavtcp(mavfile):
 
 class mavtcpin(mavfile):
     '''a TCP input mavlink socket'''
-    def __init__(self, device, source_system=255, source_component=0, retries=3, use_native=default_native):
+    def __init__(self, device: str, source_system: int = 255, source_component: int = 0,
+                 retries: int = 3, use_native: bool = default_native) -> None:
         a = device.split(':')
         if len(a) != 2:
             raise ValueError("TCP ports must be specified as host:port")
@@ -1343,25 +1354,25 @@ class mavtcpin(mavfile):
         self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen.bind(self.listen_addr)
         self.listen.listen(1)
-        self.listen.setblocking(0)
+        self.listen.setblocking(False)
         set_close_on_exec(self.listen.fileno())
         self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         mavfile.__init__(self, self.listen.fileno(), "tcpin:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
-        self.port = None
+        self.port: socket.socket | None = None
 
-    def close(self):
+    def close(self) -> None:
         if self.port is not None:
             self.port.close()
         self.listen.close()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         if not self.port:
             try:
                 (self.port, addr) = self.listen.accept()
             except Exception:
                 return ''
-            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
-            self.port.setblocking(0) 
+            self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+            self.port.setblocking(False)
             set_close_on_exec(self.port.fileno())
             self.fd = self.port.fileno()
 
@@ -1378,7 +1389,7 @@ class mavtcpin(mavfile):
             return ''
         return data
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         if self.port is None:
             return
         try:
@@ -1393,9 +1404,10 @@ class mavtcpin(mavfile):
 
 class mavlogfile(mavfile):
     '''a MAVLink logfile reader/writer'''
-    def __init__(self, filename, planner_format=None,
-                 write=False, append=False,
-                 robust_parsing=True, notimestamps=False, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, filename: str, planner_format: Any = None,
+                 write: bool = False, append: bool = False,
+                 robust_parsing: bool = True, notimestamps: bool = False, source_system: int = 255,
+                 source_component: int = 0, use_native: bool = default_native) -> None:
         self.filename = filename
         self.writeable = write
         self.robust_parsing = robust_parsing
@@ -1409,29 +1421,29 @@ class mavlogfile(mavfile):
                 mode = 'wb'
         self.f = open(filename, mode)
         self.filesize = os.path.getsize(filename)
-        self.percent = 0
+        self.percent: float = 0
         mavfile.__init__(self, None, filename, source_system=source_system, source_component=source_component, notimestamps=notimestamps, use_native=use_native)
         if self.notimestamps:
             self._timestamp = 0
         else:
             self._timestamp = time.time()
         self.stop_on_EOF = True
-        self._last_message = None
-        self._last_timestamp = None
+        self._last_message: Any = None
+        self._last_timestamp: float | None = None
         self._link = 0
 
-    def close(self):
+    def close(self) -> None:
         self.f.close()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes:
         if n is None:
             n = self.mav.bytes_needed()
         return self.f.read(n)
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         self.f.write(buf)
 
-    def scan_timestamp(self, tbuf):
+    def scan_timestamp(self, tbuf: bytes) -> float:
         '''scan forward looking in a tlog for a timestamp in a reasonable range'''
         while True:
             (tusec,) = struct.unpack('>Q', tbuf)
@@ -1445,7 +1457,7 @@ class mavlogfile(mavfile):
         return t
 
 
-    def pre_message(self):
+    def pre_message(self) -> None:
         '''read timestamp if needed'''
         # read the timestamp
         if self.filesize != 0:
@@ -1473,7 +1485,7 @@ class mavlogfile(mavfile):
             self._link = tusec & 0x3
         self._timestamp = t
 
-    def post_message(self, msg):
+    def post_message(self, msg: Any) -> None:
         '''add timestamp to message'''
         # read the timestamp
         super(mavlogfile, self).post_message(msg)
@@ -1489,57 +1501,58 @@ class mavlogfile(mavfile):
 class mavmmaplog(mavlogfile):
     '''a MAVLink log file accessed via mmap. Used for fast read-only
     access with low memory overhead where particular message types are wanted'''
-    def __init__(self, filename, progress_callback=None):
-        import mmap
+    def __init__(self, filename: str, progress_callback: Any = None) -> None:
         mavlogfile.__init__(self, filename)
         self.f.seek(0, 2)
         self.data_len = self.f.tell()
         self.f.seek(0)
-        self.data_map = None
+        self.data_map: mmap.mmap | None = None
         if self.data_len != 0:
             if platform.system() == "Windows":
-                self.data_map = mmap.mmap(self.f.fileno(), self.data_len, None, mmap.ACCESS_READ)
+                # tagname=None is valid at runtime ("no tag") but the Windows
+                # overload of mmap.mmap's stub declares tagname as str, not Optional
+                self.data_map = mmap.mmap(self.f.fileno(), self.data_len, None, mmap.ACCESS_READ)  # type: ignore[arg-type]
             else:
                 self.data_map = mmap.mmap(self.f.fileno(), self.data_len, mmap.MAP_PRIVATE, mmap.PROT_READ)
             self._rewind()
             self.init_arrays(progress_callback)
-        self._flightmodes = None
+        self._flightmodes: list[tuple[str, float, float | None]] | None = None
 
-    def _rewind(self):
+    def _rewind(self) -> None:
         '''rewind to start of log'''
         self.flightmode = "UNKNOWN"
         self.offset = 0
-        self.type_nums = None
+        self.type_nums: list[int] | None = None
         self.f.seek(0)
 
-    def rewind(self):
+    def rewind(self) -> None:
         '''rewind to start of log'''
         self._rewind()
 
-    def close(self):
+    def close(self) -> None:
         super(mavmmaplog, self).close()
         if self.data_map is not None:
             self.data_map.close()
 
-    def init_arrays(self, progress_callback=None):
+    def init_arrays(self, progress_callback: Any = None) -> None:
         '''initialise arrays for fast recv_match()'''
 
         # dictionary indexed by msgid, mapping to arrays of file offsets where
         # each instance of a msg type is found
-        self.offsets = {}
+        self.offsets: dict[int, list[int]] = {}
 
         # number of msgs of each msg type
-        self.counts = {}
+        self.counts: dict[int, int] = {}
         self._count = 0
 
         # mapping from msg name to msg id
-        self.name_to_id = {}
+        self.name_to_id: dict[str, int] = {}
 
         # mapping from msg id to name
-        self.id_to_name = {}
+        self.id_to_name: dict[int, str] = {}
 
-        self.instance_offsets = {}
-        self.instance_lengths = {}
+        self.instance_offsets: dict[int, int] = {}
+        self.instance_lengths: dict[int, int] = {}
 
         self.type_nums = None
 
@@ -1548,21 +1561,25 @@ class mavmmaplog(mavlogfile):
 
         MARKER_V1 = 0xFE
         MARKER_V2 = 0xFD
-        
+
+        # init_arrays() is only ever called (from __init__) after data_map has
+        # been mmap'd, guarded by `if self.data_len != 0`
+        data_map = cast(mmap.mmap, self.data_map)
+
         while ofs+8+6 < self.data_len:
-            marker = u_ord(self.data_map[ofs+8])
-            mlen = u_ord(self.data_map[ofs+9]) + 8
+            marker = u_ord(data_map[ofs+8])
+            mlen = u_ord(data_map[ofs+9]) + 8
             if marker == MARKER_V1:
-                mtype = u_ord(self.data_map[ofs+13])
+                mtype = u_ord(data_map[ofs+13])
                 mlen += 8
                 data_ofs = 14
             elif marker == MARKER_V2:
                 if ofs+8+10 > self.data_len:
                     break
-                mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
+                mtype = u_ord(data_map[ofs+15]) | (u_ord(data_map[ofs+16])<<8) | (u_ord(data_map[ofs+17])<<16)
                 mlen += 12
                 data_ofs = 18
-                incompat_flags = u_ord(self.data_map[ofs+10])
+                incompat_flags = u_ord(data_map[ofs+10])
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
             else:
@@ -1637,7 +1654,7 @@ class mavmmaplog(mavlogfile):
         self.offset = 0
         self._rewind()
 
-    def skip_to_type(self, type):
+    def skip_to_type(self, type: set[str]) -> None:
         '''skip fwd to next msg matching given type set'''
         if self.data_map is None:
             return
@@ -1667,7 +1684,8 @@ class mavmmaplog(mavlogfile):
             self.offset = smallest_offset
             self.f.seek(smallest_offset)
 
-    def recv_match(self, condition=None, type=None, blocking=False, timeout=None):
+    def recv_match(self, condition: str | None = None, type: str | list[str] | set[str] | None = None,
+                   blocking: bool = False, timeout: float | None = None) -> Any:
         '''recv the next message that matches the given condition
         type can be a string or a list of strings'''
         if type is not None:
@@ -1699,7 +1717,7 @@ class mavmmaplog(mavlogfile):
                     continue
             return m
         
-    def flightmode_list(self):
+    def flightmode_list(self) -> list[tuple[str, float, float | None]]:
         '''return an array of tuples for all flightmodes in log. Tuple is (modestring, t0, t1)'''
         tstamp = None
         fmode = None
@@ -1728,38 +1746,43 @@ class mavmmaplog(mavlogfile):
 
 class mavchildexec(mavfile):
     '''a MAVLink child processes reader/writer'''
-    def __init__(self, filename, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, filename: str, source_system: int = 255, source_component: int = 0,
+                 use_native: bool = default_native) -> None:
         from subprocess import Popen, PIPE
         import fcntl
         
         self.filename = filename
         self.child = Popen(filename, shell=False, stdout=PIPE, stdin=PIPE, bufsize=0)
-        self.fd = self.child.stdout.fileno()
+        # requested above via stdout=PIPE/stdin=PIPE, so always real file objects here
+        self.child_stdout = cast(IO[bytes], self.child.stdout)
+        self.child_stdin = cast(IO[bytes], self.child.stdin)
+        self.fd = self.child_stdout.fileno()
 
         fl = fcntl.fcntl(self.fd, fcntl.F_GETFL)
         fcntl.fcntl(self.fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-        fl = fcntl.fcntl(self.child.stdout.fileno(), fcntl.F_GETFL)
-        fcntl.fcntl(self.child.stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        fl = fcntl.fcntl(self.child_stdout.fileno(), fcntl.F_GETFL)
+        fcntl.fcntl(self.child_stdout.fileno(), fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
         mavfile.__init__(self, self.fd, filename, source_system=source_system, source_component=source_component, use_native=use_native)
 
-    def close(self):
-        self.child.close()
+    def close(self) -> None:
+        self.child.close()  # type: ignore[attr-defined]
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         try:
-            x = self.child.stdout.read(1)
+            x = self.child_stdout.read(1)
         except Exception:
             return ''
         return x
 
-    def write(self, buf):
-        self.child.stdin.write(buf)
+    def write(self, buf: bytes) -> None:
+        self.child_stdin.write(buf)
 
 class mavwebsocket(mavfile):
     '''Mavlink WebSocket server, single client only'''
-    def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, device: str, source_system: int = 255, source_component: int = 0,
+                 use_native: bool = default_native) -> None:
         # Try importing wsproto, we don't need it here but it means we fail early if its missing
         import wsproto
 
@@ -1774,24 +1797,25 @@ class mavwebsocket(mavfile):
         self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen.bind(self.listen_addr)
         self.listen.listen(1)
-        self.listen.setblocking(0)
+        self.listen.setblocking(False)
         set_close_on_exec(self.listen.fileno())
         self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         mavfile.__init__(self, self.listen.fileno(), "wsserver:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
-        self.port = None
+        self.port: socket.socket | None = None
 
-    def close_port(self):
-        self.port.close()
+    def close_port(self) -> None:
+        # every call site only reaches close_port() after confirming self.port is set
+        cast(socket.socket, self.port).close()
         self.port = None
         self.fd = self.listen.fileno()
         self.ws = None
 
-    def close(self):
+    def close(self) -> None:
         if self.port is not None:
             self.close_port()
         self.listen.close()
 
-    def recv(self,n=None):
+    def recv(self, n: int | None = None) -> bytes | str:
         from wsproto import ConnectionType, WSConnection, utilities
         from wsproto.events import (
             AcceptConnection,
@@ -1807,7 +1831,7 @@ class mavwebsocket(mavfile):
             except Exception:
                 return ''
             self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
-            self.port.setblocking(0) 
+            self.port.setblocking(False) 
             set_close_on_exec(self.port.fileno())
             self.fd = self.port.fileno()
 
@@ -1860,7 +1884,7 @@ class mavwebsocket(mavfile):
         # Return the extracted data
         return data
 
-    def write(self, buf):
+    def write(self, buf: bytes) -> None:
         if self.port is None or self.ws is None:
             return
 
@@ -1882,11 +1906,11 @@ class mavwebsocket(mavfile):
 class mavwebsocket_client(mavfile):
     '''client using WebSocket over TCP with WS and WSS support'''
     def __init__(self,
-                 device,
-                 source_system=255,
-                 source_component=0,
-                 retries=6,
-                 use_native=default_native):
+                 device: str,
+                 source_system: int = 255,
+                 source_component: int = 0,
+                 retries: int = 6,
+                 use_native: bool = default_native) -> None:
         self.resource = "/"
         a = device.split(':')
         protocol = a[0]
@@ -1896,14 +1920,14 @@ class mavwebsocket_client(mavfile):
         self.host_port = int(a[2])
         if len(a) > 3:
             self.resource = a[3]
-        self.sock = None
+        self.sock: Any = None
         self.use_ssl = protocol.lower() == 'wss'
-        self.port = FakeSerial()
+        self.port: Any = FakeSerial()
         self.connect()
         fd = self.sock.fileno() if self.sock is not None else None
         mavfile.__init__(self, fd, device, source_system=source_system, source_component=source_component, use_native=use_native)
 
-    def connect(self):
+    def connect(self) -> None:
         self.close()
         from wsproto import ConnectionType, WSConnection
         from wsproto.events import (
@@ -1938,7 +1962,7 @@ class mavwebsocket_client(mavfile):
             raise
 
         self.fd = self.sock.fileno()
-        self.sock.setblocking(1)
+        self.sock.setblocking(True)
         self.ws = WSConnection(ConnectionType.CLIENT)
         b = self.ws.send(Request(host=self.host, target=self.resource))
         self.sock.send(b)
@@ -1958,10 +1982,10 @@ class mavwebsocket_client(mavfile):
             self.ws.receive_data(data)
             for event in self.ws.events():
                 if isinstance(event, AcceptConnection):
-                    self.sock.setblocking(0)
+                    self.sock.setblocking(False)
                     return
 
-    def recv(self, n=None):
+    def recv(self, n: int | None = None) -> bytes:
         from wsproto.events import (
             BytesMessage,
             CloseConnection
@@ -2006,7 +2030,7 @@ class mavwebsocket_client(mavfile):
         out, self.buffer = self.buffer, b''
         return out
 
-    def write(self, data):
+    def write(self, data: bytes) -> None:
         from wsproto.events import BytesMessage
         if not self.sock:
             self.connect()
@@ -2028,7 +2052,7 @@ class mavwebsocket_client(mavfile):
                 self.connect()
             pass
 
-    def close(self):
+    def close(self) -> None:
         if self.sock:
             self.sock.close()
             self.sock = None
