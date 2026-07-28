@@ -13,6 +13,7 @@ import json
 import re
 import platform
 from pymavlink import mavexpression
+from pymavlink.dialects.v20 import common as mavlink_base
 import ssl
 
 # We want to re-export x25crc here
@@ -31,7 +32,7 @@ UDP_MAX_PACKET_LEN = 65535
 
 # Store the MAVLink library for the currently-selected dialect
 # (set by set_dialect())
-mavlink = None
+mavlink : mavlink_base = None
 
 # Store the mavlink file currently being operated on
 # (set by mavlink_connection())
