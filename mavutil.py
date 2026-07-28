@@ -145,14 +145,14 @@ set_dialect(os.environ['MAVLINK_DIALECT'])
 
 class mavfile_state(object):
     '''state for a particular system id'''
-    def __init__(self):
-        self.messages = { 'MAV' : self }
-        self.flightmode = "UNKNOWN"
-        self.vehicle_type = "UNKNOWN"
-        self.mav_type = mavlink.MAV_TYPE_FIXED_WING
-        self.mav_autopilot = mavlink.MAV_AUTOPILOT_GENERIC
-        self.base_mode = 0
-        self.armed = False # canonical arm state for the vehicle as a whole
+    def __init__(self) -> None:
+        self.messages: dict[str, Any] = { 'MAV' : self }
+        self.flightmode: str = "UNKNOWN"
+        self.vehicle_type: str = "UNKNOWN"
+        self.mav_type: int = mavlink.MAV_TYPE_FIXED_WING
+        self.mav_autopilot: int = mavlink.MAV_AUTOPILOT_GENERIC
+        self.base_mode: int = 0
+        self.armed: bool = False # canonical arm state for the vehicle as a whole
 
         if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
             try:
@@ -174,8 +174,8 @@ class mavfile_state(object):
 
 class param_state(object):
     '''state for a particular system id/component id pair'''
-    def __init__(self):
-        self.params = {}
+    def __init__(self) -> None:
+        self.params: dict[str, float] = {}
 
 class mavfile(object):
     '''a generic mavlink port'''
