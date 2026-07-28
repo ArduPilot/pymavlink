@@ -28,3 +28,4 @@ include/mavlink/v1.0
 dfindexer/dfindexer_cy.c
 dfindexer/*.so
 dfindexer/*.pyd
+.dfreader_pandas_cache
