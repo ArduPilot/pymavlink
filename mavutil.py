@@ -5,6 +5,7 @@ mavlink python utility functions
 Copyright Andrew Tridgell 2011-2019
 Released under GNU LGPL version 3 or later
 '''
+from __future__ import annotations
 
 import socket, math, struct, time, os, fnmatch, array, sys, errno
 import select
@@ -12,6 +13,8 @@ import copy
 import json
 import re
 import platform
+from types import ModuleType
+from typing import Any
 from pymavlink import mavexpression
 import ssl
 
@@ -31,11 +34,11 @@ UDP_MAX_PACKET_LEN = 65535
 
 # Store the MAVLink library for the currently-selected dialect
 # (set by set_dialect())
-mavlink = None
+mavlink: ModuleType | None = None
 
 # Store the mavlink file currently being operated on
 # (set by mavlink_connection())
-mavfile_global = None
+mavfile_global: mavfile | None = None
 
 # If the caller hasn't specified a particular native/legacy version, use this
 default_native = False
@@ -47,19 +50,19 @@ global_link_id = 0
 if not 'MAVLINK_DIALECT' in os.environ:
     os.environ['MAVLINK_DIALECT'] = 'all'
 
-def mavlink10():
+def mavlink10() -> bool:
     '''return True if using MAVLink 1.0 or later'''
     return not 'MAVLINK09' in os.environ
 
-def mavlink20():
+def mavlink20() -> bool:
     '''return True if using MAVLink 2.0'''
     return 'MAVLINK20' in os.environ
 
-def evaluate_expression(expression, vars, nocondition=False):
+def evaluate_expression(expression: str, vars: dict, nocondition: bool = False) -> Any:
     '''evaluation an expression'''
     return mavexpression.evaluate_expression(expression, vars, nocondition)
 
-def evaluate_condition(condition, vars):
+def evaluate_condition(condition: str | None, vars: dict) -> Any:
     '''evaluation a conditional (boolean) statement'''
     if condition is None:
         return True
@@ -68,18 +71,18 @@ def evaluate_condition(condition, vars):
         return False
     return v
 
-def u_ord(c):
+def u_ord(c: Any) -> Any:
     return c
 
 class location(object):
     '''represent a GPS coordinate'''
-    def __init__(self, lat, lng, alt=0, heading=0):
+    def __init__(self, lat: float, lng: float, alt: float = 0, heading: float = 0) -> None:
         self.lat = lat  # in degrees
         self.lng = lng  # in degrees
         self.alt = alt  # in metres
         self.heading = heading
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "lat=%.6f,lon=%.6f,alt=%.1f" % (self.lat, self.lng, self.alt)
 
 def add_message(messages, mtype, msg):
@@ -104,7 +107,7 @@ def add_message(messages, mtype, msg):
     messages[mtype]._instances = prev_instances
     messages["%s[%s]" % (mtype, str(instance_value))] = copy.copy(msg)
 
-def set_dialect(dialect, with_type_annotations=None):
+def set_dialect(dialect: str, with_type_annotations: bool | None = None) -> None:
     '''set the MAVLink dialect to work with.
     For example, set_dialect("ardupilotmega")
     '''
