@@ -7,7 +7,7 @@ Released under GNU GPL version 3 or later
 '''
 
 import os
-from . import mavparse, mavtemplate
+from . import mavparse, mavtemplate, mavgen_c_cmd_helpers
 
 t = mavtemplate.MAVTemplate()
 
@@ -766,6 +766,10 @@ def generate(basename, xml_list):
 
     for idx in range(len(xml_list)):
         xml = xml_list[idx]
-        xml.xml_hash = hash(xml.basename)        
+        xml.xml_hash = hash(xml.basename)
         generate_one(basename, xml)
+        directory = os.path.join(basename, xml.basename)
+        output_path = os.path.join(directory, "mav_cmd_helpers.h")
+        if mavgen_c_cmd_helpers.generate(xml.filename, output_path):
+            print("Generated %s" % output_path)
     copy_fixed_headers(basename, xml_list[0])
