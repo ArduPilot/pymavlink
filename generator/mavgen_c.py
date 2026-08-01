@@ -6,6 +6,7 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 
+import hashlib
 import os
 from . import mavparse, mavtemplate
 
@@ -761,11 +762,18 @@ def generate_one(basename, xml):
     generate_testsuite_h(directory, xml)
 
 
+def xml_name_hash(basename):
+    '''deterministic 64-bit signed hash of a dialect name; the builtin
+    hash() is randomised per interpreter run (PYTHONHASHSEED), which
+    makes regenerated headers differ even for identical XML'''
+    digest = hashlib.sha256(basename.encode('utf-8')).digest()
+    return int.from_bytes(digest[:8], 'little', signed=True)
+
 def generate(basename, xml_list):
     '''generate complete MAVLink C implemenation'''
 
     for idx in range(len(xml_list)):
         xml = xml_list[idx]
-        xml.xml_hash = hash(xml.basename)        
+        xml.xml_hash = xml_name_hash(xml.basename)
         generate_one(basename, xml)
     copy_fixed_headers(basename, xml_list[0])
