@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 '''
 mavlink python utility functions
 
@@ -2927,9 +2926,3 @@ def dump_message_verbose(f, m):
             pass
 
         f.write("    %s: %s\n" % (fieldname, value))
-
-
-if __name__ == '__main__':
-        serial_list = auto_detect_serial(preferred_list=['*FTDI*',"*Arduino_Mega_2560*", "*3D_Robotics*", "*USB_to_UART*", '*PX4*', '*FMU*'])
-        for port in serial_list:
-            print("%s" % port)
