@@ -1729,8 +1729,8 @@ class mavmmaplog(mavlogfile):
 class mavchildexec(mavfile):
     '''a MAVLink child processes reader/writer'''
     def __init__(self, filename, source_system=255, source_component=0, use_native=default_native):
-        from subprocess import Popen, PIPE
         import fcntl
+        from subprocess import PIPE, Popen, TimeoutExpired
         
         self.filename = filename
         self.child = Popen(filename, shell=False, stdout=PIPE, stdin=PIPE, bufsize=0)
@@ -1745,7 +1745,18 @@ class mavchildexec(mavfile):
         mavfile.__init__(self, self.fd, filename, source_system=source_system, source_component=source_component, use_native=use_native)
 
     def close(self):
-        self.child.close()
+        from subprocess import TimeoutExpired
+
+        try:
+            self.child.stdin.close()
+            self.child.stdout.close()
+        finally:
+            self.child.terminate()
+            try:
+                self.child.wait(timeout=5)
+            except TimeoutExpired:
+                self.child.kill()
+                self.child.wait()
 
     def recv(self,n=None):
         try:
