@@ -1885,7 +1885,6 @@ class mavwebsocket_client(mavfile):
                  device,
                  source_system=255,
                  source_component=0,
-                 retries=6,
                  use_native=default_native):
         self.resource = "/"
         a = device.split(':')
