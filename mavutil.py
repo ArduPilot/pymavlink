@@ -690,7 +690,7 @@ class mavfile(object):
             return None
         return mode_mapping_byname(mav_type)
 
-    def set_mode_apm(self, mode, custom_mode = 0, custom_sub_mode = 0):
+    def set_mode_apm(self, mode):
         '''enter arbitrary mode'''
         if isinstance(mode, str):
             mode_map = self.mode_mapping()
