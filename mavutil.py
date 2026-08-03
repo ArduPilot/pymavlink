@@ -1152,7 +1152,7 @@ class mavudp(mavfile):
 
 class mavmcast(mavfile):
     '''a UDP multicast mavlink socket'''
-    def __init__(self, device, broadcast=False, source_system=255, source_component=0, use_native=default_native):
+    def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
         a = device.split(':')
         mcast_ip = "239.255.145.50"
         mcast_port = 14550
