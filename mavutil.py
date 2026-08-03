@@ -334,7 +334,7 @@ class mavfile(object):
         '''default recv method'''
         raise RuntimeError('no recv() method supplied')
 
-    def close(self, n=None):
+    def close(self):
         '''default close method'''
         raise RuntimeError('no close() method supplied')
 
