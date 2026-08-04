@@ -32,23 +32,31 @@ Optional :
 
 ### On Linux
 
-lxml has some additional dependencies that can be installed with your package manager (here with `apt-get`) :
+lxml has some additional dependencies that can be installed with your package manager (here with `apt`):
 
 ```bash
-sudo apt-get install libxml2-dev libxslt-dev
+sudo apt install libxml2-dev libxslt-dev
 ```
 
 Optional for FFT scripts and tests:
 
 ```bash
-sudo apt-get install python3-numpy python3-pytest
+sudo apt install python3-numpy python3-pytest
 ```
-
-Using pip you can install the required dependencies for pymavlink :
+Analogously you can install the required dependencies for pymavlink:
 
 ```bash
+sudo apt install python3-lxml
+``` 
+
+Alternatively, in the unlikely event that your distribution (other than Debian and its derivatives like Ubuntu) does not feature that package, you may decide to use pip and install the missing dependency from its source tree: 
+
+```bash
+sudo apt install python3-pip
 sudo python3 -m pip install --upgrade lxml
 ```
+
+Yet another alternative is to use brew, in perfect analogy to how it is described for the macOS.
 
 ### On macOS
 
