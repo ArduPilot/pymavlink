@@ -1,1 +1,8 @@
-include dfindexer/dfindexer_cy.pyx
+include pymavlink/dfindexer/dfindexer_cy.pyx
+recursive-include pymavlink/generator *.xsd
+recursive-include pymavlink/generator java *.+
+recursive-include pymavlink/generator C *.+
+recursive-include pymavlink/generator CPP11 *.+
+recursive-include pymavlink/generator CS *.+
+recursive-include pymavlink/generator swift *.+
+recursive-include pymavlink/dialects *.xml

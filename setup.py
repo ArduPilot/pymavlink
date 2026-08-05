@@ -14,7 +14,7 @@ from Cython.Build import cythonize
 import glob, os, shutil, fnmatch, sys, platform, warnings
 
 sys.path.insert(0, os.path.dirname(__file__))
-from __init__ import __version__
+from pymavlink import __version__
 
 # Option for building the fast indexer Cython module
 build_fast_index = True
@@ -43,7 +43,7 @@ if "--cython-debug" in sys.argv:
 
 def generate_content():
     # generate the file content...
-    from generator import mavgen, mavparse
+    from pymavlink.generator import mavgen, mavparse
 
     # path to message_definitions directory
     if os.getenv("MDEF",None) is not None:
@@ -62,7 +62,7 @@ def generate_content():
             print("Using message definitions from %s" % mdef_path)
             break
 
-    dialects_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'dialects')
+    dialects_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pymavlink', 'dialects')
 
     v10_dialects = glob.glob(os.path.join(mdef_path, 'v1.0', '*.xml'))
 
@@ -149,8 +149,8 @@ if build_fast_index:
         Extension(
             name="pymavlink.dfindexer.dfindexer_cy",
             sources=[
-                "dfindexer/dfindexer_cy.pyx",
-                "dfindexer/dfindexer.c"
+                "pymavlink/dfindexer/dfindexer_cy.pyx",
+                "pymavlink/dfindexer/dfindexer.c"
             ],
             include_dirs=["pymavlink/dfindexer"],
             extra_compile_args=extra_compile_args,
@@ -178,7 +178,6 @@ setup (name = 'pymavlink',
                     'Topic :: Scientific/Engineering',
                     ],
        license='LGPLv3',
-       package_dir = { 'pymavlink' : '.' },
        package_data = { 'pymavlink.dialects.v10' : ['*.xml'],
                         'pymavlink.dialects.v20' : ['*.xml'],
                         'pymavlink.generator'    : [ '*.xsd',
@@ -201,27 +200,27 @@ setup (name = 'pymavlink',
                    'pymavlink.dfindexer',
                    'pymavlink.tools',
                    ],
-       scripts = [ 'tools/magfit_delta.py', 'tools/mavextract.py',
-                   'tools/mavgraph.py', 'tools/mavparmdiff.py',
-                   'tools/mavtogpx.py', 'tools/magfit_gps.py',
-                   'tools/mavflightmodes.py', 'tools/mavlogdump.py',
-                   'tools/mavparms.py', 'tools/magfit_motors.py',
-                   'tools/mavflighttime.py', 'tools/mavloss.py',
-                   'tools/mavplayback.py', 'tools/magfit.py',
-                   'tools/mavgpslock.py',
-                   'tools/mavmission.py',
-                   'tools/mavsigloss.py',
-                   'tools/mavsearch.py',
-                   'tools/mavtomfile.py',
-                   'tools/mavgen.py',
-                   'tools/mavkml.py',
-                   'tools/mavfft.py',
-                   'tools/mavfft_isb.py',
-                   'tools/mavsummarize.py',
-                   'tools/mavlink_bitmask_decoder.py',
-                   'tools/magfit_WMM.py',
-                   'tools/mavbitmask_change.py',
-                   'tools/mavsensor_status_change.py',
+       scripts = [ 'pymavlink/tools/magfit_delta.py', 'pymavlink/tools/mavextract.py',
+                   'pymavlink/tools/mavgraph.py', 'pymavlink/tools/mavparmdiff.py',
+                   'pymavlink/tools/mavtogpx.py', 'pymavlink/tools/magfit_gps.py',
+                   'pymavlink/tools/mavflightmodes.py', 'pymavlink/tools/mavlogdump.py',
+                   'pymavlink/tools/mavparms.py', 'pymavlink/tools/magfit_motors.py',
+                   'pymavlink/tools/mavflighttime.py', 'pymavlink/tools/mavloss.py',
+                   'pymavlink/tools/mavplayback.py', 'pymavlink/tools/magfit.py',
+                   'pymavlink/tools/mavgpslock.py',
+                   'pymavlink/tools/mavmission.py',
+                   'pymavlink/tools/mavsigloss.py',
+                   'pymavlink/tools/mavsearch.py',
+                   'pymavlink/tools/mavtomfile.py',
+                   'pymavlink/tools/mavgen.py',
+                   'pymavlink/tools/mavkml.py',
+                   'pymavlink/tools/mavfft.py',
+                   'pymavlink/tools/mavfft_isb.py',
+                   'pymavlink/tools/mavsummarize.py',
+                   'pymavlink/tools/mavlink_bitmask_decoder.py',
+                   'pymavlink/tools/magfit_WMM.py',
+                   'pymavlink/tools/mavbitmask_change.py',
+                   'pymavlink/tools/mavsensor_status_change.py',
        ],
        install_requires=[
             'lxml',
