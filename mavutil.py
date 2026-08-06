@@ -1084,7 +1084,7 @@ class mavudp(mavfile):
             if platform.system() == "Windows":
                 self.port.bind(('0.0.0.0', int(a[1])))
         set_close_on_exec(self.port.fileno())
-        self.port.setblocking(0)
+        self.port.setblocking(False)
         self.last_address = None
         self.timeout = timeout
         self.clients = set()
@@ -1174,13 +1174,13 @@ class mavmcast(mavfile):
             self.port.bind((mcast_ip, mcast_port))
         mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
         self.port.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        self.port.setblocking(0)
+        self.port.setblocking(False)
         set_close_on_exec(self.port.fileno())
 
         # now the sending socket
         self.port_out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.port_out.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.port_out.setblocking(0)
+        self.port_out.setblocking(False)
         self.port_out.connect((mcast_ip, mcast_port))
         set_close_on_exec(self.port_out.fileno())
         self.myport = None
@@ -1280,7 +1280,7 @@ class mavtcp(mavfile):
                     raise e
                 print(e, "sleeping")
                 time.sleep(self.reconnect_delay)
-        self.port.setblocking(0)
+        self.port.setblocking(False)
         set_close_on_exec(self.port.fileno())
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
 
@@ -1349,7 +1349,7 @@ class mavtcpin(mavfile):
         self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen.bind(self.listen_addr)
         self.listen.listen(1)
-        self.listen.setblocking(0)
+        self.listen.setblocking(False)
         set_close_on_exec(self.listen.fileno())
         self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         mavfile.__init__(self, self.listen.fileno(), "tcpin:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
@@ -1367,7 +1367,7 @@ class mavtcpin(mavfile):
             except Exception:
                 return ''
             self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
-            self.port.setblocking(0) 
+            self.port.setblocking(False)
             set_close_on_exec(self.port.fileno())
             self.fd = self.port.fileno()
 
@@ -1791,7 +1791,7 @@ class mavwebsocket(mavfile):
         self.listen.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen.bind(self.listen_addr)
         self.listen.listen(1)
-        self.listen.setblocking(0)
+        self.listen.setblocking(False)
         set_close_on_exec(self.listen.fileno())
         self.listen.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         mavfile.__init__(self, self.listen.fileno(), "wsserver:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
@@ -1824,7 +1824,7 @@ class mavwebsocket(mavfile):
             except Exception:
                 return ''
             self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
-            self.port.setblocking(0) 
+            self.port.setblocking(False)
             set_close_on_exec(self.port.fileno())
             self.fd = self.port.fileno()
 
@@ -1954,7 +1954,7 @@ class mavwebsocket_client(mavfile):
             raise
 
         self.fd = self.sock.fileno()
-        self.sock.setblocking(1)
+        self.sock.setblocking(True)
         self.ws = WSConnection(ConnectionType.CLIENT)
         b = self.ws.send(Request(host=self.host, target=self.resource))
         self.sock.send(b)
@@ -1974,7 +1974,7 @@ class mavwebsocket_client(mavfile):
             self.ws.receive_data(data)
             for event in self.ws.events():
                 if isinstance(event, AcceptConnection):
-                    self.sock.setblocking(0)
+                    self.sock.setblocking(False)
                     return
 
     def recv(self, n=None):
