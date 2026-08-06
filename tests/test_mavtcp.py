@@ -2,24 +2,7 @@
 
 import errno
 import unittest
-from pathlib import Path
-import sys
-import importlib.util
-
-try:
-    from pymavlink import mavutil
-except ModuleNotFoundError:
-    repo_root = Path(__file__).resolve().parents[1]
-    pkg_spec = importlib.util.spec_from_file_location(
-        "pymavlink",
-        repo_root / "__init__.py",
-        submodule_search_locations=[str(repo_root)],
-    )
-    assert pkg_spec is not None and pkg_spec.loader is not None
-    pymavlink_pkg = importlib.util.module_from_spec(pkg_spec)
-    sys.modules["pymavlink"] = pymavlink_pkg
-    pkg_spec.loader.exec_module(pymavlink_pkg)
-    from pymavlink import mavutil
+from pymavlink import mavutil
 
 
 class DummyMav:
