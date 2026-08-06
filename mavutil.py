@@ -1239,6 +1239,7 @@ class mavtcp(mavfile):
                  source_system=255,
                  source_component=0,
                  retries=6,
+                 reconnect_delay=1,
                  use_native=default_native):
         a = device.split(':')
         if len(a) != 2:
@@ -1248,6 +1249,11 @@ class mavtcp(mavfile):
         self.autoreconnect = autoreconnect
 
         self.retries = retries
+        # seconds to wait between connection attempts.  A peer which is
+        # merely restarting can be listening again within milliseconds,
+        # so callers which expect that can ask for a shorter delay (and
+        # correspondingly more retries):
+        self.reconnect_delay = reconnect_delay
         self.do_connect()
 
         mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
@@ -1273,7 +1279,7 @@ class mavtcp(mavfile):
                         self.port = None
                     raise e
                 print(e, "sleeping")
-                time.sleep(1)
+                time.sleep(self.reconnect_delay)
         self.port.setblocking(0)
         set_close_on_exec(self.port.fileno())
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
@@ -2039,7 +2045,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        planner_format=None, write=False, append=False,
                        robust_parsing=True, notimestamps=False, input=True,
                        dialect=None, autoreconnect=False, zero_time_base=False,
-                       retries=3, use_native=default_native,
+                       retries=3, reconnect_delay=1, use_native=default_native,
                        force_connected=False, progress_callback=None,
                        udp_timeout=0, **opts):
     '''open a serial, UDP, TCP or file mavlink connection'''
@@ -2057,6 +2063,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                       source_system=source_system,
                       source_component=source_component,
                       retries=retries,
+                      reconnect_delay=reconnect_delay,
                       use_native=use_native)
     if device.startswith('tcpin:'):
         return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
