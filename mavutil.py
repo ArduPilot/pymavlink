@@ -1940,14 +1940,15 @@ class mavwebsocket_client(mavfile):
                 self.sock = raw_sock
             self.port = self.sock
 
+        except ssl.SSLError as e:
+            # must precede OSError: ssl.SSLError subclasses it
+            print(f"SSL Error: {e}")
+            self.close()
+            raise
         except OSError as e:
             if e.errno in [errno.ECONNREFUSED, errno.EHOSTUNREACH]:
                 self.close()
                 return
-            raise
-        except ssl.SSLError as e:
-            print(f"SSL Error: {e}")
-            self.close()
             raise
 
         self.fd = self.sock.fileno()
