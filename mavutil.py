@@ -295,7 +295,7 @@ class mavfile(object):
             return
         try:
             magic = ord(buf[0])
-        except:
+        except TypeError:
             magic = buf[0]
         if not magic in [ 85, 254, 253 ]:
             return
@@ -356,7 +356,7 @@ class mavfile(object):
             return True
         try:
             (rin, win, xin) = select.select([self.fd], [], [], timeout)
-        except select.error:
+        except OSError:
             return False
         return len(rin) == 1
 
@@ -1000,7 +1000,7 @@ class mavserial(mavfile):
         '''enable/disable RTS/CTS if applicable'''
         try:
             self.port.setRtsCts(enable)
-        except Exception:
+        except AttributeError:
             self.port.rtscts = enable
         self.rtscts = enable
 
@@ -1008,7 +1008,7 @@ class mavserial(mavfile):
         '''set baudrate'''
         try:
             self.port.setBaudrate(baudrate)
-        except Exception:
+        except AttributeError:
             # for pySerial 3.0, which doesn't have setBaudrate()
             self.port.baudrate = baudrate
     
@@ -1098,7 +1098,7 @@ class mavudp(mavfile):
     def recv(self,n=None):
         try:
             data, new_addr = self.port.recvfrom(UDP_MAX_PACKET_LEN)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
                 return ""
             raise
@@ -1133,7 +1133,7 @@ class mavudp(mavfile):
                     self.resolved_destination_addr = self.destination_addr[0]
                     self.destination_addr = (socket.gethostbyname(self.destination_addr[0]), self.destination_addr[1])
                 self.port.sendto(buf, self.destination_addr)
-        except socket.error:
+        except OSError:
             pass
 
     def recv_msg(self):
@@ -1199,9 +1199,9 @@ class mavmcast(mavfile):
             if self.myport is None:
                 try:
                     (myaddr,self.myport) = self.port_out.getsockname()
-                except Exception:
+                except OSError:
                     pass
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNREFUSED ]:
                 return ""
             raise
@@ -1213,7 +1213,7 @@ class mavmcast(mavfile):
     def write(self, buf):
         try:
             self.port_out.send(buf)
-        except socket.error as e:
+        except OSError as e:
             pass
 
     def recv_msg(self):
@@ -1272,7 +1272,7 @@ class mavtcp(mavfile):
                     self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.port.connect(self.destination_addr)
                 break
-            except Exception as e:
+            except OSError as e:
                 if retries == 0:
                     if self.port is not None:
                         self.port.close()
@@ -1303,7 +1303,7 @@ class mavtcp(mavfile):
             n = self.mav.bytes_needed()
         try:
             data = self.port.recv(n)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return b""
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
@@ -1318,16 +1318,15 @@ class mavtcp(mavfile):
         if self.port is None:
             try:
                 self.reconnect()
-            except socket.error as e:
+            except OSError as e:
                 pass
         if self.port is None:
             return
         try:
             self.port.send(buf)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
                 self.handle_disconnect()
-            pass
 
     def reconnect(self):
         if self.autoreconnect:
@@ -1364,7 +1363,7 @@ class mavtcpin(mavfile):
         if not self.port:
             try:
                 (self.port, addr) = self.listen.accept()
-            except Exception:
+            except OSError:
                 return ''
             self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
             self.port.setblocking(0) 
@@ -1375,7 +1374,7 @@ class mavtcpin(mavfile):
             n = self.mav.bytes_needed()
         try:
             data = self.port.recv(n)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return ""
             self.port.close()
@@ -1389,12 +1388,11 @@ class mavtcpin(mavfile):
             return
         try:
             self.port.send(buf)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EPIPE ]:
                 self.port.close()
                 self.port = None
                 self.fd = self.listen.fileno()
-            pass
 
 
 class mavlogfile(mavfile):
@@ -1767,7 +1765,7 @@ class mavchildexec(mavfile):
     def recv(self,n=None):
         try:
             x = self.child.stdout.read(1)
-        except Exception:
+        except (OSError, ValueError):
             return ''
         return x
 
@@ -1821,7 +1819,7 @@ class mavwebsocket(mavfile):
         if not self.port:
             try:
                 (self.port, addr) = self.listen.accept()
-            except Exception:
+            except OSError:
                 return ''
             self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) 
             self.port.setblocking(0) 
@@ -1840,7 +1838,7 @@ class mavwebsocket(mavfile):
         try:
             in_data = self.port.recv(RECEIVE_BYTES)
             self.ws.receive_data(in_data)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EAGAIN, errno.EWOULDBLOCK ]:
                 return ''
             self.close_port()
@@ -1890,10 +1888,9 @@ class mavwebsocket(mavfile):
 
         try:
             self.port.send(packed)
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [ errno.EPIPE ]:
                 self.close_port()
-            pass
 
 
 class mavwebsocket_client(mavfile):
@@ -1943,7 +1940,7 @@ class mavwebsocket_client(mavfile):
                 self.sock = raw_sock
             self.port = self.sock
 
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [errno.ECONNREFUSED, errno.EHOSTUNREACH]:
                 self.close()
                 return
@@ -1966,7 +1963,7 @@ class mavwebsocket_client(mavfile):
                 data = self.sock.recv(4096)
             except ssl.SSLError as e:
                 raise RuntimeError(f"WebSocket SSL handshake failed: {e}")
-            except socket.error as e:
+            except OSError as e:
                 raise RuntimeError(f"WebSocket handshake failed: {e}")
                 
             if not data:
@@ -2004,7 +2001,7 @@ class mavwebsocket_client(mavfile):
                 # Real SSL error, reconnect
                 self.connect()
                 return b''
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [errno.EAGAIN, errno.EWOULDBLOCK]:
                 return b""
             if e.errno in [errno.ECONNRESET, errno.EPIPE]:
@@ -2039,7 +2036,7 @@ class mavwebsocket_client(mavfile):
             else:
                 # Real SSL error, reconnect
                 self.connect()
-        except socket.error as e:
+        except OSError as e:
             if e.errno in [errno.EPIPE]:
                 self.connect()
             pass
@@ -2179,7 +2176,7 @@ class periodic_event(object):
 try:
     from curses import ascii
     have_ascii = True
-except:
+except ImportError:
     have_ascii = False
 
 def is_printable(c):
@@ -2484,7 +2481,7 @@ try:
         # inform the user of a malformed custom_mode_map.json
         print("Error: pymavlink custom mode file ('" + _custom_mode_map_path + "') is not valid JSON.")
         raise
-    except Exception:
+    except OSError:
         # file is not present, fall back to using default map
         raise
 
@@ -2493,14 +2490,14 @@ try:
         for mav_type, mode_map in _json_mode_map.items():
             # make sure the custom map has the right datatypes
             _custom_mode_map[int(mav_type)] = { int(mode_num): str(mode_name) for mode_num, mode_name in mode_map.items() }
-    except Exception:
+    except (ValueError, AttributeError, TypeError):
         # inform the user of invalid custom mode map
         print("Error: invalid pymavlink custom mode map dict in " + _custom_mode_map_path)
         raise
 
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT.copy()
     AP_MAV_TYPE_MODE_MAP.update(_custom_mode_map)
-except Exception:
+except (OSError, ValueError, AttributeError, TypeError, json.decoder.JSONDecodeError):
     # revert to using default mode map
     AP_MAV_TYPE_MODE_MAP = AP_MAV_TYPE_MODE_MAP_DEFAULT
 
@@ -2879,10 +2876,10 @@ def dump_message_verbose(f, m):
             # by default, just append the unit:
             else:
                 value = "%s%s" % (value, units)
-        except AttributeError as e:
+        except AttributeError:
             # e.g. BAD_DATA
             pass
-        except KeyError as e:
+        except KeyError:
             pass
 
         # format any bitmask enumerations:
@@ -2906,10 +2903,10 @@ def dump_message_verbose(f, m):
                 continue
 #            except NameError as e:
 #                pass
-        except AttributeError as e:
+        except AttributeError:
             # e.g. BAD_DATA
             pass
-        except KeyError as e:
+        except KeyError:
             pass
 
         # add any enumeration name:
@@ -2920,10 +2917,10 @@ def dump_message_verbose(f, m):
                 value = "%s (%s)" % (value, enum_value)
             except KeyError as e:
                 value = "%s (%s)" % (value, "[UNKNOWN]")
-        except AttributeError as e:
+        except AttributeError:
             # e.g. BAD_DATA
             pass
-        except KeyError as e:
+        except KeyError:
             pass
 
         f.write("    %s: %s\n" % (fieldname, value))
