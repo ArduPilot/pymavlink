@@ -1279,7 +1279,9 @@ class mavtcp(mavfile):
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
 
     def close(self):
-        self.port.close()
+        if self.port is not None:
+            self.port.close()
+            self.port = None
 
     def handle_disconnect(self):
         print("Connection reset or closed by peer on TCP socket")
@@ -1290,9 +1292,24 @@ class mavtcp(mavfile):
         print("EOF on TCP socket")
         self.reconnect()
 
-    def recv(self,n=None):
+    def _ensure_port(self):
+        '''make sure self.port is usable, reconnecting if that was asked for
+
+        Raises OSError(ENOTCONN) when there is no socket and nothing is going to
+        reopen one: reconnect() is a no-op unless autoreconnect was requested, so
+        it can return with self.port still None. A failed reconnect attempt
+        raises its own, more specific error from do_connect() instead.
+        '''
         if self.port is None:
             self.reconnect()
+        if self.port is None:
+            raise OSError(errno.ENOTCONN, "TCP socket is closed")
+
+    def recv(self,n=None):
+        # a closed socket is a permanent condition, so it is reported rather
+        # than returned as b"": that value means "no data right now, retry",
+        # which is how the EAGAIN/EWOULDBLOCK path below uses it.
+        self._ensure_port()
         if n is None:
             n = self.mav.bytes_needed()
         try:
@@ -1309,12 +1326,12 @@ class mavtcp(mavfile):
         return data
 
     def write(self, buf):
-        if self.port is None:
-            try:
-                self.reconnect()
-            except socket.error as e:
-                pass
-        if self.port is None:
+        try:
+            self._ensure_port()
+        except OSError:
+            # unlike recv(), write() is fire-and-forget: callers are sending a
+            # mavlink message through self.mav and are not in a position to
+            # handle a dead link, so this stays silent as it always has.
             return
         try:
             self.port.send(buf)
