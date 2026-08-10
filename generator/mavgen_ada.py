@@ -703,11 +703,13 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
         with Address => Message'Address,
         Convention   => Ada;
    begin
-      pragma Assert
-        (Get_Msg_Len (Connect) =
-             Unsigned_8 (Integer (%s'Value_Size) / 8));
-      Get_Message_Data (Connect, Buf);
       CRC_Valid := Check_CRC (Connect);
+      if CRC_Valid then
+        pragma Assert
+            (Get_Msg_Len (Connect) =
+                Unsigned_8 (Integer (%s'Value_Size) / 8));
+        Get_Message_Data (Connect, Buf);
+      end if;      
 """ % (name, name))
     else:
         body.write("""      Data : Data_Buffer (1 .. %s'Value_Size / 8);
@@ -717,9 +719,15 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
         with Address => Message'Address,
         Convention   => Ada;
    begin
-      Get_Message_Data (Connect, Data, Last);
-      Buf (1 .. Last) := Data (1 .. Last);
       CRC_Valid := Check_CRC (Connect);
+      if CRC_Valid then
+        Get_Message_Data (Connect, Data, Last);
+        if Last > 0 then
+            Buf (1 .. Last) := Data (1 .. Last);
+        else
+            CRC_Valid := False;
+        end if;
+      end if;
 """ % (name, name))
     body.write("""   end Decode;
 

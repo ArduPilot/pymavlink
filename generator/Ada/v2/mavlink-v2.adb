@@ -656,9 +656,15 @@ package body MAVLink.V2 is
           Natural (Header.Len) - 1;
    begin
       Last := Buffer'First + Natural (Header.Len - 1);
-      Buffer (Buffer'First .. Last) := Incoming.Income_Buffer
-        (Incoming.Income_Buffer'First + Packet_Payload_First ..
-           Last_Data);
+      --  protection against invalid packets' data that makes
+      --  the data bigger than the Buffer
+      if Last <= Buffer'Last then
+         Buffer (Buffer'First .. Last) := Incoming.Income_Buffer
+         (Incoming.Income_Buffer'First + Packet_Payload_First ..
+            Last_Data);
+      else
+         Last := Buffer'First - 1;
+      end if;
    end Get_Message_Data;
 
    ----------------------
