@@ -572,27 +572,37 @@ def generate_message_methods(name, rev, spec, is_v1):
      (Message   : out {0};
       Connect   : {2}{1}.Connection;
       CRC_Valid : out Boolean);
-   --  Get the message from the Connect and delete it
-   --  from the Connect's buffer. CRC_Valid is set to
-   --  True if x25crc is valid for the message.
+   --  Get the message from the Connect if x25crc is valid and
+   --  set CRC_Valid to True.
+   --  Won't read data from the Connect if x25crc is False.
+   --  For v1: Won't read data from the Connect if message length mismatch
+   --    and set CRC_Valid to False in this case.
+   --  For v2: Truncate the extension fields.
 
    procedure Decode
      (Message : out {0};
       Connect : {1}.Connection);
-   --  Same as Above but does not check CRC
+   --  Get the message from the Connect.
+   --  For v1: May raise exception when message length mismatch
+   --  For v2: Truncate the extension fields.
 
    procedure Decode
      (Message   : out {0};
       Connect   : {2}{1}.In_Connection;
       CRC_Valid : out Boolean);
-   --  Get the message from the Connect and delete it
-   --  from the Connect's buffer. CRC_Valid is set to
-   --  True if x25crc is valid for the message.
+   --  Get the message from the Connect if x25crc is valid and
+   --  set CRC_Valid to True.
+   --  Won't read data from the Connect if x25crc is False.
+   --  For v1: Won't read data from the Connect if message length mismatch
+   --    and set CRC_Valid to False in this case.
+   --  For v2: Truncate the extension fields.
 
    procedure Decode
      (Message : out {0};
       Connect : {1}.In_Connection);
-   --  Same as Above but does not check CRC
+   --  Get the message from the Connect.
+   --  For v1: May raise an exception when message length mismatch
+   --  For v2: Truncate the extension fields.
 
    function Check_CRC
      (Connect : {2}{1}.Connection)
@@ -698,16 +708,21 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
 """ % (name, mode, rev, connection))
 
     if is_v1:
-        body.write("""      Buf : Data_Buffer
-        (1 .. %s'Size / 8) := [others => 0]
-        with Address => Message'Address,
-        Convention   => Ada;
+        body.write("""      Buf : Data_Buffer (1 .. %s'Size / 8)
+        with Import,
+        Address    => Message'Address,
+        Convention => Ada;
    begin
-      pragma Assert
-        (Get_Msg_Len (Connect) =
-             Unsigned_8 (Integer (%s'Value_Size) / 8));
-      Get_Message_Data (Connect, Buf);
-      CRC_Valid := Check_CRC (Connect);
+      if Get_Msg_Len (Connect) =
+        Unsigned_8 (Integer (%s'Value_Size) / 8)
+      then
+         CRC_Valid := Check_CRC (Connect);
+         if CRC_Valid then
+            Get_Message_Data (Connect, Buf);
+         end if;
+      else
+         CRC_Valid := False;
+      end if;
 """ % (name, name))
     else:
         body.write("""      Data : Data_Buffer (1 .. %s'Value_Size / 8);
@@ -717,9 +732,11 @@ def generate_message_body_decode(name, rev, extra, body, is_v1, connection):
         with Address => Message'Address,
         Convention   => Ada;
    begin
-      Get_Message_Data (Connect, Data, Last);
-      Buf (1 .. Last) := Data (1 .. Last);
       CRC_Valid := Check_CRC (Connect);
+      if CRC_Valid then
+         Get_Message_Data (Connect, Data, Last);
+         Buf (1 .. Last) := Data (1 .. Last);
+      end if;
 """ % (name, name))
     body.write("""   end Decode;
 
@@ -1146,6 +1163,7 @@ pragma Warnings (Off); --  prevent "not used"
 with MAVLink.Raw_Floats;      use MAVLink.Raw_Floats;
 with MAVLink.Raw_Long_Floats; use MAVLink.Raw_Long_Floats;
 with MAVLink.SHA_256;
+with Interfaces;
 pragma Warnings (On);
 
 use MAVLink.V2;
@@ -1230,6 +1248,8 @@ is""");
    Buffer      : Data_Buffer (1 .. MAVLink.V2.Maximum_Buffer_Len);
    Last        : Positive;
 
+   use type Interfaces.Unsigned_8;
+
 begin
    Initialize (Sig,  1, Pass_Data, 200);
    Set_System_Id (In_Connect, 1);
@@ -1251,6 +1271,8 @@ begin
       Res := Parse_Byte (In_Connect, Hygrometer_Sensors_Data (Index));
    end loop;
    pragma Assert (Res);
+
+   pragma Assert (Get_Msg_Length (In_Connect) = 5);
 
    Get_Message_Information
      (In_Connect, Sig, Seq, Sys_Id, Comp_Id, Id, Link_Id, Timestamp, Signature);

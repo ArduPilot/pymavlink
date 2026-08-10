@@ -94,6 +94,8 @@ package MAVLink.V2 is
       return Boolean with Inline;
    --  Add the Value to the buffer and return True if a message has been read
    --  (collected all message data)
+   --  All methods that work with incoming data (like Get_*, Check_*) should be
+   --  called only when this method returned True.
 
    --  Get the message's information that is in the connection's buffer --
    procedure Get_Message_Information
@@ -121,6 +123,10 @@ package MAVLink.V2 is
       Comp_Id : out Component_Id_Type;
       Id      : out Msg_Id) with Inline;
    --  Same as above but do not check V2 signature
+
+   function Get_Msg_Length
+     (Self : Connection) return Interfaces.Unsigned_8 with Inline;
+   --  Returns length field from the packet header from the incoming buffer
 
    function Get_Message_Id (Self : Connection) return Msg_Id with Inline;
    --  Returns message's ID
@@ -188,6 +194,10 @@ package MAVLink.V2 is
       Sys_Id  : out System_Id_Type;
       Comp_Id : out Component_Id_Type;
       Id      : out Msg_Id) with Inline;
+
+   function Get_Msg_Length
+     (Self : In_Connection) return Interfaces.Unsigned_8 with Inline;
+   --  Returns length field from the packet header from the incoming buffer
 
    function Get_Message_Id (Self : In_Connection) return Msg_Id with Inline;
 
@@ -323,6 +333,9 @@ private
      (Self   : Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural);
+   --  Copy data from the internal incoming buffer to Buffer,
+   --  and set Last to the index of the last copied byte.
+   --  Truncate the data if Buffer is too small to hold it all.
 
    -- In_Connection --
 
@@ -339,6 +352,9 @@ private
      (Self   : In_Connection;
       Buffer : out Data_Buffer;
       Last   : out Natural);
+   --  Copy data from the internal incoming buffer to Buffer,
+   --  and set Last to the index of the last copied byte.
+   --  Truncate the data if Buffer is too small to hold it all.
 
    -- Out_Connection --
 
@@ -387,6 +403,8 @@ private
       Link_Id   : out Link_Id_Type;
       Timestamp : out Timestamp_Type;
       Signature : out Three_Boolean);
+
+   function Get_Msg_Length (Incoming : Incoming_Data) return Interfaces.Unsigned_8;
 
    function Get_Message_Id (Incoming : Incoming_Data) return Msg_Id;
 

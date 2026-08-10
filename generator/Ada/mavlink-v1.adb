@@ -230,8 +230,8 @@ package body MAVLink.V1 is
         Address => Incoming.In_Buf'Address;
       Last_Data : constant Positive := Incoming.In_Buf'First +
         Packet_Payload_First +
-          Natural (Header.Len - 1);
-      Last : constant Natural := Buffer'First + Natural (Header.Len - 1);
+          Natural (Header.Len) - 1;
+      Last : constant Natural := Buffer'First + Natural (Header.Len) - 1;
    begin
       Buffer (Buffer'First .. Last) := Incoming.In_Buf
         (Incoming.In_Buf'First + Packet_Payload_First .. Last_Data);
