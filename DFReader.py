@@ -1332,6 +1332,8 @@ class DFReader_binary(DFReader):
         for ofs in offsets[fmt_type]:
             # Parse the FMT message
             body = data[ofs+3:ofs+fmt_fmt.len]
+            if len(body)+3 < fmt_fmt.len:
+                break
             elements = list(struct.unpack(fmt_fmt.msg_struct, body))
             ftype = elements[0]
             mfmt = DFFormat(
