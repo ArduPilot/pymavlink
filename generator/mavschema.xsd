@@ -197,7 +197,7 @@
 <xs:attribute name="reserved" type="xs:boolean" default="false"/>      <!-- parameter is reserved -->
 
 <!-- definition entry elements attributes (like the ones used on MAV_CMD for example) -->
-<xs:attribute name="hasLocation" type="xs:boolean" default="false"/>    <!-- entry is an ROI or other non-destination (lat/lon/alt location in params 5, 6, 7). -->
+<xs:attribute name="hasLocation" type="xs:boolean" default="false"/> <!-- lat/lon/alt location in params 5, 6, 7 (entry contains location information). -->
 <xs:attribute name="isDestination" type="xs:boolean" default="false"/>  <!-- entry is a waypoint/destination (lat/lon/alt in params 5, 6, 7) -->
 <xs:attribute name="hasAltitudeOnly" type="xs:boolean" default="false"/>  <!-- alt in param7 and lat/lon not in param 5/6 -->
 <xs:attribute name="missionOnly" type="xs:boolean" default="false"/>  <!-- entry only makes sense in missions, not commands -->
