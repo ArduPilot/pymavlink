@@ -331,6 +331,8 @@ class MAVXML(object):
             elif in_element == "mavlink.enums.enum.entry.deprecated":
                 check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
                 self.enum[-1].entry[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])
+            elif in_element == "mavlink.include":
+                self.include.append('')
 
         def is_target_system_field(m, f):
             if f.name == 'target_system':
@@ -364,7 +366,7 @@ class MAVXML(object):
             elif in_element == "mavlink.version":
                 self.version = int(data)
             elif in_element == "mavlink.include":
-                self.include.append(data)
+                self.include[-1] += data
 
         f = open(filename, mode='rb')
         p = xml.parsers.expat.ParserCreate()
