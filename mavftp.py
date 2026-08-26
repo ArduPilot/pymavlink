@@ -15,6 +15,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import os
+import tempfile
 import random
 import struct
 import sys
@@ -377,7 +378,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.list_temp_result: List[DirectoryEntry] = []
         self.requested_size: int = 0
         self.requested_offset: int = 0
-        self.temp_filename = "/tmp/temp_mavftp_file"
+        # set per-download by __handle_open_ro_reply: a securely
+        # created unique staging file, so concurrent MAVFTP clients on
+        # one host (e.g. parallel simulator test runners) cannot share
+        # a staging file and its name is not predictable
+        self.temp_filename = None
+        # only close file handles this instance opened itself; cmd_put
+        # stores a caller-owned handle in self.fh
+        self.fh_owned = False
 
         self.master = master
         self.target_system = target_system
@@ -441,12 +449,29 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.last_op_time = time.time()
         self.last_send_time = now
 
+    def __release_staging(self) -> None:
+        """Close and remove this instance's own staging resources.
+        Caller-owned handles (cmd_put's fh argument) are left alone."""
+        if self.fh is not None and self.fh_owned:
+            try:
+                self.fh.close()
+            except OSError:
+                pass
+        self.fh_owned = False
+        if self.temp_filename is not None:
+            try:
+                os.unlink(self.temp_filename)
+            except OSError:
+                pass
+            self.temp_filename = None
+
     def __terminate_session(self) -> None:
         """Terminate current session."""
         self.pending_terminate_seq = self.seq
         self.__send(
             FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None)
         )
+        self.__release_staging()
         self.fh = None
         self.filename = None
         self.write_list = None
@@ -670,7 +695,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 if self.callback is not None or self.filename == "-":
                     self.fh = SIO()
                 else:
-                    self.fh = open(self.temp_filename, "wb+")  # noqa: SIM115 pylint: disable=consider-using-with
+                    self.__release_staging()
+                    (temp_fd, self.temp_filename) = tempfile.mkstemp(prefix="mavftp_")
+                    try:
+                        self.fh = os.fdopen(temp_fd, "wb+")
+                    except OSError:
+                        os.close(temp_fd)
+                        raise
+                    self.fh_owned = True
                     self.fh.truncate(0)
                     self.fh.seek(self.requested_offset)
                     read = FTP_OP(
@@ -762,14 +794,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 )
             logging.info("read %u bytes", len(self.get_result))
             self.fh.flush()
-            self.fh.close()
-            if self.filename:
-                # Move the result to the final location
-                logging.info("Moving %s to %s", self.temp_filename, self.filename)
-                with open(self.filename, "wb") as final_file:
-                    final_file.write(self.get_result)
-            self.__terminate_session()
-            self.read_complete = True
+            try:
+                if self.filename and self.filename != "-":
+                    # Move the result to the final location
+                    logging.info("Moving %s to %s", self.temp_filename, self.filename)
+                    with open(self.filename, "wb") as final_file:
+                        final_file.write(self.get_result)
+            finally:
+                # terminate the remote session and release the staging
+                # file even when the destination cannot be written
+                self.__terminate_session()
+                self.read_complete = True
             return True
         return False
 
