@@ -354,6 +354,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.last_send_time = time.time()
         self.rtt = 0.5
         self.reached_eof = False
+        self.read_complete = False
+        # sequence numbers of in-flight terminate/reset requests, None
+        # when nothing is outstanding: replies are correlated by
+        # sequence so a stale or duplicated reply from an earlier
+        # request cannot mark the current one complete
+        self.pending_terminate_seq = None
+        self.pending_reset_seq = None
         self.backlog = 0
         self.burst_size: int = int(self.ftp_settings.burst_read_size)
         self.write_list: Union[None, Set[int]] = None
@@ -379,6 +386,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.done = False
 
         # Reset the flight controller FTP state-machine
+        self.pending_reset_seq = self.seq
         self.__send(FTP_OP(self.seq, self.session, OP_ResetSessions, 0, 0, 0, 0, None))
         self.process_ftp_reply("ResetSessions")
 
@@ -435,6 +443,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __terminate_session(self) -> None:
         """Terminate current session."""
+        self.pending_terminate_seq = self.seq
         self.__send(
             FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None)
         )
@@ -760,6 +769,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 with open(self.filename, "wb") as final_file:
                     final_file.write(self.get_result)
             self.__terminate_session()
+            self.read_complete = True
             return True
         return False
 
@@ -1301,6 +1311,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if op.req_opcode == OP_ResetSessions:
             return self.__handle_reset_sessions_reply(op, m)
         if op.req_opcode in {OP_None, OP_TerminateSession}:
+            if (
+                op.req_opcode == OP_TerminateSession
+                and self.pending_terminate_seq is not None
+                and op.seq == (self.pending_terminate_seq + 1) % 256
+            ):
+                # Ack or Nack (InvalidSession means it was already
+                # closed): the handshake has been answered
+                self.pending_terminate_seq = None
             return MAVFTPReturn(operation_name, FtpError.Success)  # ignore reply
         if op.req_opcode == OP_CreateFile:
             return self.__handle_create_file_reply(op, m)
@@ -1454,6 +1472,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __handle_reset_sessions_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle reset sessions reply."""
+        if (
+            self.pending_reset_seq is not None
+            and op.seq == (self.pending_reset_seq + 1) % 256
+        ):
+            # Ack or Nack, the handshake has been answered; the decoded
+            # result below still reports a Nack to the caller
+            self.pending_reset_seq = None
         return self.__decode_ftp_ack_and_nack(op)
 
     def process_ftp_reply(
@@ -1470,16 +1495,47 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             "recv_timeout must be < settings.retry_time"
         )  # noqa: S101
 
+        # A read operation reports its completion positively: EOF seen
+        # with no gaps outstanding (__check_read_finished).  Return as
+        # soon as the transfer and its session-terminate handshake are
+        # both done instead of waiting out idle_detection_time of link
+        # silence - on a fast or simulated link the quiet-period tail
+        # dwarfs the transfer itself.  The flag is only ever set while a
+        # reply-processing loop runs (this one, or read()'s own driver
+        # loop, which does not use this method), so clearing it here
+        # cannot lose a completion; idle detection remains the fallback for a lost
+        # terminate reply and for operations with no positive
+        # completion signal.
+        self.read_complete = False
         while True:  # an FTP operation can have multiple responses
             m = self.master.recv_match(
                 type=["FILE_TRANSFER_PROTOCOL"], timeout=recv_timeout
             )
             if m is not None:
                 if operation_name == "TerminateSession":
-                    # self.silently_discard_terminate_session_reply()
-                    ret = MAVFTPReturn(operation_name, FtpError.Success)
+                    # consume only the terminate reply itself: stale
+                    # replies from the aborted transfer must not reach
+                    # their handlers, which can re-enter
+                    # __terminate_session from this very wait
+                    op = self.__op_parse(m)
+                    if (
+                        op.req_opcode == OP_TerminateSession
+                        and self.pending_terminate_seq is not None
+                        and op.seq == (self.pending_terminate_seq + 1) % 256
+                    ):
+                        self.pending_terminate_seq = None
+                        ret = MAVFTPReturn(operation_name, FtpError.Success)
                 else:
                     ret = self.__mavlink_packet(m)
+            if self.pending_terminate_seq is None and (
+                self.read_complete
+                or operation_name == "TerminateSession"
+                or (
+                    operation_name == "ResetSessions"
+                    and self.pending_reset_seq is None
+                )
+            ):
+                break
             if self.__idle_task():
                 break
             if timeout > 0 and time.time() - start_time > timeout:  # pylint: disable=chained-comparison
