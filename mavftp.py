@@ -927,13 +927,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                         "FTP: burst continue at %u %u", more.offset, self.fh.tell()
                     )
                 self.__send(more)
-        elif op.opcode == OP_Nack:
-            ecode = (
-                FtpError(op.payload[0])
-                if op.payload is not None
-                else FtpError.NoErrorCodeInNack
-            )
-            if ecode in (FtpError.EndOfFile, 0):
+            # A valid burst reply may be only one part of the transfer.
+            # It is successful even when it does not complete the read.
+            return MAVFTPReturn("BurstReadFile", FtpError.Success)
+        if op.opcode == OP_Nack:
+            nack_result = self.__decode_ftp_ack_and_nack(op)
+            if nack_result.error_code == FtpError.EndOfFile:
                 if not self.reached_eof and op.offset > self.fh.tell():
                     # we lost the last part of the burst
                     if self.ftp_settings.debug > 0:
@@ -956,12 +955,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 if self.__check_read_finished():
                     return MAVFTPReturn("BurstReadFile", FtpError.Success)
                 self.__check_read_send()
-            elif self.ftp_settings.debug > 0:
-                logging.info("FTP: burst Nack (ecode:%u): %s", ecode, op)
                 return MAVFTPReturn("BurstReadFile", FtpError.Fail)
             if self.ftp_settings.debug > 0:
                 logging.error("FTP: burst nack: %s", op)
-                return MAVFTPReturn("BurstReadFile", FtpError.Fail)
+            self.__terminate_session()
+            return nack_result
         else:
             logging.warning("FTP: burst error: %s", op)
         return MAVFTPReturn("BurstReadFile", FtpError.Fail)
@@ -1598,6 +1596,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             ):
                 break
             if self.__idle_task():
+                if self.last_burst_read is not None and not self.read_complete:
+                    ret = MAVFTPReturn(operation_name, FtpError.RemoteReplyTimeout)
                 break
             if timeout > 0 and time.time() - start_time > timeout:  # pylint: disable=chained-comparison
                 logging.error(

@@ -35,7 +35,7 @@ from pymavlink.mavftp import (
 )
 
 
-class FakeFTPMessage:
+class FakeFTPMessage:  # pylint: disable=too-few-public-methods
     """Minimal FILE_TRANSFER_PROTOCOL message for reply-loop tests."""
 
     def __init__(self, op):
@@ -48,7 +48,7 @@ class FakeFTPMessage:
         return "FILE_TRANSFER_PROTOCOL"
 
 
-class FakeMAV:
+class FakeMAV:  # pylint: disable=too-few-public-methods
     """Record FTP sends without requiring a MAVLink transport."""
 
     def __init__(self):
@@ -58,7 +58,7 @@ class FakeMAV:
         self.sent.append(args)
 
 
-class FakeMaster:
+class FakeMaster:  # pylint: disable=too-few-public-methods
     """Serve a predetermined sequence of FTP replies."""
 
     source_system = 1
@@ -74,7 +74,7 @@ class FakeMaster:
         return None
 
 
-def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0):
+def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0):
     """Create a parsed FTP response represented as a minimal MAVLink message."""
     data = bytearray(payload) if payload is not None else bytearray()
     return FakeFTPMessage(
@@ -84,7 +84,7 @@ def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0)
             opcode=opcode,
             size=len(data),
             req_opcode=req_opcode,
-            burst_complete=burst_complete,
+            burst_complete=0,
             offset=offset,
             payload=data,
         )
@@ -169,7 +169,14 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
                 # This is the remaining part of the first burst. The next
                 # burst request has already been sent, so its sequence is
                 # older than last_op but still belongs to this download.
-                ftp_reply(3, OP_Ack, OP_BurstReadFile, payload=b"y", offset=80, burst_complete=1),
+                ftp_reply(
+                    3,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"y",
+                    offset=80,
+                    burst_complete=1,
+                ),
                 ftp_reply(5, OP_Ack, OP_TerminateSession),
             ]
         )
@@ -244,6 +251,28 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
             self.assertEqual(result.error_code, FtpError.Fail)
             self.assertFalse(os.path.exists(destination))
 
+    def test_malformed_burst_nacks_are_decoded(self):
+        for payload, expected_error in (
+            (b"", FtpError.NoErrorCodeInPayload),
+            (b"\xff", FtpError.InvalidErrorCode),
+        ):
+            with self.subTest(payload=payload):
+                ftp, master = self.make_ftp(
+                    [
+                        ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[1, 0, 0, 0]),
+                        ftp_reply(3, OP_Nack, OP_BurstReadFile, payload=payload),
+                        ftp_reply(4, OP_Ack, OP_TerminateSession),
+                    ]
+                )
+                ftp.cmd_get(
+                    ["remote", "-"],
+                    callback=lambda _fh: MAVFTPReturn("Get", FtpError.Success),
+                )
+                result = ftp.process_ftp_reply("get", timeout=1)
+
+                self.assertEqual(result.error_code, expected_error)
+                self.assertEqual(master.replies, [])
+
 
 class TestMAVFTPParamDecode(unittest.TestCase):
     """Validate packed parameter name constraints."""
@@ -272,6 +301,7 @@ class TestMAVFTPParamDecode(unittest.TestCase):
         with self.assertLogs(level="ERROR") as logs:
             self.assertIsNone(MAVFTP.ftp_param_decode(header + first + second))
         self.assertIn("parameter name is too long", logs.output[0])
+
 
 class TestMAVFTPPayloadDecoding(unittest.TestCase):
     """Test MAVFTP payload decoding"""
