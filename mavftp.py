@@ -1683,7 +1683,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         )
 
     @staticmethod
-    def ftp_param_decode(data: bytes) -> Union[None, ParamData]:  # pylint: disable=too-many-locals
+    def ftp_param_decode(data: bytes) -> Union[None, ParamData]:  # pylint: disable=too-many-locals,too-many-statements,too-many-branches,too-many-return-statements
         """Decode parameter data, returning ParamData."""
         pdata = ParamData()
 
@@ -1718,6 +1718,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
             if len(data) == 0:
                 break
+            if len(data) < 2:
+                logging.error("paramftp: truncated parameter header")
+                return None
 
             ptype, plen = struct.unpack("<BB", data[0:2])
             flags = (ptype >> 4) & 0x0F
@@ -1733,10 +1736,31 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
             name_len = ((plen >> 4) & 0x0F) + 1
             common_len = plen & 0x0F
+            value_len = type_len + default_len
+            record_len = 2 + name_len + value_len
+            if len(data) < record_len:
+                logging.error("paramftp: truncated parameter record")
+                return None
+            if common_len > len(last_name):
+                logging.error(
+                    "paramftp: invalid shared parameter name prefix length %u",
+                    common_len,
+                )
+                return None
             name = last_name[0:common_len] + data[2 : 2 + name_len]
-            vdata = data[2 + name_len : 2 + name_len + type_len + default_len]
+            if len(name) > 16:
+                logging.error(
+                    "paramftp: parameter name is too long (%u bytes)", len(name)
+                )
+                return None
+            try:
+                name.decode("utf-8")
+            except UnicodeDecodeError:
+                logging.error("paramftp: parameter name is not valid UTF-8")
+                return None
+            vdata = data[2 + name_len : record_len]
             last_name = name
-            data = data[2 + name_len + type_len + default_len :]
+            data = data[record_len:]
             if with_defaults:
                 if has_default:
                     (
