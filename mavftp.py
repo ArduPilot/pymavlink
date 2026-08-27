@@ -1018,9 +1018,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.operation_complete = False
         fname = args[0]
         self.fh = fh
+        self.fh_owned = False
         if self.fh is None:
             try:
                 self.fh = open(fname, "rb")  # noqa: SIM115 pylint: disable=consider-using-with
+                self.fh_owned = True
             except Exception as ex:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: Failed to open %s: %s", fname, ex)
                 return MAVFTPReturn("CreateFile", FtpError.FailToOpenLocalFile)
@@ -1558,6 +1560,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         # terminate reply and for operations with no positive
         # completion signal.
         self.read_complete = False
+        self.operation_complete = False
         while True:  # an FTP operation can have multiple responses
             m = self.master.recv_match(
                 type=["FILE_TRANSFER_PROTOCOL"], timeout=recv_timeout
@@ -1585,15 +1588,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     callback_failure = self.callback_failure
                     self.callback_failure = None
                     return callback_failure
-            if self.pending_terminate_seq is None and (
-                self.read_complete
-                or self.operation_complete
-                or operation_name == "TerminateSession"
-                or (
-                    operation_name == "ResetSessions"
-                    and self.pending_reset_seq is None
-                )
-            ):
+            reply_complete = self.operation_complete
+            if not reply_complete and self.pending_terminate_seq is None:
+                reply_complete = self.read_complete
+                if not reply_complete:
+                    reply_complete = operation_name == "TerminateSession"
+                if not reply_complete and operation_name == "ResetSessions":
+                    reply_complete = self.pending_reset_seq is None
+            if reply_complete:
                 break
             if self.__idle_task():
                 if self.last_burst_read is not None and not self.read_complete:

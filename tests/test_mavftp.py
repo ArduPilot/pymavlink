@@ -29,6 +29,7 @@ from pymavlink.mavftp import (
     OP_Nack,
     OP_OpenFileRO,
     OP_ReadFile,
+    OP_RemoveFile,
     OP_ResetSessions,
     OP_TerminateSession,
     OP_WriteFile,
@@ -67,14 +68,18 @@ class FakeMaster:  # pylint: disable=too-few-public-methods
     def __init__(self, replies):
         self.mav = FakeMAV()
         self.replies = replies
+        self.empty_polls = 0
 
     def recv_match(self, **_kwargs):
+        if self.empty_polls:
+            self.empty_polls -= 1
+            return None
         if self.replies:
             return self.replies.pop(0)
         return None
 
 
-def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0):
+def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0):
     """Create a parsed FTP response represented as a minimal MAVLink message."""
     data = bytearray(payload) if payload is not None else bytearray()
     return FakeFTPMessage(
@@ -84,7 +89,7 @@ def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0):
             opcode=opcode,
             size=len(data),
             req_opcode=req_opcode,
-            burst_complete=0,
+            burst_complete=burst_complete,
             offset=offset,
             payload=data,
         )
@@ -154,6 +159,19 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(master.replies, [])
         self.assertEqual(len(master.mav.sent), 3)
+
+    def test_follow_up_command_waits_after_completed_list(self):
+        ftp, master = self.make_ftp(
+            [ftp_reply(2, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile])]
+        )
+        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
+
+        master.empty_polls = 1
+        master.replies.append(ftp_reply(3, OP_Ack, OP_RemoveFile))
+        result = ftp.cmd_rm(["remote"])
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(master.replies, [])
 
     def test_out_of_order_burst_reply_is_dispatched(self):
         ftp, _master = self.make_ftp(
