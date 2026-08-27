@@ -8,17 +8,270 @@ SPDX-FileCopyrightText: 2024 Amilcar Lucas
 SPDX-License-Identifier: GPL-3.0-or-later
 '''
 
-import unittest
-#from unittest.mock import patch
-from io import StringIO
 import logging
+import os
+import struct
+import tempfile
+import unittest
+from io import BytesIO, StringIO
+
+#from unittest.mock import patch
 from pymavlink import mavutil
-from pymavlink.mavftp import FTP_OP, MAVFTP, MAVFTPReturn
-from pymavlink.mavftp import FtpError
-from pymavlink.mavftp import OP_ListDirectory
-from pymavlink.mavftp import OP_ReadFile
-from pymavlink.mavftp import OP_Ack
-from pymavlink.mavftp import OP_Nack
+from pymavlink.mavftp import (
+    FTP_OP,
+    MAVFTP,
+    FtpError,
+    MAVFTPReturn,
+    OP_Ack,
+    OP_BurstReadFile,
+    OP_CreateFile,
+    OP_ListDirectory,
+    OP_Nack,
+    OP_OpenFileRO,
+    OP_ReadFile,
+    OP_ResetSessions,
+    OP_TerminateSession,
+    OP_WriteFile,
+)
+
+
+class FakeFTPMessage:
+    """Minimal FILE_TRANSFER_PROTOCOL message for reply-loop tests."""
+
+    def __init__(self, op):
+        self.payload = op.pack()
+        self.target_system = 1
+        self.target_component = 1
+
+    @staticmethod
+    def get_type():
+        return "FILE_TRANSFER_PROTOCOL"
+
+
+class FakeMAV:
+    """Record FTP sends without requiring a MAVLink transport."""
+
+    def __init__(self):
+        self.sent = []
+
+    def file_transfer_protocol_send(self, *args):
+        self.sent.append(args)
+
+
+class FakeMaster:
+    """Serve a predetermined sequence of FTP replies."""
+
+    source_system = 1
+    source_component = 1
+
+    def __init__(self, replies):
+        self.mav = FakeMAV()
+        self.replies = replies
+
+    def recv_match(self, **_kwargs):
+        if self.replies:
+            return self.replies.pop(0)
+        return None
+
+
+def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0):
+    """Create a parsed FTP response represented as a minimal MAVLink message."""
+    data = bytearray(payload) if payload is not None else bytearray()
+    return FakeFTPMessage(
+        FTP_OP(
+            seq=seq,
+            session=0,
+            opcode=opcode,
+            size=len(data),
+            req_opcode=req_opcode,
+            burst_complete=burst_complete,
+            offset=offset,
+            payload=data,
+        )
+    )
+
+
+class TestMAVFTPReplyCompletion(unittest.TestCase):
+    """Regression tests for command completion and idle fallback."""
+
+    @staticmethod
+    def make_ftp(replies):
+        master = FakeMaster(
+            [ftp_reply(1, OP_Ack, OP_ResetSessions)] + replies
+        )
+        ftp = MAVFTP(master, target_system=1, target_component=1)
+        ftp.ftp_settings.idle_detection_time = 0.02
+        ftp.ftp_settings.read_retry_time = 0.01
+        ftp.ftp_settings.retry_time = 0.2
+        return ftp, master
+
+    def test_put_returns_after_completion_before_late_write_reply(self):
+        ftp, master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_CreateFile),
+                ftp_reply(3, OP_Ack, OP_WriteFile, offset=0),
+                ftp_reply(5, OP_Ack, OP_TerminateSession),
+                ftp_reply(3, OP_Ack, OP_WriteFile, offset=0),
+            ]
+        )
+
+        ftp.cmd_put(["local", "remote"], fh=BytesIO(b"x"))
+        result = ftp.process_ftp_reply("put", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(len(master.replies), 1)
+
+    def test_list_returns_after_eof_before_late_error(self):
+        ftp, master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile]),
+                ftp_reply(3, OP_Nack, OP_ListDirectory, payload=[FtpError.Fail]),
+            ]
+        )
+
+        result = ftp.cmd_list([])
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(len(master.replies), 1)
+
+    def test_stale_list_ack_does_not_resend_remove(self):
+        ftp, master = self.make_ftp(
+            [ftp_reply(2, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile])]
+        )
+        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
+
+        # A delayed list ACK arrives while waiting for RemoveFile. It must not
+        # be dispatched to __handle_list_reply(), which would resend last_op
+        # (the RemoveFile request) with a new sequence number.
+        master.replies.extend(
+            [
+                ftp_reply(2, OP_Ack, OP_ListDirectory),
+                ftp_reply(3, OP_Ack, OP_RemoveFile),
+            ]
+        )
+        result = ftp.cmd_rm(["remote"])
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(master.replies, [])
+        self.assertEqual(len(master.mav.sent), 3)
+
+    def test_out_of_order_burst_reply_is_dispatched(self):
+        ftp, _master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[81, 0, 0, 0]),
+                ftp_reply(
+                    3,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"x" * 80,
+                    burst_complete=1,
+                ),
+                # This is the remaining part of the first burst. The next
+                # burst request has already been sent, so its sequence is
+                # older than last_op but still belongs to this download.
+                ftp_reply(3, OP_Ack, OP_BurstReadFile, payload=b"y", offset=80, burst_complete=1),
+                ftp_reply(5, OP_Ack, OP_TerminateSession),
+            ]
+        )
+
+        ftp.cmd_get(
+            ["remote", "-"],
+            callback=lambda _fh: MAVFTPReturn("Get", FtpError.Success),
+        )
+        result = ftp.process_ftp_reply("get", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+
+    def test_completed_put_skips_late_reply_after_termination_timeout(self):
+        ftp, master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_WriteFile),
+                ftp_reply(3, OP_Ack, OP_WriteFile),
+            ]
+        )
+        ftp.pending_terminate_seq = 7
+
+        def complete_operation(_message):
+            ftp.completed_reply = (OP_WriteFile, 6)
+            return MAVFTPReturn("WriteFile", FtpError.Success)
+
+        setattr(ftp, "_MAVFTP__mavlink_packet", complete_operation)
+        result = ftp.process_ftp_reply("put", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(len(master.replies), 1)
+
+    def test_incomplete_burst_read_reports_timeout_on_idle(self):
+        ftp, _master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[160, 0, 0, 0]),
+                ftp_reply(3, OP_Ack, OP_BurstReadFile, payload=b"x" * 80),
+            ]
+        )
+
+        ftp.cmd_get(
+            ["remote"],
+            callback=lambda _fh: MAVFTPReturn("Get", FtpError.Success),
+        )
+        result = ftp.process_ftp_reply("get", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertIsNone(ftp.get_result)
+
+    def test_callback_failure_does_not_publish_download(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            destination = f"{tempdir}/param.pck"
+            ftp, _master = self.make_ftp(
+                [
+                    ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[3, 0, 0, 0]),
+                    ftp_reply(
+                        3,
+                        OP_Ack,
+                        OP_BurstReadFile,
+                        payload=b"bad",
+                        burst_complete=1,
+                    ),
+                    ftp_reply(4, OP_Ack, OP_TerminateSession),
+                ]
+            )
+
+            ftp.cmd_get(
+                ["@PARAM/param.pck", destination],
+                callback=lambda _fh: MAVFTPReturn("GetParams", FtpError.Fail),
+            )
+            result = ftp.process_ftp_reply("getparams", timeout=1)
+
+            self.assertEqual(result.error_code, FtpError.Fail)
+            self.assertFalse(os.path.exists(destination))
+
+
+class TestMAVFTPParamDecode(unittest.TestCase):
+    """Validate packed parameter name constraints."""
+
+    @staticmethod
+    def packed_param(name):
+        # A float parameter with one name component and no defaults.
+        header = struct.pack("<HHH", 0x671B, 1, 1)
+        record = (
+            struct.pack("<BB", 4, (len(name) - 1) << 4)
+            + name
+            + struct.pack("<f", 1.0)
+        )
+        return header + record
+
+    def test_rejects_non_utf8_name(self):
+        with self.assertLogs(level="ERROR") as logs:
+            self.assertIsNone(MAVFTP.ftp_param_decode(self.packed_param(b"bad\xff")))
+        self.assertIn("parameter name is not valid UTF-8", logs.output[0])
+
+    def test_rejects_name_longer_than_16_bytes(self):
+        header = struct.pack("<HHH", 0x671B, 2, 2)
+        first = struct.pack("<BB", 4, 15 << 4) + b"A" * 16 + struct.pack("<f", 1.0)
+        # Reuse 15 bytes of the previous name and append two bytes.
+        second = struct.pack("<BB", 4, (1 << 4) | 15) + b"BC" + struct.pack("<f", 1.0)
+        with self.assertLogs(level="ERROR") as logs:
+            self.assertIsNone(MAVFTP.ftp_param_decode(header + first + second))
+        self.assertIn("parameter name is too long", logs.output[0])
 
 class TestMAVFTPPayloadDecoding(unittest.TestCase):
     """Test MAVFTP payload decoding"""
