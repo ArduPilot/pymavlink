@@ -293,6 +293,16 @@ class TestMAVFTPParamDecode(unittest.TestCase):
             self.assertIsNone(MAVFTP.ftp_param_decode(self.packed_param(b"bad\xff")))
         self.assertIn("parameter name is not valid UTF-8", logs.output[0])
 
+    def test_rejects_count_larger_than_total(self):
+        first = self.packed_param(b"PARAM_A")[6:]
+        second = self.packed_param(b"PARAM_B")[6:]
+        data = struct.pack("<HHH", 0x671B, 2, 1) + first + second
+
+        with self.assertLogs(level="ERROR") as logs:
+            self.assertIsNone(MAVFTP.ftp_param_decode(data))
+
+        self.assertIn("parameter count 2 exceeds total count 1", logs.output[0])
+
     def test_rejects_name_longer_than_16_bytes(self):
         header = struct.pack("<HHH", 0x671B, 2, 2)
         first = struct.pack("<BB", 4, 15 << 4) + b"A" * 16 + struct.pack("<f", 1.0)

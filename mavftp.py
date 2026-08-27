@@ -1694,9 +1694,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 "paramftp: Not enough data do decode, only %u bytes", len(data)
             )
             return None
-        magic2, _num_params, total_params = struct.unpack("<HHH", data[0:6])
+        magic2, num_params, total_params = struct.unpack("<HHH", data[0:6])
         if magic2 not in {magic, magic_defaults}:
             logging.error("paramftp: bad magic 0x%x expected 0x%x", magic2, magic)
+            return None
+        if num_params > total_params:
+            logging.error(
+                "paramftp: parameter count %u exceeds total count %u",
+                num_params,
+                total_params,
+            )
             return None
         with_defaults = magic2 == magic_defaults
         data = data[6:]
@@ -1778,8 +1785,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 pdata.add_param(name, v, ptype)
             count += 1
 
-        if count != total_params:
-            logging.error("paramftp: bad count %u should be %u", count, total_params)
+        if count != num_params:
+            logging.error("paramftp: bad count %u should be %u", count, num_params)
             return None
 
         return pdata
