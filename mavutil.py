@@ -149,6 +149,11 @@ def set_mavlink_version(version):
     set_dialect() call will fail to find the corresponding XML file
     '''
     v = float(version)
+
+    old_m09 = os.environ.get('MAVLINK09', None)
+    old_m20 = os.environ.get('MAVLINK20', None)
+
+    # Apply new environment variables
     if v == 2.0:
         os.environ.pop('MAVLINK09', None)
         os.environ['MAVLINK20'] = '1'
@@ -160,7 +165,21 @@ def set_mavlink_version(version):
         os.environ['MAVLINK09'] = '1'
     else:
         raise ValueError("Wrong MAVLink version")
-    set_dialect(current_dialect)
+
+    # Try to set the dialect, rollback if it fails
+    try:
+        set_dialect(current_dialect)
+    except Exception as e:
+        if old_m09 is not None:
+            os.environ['MAVLINK09'] = old_m09
+        else:
+            os.environ.pop('MAVLINK09', None)
+        if old_m20 is not None:
+            os.environ['MAVLINK20'] = old_m20
+        else:
+            os.environ.pop('MAVLINK20', None)
+            
+        raise e
 
 # Set the default dialect. This is done here as it needs to be after the function declaration
 set_dialect(os.environ['MAVLINK_DIALECT'])
