@@ -166,6 +166,10 @@ public partial class MAVLink
                 header = buffer[0];
                 payloadlength = buffer[1];
                 incompat_flags = buffer[2];
+                if ((incompat_flags & ~MAVLINK_IFLAG_MASK) > 0)
+                {
+                    throw new NotSupportedException("MAVLink frame uses unsupported incompatibility flags");
+                }
                 compat_flags = buffer[3];
                 seq = buffer[4];
                 sysid = buffer[5];

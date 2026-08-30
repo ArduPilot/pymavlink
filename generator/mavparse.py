@@ -426,6 +426,8 @@ class MAVXML(object):
             m.message_flags = 0
             m.target_system_ofs = 0
             m.target_component_ofs = 0
+            m.target_system_fieldname = None
+            m.target_component_fieldname = None
             m.field_offsets = {}
             
             if self.sort_fields:
@@ -466,12 +468,18 @@ class MAVXML(object):
                 if f.name.find('[') != -1:
                     raise MAVParseError("invalid field name with array descriptor %s" % f.name)
                 # having flags for target_system and target_component helps a lot for routing code
+                f.is_target_system = False
+                f.is_target_component = False
                 if is_target_system_field(m, f):
                     m.message_flags |= FLAG_HAVE_TARGET_SYSTEM
                     m.target_system_ofs = f.wire_offset
+                    m.target_system_fieldname = f.name
+                    f.is_target_system = True
                 elif f.name == 'target_component':
                     m.message_flags |= FLAG_HAVE_TARGET_COMPONENT
                     m.target_component_ofs = f.wire_offset
+                    m.target_component_fieldname = f.name
+                    f.is_target_component = True
             m.num_fields = len(m.fieldnames)
             if m.num_fields > 64:
                 raise MAVParseError("num_fields=%u : Maximum number of field names allowed is %u" % (

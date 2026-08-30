@@ -128,7 +128,7 @@ template2 = '''
         ${SIGNED}test_${NAME}._header.incompat_flags.should.eql(1); 
         ${UNSIGNED}test_${NAME}._header.incompat_flags.should.eql(0); 
         
-        test_${NAME}._header.compat_flags.should.eql(0); 
+        test_${NAME}._header.compat_flags.should.eql(${COMPAT}); 
 
         new Buffer.from(p).should.eql(reference);
     });
@@ -310,6 +310,8 @@ def do_make_output(mt,v,lines):
 
         t = template2
         t = t.replace('${NAME}',packetname)
+        # MAVLink2 always advertises MAVLINK_CFLAG_SYSID32 in compat_flags
+        t = t.replace('${COMPAT}','1' if last_line == '2.0' else '0')
         t = t.replace('${SEQ}',seq)
         t = t.replace('${SRCSYS}',sysid)
         t = t.replace('${SRCCOMP}',compid)
