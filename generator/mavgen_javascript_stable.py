@@ -88,7 +88,6 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
 }
 """, {'FILELIST' : ",".join(args),
       'PROTOCOL_MARKER' : xml.protocol_marker,
-      'crc_extra' : xml.crc_extra,
       'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0"),
       'MAVHEAD': get_mavhead(xml),
       'HEADERLEN': ("10" if xml.protocol_marker == 253 else "6")})
@@ -693,10 +692,7 @@ def generate(basename, xml):
         filelist.append(os.path.basename(x.filename))
 
     for m in msgs:
-        if xml[0].little_endian:
-            m.fmtstr = '<'
-        else:
-            m.fmtstr = '>'
+        m.fmtstr = '<'
         for f in m.ordered_fields:
             m.fmtstr += mavfmt(f)
         m.order_map = [ 0 ] * len(m.fieldnames)

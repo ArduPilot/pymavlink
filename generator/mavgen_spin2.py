@@ -51,7 +51,7 @@ CON
     MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
     MAVLINK_IFLAG_SIGNED = $01
-    LITTLE_ENDIAN = ${little_endian}
+    LITTLE_ENDIAN = True
     PROTOCOL_MARKER = ${protocol_marker}
     MAVLINK_PAYLOAD_SIZE = 255
     MAVLINK_BUF_LEN = 280
@@ -756,10 +756,7 @@ def generate(basename, xml):
 
     for m in msgs:
         m.fielddefaults = []
-        if xml[0].little_endian:
-            m.fmtstr = "<"
-        else:
-            m.fmtstr = ">"
+        m.fmtstr = "<"
         m.native_fmtstr = m.fmtstr
         m.instance_field = None
         

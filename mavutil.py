@@ -51,7 +51,7 @@ if not 'MAVLINK_DIALECT' in os.environ:
 
 def mavlink10() -> bool:
     '''return True if using MAVLink 1.0 or later'''
-    return not 'MAVLINK09' in os.environ
+    return True
 
 def mavlink20() -> bool:
     '''return True if using MAVLink 2.0'''
@@ -119,12 +119,9 @@ def set_dialect(dialect: str, with_type_annotations: bool | None = None) -> None
     if 'MAVLINK20' in os.environ:
         wire_protocol = mavparse.PROTOCOL_2_0
         modname = "pymavlink.dialects.v20." + dialect
-    elif mavlink is None or mavlink.WIRE_PROTOCOL_VERSION == "1.0" or not 'MAVLINK09' in os.environ:
+    else:
         wire_protocol = mavparse.PROTOCOL_1_0
         modname = "pymavlink.dialects.v10." + dialect
-    else:
-        wire_protocol = mavparse.PROTOCOL_0_9
-        modname = "pymavlink.dialects.v09." + dialect
 
     try:
         mod = __import__(modname)
@@ -153,23 +150,16 @@ class mavfile_state:
         self.base_mode: int = 0
         self.armed: bool = False # canonical arm state for the vehicle as a whole
 
-        if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-            try:
-                self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
-            except AttributeError:
-                # may be using a minimal dialect
-                pass
-            try:
-                mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
-            except AttributeError:
-                # may be using a minimal dialect
-                pass
-        else:
-            try:
-                self.messages['HOME'] = mavlink.MAVLink_gps_raw_message(0,0,0,0,0,0,0,0,0)
-            except AttributeError:
-                # may be using a minimal dialect
-                pass
+        try:
+            self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
+        except AttributeError:
+            # may be using a minimal dialect
+            pass
+        try:
+            mavlink.MAVLink_waypoint_message = mavlink.MAVLink_mission_item_message
+        except AttributeError:
+            # may be using a minimal dialect
+            pass
 
 class param_state:
     '''state for a particular system id/component id pair'''
@@ -296,17 +286,10 @@ class mavfile:
             magic = ord(buf[0])
         except:
             magic = buf[0]
-        if not magic in [ 85, 254, 253 ]:
+        if not magic in [ 254, 253 ]:
             return
         self.first_byte = False
-        if self.WIRE_PROTOCOL_VERSION == "0.9" and magic == 254:
-            self.WIRE_PROTOCOL_VERSION = "1.0"
-            set_dialect(current_dialect)
-        elif self.WIRE_PROTOCOL_VERSION == "1.0" and magic == 85:
-            self.WIRE_PROTOCOL_VERSION = "0.9"
-            os.environ['MAVLINK09'] = '1'
-            set_dialect(current_dialect)
-        elif self.WIRE_PROTOCOL_VERSION != "2.0" and magic == 253:
+        if self.WIRE_PROTOCOL_VERSION != "2.0" and magic == 253:
             self.WIRE_PROTOCOL_VERSION = "2.0"
             os.environ['MAVLINK20'] = '1'
             set_dialect(current_dialect)
@@ -438,11 +421,10 @@ class mavfile:
             if self.sysid == 0:
                 # lock onto id tuple of first vehicle heartbeat
                 self.sysid = src_system
-            if float(mavlink.WIRE_PROTOCOL_VERSION) >= 1:
-                self.sysid_state[src_system].flightmode = mode_string_v10(msg)
-                self.sysid_state[src_system].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
-                self.sysid_state[src_system].mav_type = msg.type
-                self.sysid_state[src_system].mav_autopilot = msg.autopilot
+            self.sysid_state[src_system].flightmode = mode_string_v10(msg)
+            self.sysid_state[src_system].armed = (msg.base_mode & mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            self.sysid_state[src_system].mav_type = msg.type
+            self.sysid_state[src_system].mav_autopilot = msg.autopilot
         elif m_type == 'HIGH_LATENCY2':
             if self.sysid == 0:
                 # lock onto id tuple of first vehicle heartbeat
@@ -458,11 +440,6 @@ class mavfile:
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
             self.param_state[src_tuple].params[msg.param_id] = msg.param_value
-        elif m_type == 'SYS_STATUS' and mavlink.WIRE_PROTOCOL_VERSION == '0.9':
-            self.sysid_state[src_system].flightmode = mode_string_v09(msg)
-        elif m_type == 'GPS_RAW':
-            if self.sysid_state[src_system].messages['HOME'].fix_type < 2:
-                self.sysid_state[src_system].messages['HOME'] = msg
         elif m_type == 'GPS_RAW_INT':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 3:
                 self.sysid_state[src_system].messages['HOME'] = msg
@@ -554,7 +531,7 @@ class mavfile:
 
     def mavlink10(self):
         '''return True if using MAVLink 1.0 or later'''
-        return float(self.WIRE_PROTOCOL_VERSION) >= 1
+        return True
 
     def mavlink20(self):
         '''return True if using MAVLink 2.0 or later'''
@@ -828,12 +805,8 @@ class mavfile:
 
     def wait_gps_fix(self):
         self.recv_match(type='VFR_HUD', blocking=True)
-        if self.mavlink10():
-            self.recv_match(type='GPS_RAW_INT', blocking=True,
-                            condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
-        else:
-            self.recv_match(type='GPS_RAW', blocking=True,
-                            condition='GPS_RAW.fix_type>=2 and GPS_RAW.lat != 0')
+        self.recv_match(type='GPS_RAW_INT', blocking=True,
+                        condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
 
     def location(self, relative_alt=False):
         '''return current location'''
@@ -2338,55 +2311,6 @@ def auto_detect_serial(preferred_list=['*']):
     if os.name == 'nt':
         return auto_detect_serial_win32(preferred_list=preferred_list)
     return auto_detect_serial_unix(preferred_list=preferred_list)
-
-def mode_string_v09(msg):
-    '''mode string for 0.9 protocol'''
-    mode = msg.mode
-    nav_mode = msg.nav_mode
-
-    MAV_MODE_UNINIT = 0
-    MAV_MODE_MANUAL = 2
-    MAV_MODE_GUIDED = 3
-    MAV_MODE_AUTO = 4
-    MAV_MODE_TEST1 = 5
-    MAV_MODE_TEST2 = 6
-    MAV_MODE_TEST3 = 7
-
-    MAV_NAV_GROUNDED = 0
-    MAV_NAV_LIFTOFF = 1
-    MAV_NAV_HOLD = 2
-    MAV_NAV_WAYPOINT = 3
-    MAV_NAV_VECTOR = 4
-    MAV_NAV_RETURNING = 5
-    MAV_NAV_LANDING = 6
-    MAV_NAV_LOST = 7
-    MAV_NAV_LOITER = 8
-    
-    cmode = (mode, nav_mode)
-    mapping = {
-        (MAV_MODE_UNINIT, MAV_NAV_GROUNDED)  : "INITIALISING",
-        (MAV_MODE_MANUAL, MAV_NAV_VECTOR)    : "MANUAL",
-        (MAV_MODE_TEST3,  MAV_NAV_VECTOR)    : "CIRCLE",
-        (MAV_MODE_GUIDED, MAV_NAV_VECTOR)    : "GUIDED",
-        (MAV_MODE_TEST1,  MAV_NAV_VECTOR)    : "STABILIZE",
-        (MAV_MODE_TEST2,  MAV_NAV_LIFTOFF)   : "FBWA",
-        (MAV_MODE_AUTO,   MAV_NAV_WAYPOINT)  : "AUTO",
-        (MAV_MODE_AUTO,   MAV_NAV_RETURNING) : "RTL",
-        (MAV_MODE_AUTO,   MAV_NAV_LOITER)    : "LOITER",
-        (MAV_MODE_AUTO,   MAV_NAV_LIFTOFF)   : "TAKEOFF",
-        (MAV_MODE_AUTO,   MAV_NAV_LANDING)   : "LANDING",
-        (MAV_MODE_AUTO,   MAV_NAV_HOLD)      : "LOITER",
-        (MAV_MODE_GUIDED, MAV_NAV_VECTOR)    : "GUIDED",
-        (MAV_MODE_GUIDED, MAV_NAV_WAYPOINT)  : "GUIDED",
-        (100,             MAV_NAV_VECTOR)    : "STABILIZE",
-        (101,             MAV_NAV_VECTOR)    : "ACRO",
-        (102,             MAV_NAV_VECTOR)    : "ALT_HOLD",
-        (107,             MAV_NAV_VECTOR)    : "CIRCLE",
-        (109,             MAV_NAV_VECTOR)    : "LAND",
-        }
-    if cmode in mapping:
-        return mapping[cmode]
-    return "Mode(%s,%s)" % cmode
 
 mode_mapping_apm = {
     0 : 'MANUAL',

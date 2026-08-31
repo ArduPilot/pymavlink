@@ -151,7 +151,6 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
 }
 """, {'FILELIST' : ",".join(args),
       'PROTOCOL_MARKER' : xml.protocol_marker,
-      'crc_extra' : xml.crc_extra,
       'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0"),
       'MAVHEAD': get_mavhead(xml),
       'HEADERLEN': ("10" if xml.protocol_marker == 253 else "6")})
@@ -1195,7 +1194,6 @@ var wrap_long = function (someLong) {
 
 """, {'FILELIST' : ",".join(args),
       'PROTOCOL_MARKER' : xml.protocol_marker,
-      'crc_extra' : xml.crc_extra,
       'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0"),
       'MAVHEAD': get_mavhead(xml),
       'MAVPROCESSOR': get_mavprocessor(xml),
@@ -1332,10 +1330,7 @@ def generate(basename, xml):
 
     for m in msgs:
         m.fielddefaults = []
-        if xml[0].little_endian:
-            m.fmtstr = '<'
-        else:
-            m.fmtstr = '>'
+        m.fmtstr = '<'
         m.native_fmtstr = m.fmtstr
 
         # we've got instance support in generator, but not in the resultant code, yet.

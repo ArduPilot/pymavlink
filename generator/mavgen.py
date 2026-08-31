@@ -311,12 +311,7 @@ def mavgen_python_dialect(dialect, wire_protocol):
     '''generate the python code on the fly for a MAVLink dialect'''
     dialects = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'dialects')
     mdef = os.getenv("MDEF", default=os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'message_definitions'))
-    if wire_protocol == mavparse.PROTOCOL_0_9:
-        py = os.path.join(dialects, 'v09', dialect + '.py')
-        xml = os.path.join(dialects, 'v09', dialect + '.xml')
-        if not os.path.exists(xml):
-            xml = os.path.join(mdef, 'v0.9', dialect + '.xml')
-    elif wire_protocol == mavparse.PROTOCOL_1_0:
+    if wire_protocol == mavparse.PROTOCOL_1_0:
         py = os.path.join(dialects, 'v10', dialect + '.py')
         xml = os.path.join(dialects, 'v10', dialect + '.xml')
         if not os.path.exists(xml):

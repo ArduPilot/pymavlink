@@ -13,7 +13,6 @@ import sys
 import time
 import xml.parsers.expat
 
-PROTOCOL_0_9 = "0.9"
 PROTOCOL_1_0 = "1.0"
 PROTOCOL_2_0 = "2.0"
 
@@ -197,7 +196,7 @@ class MAVEnum(object):
 
 class MAVXML(object):
     '''parse a mavlink XML file'''
-    def __init__(self, filename, wire_protocol_version=PROTOCOL_0_9):
+    def __init__(self, filename, wire_protocol_version=PROTOCOL_1_0):
         self.filename = filename
         self.basename = os.path.basename(filename)
         if self.basename.lower().endswith(".xml"):
@@ -213,33 +212,19 @@ class MAVXML(object):
         self.wire_protocol_version = wire_protocol_version
 
         # setup the protocol features for the requested protocol version
-        if wire_protocol_version == PROTOCOL_0_9:
-            self.protocol_marker = ord('U')
-            self.sort_fields = False
-            self.little_endian = False
-            self.crc_extra = False
-            self.crc_struct = False
-            self.command_24bit = False
-            self.allow_extensions = False
-        elif wire_protocol_version == PROTOCOL_1_0:
+        if wire_protocol_version == PROTOCOL_1_0:
             self.protocol_marker = 0xFE
-            self.sort_fields = True
-            self.little_endian = True
-            self.crc_extra = True
             self.crc_struct = False
             self.command_24bit = False
             self.allow_extensions = False
         elif wire_protocol_version == PROTOCOL_2_0:
             self.protocol_marker = 0xFD
-            self.sort_fields = True
-            self.little_endian = True
-            self.crc_extra = True
             self.crc_struct = True
             self.command_24bit = True
             self.allow_extensions = True
         else:
             print("Unknown wire protocol version")
-            print("Available versions are: %s %s %s" % (PROTOCOL_0_9, PROTOCOL_1_0, PROTOCOL_2_0))
+            print("Available versions are: %s %s" % (PROTOCOL_1_0, PROTOCOL_2_0))
             raise MAVParseError('Unknown MAVLink wire protocol version %s' % wire_protocol_version)
 
         in_element_list = []
@@ -428,15 +413,12 @@ class MAVXML(object):
             m.target_component_ofs = 0
             m.field_offsets = {}
             
-            if self.sort_fields:
-                # when we have extensions we only sort up to the first extended field
-                sort_end = m.base_fields()
-                m.ordered_fields = sorted(m.fields[:sort_end],
-                                                   key=operator.attrgetter('type_length'),
-                                                   reverse=True)
-                m.ordered_fields.extend(m.fields[sort_end:])
-            else:
-                m.ordered_fields = m.fields
+            # when we have extensions we only sort up to the first extended field
+            sort_end = m.base_fields()
+            m.ordered_fields = sorted(m.fields[:sort_end],
+                                      key=operator.attrgetter('type_length'),
+                                      reverse=True)
+            m.ordered_fields.extend(m.fields[sort_end:])
             for f in m.fields:
                 m.fieldnames.append(f.name)
                 L = f.array_length

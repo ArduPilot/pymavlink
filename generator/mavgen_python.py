@@ -325,9 +325,8 @@ class MAVLink_message(object):
         self._msgbuf = bytearray(self._header.pack(force_mavlink1=force_mavlink1))
         self._msgbuf += self._payload
         crc = x25crc(self._msgbuf[1:])
-        if ${crc_extra}:
-            # we are using CRC extra
-            crc.accumulate(struct.pack("B", crc_extra))
+        # we are using CRC extra
+        crc.accumulate(struct.pack("B", crc_extra))
         self._crc = crc.crc
         self._msgbuf += struct.pack("<H", self._crc)
         if mav.signing.sign_outgoing and not force_mavlink1:
@@ -783,9 +782,9 @@ class MAVLink(object):
         self.have_prefix_error = False
         self.robust_parsing = False
         self.protocol_marker = ${protocol_marker}
-        self.little_endian = ${little_endian}
-        self.crc_extra = ${crc_extra}
-        self.sort_fields = ${sort_fields}
+        self.little_endian = True
+        self.crc_extra = True
+        self.sort_fields = True
         self.total_packets_sent = 0
         self.total_bytes_sent = 0
         self.total_packets_received = 0
@@ -1005,9 +1004,8 @@ class MAVLink(object):
         except struct.error as emsg:
             raise MAVError("Unable to unpack MAVLink CRC: %s" % emsg)
         crcbuf = msgbuf[1 : -(2 + signature_len)]
-        if ${crc_extra}:
-            # using CRC extra
-            crcbuf.append(crc_extra)
+        # using CRC extra
+        crcbuf.append(crc_extra)
         crc2 = x25crc(crcbuf)
         if crc != crc2.crc and not MAVLINK_IGNORE_CRC:
             raise MAVError("invalid MAVLink CRC in msgID %u 0x%04x should be 0x%04x" % (msgId, crc, crc2.crc))
@@ -1054,23 +1052,22 @@ class MAVLink(object):
 
         tlist: List[Union[bytes, float, int, Sequence[Union[bytes, float, int]]]] = list(t)
         # handle sorted fields
-        if ${sort_fields}:
-            if sum(len_map) == len(len_map):
-                # message has no arrays in it
-                for i in range(0, len(tlist)):
-                    tlist[i] = t[order_map[i]]
-            else:
-                # message has some arrays
-                tlist = []
-                for i in range(0, len(order_map)):
-                    order = order_map[i]
-                    L = len_map[order]
-                    tip = sum(len_map[:order])
-                    field = t[tip]
-                    if L == 1 or isinstance(field, bytes):
-                        tlist.append(field)
-                    else:
-                        tlist.append(list(t[tip : (tip + L)]))
+        if sum(len_map) == len(len_map):
+            # message has no arrays in it
+            for i in range(0, len(tlist)):
+                tlist[i] = t[order_map[i]]
+        else:
+            # message has some arrays
+            tlist = []
+            for i in range(0, len(order_map)):
+                order = order_map[i]
+                L = len_map[order]
+                tip = sum(len_map[:order])
+                field = t[tip]
+                if L == 1 or isinstance(field, bytes):
+                    tlist.append(field)
+                else:
+                    tlist.append(list(t[tip : (tip + L)]))
 
         # terminate any strings
         for i, elem in enumerate(tlist):
@@ -1179,10 +1176,7 @@ def generate(basename, xml):
 
     for m in msgs:
         m.fielddefaults = []
-        if xml[0].little_endian:
-            m.fmtstr = "<"
-        else:
-            m.fmtstr = ">"
+        m.fmtstr = "<"
         m.native_fmtstr = m.fmtstr
         m.instance_field = None
         for f in m.ordered_fields:

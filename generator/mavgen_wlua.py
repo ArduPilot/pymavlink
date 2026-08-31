@@ -97,8 +97,7 @@ payload_fns = {}
 
 protocolVersions = {
     [0xfd] = "MAVLink 2.0",
-    [0xfe] = "MAVLink 1.0",
-    [0x55] = "MAVLink 0.9"
+    [0xfe] = "MAVLink 1.0"
 }
 
 """ )

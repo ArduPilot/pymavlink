@@ -576,7 +576,6 @@ def copy_fixed_headers(directory, xml):
     '''copy the fixed protocol headers to the target directory'''
     import shutil, filecmp
     hlist = {
-        "0.9": [ 'protocol.h', 'mavlink_helpers.h', 'mavlink_types.h', 'checksum.h' ],
         "1.0": [ 'protocol.h', 'mavlink_helpers.h', 'mavlink_types.h', 'checksum.h', 'mavlink_conversions.h' ],
         "2.0": [ 'protocol.h', 'mavlink_helpers.h', 'mavlink_types.h', 'checksum.h', 'mavlink_conversions.h',
                  'mavlink_get_info.h', 'mavlink_sha256.h' ]
@@ -603,25 +602,15 @@ def generate_one(basename, xml):
     print("Generating C implementation in directory %s" % directory)
     mavparse.mkdir_p(directory)
 
-    if xml.little_endian:
-        xml.mavlink_endian = "MAVLINK_LITTLE_ENDIAN"
-    else:
-        xml.mavlink_endian = "MAVLINK_BIG_ENDIAN"
-
-    if xml.crc_extra:
-        xml.crc_extra_define = "1"
-    else:
-        xml.crc_extra_define = "0"
+    xml.mavlink_endian = "MAVLINK_LITTLE_ENDIAN"
+    xml.crc_extra_define = "1"
 
     if xml.command_24bit:
         xml.command_24bit_define = "1"
     else:
         xml.command_24bit_define = "0"
 
-    if xml.sort_fields:
-        xml.aligned_fields_define = "1"
-    else:
-        xml.aligned_fields_define = "0"
+    xml.aligned_fields_define = "1"
 
     # work out the included headers
     xml.include_list = []
@@ -684,10 +673,7 @@ def generate_one(basename, xml):
     # add some extra field attributes for convenience with arrays
     for m in xml.message:
         m.msg_name = m.name
-        if xml.crc_extra:
-            m.crc_extra_arg = ", %s" % m.crc_extra
-        else:
-            m.crc_extra_arg = ""
+        m.crc_extra_arg = ", %s" % m.crc_extra
         for f in m.fields:
             if f.print_format is None:
                 f.c_print_format = 'NULL'

@@ -32,25 +32,15 @@ def generate_message_header(f, xml_list):
     dedupe = {}
     for xml in xml_list:
         print("generate_message_header " + xml.basename)
-        if xml.little_endian:
-            xml.mavlink_endian = "MAVLINK_LITTLE_ENDIAN"
-        else:
-            xml.mavlink_endian = "MAVLINK_BIG_ENDIAN"
-
-        if xml.crc_extra:
-            xml.crc_extra_define = "1"
-        else:
-            xml.crc_extra_define = "0"
+        xml.mavlink_endian = "MAVLINK_LITTLE_ENDIAN"
+        xml.crc_extra_define = "1"
 
         if xml.command_24bit:
             xml.command_24bit_define = "1"
         else:
             xml.command_24bit_define = "0"
 
-        if xml.sort_fields:
-            xml.aligned_fields_define = "1"
-        else:
-            xml.aligned_fields_define = "0"
+        xml.aligned_fields_define = "1"
 
         # work out the included headers
         xml.include_list = []
@@ -281,10 +271,7 @@ def generate_one(fh, basename, xml):
     # add some extra field attributes for convenience with arrays
     for m in xml.message:
         m.msg_name = m.name
-        if xml.crc_extra:
-            m.crc_extra_arg = ", %s" % m.crc_extra
-        else:
-            m.crc_extra_arg = ""
+        m.crc_extra_arg = ", %s" % m.crc_extra
         m.msg_nameid = "MAVLINK_MSG_ID_${name} = ${id}"
         m.description = cleanText(m.description)
         if m.extensions_start is None:
