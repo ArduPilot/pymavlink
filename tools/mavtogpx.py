@@ -62,7 +62,7 @@ def mav_to_gpx(infilename, outfilename, display_types=None):
     lon=0
     fix=0
 
-    match_types =['GPS_RAW', 'GPS_RAW_INT', 'GPS', 'GPS2', 'GLOBAL_POSITION_INT', 'POS']
+    match_types =['GPS_RAW_INT', 'GPS', 'GPS2', 'GLOBAL_POSITION_INT', 'POS']
     if display_types is None or len(display_types) == 0:
         display_types = match_types
     while True:
@@ -85,14 +85,6 @@ def mav_to_gpx(infilename, outfilename, display_types=None):
             hdg = m.hdg/100.0
             timestamp = m._timestamp
             # fix = m.fix_type
-        elif m.get_type() == 'GPS_RAW':
-            lat = m.lat
-            lon = m.lon
-            alt = m.alt
-            v = m.v
-            hdg = m.hdg
-            timestamp = m._timestamp
-            fix = m.fix_type
         elif m.get_type() == 'GPS' or m.get_type() == 'GPS2':
             lat = m.Lat
             lon = m.Lng

@@ -152,12 +152,10 @@ class MissionItemProtocol(object):
             if mavutil.mavlink20():
                 fn = mavutil.mavlink.MAVLink_mission_item_message
                 args.append(self.mav_mission_type())
-            elif mavutil.mavlink10():
+            else:
                 fn = mavutil.mavlink.MAVLink_mission_item_message
                 if self.mav_mission_type() != mavutil.mavlink.MAV_MISSION_TYPE_MISSION:
                     raise ValueError("Not using mavlink2")
-            else:
-                fn = mavutil.mavlink.MAVLink_waypoint_message
             w = fn(*args)
             if w.command == 0 and w.seq == 0 and self.count() == 0:
                 # special handling for Mission Planner created home wp
@@ -405,10 +403,7 @@ class MAVWPLoader(MissionItemProtocol):
             a = line.split()
             if len(a) != 13:
                 raise MAVWPError("invalid waypoint line with %u values" % len(a))
-            if mavutil.mavlink10():
-                fn = mavutil.mavlink.MAVLink_mission_item_message
-            else:
-                fn = mavutil.mavlink.MAVLink_waypoint_message
+            fn = mavutil.mavlink.MAVLink_mission_item_message
             w = fn(self.target_system, self.target_component,
                    int(a[0]),    # seq
                    int(a[1]),    # frame

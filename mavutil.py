@@ -50,7 +50,10 @@ if not 'MAVLINK_DIALECT' in os.environ:
     os.environ['MAVLINK_DIALECT'] = 'all'
 
 def mavlink10() -> bool:
-    '''return True if using MAVLink 1.0 or later'''
+    '''return True if using MAVLink 1.0 or later
+
+    Deprecated: 0.9 is no longer supported, so this is always True.
+    '''
     return True
 
 def mavlink20() -> bool:
@@ -530,7 +533,10 @@ class mavfile:
         return evaluate_condition(condition, self.messages)
 
     def mavlink10(self):
-        '''return True if using MAVLink 1.0 or later'''
+        '''return True if using MAVLink 1.0 or later
+
+        Deprecated: 0.9 is no longer supported, so this is always True.
+        '''
         return True
 
     def mavlink20(self):
@@ -575,57 +581,35 @@ class mavfile:
 
     def param_set_send(self, parm_name, parm_value, parm_type=None):
         '''wrapper for parameter set'''
-        if self.mavlink10():
-            if parm_type is None:
-                parm_type = mavlink.MAVLINK_TYPE_FLOAT
-            self.mav.param_set_send(self.target_system, self.target_component,
-                                    parm_name.encode('utf8'), parm_value, parm_type)
-        else:
-            self.mav.param_set_send(self.target_system, self.target_component,
-                                    parm_name.encode('utf8'), parm_value)
+        if parm_type is None:
+            parm_type = mavlink.MAVLINK_TYPE_FLOAT
+        self.mav.param_set_send(self.target_system, self.target_component,
+                                parm_name.encode('utf8'), parm_value, parm_type)
 
     def waypoint_request_list_send(self):
         '''wrapper for waypoint_request_list_send'''
-        if self.mavlink10():
-            self.mav.mission_request_list_send(self.target_system, self.target_component)
-        else:
-            self.mav.waypoint_request_list_send(self.target_system, self.target_component)
+        self.mav.mission_request_list_send(self.target_system, self.target_component)
 
     def waypoint_clear_all_send(self):
         '''wrapper for waypoint_clear_all_send'''
-        if self.mavlink10():
-            self.mav.mission_clear_all_send(self.target_system, self.target_component)
-        else:
-            self.mav.waypoint_clear_all_send(self.target_system, self.target_component)
+        self.mav.mission_clear_all_send(self.target_system, self.target_component)
 
     def waypoint_request_send(self, seq):
         '''wrapper for waypoint_request_send'''
-        if self.mavlink10():
-            self.mav.mission_request_send(self.target_system, self.target_component, seq)
-        else:
-            self.mav.waypoint_request_send(self.target_system, self.target_component, seq)
+        self.mav.mission_request_send(self.target_system, self.target_component, seq)
 
     def waypoint_set_current_send(self, seq):
         '''wrapper for waypoint_set_current_send'''
-        if self.mavlink10():
-            self.mav.mission_set_current_send(self.target_system, self.target_component, seq)
-        else:
-            self.mav.waypoint_set_current_send(self.target_system, self.target_component, seq)
+        self.mav.mission_set_current_send(self.target_system, self.target_component, seq)
 
     def waypoint_current(self):
         '''return current waypoint'''
-        if self.mavlink10():
-            m = self.recv_match(type='MISSION_CURRENT', blocking=True)
-        else:
-            m = self.recv_match(type='WAYPOINT_CURRENT', blocking=True)
+        m = self.recv_match(type='MISSION_CURRENT', blocking=True)
         return m.seq
 
     def waypoint_count_send(self, seq):
         '''wrapper for waypoint_count_send'''
-        if self.mavlink10():
-            self.mav.mission_count_send(self.target_system, self.target_component, seq)
-        else:
-            self.mav.waypoint_count_send(self.target_system, self.target_component, seq)
+        self.mav.mission_count_send(self.target_system, self.target_component, seq)
 
     def set_mode_flag(self, flag, enable):
         '''
@@ -634,27 +618,20 @@ class mavfile:
           see MAV_MODE_FLAG enum
         @param enable Enable the flag, (True/False)
         '''
-        if self.mavlink10():
-            mode = self.base_mode
-            if enable:
-                mode = mode | flag
-            elif not enable:
-                mode = mode & ~flag
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                           mavlink.MAV_CMD_DO_SET_MODE, 0,
-                                           mode,
-                                           0, 0, 0, 0, 0, 0)
-        else:
-            print("Set mode flag not supported")
+        mode = self.base_mode
+        if enable:
+            mode = mode | flag
+        elif not enable:
+            mode = mode & ~flag
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                       mavlink.MAV_CMD_DO_SET_MODE, 0,
+                                       mode,
+                                       0, 0, 0, 0, 0, 0)
 
     def set_mode_auto(self):
         '''enter auto mode'''
-        if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
-        else:
-            MAV_ACTION_SET_AUTO = 13
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_SET_AUTO)
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_MISSION_START, 0, 0, 0, 0, 0, 0, 0, 0)
 
     def mode_mapping(self):
         '''return dictionary mapping mode names to numbers, or None if unknown'''
@@ -709,42 +686,27 @@ class mavfile:
         
     def set_mode_rtl(self):
         '''enter RTL mode'''
-        if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0, 0, 0, 0, 0, 0)
-        else:
-            MAV_ACTION_RETURN = 3
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_RETURN)
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0, 0, 0, 0, 0, 0)
 
     def set_mode_manual(self):
         '''enter MANUAL mode'''
-        if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_DO_SET_MODE, 0,
-                                       mavlink.MAV_MODE_MANUAL_ARMED,
-                                       0, 0, 0, 0, 0, 0)
-        else:
-            MAV_ACTION_SET_MANUAL = 12
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_SET_MANUAL)
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_DO_SET_MODE, 0,
+                                   mavlink.MAV_MODE_MANUAL_ARMED,
+                                   0, 0, 0, 0, 0, 0)
 
     def set_mode_fbwa(self):
         '''enter FBWA mode'''
-        if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_DO_SET_MODE, 0,
-                                       mavlink.MAV_MODE_STABILIZE_ARMED,
-                                       0, 0, 0, 0, 0, 0)
-        else:
-            print("Forcing FBWA not supported")
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_DO_SET_MODE, 0,
+                                   mavlink.MAV_MODE_STABILIZE_ARMED,
+                                   0, 0, 0, 0, 0, 0)
 
     def set_mode_loiter(self):
         '''enter LOITER mode'''
-        if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_NAV_LOITER_UNLIM, 0, 0, 0, 0, 0, 0, 0, 0)
-        else:
-            MAV_ACTION_LOITER = 27
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_LOITER)
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_NAV_LOITER_UNLIM, 0, 0, 0, 0, 0, 0, 0, 0)
 
     def set_servo(self, channel, pwm):
         '''set a servo value'''
@@ -756,21 +718,18 @@ class mavfile:
 
     def set_relay(self, relay_pin=0, state=True):
         '''Set relay_pin to value of state'''
-        if self.mavlink10():
-            self.mav.command_long_send(
-                self.target_system,  # target_system
-                self.target_component, # target_component
-                mavlink.MAV_CMD_DO_SET_RELAY, # command
-                0, # Confirmation
-                relay_pin, # Relay Number
-                int(state), # state (1 to indicate arm)
-                0, # param3 (all other params meaningless)
-                0, # param4
-                0, # param5
-                0, # param6
-                0) # param7
-        else:
-            print("Setting relays not supported.")
+        self.mav.command_long_send(
+            self.target_system,  # target_system
+            self.target_component, # target_component
+            mavlink.MAV_CMD_DO_SET_RELAY, # command
+            0, # Confirmation
+            relay_pin, # Relay Number
+            int(state), # state (1 to indicate arm)
+            0, # param3 (all other params meaningless)
+            0, # param4
+            0, # param5
+            0, # param6
+            0) # param7
 
     def calibrate_level(self):
         '''calibrate accels (1D version)'''
@@ -780,28 +739,23 @@ class mavfile:
 
     def calibrate_pressure(self):
         '''calibrate pressure'''
-        if self.mavlink10():
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, 0,
-                                       0, 0, 1, 0, 0, 0, 0)
-        else:
-            MAV_ACTION_CALIBRATE_PRESSURE = 20
-            self.mav.action_send(self.target_system, self.target_component, MAV_ACTION_CALIBRATE_PRESSURE)
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_PREFLIGHT_CALIBRATION, 0,
+                                   0, 0, 1, 0, 0, 0, 0)
 
     def reboot_autopilot(self, hold_in_bootloader=False, force=False):
         '''reboot the autopilot'''
-        if self.mavlink10():
-            if hold_in_bootloader:
-                param1 = 3
-            else:
-                param1 = 1
-            if force:
-                param6 = 20190226
-            else:
-                param6 = 0
-            self.mav.command_long_send(self.target_system, self.target_component,
-                                       mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
-                                       param1, 0, 0, 0, 0, param6, 0)
+        if hold_in_bootloader:
+            param1 = 3
+        else:
+            param1 = 1
+        if force:
+            param6 = 20190226
+        else:
+            param6 = 0
+        self.mav.command_long_send(self.target_system, self.target_component,
+                                   mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
+                                   param1, 0, 0, 0, 0, param6, 0)
 
     def wait_gps_fix(self):
         self.recv_match(type='VFR_HUD', blocking=True)
@@ -825,35 +779,33 @@ class mavfile:
 
     def arducopter_arm(self):
         '''arm motors (arducopter only)'''
-        if self.mavlink10():
-            self.mav.command_long_send(
-                self.target_system,  # target_system
-                self.target_component,
-                mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
-                0, # confirmation
-                1, # param1 (1 to indicate arm)
-                0, # param2 (all other params meaningless)
-                0, # param3
-                0, # param4
-                0, # param5
-                0, # param6
-                0) # param7
+        self.mav.command_long_send(
+            self.target_system,  # target_system
+            self.target_component,
+            mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
+            0, # confirmation
+            1, # param1 (1 to indicate arm)
+            0, # param2 (all other params meaningless)
+            0, # param3
+            0, # param4
+            0, # param5
+            0, # param6
+            0) # param7
 
     def arducopter_disarm(self):
         '''disarm motors (arducopter only)'''
-        if self.mavlink10():
-            self.mav.command_long_send(
-                self.target_system,  # target_system
-                self.target_component,
-                mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
-                0, # confirmation
-                0, # param1 (0 to indicate disarm)
-                0, # param2 (all other params meaningless)
-                0, # param3
-                0, # param4
-                0, # param5
-                0, # param6
-                0) # param7
+        self.mav.command_long_send(
+            self.target_system,  # target_system
+            self.target_component,
+            mavlink.MAV_CMD_COMPONENT_ARM_DISARM, # command
+            0, # confirmation
+            0, # param1 (0 to indicate disarm)
+            0, # param2 (all other params meaningless)
+            0, # param3
+            0, # param4
+            0, # param5
+            0, # param6
+            0) # param7
 
     def motors_armed(self):
         '''return true if motors armed'''

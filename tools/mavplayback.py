@@ -203,12 +203,6 @@ class App(object):
             for m in self.mout:
                 m.write(msg.get_msgbuf())
 
-        if msg.get_type() == "GPS_RAW":
-            self.fdm.set('latitude', msg.lat, units='degrees')
-            self.fdm.set('longitude', msg.lon, units='degrees')
-            if args.gpsalt:
-                self.fdm.set('altitude', msg.alt, units='meters')
-
         if msg.get_type() == "GPS_RAW_INT":
             self.fdm.set('latitude', msg.lat/1.0e7, units='degrees')
             self.fdm.set('longitude', msg.lon/1.0e7, units='degrees')

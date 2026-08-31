@@ -24,14 +24,14 @@ def lock_time(logfile):
     start_time = 0.0
     total_time = 0.0
     t = None
-    m = mlog.recv_match(type=['GPS_RAW_INT','GPS_RAW'], condition=args.condition)
+    m = mlog.recv_match(type='GPS_RAW_INT', condition=args.condition)
     if m is None:
         return 0
 
     unlock_time = time.mktime(time.localtime(m._timestamp))
 
     while True:
-        m = mlog.recv_match(type=['GPS_RAW_INT','GPS_RAW'], condition=args.condition)
+        m = mlog.recv_match(type='GPS_RAW_INT', condition=args.condition)
         if m is None:
             if locked:
                 total_time += time.mktime(t) - start_time

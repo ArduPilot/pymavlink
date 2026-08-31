@@ -128,10 +128,6 @@ def magfit(logfile):
         m = mlog.recv_match(condition=args.condition)
         if m is None:
             break
-        if m.get_type() == "GPS_RAW":
-            # flying if groundspeed more than 5 m/s
-            flying = (m.v > args.minspeed and m.fix_type == 2)
-            gps_heading = m.hdg
         if m.get_type() == "GPS_RAW_INT":
             # flying if groundspeed more than 5 m/s
             flying = (m.vel/100 > args.minspeed and m.fix_type == 3)

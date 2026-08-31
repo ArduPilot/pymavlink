@@ -211,6 +211,14 @@ class MAVXML(object):
         self.include = []
         self.wire_protocol_version = wire_protocol_version
 
+        # every protocol we still support is little-endian, sorts its base
+        # fields by descending type length and uses CRC_EXTRA.  These are kept
+        # as attributes for the benefit of out-of-tree generators; only 0.9
+        # ever set them False.
+        self.little_endian = True
+        self.sort_fields = True
+        self.crc_extra = True
+
         # setup the protocol features for the requested protocol version
         if wire_protocol_version == PROTOCOL_1_0:
             self.protocol_marker = 0xFE
