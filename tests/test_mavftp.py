@@ -530,6 +530,38 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             self.assertEqual(result.error_code, FtpError.Fail)
             self.assertFalse(os.path.exists(destination))
 
+    def test_callback_success_does_not_publish_download(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            destination = f"{tempdir}/param.pck"
+            callback_data = []
+            ftp, _master = self.make_ftp(
+                [
+                    ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[3, 0, 0, 0]),
+                    ftp_reply(
+                        3,
+                        OP_Ack,
+                        OP_BurstReadFile,
+                        payload=b"data",
+                        burst_complete=1,
+                    ),
+                    ftp_reply(4, OP_Ack, OP_TerminateSession),
+                ]
+            )
+
+            def callback(fh):
+                callback_data.append(fh.read())
+                return MAVFTPReturn("GetParams", FtpError.Success)
+
+            ftp.cmd_get(
+                ["@PARAM/param.pck?withdefaults=1", destination],
+                callback=callback,
+            )
+            result = ftp.process_ftp_reply("getparams", timeout=1)
+
+            self.assertEqual(result.error_code, FtpError.Success)
+            self.assertEqual(callback_data, [b"data"])
+            self.assertFalse(os.path.exists(destination))
+
     def test_malformed_burst_nacks_are_decoded(self):
         for payload, expected_error in (
             (b"", FtpError.NoErrorCodeInPayload),

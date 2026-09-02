@@ -819,6 +819,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             rate = (ofs / dt) / 1024.0
             publish_result = True
             if self.callback is not None:
+                # The callback owns the downloaded data.  This is also used
+                # for virtual MAVFTP paths such as param.pck?withdefaults=1,
+                # which must never be treated as local filenames.
+                publish_result = False
                 self.fh.seek(0)
                 callback_result = self.callback(self.fh)
                 if (
@@ -2042,7 +2046,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 f.write("\n")
         logging.info("Outputted %u parameters to %s", len(pdict), filename)
 
-    def cmd_getparams(
+    def cmd_getparams(  # pylint: disable=too-many-arguments
         self,
         args: List[str],
         progress_callback=None,
