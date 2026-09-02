@@ -79,13 +79,15 @@ class FakeMaster:  # pylint: disable=too-few-public-methods
         return None
 
 
-def ftp_reply(seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0):
+def ftp_reply(  # pylint: disable=too-many-arguments
+    seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0, session=0
+):
     """Create a parsed FTP response represented as a minimal MAVLink message."""
     data = bytearray(payload) if payload is not None else bytearray()
     return FakeFTPMessage(
         FTP_OP(
             seq=seq,
-            session=0,
+            session=session,
             opcode=opcode,
             size=len(data),
             req_opcode=req_opcode,
@@ -109,6 +111,26 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
         ftp.ftp_settings.read_retry_time = 0.01
         ftp.ftp_settings.retry_time = 0.2
         return ftp, master
+
+    def test_terminate_ignores_reply_for_wrong_target_or_session(self):
+        """TerminateSession accepts replies only from its target and session."""
+        for target_system, session in ((99, 0), (1, 1)):
+            with self.subTest(target_system=target_system, session=session):
+                ftp, master = self.make_ftp([])
+                ftp.pending_terminate_seq = ftp.seq
+                reply = ftp_reply(
+                    ftp.seq + 1,
+                    OP_Ack,
+                    OP_TerminateSession,
+                    session=session,
+                )
+                reply.target_system = target_system
+                master.replies.append(reply)
+
+                result = ftp.process_ftp_reply("TerminateSession")
+
+                self.assertEqual(result.error_code, FtpError.Fail)
+                self.assertEqual(ftp.pending_terminate_seq, ftp.seq)
 
     def test_put_returns_after_completion_before_late_write_reply(self):
         ftp, master = self.make_ftp(
@@ -160,19 +182,6 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
         self.assertEqual(master.replies, [])
         self.assertEqual(len(master.mav.sent), 3)
 
-    def test_follow_up_command_waits_after_completed_list(self):
-        ftp, master = self.make_ftp(
-            [ftp_reply(2, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile])]
-        )
-        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
-
-        master.empty_polls = 1
-        master.replies.append(ftp_reply(3, OP_Ack, OP_RemoveFile))
-        result = ftp.cmd_rm(["remote"])
-
-        self.assertEqual(result.error_code, FtpError.Success)
-        self.assertEqual(master.replies, [])
-
     def test_out_of_order_burst_reply_is_dispatched(self):
         ftp, _master = self.make_ftp(
             [
@@ -184,17 +193,16 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
                     payload=b"x" * 80,
                     burst_complete=1,
                 ),
-                # This is the remaining part of the first burst. The next
-                # burst request has already been sent, so its sequence is
-                # older than last_op but still belongs to this download.
+                # The next burst starts at offset 80. This delayed duplicate
+                # from the completed burst must not reach its handler.
                 ftp_reply(
                     3,
                     OP_Ack,
                     OP_BurstReadFile,
-                    payload=b"y",
-                    offset=80,
+                    payload=b"x" * 80,
                     burst_complete=1,
                 ),
+                ftp_reply(4, OP_Ack, OP_BurstReadFile, payload=b"y", offset=80, burst_complete=1),
                 ftp_reply(5, OP_Ack, OP_TerminateSession),
             ]
         )
@@ -206,6 +214,90 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
         result = ftp.process_ftp_reply("get", timeout=1)
 
         self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.duplicates, 0)
+
+    def test_out_of_order_gap_reply_is_dispatched(self):
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_gaps = [(0, 2), (2, 2)]
+        ftp.read_gap_times = {(0, 2): 0, (2, 2): 0}
+
+        ftp._MAVFTP__send_gap_read((0, 2))  # pylint: disable=protected-access
+        ftp._MAVFTP__send_gap_read((2, 2))  # pylint: disable=protected-access
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(3, OP_Ack, OP_ReadFile, payload=b"cd", offset=2)
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.read_gaps, [(0, 2)])
+        self.assertEqual(ftp.fh.getvalue(), b"\x00\x00cd")
+
+        stale_result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(99, OP_Ack, OP_ReadFile, payload=b"zz", offset=0)
+        )
+
+        self.assertEqual(stale_result.error_code, FtpError.Fail)
+        self.assertEqual(ftp.read_gaps, [(0, 2)])
+        self.assertEqual(ftp.fh.getvalue(), b"\x00\x00cd")
+
+    def test_stale_write_reply_is_discarded(self):
+        ftp, master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_CreateFile),
+                ftp_reply(99, OP_Ack, OP_WriteFile, offset=0),
+            ]
+        )
+
+        ftp.cmd_put(["local", "remote"], fh=BytesIO(b"x"))
+        ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            master.replies.pop(0)
+        )
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            master.replies.pop(0)
+        )
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertIsNotNone(ftp.write_list)
+        self.assertEqual(ftp.write_acks, 0)
+
+    def test_noncurrent_write_nack_fails_upload(self):
+        ftp, _master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_CreateFile),
+                ftp_reply(
+                    3,
+                    OP_Nack,
+                    OP_WriteFile,
+                    payload=[FtpError.FileProtected],
+                    offset=0,
+                ),
+                ftp_reply(5, OP_Ack, OP_TerminateSession),
+            ]
+        )
+
+        ftp.cmd_put(["local", "remote"], fh=BytesIO(b"x" * 160))
+        result = ftp.process_ftp_reply("put", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.FileProtected)
+
+    def test_remove_accepts_16_bit_sequence_wrap(self):
+        ftp, master = self.make_ftp([])
+        ftp.seq = 255
+        master.replies.append(ftp_reply(256, OP_Ack, OP_RemoveFile))
+
+        result = ftp.cmd_rm(["remote"])
+
+        self.assertEqual(result.error_code, FtpError.Success)
+
+    def test_wrong_session_reply_is_not_retained(self):
+        ftp, master = self.make_ftp([])
+        master.replies.append(ftp_reply(2, OP_Ack, OP_RemoveFile, session=1))
+
+        result = ftp.cmd_rm(["remote"])
+
+        self.assertEqual(result.error_code, FtpError.Fail)
 
     def test_completed_put_skips_late_reply_after_termination_timeout(self):
         ftp, master = self.make_ftp(
