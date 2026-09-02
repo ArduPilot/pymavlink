@@ -147,22 +147,18 @@ def set_mavlink_version(version):
     version (e.g., a v2-only dialect) and you switch to an incompatible version,
     this function will raise a FileNotFoundError because the underlying
     set_dialect() call will fail to find the corresponding XML file
+
+    Deprecated: 0.9 is no longer supported
     '''
     v = float(version)
 
-    old_m09 = os.environ.get('MAVLINK09', None)
     old_m20 = os.environ.get('MAVLINK20', None)
 
     # Apply new environment variables
     if v == 2.0:
-        os.environ.pop('MAVLINK09', None)
         os.environ['MAVLINK20'] = '1'
     elif v == 1.0:
-        os.environ.pop('MAVLINK09', None)
         os.environ.pop('MAVLINK20', None)
-    elif v == 0.9:
-        os.environ.pop('MAVLINK20', None)
-        os.environ['MAVLINK09'] = '1'
     else:
         raise ValueError("Wrong MAVLink version")
 
@@ -170,10 +166,6 @@ def set_mavlink_version(version):
     try:
         set_dialect(current_dialect)
     except Exception as e:
-        if old_m09 is not None:
-            os.environ['MAVLINK09'] = old_m09
-        else:
-            os.environ.pop('MAVLINK09', None)
         if old_m20 is not None:
             os.environ['MAVLINK20'] = old_m20
         else:
