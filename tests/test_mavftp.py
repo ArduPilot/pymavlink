@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from io import BytesIO, StringIO
 
-#from unittest.mock import patch
+from unittest.mock import patch
 from pymavlink import mavutil
 from pymavlink.mavftp import (
     FTP_OP,
@@ -34,6 +34,8 @@ from pymavlink.mavftp import (
     OP_TerminateSession,
     OP_WriteFile,
 )
+
+# pylint: disable=protected-access
 
 
 class FakeFTPMessage:  # pylint: disable=too-few-public-methods
@@ -98,8 +100,8 @@ def ftp_reply(  # pylint: disable=too-many-arguments
     )
 
 
-class TestMAVFTPReplyCompletion(unittest.TestCase):
-    """Regression tests for command completion and idle fallback."""
+class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-public-methods
+    """Regression tests for FTP replies, retries, and session cleanup."""
 
     @staticmethod
     def make_ftp(replies):
@@ -132,12 +134,179 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):
                 self.assertEqual(result.error_code, FtpError.Fail)
                 self.assertEqual(ftp.pending_terminate_seq, ftp.seq)
 
+    @staticmethod
+    def sent_request_sequences(master, opcode):
+        """Return FTP request sequence numbers sent for an opcode."""
+        return [
+            struct.unpack_from("<H", sent[-1])[0]
+            for sent in master.mav.sent
+            if sent[-1][3] == opcode
+        ]
+
+    def test_open_file_ack_uses_allocated_session(self):
+        """A non-echoing OpenFileRO server session is used for BurstReadFile."""
+        ftp, master = self.make_ftp([])
+        ftp.cmd_get(["remote", "-"])
+
+        ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[1, 0, 0, 0], session=42)
+        )
+
+        self.assertEqual(ftp.session, 42)
+        self.assertEqual(master.mav.sent[-1][-1][2], 42)
+
+    def test_create_file_ack_uses_allocated_session(self):
+        """A non-echoing CreateFile server session is used for WriteFile."""
+        ftp, master = self.make_ftp([])
+        ftp.cmd_put(["local", "remote"], fh=BytesIO(b"x"))
+
+        ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_CreateFile, session=37)
+        )
+
+        self.assertEqual(ftp.session, 37)
+        self.assertEqual(master.mav.sent[-1][-1][2], 37)
+
+    def test_gap_read_nack_preserves_server_error(self):
+        """A failed gap repair must not turn a ReadFile NACK into success."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        terminated = []
+        setattr(
+            ftp,
+            "_MAVFTP__terminate_session",
+            lambda: terminated.append(True),
+        )
+
+        result = ftp._MAVFTP__handle_reply_read(
+            FTP_OP(
+                1,
+                0,
+                OP_Nack,
+                1,
+                OP_ReadFile,
+                0,
+                0,
+                bytearray([FtpError.FileNotFound]),
+            ),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.FileNotFound)
+        self.assertEqual(terminated, [True])
+
+    def test_write_nack_preserves_server_error(self):
+        """WriteFile NACKs retain their precise protocol error code."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        terminated = []
+        setattr(
+            ftp,
+            "_MAVFTP__terminate_session",
+            lambda: terminated.append(True),
+        )
+
+        result = ftp._MAVFTP__handle_write_reply(  # pylint: disable=protected-access
+            FTP_OP(
+                1,
+                0,
+                OP_Nack,
+                2,
+                OP_WriteFile,
+                0,
+                0,
+                bytearray([FtpError.FailErrno, 13]),
+            ),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.FailErrno)
+        self.assertEqual(result.system_error, 13)
+        self.assertEqual(terminated, [True])
+
+    def test_gap_read_retry_reuses_request_sequence(self):
+        """Retransmitting a lost ReadFile reply keeps the original sequence."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.read_gaps = [(0, 2)]
+        ftp.read_gap_times = {(0, 2): 0}
+
+        ftp._MAVFTP__send_gap_read((0, 2))  # pylint: disable=protected-access
+        ftp._MAVFTP__send_gap_read((0, 2))  # pylint: disable=protected-access
+
+        self.assertEqual(self.sent_request_sequences(master, OP_ReadFile), [1, 1])
+
+    def test_open_retry_reuses_request_sequence(self):
+        """Retransmitting an unanswered OpenFileRO preserves its sequence."""
+        ftp, master = self.make_ftp([])
+        ftp.cmd_get(["remote", "-"])
+        ftp.op_start = 0
+
+        with patch("pymavlink.mavftp.time.time", return_value=1):
+            ftp._MAVFTP__idle_task()  # pylint: disable=protected-access
+
+        self.assertEqual(self.sent_request_sequences(master, OP_OpenFileRO), [1, 1])
+
+    def test_write_retry_reuses_request_sequence(self):
+        """Retransmitting a lost WriteFile reply keeps the original sequence."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO(b"x")
+        ftp.filename = "remote"
+        ftp.write_list = {0}
+        ftp.write_block_size = 1
+        ftp.write_total = 1
+
+        ftp._MAVFTP__send_more_writes()  # pylint: disable=protected-access
+        ftp.write_last_send = 0
+        ftp._MAVFTP__send_more_writes()  # pylint: disable=protected-access
+
+        self.assertEqual(self.sent_request_sequences(master, OP_WriteFile), [1, 1])
+
+    def test_process_timeout_terminates_active_session(self):
+        """A reply-loop timeout closes an opened remote file session."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        terminated = []
+        setattr(
+            ftp,
+            "_MAVFTP__terminate_session",
+            lambda: terminated.append(True),
+        )
+        setattr(
+            ftp,
+            "_MAVFTP__idle_task",
+            lambda: False,
+        )
+
+        result = ftp.process_ftp_reply("get", timeout=0.03)
+
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertEqual(terminated, [True])
+
+    def test_read_timeout_terminates_active_session(self):
+        """The synchronous read API also closes its session on timeout."""
+        ftp, _master = self.make_ftp([])
+        terminated = []
+        setattr(
+            ftp,
+            "_MAVFTP__terminate_session",
+            lambda: terminated.append(True),
+        )
+
+        with patch("pymavlink.mavftp.time.time", side_effect=[0, 0, 0, 0, 6]):
+            self.assertIsNone(ftp.read("remote", 1))
+
+        self.assertEqual(terminated, [True])
+
     def test_put_returns_after_completion_before_late_write_reply(self):
         ftp, master = self.make_ftp(
             [
                 ftp_reply(2, OP_Ack, OP_CreateFile),
                 ftp_reply(3, OP_Ack, OP_WriteFile, offset=0),
-                ftp_reply(5, OP_Ack, OP_TerminateSession),
+                ftp_reply(4, OP_Ack, OP_TerminateSession),
                 ftp_reply(3, OP_Ack, OP_WriteFile, offset=0),
             ]
         )
