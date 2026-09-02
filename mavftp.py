@@ -1985,7 +1985,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
     @staticmethod
     def missionplanner_sort(item: str) -> Tuple[str, ...]:
         """Sorts a parameter name according to the rules defined in the Mission Planner software."""
-        return Tuple(item.split("_"))
+        return tuple(item.split("_"))
 
     @staticmethod
     def extract_params(
@@ -1998,13 +1998,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 pdict[name.decode("utf-8")] = (value, ptype)
 
             if sort_type == "missionplanner":
-                pdict = Dict(
+                pdict = dict(
                     sorted(
                         pdict.items(), key=lambda x: MAVFTP.missionplanner_sort(x[0])
                     )
                 )  # sort alphabetically
             elif sort_type == "mavproxy":
-                pdict = Dict(sorted(pdict.items()))  # sort in ASCIIbetical order
+                pdict = dict(sorted(pdict.items()))  # sort in ASCIIbetical order
             elif sort_type == "none":
                 pass
         return pdict
