@@ -507,6 +507,60 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertTrue(ftp._MAVFTP__check_read_finished())
         self.assertEqual(ftp.get_result, b"x" * 200)
 
+    def test_read_sector_relative_buffer_preserves_remote_gap_offsets(self):
+        """Compact buffers still track absolute remote offsets for gaps."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.read_to_memory = True
+        ftp.requested_offset = 100
+        ftp.requested_size = 4
+        ftp.burst_size = 2
+        ftp.op_start = 1
+        ftp.session = 7
+        ftp.pending_burst_request = FTP_OP(
+            seq=1,
+            session=7,
+            opcode=OP_BurstReadFile,
+            size=2,
+            req_opcode=0,
+            burst_complete=0,
+            offset=100,
+            payload=None,
+        )
+
+        first = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=2,
+                session=7,
+                opcode=OP_Ack,
+                size=2,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=0,
+                offset=102,
+                payload=bytearray(b"cd"),
+            ),
+            None,
+        )
+        self.assertEqual(first.error_code, FtpError.Success)
+        self.assertEqual(ftp.read_gaps, [(100, 2)])
+
+        second = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=3,
+                session=7,
+                opcode=OP_Ack,
+                size=2,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=1,
+                offset=100,
+                payload=bytearray(b"ab"),
+            ),
+            None,
+        )
+        self.assertEqual(second.error_code, FtpError.Success)
+        self.assertEqual(ftp.get_result, b"abcd")
+
     def test_put_returns_after_completion_before_late_write_reply(self):
         ftp, master = self.make_ftp(
             [
