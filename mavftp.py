@@ -2440,7 +2440,7 @@ def wait_heartbeat(m) -> None:
     logging.info("Waiting for flight controller heartbeat")
     m.wait_heartbeat(timeout=5)
     logging.info(
-        "Heartbeat from system %u, component %u", m.target_system, m.target_system
+        "Heartbeat from system %u, component %u", m.target_system, m.target_component
     )
 
 
