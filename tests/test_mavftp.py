@@ -167,6 +167,32 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.session, 37)
         self.assertEqual(master.mav.sent[-1][-1][2], 37)
 
+    def test_cmd_set_rejects_unsafe_transfer_settings(self):
+        """Transfer settings must remain valid for the FTP state machine."""
+        ftp, _master = self.make_ftp([])
+
+        for setting, value in (
+            ("write_size", "0"),
+            ("write_size", "240"),
+            ("write_qsize", "0"),
+            ("max_backlog", "0"),
+            ("retry_time", "0.1"),
+            ("idle_detection_time", "0.01"),
+            ("read_retry_time", "3.7"),
+        ):
+            with self.subTest(setting=setting, value=value):
+                result = ftp.cmd_set([setting, value])
+                self.assertEqual(result.error_code, FtpError.InvalidArguments)
+
+    def test_put_rejects_invalid_write_size(self):
+        """An API-set invalid write size must not reach division or packet packing."""
+        ftp, _master = self.make_ftp([])
+        ftp.ftp_settings.write_size = 0
+
+        result = ftp.cmd_put(["local", "remote"], fh=BytesIO(b"x"))
+
+        self.assertEqual(result.error_code, FtpError.InvalidArguments)
+
     def test_gap_read_nack_preserves_server_error(self):
         """A failed gap repair must not turn a ReadFile NACK into success."""
         ftp, _master = self.make_ftp([])

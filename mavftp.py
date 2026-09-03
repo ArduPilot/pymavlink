@@ -14,6 +14,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 # FLAKE_CLEAN
 
 import logging
+import math
 import os
 import tempfile
 import random
@@ -715,6 +716,55 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.error("Invalid parameter value: %s", args[1])
             return MAVFTPReturn("Set", FtpError.InvalidArguments)
 
+        setting = self.ftp_settings._vars[setting_name]  # pylint: disable=protected-access
+        if not math.isfinite(setting_value):
+            logging.error("Invalid parameter value: %s", args[1])
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+        if setting.type is int:
+            if not setting_value.is_integer():
+                logging.error("Invalid integer parameter value: %s", args[1])
+                return MAVFTPReturn("Set", FtpError.InvalidArguments)
+            setting_value = int(setting_value)
+
+        bounded_settings = {
+            "debug": (0, 2),
+            "pkt_loss_tx": (0, 100),
+            "pkt_loss_rx": (0, 100),
+            "max_backlog": (1, None),
+            "burst_read_size": (1, MAX_Payload),
+            "write_size": (1, MAX_Payload),
+            "write_qsize": (1, None),
+            "read_retry_time": (0, None),
+            "retry_time": (0.1, None),
+        }
+        minimum, maximum = bounded_settings.get(setting_name, (None, None))
+        if (
+            (minimum is not None and setting_value <= minimum and setting_name == "retry_time")
+            or (minimum is not None and setting_value < minimum)
+            or (maximum is not None and setting_value > maximum)
+        ):
+            logging.error("Invalid value for %s: %s", setting_name, setting_value)
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+
+        idle_detection_time = (
+            setting_value
+            if setting_name == "idle_detection_time"
+            else self.ftp_settings.idle_detection_time
+        )
+        read_retry_time = (
+            setting_value
+            if setting_name == "read_retry_time"
+            else self.ftp_settings.read_retry_time
+        )
+        if setting_name == "idle_detection_time" and setting_value <= 0:
+            logging.error("Invalid value for %s: %s", setting_name, setting_value)
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+        if idle_detection_time <= read_retry_time:
+            logging.error(
+                "idle_detection_time must be greater than read_retry_time"
+            )
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+
         setattr(self.ftp_settings, setting_name, setting_value)
         logging.info("Set %s = %s", setting_name, setting_value)
         return MAVFTPReturn("Set", FtpError.Success)
@@ -1105,6 +1155,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if self.write_list is not None:
             logging.error("FTP: put already in progress")
             return MAVFTPReturn("CreateFile", FtpError.PutAlreadyInProgress)
+        self.write_block_size = int(self.ftp_settings.write_size)
+        if not 1 <= self.write_block_size <= MAX_Payload:
+            logging.error("FTP: write_size must be between 1 and %u", MAX_Payload)
+            return MAVFTPReturn("CreateFile", FtpError.InvalidArguments)
+        if self.ftp_settings.write_qsize < 1:
+            logging.error("FTP: write_qsize must be at least 1")
+            return MAVFTPReturn("CreateFile", FtpError.InvalidArguments)
         fname = args[0]
         self.fh = fh
         self.fh_owned = False
@@ -1128,7 +1185,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.fh.seek(0)
 
         # setup write list
-        self.write_block_size = int(self.ftp_settings.write_size)
         self.write_file_size = file_size
 
         write_blockcount = file_size // self.write_block_size
