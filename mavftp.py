@@ -833,13 +833,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 # which must never be treated as local filenames.
                 publish_result = False
                 self.fh.seek(0)
-                callback_result = self.callback(self.fh)
-                if (
-                    isinstance(callback_result, MAVFTPReturn)
-                    and callback_result.error_code != FtpError.Success
-                ):
-                    self.callback_failure = callback_result
-                self.callback = None
+                try:
+                    callback_result = self.callback(self.fh)
+                    if (
+                        isinstance(callback_result, MAVFTPReturn)
+                        and callback_result.error_code != FtpError.Success
+                    ):
+                        self.callback_failure = callback_result
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    logging.error("FTP: download callback failed: %s", exc)
+                    self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
+                finally:
+                    self.callback = None
             elif self.read_to_memory:
                 publish_result = False
                 self.done = True

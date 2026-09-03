@@ -641,6 +641,28 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             self.assertEqual(result.error_code, FtpError.Fail)
             self.assertFalse(os.path.exists(destination))
 
+    def test_callback_exception_terminates_download(self):
+        """Callback exceptions are reported as FTP failures after session cleanup."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO(b"data")
+        ftp.filename = "-"
+        ftp.op_start = 1
+        ftp.requested_size = 4
+        ftp.read_total = 4
+        ftp.reached_eof = True
+        terminated = []
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: terminated.append(True))
+
+        def failing_callback(_fh):
+            raise RuntimeError("decode failed")
+
+        ftp.callback = failing_callback
+
+        self.assertTrue(ftp._MAVFTP__check_read_finished())
+        self.assertEqual(terminated, [True])
+        self.assertIsNotNone(ftp.callback_failure)
+        self.assertEqual(ftp.callback_failure.error_code, FtpError.Fail)
+
     def test_callback_success_does_not_publish_download(self):
         """Regression: callbacks consume all four advertised bytes without publishing."""
         with tempfile.TemporaryDirectory() as tempdir:
