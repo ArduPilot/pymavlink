@@ -307,6 +307,45 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(terminated, [True])
 
+    def test_read_sector_returns_only_requested_range_without_local_output(self):
+        """A sector read starts at its offset and must not publish the remote path."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            previous_cwd = os.getcwd()
+            os.chdir(tempdir)
+            try:
+                ftp, master = self.make_ftp(
+                    [
+                        ftp_reply(
+                            2,
+                            OP_Ack,
+                            OP_OpenFileRO,
+                            payload=[8, 0, 0, 0],
+                            session=7,
+                        ),
+                        ftp_reply(
+                            3,
+                            OP_Ack,
+                            OP_BurstReadFile,
+                            payload=b"defgh",
+                            offset=3,
+                            burst_complete=1,
+                            session=7,
+                        ),
+                        ftp_reply(4, OP_Ack, OP_TerminateSession, session=7),
+                    ]
+                )
+
+                self.assertEqual(ftp.read_sector("remote", 3, 2), b"de")
+                self.assertFalse(os.path.exists("remote"))
+                burst_request = next(
+                    sent[-1]
+                    for sent in master.mav.sent
+                    if sent[-1][3] == OP_BurstReadFile
+                )
+                self.assertEqual(struct.unpack_from("<I", burst_request, 8)[0], 3)
+            finally:
+                os.chdir(previous_cwd)
+
     def test_put_returns_after_completion_before_late_write_reply(self):
         ftp, master = self.make_ftp(
             [

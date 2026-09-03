@@ -397,6 +397,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.list_temp_result: List[DirectoryEntry] = []
         self.requested_size: int = 0
         self.requested_offset: int = 0
+        # The synchronous read/read_sector API returns data to its caller and
+        # must never publish a file named after the remote path.
+        self.read_to_memory = False
         # set per-download by __handle_open_ro_reply: a securely
         # created unique staging file, so concurrent MAVFTP clients on
         # one host (e.g. parallel simulator test runners) cannot share
@@ -505,6 +508,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__release_staging()
         self.fh = None
         self.filename = None
+        self.read_to_memory = False
         self.write_list = None
         if self.callback is not None:
             # tell caller that the transfer failed
@@ -642,6 +646,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.requested_offset = offset
         self.requested_size = size
         self.filename = path
+        self.read_to_memory = True
+        self.callback = None
+        self.callback_failure = None
+        self.callback_progress = None
         self.done = False
 
         logging.info(
@@ -726,6 +734,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if callback is None or self.ftp_settings.debug > 1:
             logging.info("Getting %s to %s", fname, self.filename)
         self.op_start = time.time()
+        self.read_to_memory = False
         self.callback = callback
         self.callback_failure = None
         self.callback_progress = progress_callback
@@ -751,8 +760,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 return MAVFTPReturn("OpenFileRO", FtpError.FileNotFound)
             self.session = op.session
             try:
-                if self.callback is not None or self.filename == "-":
+                if self.callback is not None or self.filename == "-" or self.read_to_memory:
                     self.fh = SIO()
+                    if self.read_to_memory:
+                        self.fh.seek(self.requested_offset)
                 else:
                     self.__release_staging()
                     (temp_fd, self.temp_filename) = tempfile.mkstemp(prefix="mavftp_")
@@ -764,16 +775,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     self.fh_owned = True
                     self.fh.truncate(0)
                     self.fh.seek(self.requested_offset)
-                    read = FTP_OP(
-                        self.seq,
-                        self.session,
-                        OP_BurstReadFile,
-                        self.burst_size,
-                        0,
-                        0,
-                        self.requested_offset,
-                        None,
-                    )
             except Exception as ex:  # pylint: disable=broad-except
                 logging.error(
                     "FTP: Failed to open local file %s: %s", self.filename, ex
@@ -789,11 +790,19 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 )
                 if self.ftp_settings.debug > 0:
                     logging.info("Remote file size: %u", self.remote_file_size)
-                self.requested_size = self.remote_file_size
+                if not self.read_to_memory:
+                    self.requested_size = self.remote_file_size
             else:
                 self.remote_file_size = 0
             read = FTP_OP(
-                self.seq, self.session, OP_BurstReadFile, self.burst_size, 0, 0, 0, None
+                self.seq,
+                self.session,
+                OP_BurstReadFile,
+                self.burst_size,
+                0,
+                0,
+                self.requested_offset if self.read_to_memory else 0,
+                None,
             )
             self.last_burst_read = time.time()
             self.__send(read)
@@ -831,6 +840,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 ):
                     self.callback_failure = callback_result
                 self.callback = None
+            elif self.read_to_memory:
+                publish_result = False
+                self.done = True
             elif self.filename == "-":
                 self.fh.seek(0)
             else:
