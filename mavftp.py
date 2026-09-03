@@ -924,9 +924,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             assert self.fh is not None  # noqa: S101
             self.fh.seek(0)
             result = self.fh.read()
-            self.get_result = result[
-                self.requested_offset : self.requested_offset + self.requested_size
-            ]
+            if self.read_to_memory:
+                self.get_result = result[: self.requested_size]
+            else:
+                self.get_result = result
             assert self.get_result is not None  # noqa: S101
             if len(self.get_result) < self.requested_size:
                 logging.warning(
@@ -950,7 +951,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __write_payload(self, op: FTP_OP) -> None:
         """Write payload from a read op."""
-        self.fh.seek(op.offset)
+        write_offset = op.offset
+        if self.read_to_memory:
+            write_offset -= self.requested_offset
+        self.fh.seek(write_offset)
         self.fh.write(op.payload)
         self.read_total += len(op.payload)
         if self.callback_progress is not None and self.remote_file_size:

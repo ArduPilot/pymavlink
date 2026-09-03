@@ -470,6 +470,43 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertFalse(ftp._MAVFTP__check_read_finished())
 
+    def test_read_sector_memory_uses_range_relative_offset(self):
+        """A range read buffer must scale with the range, not remote offset."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.read_to_memory = True
+        ftp.requested_offset = 1024 * 1024
+
+        ftp._MAVFTP__write_payload(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=1,
+                session=0,
+                opcode=OP_Ack,
+                size=2,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=0,
+                offset=ftp.requested_offset,
+                payload=bytearray(b"xy"),
+            )
+        )
+
+        self.assertEqual(ftp.fh.getvalue(), b"xy")
+
+    def test_full_download_result_ignores_estimated_remote_size(self):
+        """A full download publishes bytes received past the advertised size."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO(b"x" * 200)
+        ftp.filename = "-"
+        ftp.requested_size = 80
+        ftp.read_total = 200
+        ftp.reached_eof = True
+        ftp.op_start = 1
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+
+        self.assertTrue(ftp._MAVFTP__check_read_finished())
+        self.assertEqual(ftp.get_result, b"x" * 200)
+
     def test_put_returns_after_completion_before_late_write_reply(self):
         ftp, master = self.make_ftp(
             [
