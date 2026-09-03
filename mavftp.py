@@ -2445,9 +2445,9 @@ def create_argument_parser() -> ArgumentParser:
         help="Current path of the file/directory.",
     )
     parser_rename.add_argument(
-        "new_remote_path",
+        "arg2",
         type=str,
-        metavar="arg2",
+        metavar="new_remote_path",
         help="New path for the file/directory.",
     )
 
