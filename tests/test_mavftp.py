@@ -296,7 +296,13 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             lambda: terminated.append(True),
         )
 
-        with patch("pymavlink.mavftp.time.time", side_effect=[0, 0, 0, 0, 6]):
+        clock_calls = [0]
+
+        def fake_time():
+            clock_calls[0] += 1
+            return 0 if clock_calls[0] <= 20 else 6
+
+        with patch("pymavlink.mavftp.time.time", side_effect=fake_time):
             self.assertIsNone(ftp.read("remote", 1))
 
         self.assertEqual(terminated, [True])
@@ -410,6 +416,49 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(stale_result.error_code, FtpError.Fail)
         self.assertEqual(ftp.read_gaps, [(0, 2)])
         self.assertEqual(ftp.fh.getvalue(), b"\x00\x00cd")
+
+    def test_out_of_order_final_gap_reply_reports_success(self):
+        """A successful final gap repair completes a read when it is not last_op."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.op_start = 1
+        ftp.requested_size = 240
+        ftp.burst_size = 239
+        ftp.reached_eof = True
+        ftp.read_gaps = [(0, 120), (120, 120)]
+        ftp.read_gap_times = {(0, 120): 0, (120, 120): 0}
+
+        ftp._MAVFTP__send_gap_read((0, 120))
+        ftp._MAVFTP__send_gap_read((120, 120))
+        # A burst request was sent after the gap requests, so neither gap
+        # reply matches last_op even though both remain active requests.
+        ftp._MAVFTP__send(
+            FTP_OP(
+                ftp.seq,
+                ftp.session,
+                OP_BurstReadFile,
+                239,
+                0,
+                0,
+                240,
+                None,
+            )
+        )
+        master.replies.extend(
+            [
+                ftp_reply(3, OP_Ack, OP_ReadFile, payload=b"b" * 120, offset=120),
+                ftp_reply(2, OP_Ack, OP_ReadFile, payload=b"a" * 120, offset=0),
+                ftp_reply(5, OP_Ack, OP_TerminateSession),
+            ]
+        )
+
+        result = ftp.process_ftp_reply("get", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertTrue(ftp.read_complete)
+        self.assertEqual(ftp.read_gaps, [])
+        self.assertEqual(ftp.get_result, b"a" * 120 + b"b" * 120)
 
     def test_stale_write_reply_is_discarded(self):
         ftp, master = self.make_ftp(

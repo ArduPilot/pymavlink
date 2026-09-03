@@ -680,12 +680,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 logging.error(e)
             self.__idle_task()
             time.sleep(0.0001)
-        logging.info("loop closed, gaps:%u, done: %u", self.read_gaps, self.done)
+        logging.info("loop closed, gaps:%u, done: %u", len(self.read_gaps), self.done)
         if not self.done and self.__has_active_session():
             self.__terminate_session()
         if len(self.read_gaps) == 0:
             return self.get_result
-        logging.error("closed read with %u gaps", self.read_gaps)
+        logging.error("closed read with %u gaps", len(self.read_gaps))
         return None
 
     def cmd_set(self, args: List[str]) -> MAVFTPReturn:
@@ -1713,11 +1713,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                         self.pending_terminate_seq = None
                         ret = MAVFTPReturn(operation_name, FtpError.Success)
                 else:
-                    # Keep a result only from the request that was current
-                    # when this reply arrived.  Packet handlers must still
-                    # see stale replies so they can maintain their own
-                    # state, but retaining their result would make idle
-                    # fallback return a previous operation's outcome.
+                    # Keep a result from the latest request or an active
+                    # in-flight request. Packet handlers must still see
+                    # stale replies so they can maintain their own state,
+                    # but retaining a stale result would make idle fallback
+                    # return a previous operation's outcome.
                     op = self.__op_parse(m)
                     reply_matches_last_op = (
                         self.last_op is not None
@@ -1743,10 +1743,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     if (
                         reply_matches_last_op
                         or completed_upload
-                        or (
-                            reply_matches_active_request
-                            and packet_ret.error_code != FtpError.Success
-                        )
+                        or reply_matches_active_request
                     ):
                         ret = packet_ret
                 if (
