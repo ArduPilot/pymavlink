@@ -1075,6 +1075,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             elif op.size < self.burst_size:
                 logging.info("FTP: file size changed to %u", op.offset + op.size)
                 self.__terminate_session()
+                return MAVFTPReturn("ReadFile", FtpError.Fail)
             else:
                 self.duplicates += 1
                 if self.ftp_settings.debug > 0:

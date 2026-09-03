@@ -196,6 +196,28 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.FileNotFound)
         self.assertEqual(terminated, [True])
 
+    def test_unexpected_short_gap_ack_reports_failure(self):
+        """A short reply for an unknown gap must not report a completed read."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.read_gaps = [(4, 2)]
+        ftp.read_gap_times = {(4, 2): 1}
+        terminated = []
+        setattr(
+            ftp,
+            "_MAVFTP__terminate_session",
+            lambda: terminated.append(True),
+        )
+
+        result = ftp._MAVFTP__handle_reply_read(
+            FTP_OP(1, 0, OP_Ack, 1, OP_ReadFile, 0, 0, bytearray(b"x")),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(terminated, [True])
+
     def test_write_nack_preserves_server_error(self):
         """WriteFile NACKs retain their precise protocol error code."""
         ftp, _master = self.make_ftp([])
