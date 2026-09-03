@@ -830,7 +830,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     and callback_result.error_code != FtpError.Success
                 ):
                     self.callback_failure = callback_result
-                    publish_result = False
                 self.callback = None
             elif self.filename == "-":
                 self.fh.seek(0)

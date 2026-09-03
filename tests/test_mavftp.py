@@ -554,6 +554,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertIsNone(ftp.get_result)
 
     def test_callback_failure_does_not_publish_download(self):
+        """Regression: a failing callback must not publish its temporary download."""
         with tempfile.TemporaryDirectory() as tempdir:
             destination = f"{tempdir}/param.pck"
             ftp, _master = self.make_ftp(
@@ -580,12 +581,13 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             self.assertFalse(os.path.exists(destination))
 
     def test_callback_success_does_not_publish_download(self):
+        """Regression: callbacks consume all four advertised bytes without publishing."""
         with tempfile.TemporaryDirectory() as tempdir:
             destination = f"{tempdir}/param.pck"
             callback_data = []
             ftp, _master = self.make_ftp(
                 [
-                    ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[3, 0, 0, 0]),
+                    ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[4, 0, 0, 0]),
                     ftp_reply(
                         3,
                         OP_Ack,
