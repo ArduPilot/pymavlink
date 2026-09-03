@@ -200,6 +200,7 @@
 <xs:attribute name="hasLocation" type="xs:boolean" default="false"/>      <!-- lat/lon/alt location in params 5, 6, 7 (entry contains location information). -->
 <xs:attribute name="isDestination" type="xs:boolean" default="false"/>    <!-- entry is a waypoint/destination (lat/lon/alt in params 5, 6, 7) -->
 <xs:attribute name="hasAltitudeOnly" type="xs:boolean" default="false"/>  <!-- alt in param7 and lat/lon not in param 5/6 -->
+<xs:attribute name="missionOnly" type="xs:boolean" default="false"/>  <!-- planned for removal -->
 <xs:attribute name="mission" type="xs:boolean" default="false"/>          <!-- entry can be used in mission plan -->
 <xs:attribute name="fence" type="xs:boolean" default="false"/>            <!-- entry can be used in fence plan -->
 <xs:attribute name="rally" type="xs:boolean" default="false"/>            <!-- entry can be used in rally plan -->
@@ -294,6 +295,7 @@
         <xs:attribute ref="hasLocation"/>
         <xs:attribute ref="hasAltitudeOnly"/>
         <xs:attribute ref="isDestination"/> <!-- requires hasLocation -->
+        <xs:attribute ref="missionOnly"/>  <!-- planned for removal -->
         <xs:attribute ref="mission"/>
         <xs:attribute ref="fence"/>
         <xs:attribute ref="rally"/>
