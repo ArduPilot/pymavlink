@@ -244,6 +244,26 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.Fail)
         self.assertEqual(terminated, [True])
 
+    def test_malformed_directory_entry_reports_invalid_data(self):
+        """A malformed file listing entry must not crash reply processing."""
+        ftp, _master = self.make_ftp([])
+
+        result = ftp._MAVFTP__handle_list_reply(
+            FTP_OP(
+                1,
+                0,
+                OP_Ack,
+                len(b"Fmissing-size"),
+                OP_ListDirectory,
+                0,
+                0,
+                bytearray(b"Fmissing-size"),
+            ),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.InvalidDataSize)
+
     def test_write_nack_preserves_server_error(self):
         """WriteFile NACKs retain their precise protocol error code."""
         ftp, _master = self.make_ftp([])

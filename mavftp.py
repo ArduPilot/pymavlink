@@ -6,7 +6,7 @@ MAVLink File Transfer Protocol support - https://mavlink.io/en/services/ftp.html
 
 Original from MAVProxy/MAVProxy/modules/mavproxy_ftp.py.
 
-SPDX-FileCopyrightText: 2011-2024 Andrew Tridgell, 2024-2025 Amilcar Lucas
+SPDX-FileCopyrightText: 2011-2024 Andrew Tridgell, 2024-2026 Amilcar Lucas
 
 SPDX-License-Identifier: GPL-3.0-or-later
 """
@@ -607,7 +607,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                         DirectoryEntry(name=dir_entry[1:], is_dir=True, size_b=0)
                     )
                 elif dir_entry[0] == "F":
-                    (name, size_str) = dir_entry[1:].split("\t")
+                    try:
+                        (name, size_str) = dir_entry[1:].rsplit("\t", 1)
+                    except ValueError:
+                        logging.error("Invalid file entry: %s", dir_entry)
+                        return MAVFTPReturn("ListDirectory", FtpError.InvalidDataSize)
                     try:
                         size = int(size_str)
                     except (ValueError, TypeError, OverflowError):
