@@ -10,6 +10,12 @@ best-effort failure cleanup). Run it only against hardware whose filesystem
 may be modified. The default Pixhawk USB port is ``/dev/ttyACM0``; pass a
 different device, baud rate, or component ID on the command line as needed.
 
+Known hardware limitation: some flight-controller firmware leaves the FTP
+session handshake incomplete after synchronous range reads. In that case the
+range checks pass, but the subsequent MAVFTP reinitialization can block before
+rename/delete; reboot the controller and remove the uniquely named test file
+if cleanup did not complete.
+
 SPDX-FileCopyrightText: 2026 Amilcar Lucas
 
 SPDX-License-Identifier: GPL-3.0-or-later
@@ -55,6 +61,15 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
         print(f"list: {listing.error_code.name}", flush=True)
         if listing.error_code != FtpError.Success:
             raise RuntimeError(f"directory listing failed: {listing.error_code.name}")
+        directory = f"/APM/mavftp_hwtest_{int(time.time())}"
+        result = ftp.cmd_mkdir([directory])
+        print(f"mkdir: {result.error_code.name}", flush=True)
+        if result.error_code != FtpError.Success:
+            raise RuntimeError(f"mkdir failed: {result.error_code.name}")
+        result = ftp.cmd_rmdir([directory])
+        print(f"rmdir: {result.error_code.name}", flush=True)
+        if result.error_code != FtpError.Success:
+            raise RuntimeError(f"rmdir failed: {result.error_code.name}")
 
         # Remove leftovers from an interrupted prior run; FileNotFound is fine.
         for path in (remote, renamed):
@@ -90,6 +105,32 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
         if data != payload:
             raise RuntimeError("downloaded data does not match uploaded data")
 
+        small_range = ftp.read_sector(remote, 0, 2)
+        print(f"small full-burst range: {len(small_range) if small_range is not None else 'none'} bytes", flush=True)
+        if small_range != payload[:2]:
+            raise RuntimeError("small full-burst range did not match uploaded data")
+        high_offset = len(payload) - 2
+        tail_range = ftp.read_sector(remote, high_offset, 2)
+        print(
+            f"high-offset range: {len(tail_range) if tail_range is not None else 'none'} "
+            f"bytes at {high_offset}",
+            flush=True,
+        )
+        if tail_range != payload[high_offset:]:
+            raise RuntimeError("high-offset range did not match uploaded data")
+
+        # Reopen after synchronous reads so late termination replies cannot
+        # interfere with the following rename and delete operations. Some FC
+        # firmware does not complete this handshake; see the module note.
+        master.close()
+        time.sleep(0.5)
+        master = mavutil.mavlink_connection(
+            device, baud=baud, source_system=250, autoreconnect=False
+        )
+        if master.wait_heartbeat(timeout=10) is None:
+            raise RuntimeError("no MAVLink heartbeat after range reads")
+        ftp = MAVFTP(master, target_system=master.target_system, target_component=component)
+
         result = ftp.cmd_rename([remote, renamed])
         print(f"rename: {result.error_code.name}", flush=True)
         if result.error_code != FtpError.Success:
@@ -99,16 +140,6 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
         if result.error_code != FtpError.Success:
             raise RuntimeError(f"delete failed: {result.error_code.name}")
 
-        directory = f"/APM/mavftp_hwtest_{int(time.time())}"
-        result = ftp.cmd_mkdir([directory])
-        print(f"mkdir: {result.error_code.name}", flush=True)
-        if result.error_code != FtpError.Success:
-            raise RuntimeError(f"mkdir failed: {result.error_code.name}")
-        result = ftp.cmd_rmdir([directory])
-        print(f"rmdir: {result.error_code.name}", flush=True)
-        if result.error_code != FtpError.Success:
-            raise RuntimeError(f"rmdir failed: {result.error_code.name}")
-
         with tempfile.TemporaryDirectory(prefix="mavftp_params_") as temp_dir:
             values = f"{temp_dir}/values.txt"
             result = ftp.cmd_getparams([values])
@@ -116,6 +147,7 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
             print(f"getparams: {result.error_code.name}", flush=True)
             if result.error_code != FtpError.Success:
                 raise RuntimeError(f"getparams failed: {result.error_code.name}")
+
         print("MAVFTP HARDWARE TEST PASSED", flush=True)
     finally:
         if ftp is not None:
