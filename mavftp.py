@@ -2023,7 +2023,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     def save_params(
-        pdict: Dict[str, Tuple[float, str]],
+        pdict: Dict[str, Tuple[float, int]],
         filename: str,
         sort_type: str,
         add_datatype_comments: bool,
@@ -2034,10 +2034,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return
         with open(filename, "w", encoding="utf-8") as f:
             parameter_data_types = {
-                "1": "8-bit",
-                "2": "16-bit",
-                "3": "32-bit integer",
-                "4": "32-bit float",
+                1: "8-bit",
+                2: "16-bit",
+                3: "32-bit integer",
+                4: "32-bit float",
             }
             if add_timestamp_comment:
                 f.write(

@@ -713,6 +713,22 @@ class TestMAVFTPParamDecode(unittest.TestCase):
             self.assertIsNone(MAVFTP.ftp_param_decode(header + first + second))
         self.assertIn("parameter name is too long", logs.output[0])
 
+    def test_save_params_writes_integer_datatype_comments(self):
+        """Decoded integer type IDs produce the documented datatype comment."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            output = f"{tempdir}/params.txt"
+
+            MAVFTP.save_params(
+                {"TEST_PARAM": (1.0, 4)},
+                output,
+                "missionplanner",
+                add_datatype_comments=True,
+                add_timestamp_comment=False,
+            )
+
+            with open(output, encoding="utf-8") as param_file:
+                self.assertEqual(param_file.read(), "TEST_PARAM,1  # 32-bit float\n")
+
 
 class TestMAVFTPPayloadDecoding(unittest.TestCase):
     """Test MAVFTP payload decoding"""
