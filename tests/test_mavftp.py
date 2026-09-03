@@ -414,6 +414,62 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             finally:
                 os.chdir(previous_cwd)
 
+    def test_read_sector_stops_after_requested_range_in_full_burst(self):
+        """A full burst must not continue after a small range is satisfied."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.read_to_memory = True
+        ftp.requested_offset = 0
+        ftp.requested_size = 2
+        ftp.op_start = 1
+        ftp.burst_size = 80
+        ftp.session = 7
+        ftp.pending_burst_request = FTP_OP(
+            seq=1,
+            session=7,
+            opcode=OP_BurstReadFile,
+            size=80,
+            req_opcode=0,
+            burst_complete=0,
+            offset=0,
+            payload=None,
+        )
+
+        result = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=2,
+                session=7,
+                opcode=OP_Ack,
+                size=80,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=1,
+                offset=0,
+                payload=bytearray(b"x" * 80),
+            ),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertTrue(ftp.done)
+        self.assertEqual(ftp.get_result, b"xx")
+        self.assertEqual(master.mav.sent[-1][-1][3], OP_TerminateSession)
+        self.assertNotIn(
+            OP_BurstReadFile, [sent[-1][3] for sent in master.mav.sent[1:]]
+        )
+
+    def test_full_download_waits_for_eof_when_size_is_underestimated(self):
+        """A full download must not finish at an estimated remote file size."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO(b"data")
+        ftp.filename = "-"
+        ftp.requested_size = 4
+        ftp.read_total = 4
+        ftp.op_start = 1
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+
+        self.assertFalse(ftp._MAVFTP__check_read_finished())
+
     def test_put_returns_after_completion_before_late_write_reply(self):
         ftp, master = self.make_ftp(
             [
