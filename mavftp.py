@@ -816,8 +816,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             try:
                 if self.callback is not None or self.filename == "-" or self.read_to_memory:
                     self.fh = SIO()
-                    if self.read_to_memory:
-                        self.fh.seek(self.requested_offset)
                 else:
                     self.__release_staging()
                     (temp_fd, self.temp_filename) = tempfile.mkstemp(prefix="mavftp_")
@@ -877,7 +875,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if len(self.read_gaps) == 0 and (
             self.reached_eof or (self.read_to_memory and self.read_total >= self.requested_size)
         ):
-            ofs = self.fh.tell()
+            ofs = self.__read_position()
             dt = time.time() - self.op_start
             rate = (ofs / dt) / 1024.0
             publish_result = True
@@ -960,6 +958,19 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if self.callback_progress is not None and self.remote_file_size:
             self.callback_progress(self.read_total / self.remote_file_size)
 
+    def __read_position(self) -> int:
+        """Return the current remote offset represented by the read buffer."""
+        position = self.fh.tell()
+        if self.read_to_memory:
+            position += self.requested_offset
+        return position
+
+    def __seek_read_position(self, offset: int) -> None:
+        """Seek the read buffer to a remote offset."""
+        if self.read_to_memory:
+            offset -= self.requested_offset
+        self.fh.seek(offset)
+
     def __handle_burst_read(self, op: FTP_OP, _m) -> MAVFTPReturn:  # noqa: PLR0911, PLR0915 pylint: disable=too-many-statements,too-many-branches,too-many-return-statements
         """Handle OP_BurstReadFile reply."""
         if (
@@ -984,7 +995,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             if self.ftp_settings.debug > 0:
                 logging.info("FTP: Setting burst size to %u", self.burst_size)
         if op.opcode == OP_Ack and self.fh is not None:
-            ofs = self.fh.tell()
+            ofs = self.__read_position()
             if op.offset < ofs:
                 # writing an earlier portion, possibly remove a gap
                 gap = (op.offset, len(op.payload))
@@ -1004,12 +1015,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                             "FTP: dup read reply at %u of len %u ofs=%u",
                             op.offset,
                             op.size,
-                            self.fh.tell(),
+                            self.__read_position(),
                         )
                     self.duplicates += 1
                     return MAVFTPReturn("BurstReadFile", FtpError.Fail)
                 self.__write_payload(op)
-                self.fh.seek(ofs)
+                self.__seek_read_position(ofs)
                 if self.__check_read_finished():
                     return MAVFTPReturn("BurstReadFile", FtpError.Success)
             elif op.offset > ofs:
@@ -1041,7 +1052,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     ):
                         logging.info(
                             "FTP: EOF at %u with %u gaps t=%.2f",
-                            self.fh.tell(),
+                            self.__read_position(),
                             len(self.read_gaps),
                             time.time() - self.op_start,
                         )
@@ -1058,7 +1069,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 more.offset = op.offset + op.size
                 if self.ftp_settings.debug > 0:
                     logging.info(
-                        "FTP: burst continue at %u %u", more.offset, self.fh.tell()
+                        "FTP: burst continue at %u %u", more.offset, self.__read_position()
                     )
                 self.__send(more)
             # A valid burst reply may be only one part of the transfer.
@@ -1067,11 +1078,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if op.opcode == OP_Nack:
             nack_result = self.__decode_ftp_ack_and_nack(op)
             if nack_result.error_code == FtpError.EndOfFile:
-                if not self.reached_eof and op.offset > self.fh.tell():
+                if not self.reached_eof and op.offset > self.__read_position():
                     # we lost the last part of the burst
                     if self.ftp_settings.debug > 0:
                         logging.error(
-                            "FTP: burst lost EOF %u %u", self.fh.tell(), op.offset
+                            "FTP: burst lost EOF %u %u", self.__read_position(), op.offset
                         )
                     return MAVFTPReturn("BurstReadFile", FtpError.Fail)
                 if (
@@ -1081,7 +1092,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 ):
                     logging.info(
                         "FTP: EOF at %u with %u gaps t=%.2f",
-                        self.fh.tell(),
+                        self.__read_position(),
                         len(self.read_gaps),
                         time.time() - self.op_start,
                     )
@@ -1125,9 +1136,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     for seq, pending_read in self.pending_read_requests.items()
                     if (pending_read.offset, pending_read.size) != gap
                 }
-                ofs = self.fh.tell()
+                ofs = self.__read_position()
                 self.__write_payload(op)
-                self.fh.seek(ofs)
+                self.__seek_read_position(ofs)
                 if self.ftp_settings.debug > 0:
                     logging.info(
                         "FTP: removed gap %u, %u, %u",
@@ -1713,7 +1724,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             if self.ftp_settings.debug > 0:
                 logging.info(
                     "FTP: Retry read at %u rtt=%.2f dt=%.2f",
-                    self.fh.tell(),
+                    self.__read_position(),
                     self.rtt,
                     dt,
                 )
