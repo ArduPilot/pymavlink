@@ -81,6 +81,56 @@ class FakeMaster:  # pylint: disable=too-few-public-methods
         return None
 
 
+class AllocatingSessionReplayMaster(FakeMaster):  # pylint: disable=too-few-public-methods
+    """Server model that reuses session 0 and replays a prior burst packet."""
+
+    def __init__(self):
+        super().__init__([])
+        self.sent_index = 0
+        self.download_count = 0
+        self.stale_reply = None
+
+    def recv_match(self, **kwargs):
+        while self.sent_index < len(self.mav.sent):
+            payload = self.mav.sent[self.sent_index][-1]
+            self.sent_index += 1
+            (seq, session, opcode, size, _req_opcode, _burst_complete, _pad, offset) = (
+                struct.unpack("<HBBBBBBI", payload[:12])
+            )
+            request = FTP_OP(
+                seq, session, opcode, size, 0, 0, offset, bytearray(payload[12 : 12 + size])
+            )
+            reply_seq = (request.seq + 1) % 65536
+            if request.opcode == OP_ResetSessions:
+                self.replies.append(ftp_reply(reply_seq, OP_Ack, OP_ResetSessions))
+            elif request.opcode == OP_OpenFileRO:
+                self.download_count += 1
+                self.replies.append(
+                    ftp_reply(reply_seq, OP_Ack, OP_OpenFileRO, payload=[63, 1, 0, 0])
+                )
+            elif request.opcode == OP_BurstReadFile:
+                data = b"A" if self.download_count == 1 else b"B"
+                replies = [
+                    ftp_reply(reply_seq + index, OP_Ack, OP_BurstReadFile,
+                              payload=data * size, offset=index * size,
+                              burst_complete=index == 3)
+                    for index in range(3)
+                ]
+                replies.append(
+                    ftp_reply(reply_seq + 3, OP_Ack, OP_BurstReadFile,
+                              payload=data * (size - 1), offset=3 * size,
+                              burst_complete=1)
+                )
+                if self.download_count == 1:
+                    self.stale_reply = replies[-1]
+                else:
+                    self.replies.append(self.stale_reply)
+                self.replies.extend(replies)
+            elif request.opcode == OP_TerminateSession:
+                self.replies.append(ftp_reply(reply_seq, OP_Ack, OP_TerminateSession))
+        return super().recv_match(**kwargs)
+
+
 def ftp_reply(  # pylint: disable=too-many-arguments
     seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0, session=0
 ):
@@ -154,6 +204,23 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(ftp.session, 42)
         self.assertEqual(master.mav.sent[-1][-1][2], 42)
+
+    def test_allocated_session_discards_replayed_prior_download_burst_reply(self):
+        """A reused allocated session cannot let old data into the next read."""
+        master = AllocatingSessionReplayMaster()
+        ftp = MAVFTP(master, target_system=1, target_component=1)
+        ftp.ftp_settings.idle_detection_time = 0.02
+        ftp.ftp_settings.read_retry_time = 0.01
+        ftp.ftp_settings.retry_time = 0.2
+
+        for expected in (b"A" * 319, b"B" * 319):
+            ftp.cmd_get(
+                ["remote", "-"],
+                callback=lambda _fh: MAVFTPReturn("Get", FtpError.Success),
+            )
+            result = ftp.process_ftp_reply("get", timeout=1)
+            self.assertEqual(result.error_code, FtpError.Success)
+            self.assertEqual(ftp.get_result, expected)
 
     def test_cmd_get_clears_range_read_state(self):
         """A normal download must not inherit a prior range-read offset."""
@@ -650,8 +717,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                     payload=b"x" * 80,
                     burst_complete=1,
                 ),
-                ftp_reply(4, OP_Ack, OP_BurstReadFile, payload=b"y", offset=80, burst_complete=1),
-                ftp_reply(5, OP_Ack, OP_TerminateSession),
+                ftp_reply(5, OP_Ack, OP_BurstReadFile, payload=b"y", offset=80, burst_complete=1),
+                ftp_reply(6, OP_Ack, OP_TerminateSession),
             ]
         )
 
@@ -663,6 +730,139 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(ftp.duplicates, 0)
+
+    def test_stale_burst_reply_sequence_is_discarded_for_reused_session(self):
+        """A delayed burst packet must not match a new request in session 0."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.pending_burst_offset = 0
+        ftp.pending_burst_seq = 11
+        ftp.pending_burst_request = FTP_OP(
+            seq=10,
+            session=0,
+            opcode=OP_BurstReadFile,
+            size=80,
+            req_opcode=0,
+            burst_complete=0,
+            offset=0,
+            payload=None,
+        )
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(
+                10,
+                OP_Ack,
+                OP_BurstReadFile,
+                payload=b"stale",
+                offset=0,
+                session=0,
+            )
+        )
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(ftp.fh.getvalue(), b"")
+
+    def test_burst_reply_before_pending_offset_is_discarded(self):
+        """A delayed reply for an earlier burst must not write into this one."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_offset = 80
+        ftp.pending_burst_offset = 80
+        ftp.pending_burst_seq = 2
+        ftp.pending_burst_request = FTP_OP(1, 0, OP_BurstReadFile, 40, 0, 0, 80, None)
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_BurstReadFile, payload=b"stale", offset=0)
+        )
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(ftp.fh.getvalue(), b"")
+
+    def test_burst_reply_requires_pending_offset(self):
+        """Burst packets are ignored until a request establishes its offset."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.pending_burst_seq = 2
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_BurstReadFile, payload=b"stale", offset=0)
+        )
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(ftp.fh.getvalue(), b"")
+
+    def test_out_of_order_replies_in_one_burst_fill_the_gap(self):
+        """Burst reply sequencing is a floor, not a per-reply ratchet."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_size = 240
+        ftp.burst_size = 80
+        ftp.op_start = 1
+        ftp.pending_burst_offset = 0
+        ftp.pending_burst_seq = 2
+        ftp.pending_burst_request = FTP_OP(
+            seq=1,
+            session=0,
+            opcode=OP_BurstReadFile,
+            size=80,
+            req_opcode=0,
+            burst_complete=0,
+            offset=0,
+            payload=None,
+        )
+
+        for seq, offset, payload in (
+            (2, 0, b"a" * 80),
+            (4, 160, b"c" * 80),
+            (3, 80, b"b" * 80),
+        ):
+            result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+                ftp_reply(seq, OP_Ack, OP_BurstReadFile, payload=payload, offset=offset)
+            )
+            self.assertEqual(result.error_code, FtpError.Success)
+
+        self.assertEqual(ftp.read_gaps, [])
+        self.assertEqual(ftp.get_result, b"a" * 80 + b"b" * 80 + b"c" * 80)
+
+    def test_retry_straggler_does_not_block_restarted_burst(self):
+        """A high-sequence straggler cannot advance the restarted burst floor."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_size = 80
+        ftp.burst_size = 40
+        ftp.op_start = 1
+        ftp.pending_burst_offset = 0
+        ftp.pending_burst_seq = 2
+        ftp.pending_burst_request = FTP_OP(
+            seq=1,
+            session=0,
+            opcode=OP_BurstReadFile,
+            size=40,
+            req_opcode=0,
+            burst_complete=0,
+            offset=0,
+            payload=None,
+        )
+
+        straggler = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(42, OP_Ack, OP_BurstReadFile, payload=b"b" * 40, offset=40)
+        )
+        restarted = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_BurstReadFile, payload=b"a" * 40, offset=0)
+        )
+
+        self.assertEqual(straggler.error_code, FtpError.Success)
+        self.assertEqual(restarted.error_code, FtpError.Success)
+        self.assertEqual(ftp.read_gaps, [])
+        self.assertEqual(ftp.get_result, b"a" * 40 + b"b" * 40)
 
     def test_out_of_order_gap_reply_is_dispatched(self):
         ftp, _master = self.make_ftp([])
