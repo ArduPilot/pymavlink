@@ -70,6 +70,8 @@ from pymavlink.mavftp_op import (
     OP_WriteFile,
 )
 
+ParameterDataType = Union[str, int]
+
 
 # pylint: disable=invalid-name
 class FtpError(IntEnum):
@@ -2110,7 +2112,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     def save_params(
-        pdict: Dict[str, Tuple[float, int]],
+        pdict: Dict[str, Tuple[float, ParameterDataType]],
         filename: str,
         sort_type: str,
         add_datatype_comments: bool,
@@ -2137,7 +2139,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     f.write(f"{name:<16} {value:<8.6f}")
 
                 if add_datatype_comments:
-                    f.write(f"  # {parameter_data_types[datatype]}")
+                    datatype_id = int(datatype)
+                    f.write(f"  # {parameter_data_types[datatype_id]}")
                 f.write("\n")
         logging.info("Outputted %u parameters to %s", len(pdict), filename)
 
