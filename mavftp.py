@@ -358,10 +358,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.duplicates = 0
         self.last_read = None
         self.last_burst_read: Union[None, float] = None
-        # The start offset of the active burst. Burst packets are streamed
-        # with advancing sequence numbers, so their offsets identify whether
-        # they belong to the current burst after a new burst is requested.
+        # The start offset and first expected reply sequence of the active burst.
+        # Burst packets are streamed with advancing sequence numbers, so both
+        # identify whether a reply belongs to the current burst.
         self.pending_burst_offset: Optional[int] = None
+        self.pending_burst_seq: Optional[int] = None
         self.pending_burst_request: Optional[FTP_OP] = None
         self.op_start: Union[None, float] = None
         self.dir_offset = 0
@@ -470,6 +471,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         expected_reply_seq = (op.seq + 1) % 65536
         if op.opcode == OP_BurstReadFile:
             self.pending_burst_offset = op.offset
+            self.pending_burst_seq = expected_reply_seq
             self.pending_burst_request = op
         elif op.opcode == OP_ReadFile:
             self.pending_read_replies[expected_reply_seq] = (op.offset, op.size)
@@ -535,6 +537,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.last_read = None
         self.last_burst_read = None
         self.pending_burst_offset = None
+        self.pending_burst_seq = None
         self.pending_burst_request = None
         self.reached_eof = False
         self.backlog = 0
@@ -1045,6 +1048,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 self.__write_payload(op)
             else:
                 self.__write_payload(op)
+            # Burst replies have their own advancing sequence stream.  Keep
+            # future requests beyond every accepted reply so a new download
+            # cannot reuse a stale reply sequence when a server reuses a
+            # session identifier.
+            if (
+                self.pending_burst_seq is not None
+                and self.pending_burst_offset is not None
+                and ((op.seq - self.pending_burst_seq) & 0xFFFF)
+                <= (op.offset - self.pending_burst_offset)
+                and self.__seq_is_at_or_after(op.seq, self.seq)
+            ):
+                self.seq = (op.seq + 1) & 0xFFFF
             if self.__check_read_finished():
                 return MAVFTPReturn("BurstReadFile", FtpError.Success)
             if op.burst_complete:
@@ -1064,6 +1079,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                         )
                     self.reached_eof = True
                     self.pending_burst_offset = None
+                    self.pending_burst_seq = None
                     self.pending_burst_request = None
                     if self.__check_read_finished():
                         return MAVFTPReturn("BurstReadFile", FtpError.Success)
@@ -1104,6 +1120,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     )
                 self.reached_eof = True
                 self.pending_burst_offset = None
+                self.pending_burst_seq = None
                 self.pending_burst_request = None
                 if self.__check_read_finished():
                     return MAVFTPReturn("BurstReadFile", FtpError.Success)
@@ -1515,6 +1532,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if op.req_opcode == OP_BurstReadFile:
             return (
                 self.pending_burst_offset is not None
+                and self.pending_burst_seq is not None
+                and self.__seq_is_at_or_after(op.seq, self.pending_burst_seq)
                 and op.offset >= self.pending_burst_offset
             )
         if op.req_opcode == OP_ReadFile:
@@ -1530,6 +1549,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return True
 
         return False
+
+    @staticmethod
+    def __seq_is_at_or_after(seq: int, expected: int) -> bool:
+        """Return whether a uint16 sequence is equal to or newer than expected."""
+        return ((seq - expected) & 0xFFFF) < 0x8000
 
     def __mavlink_packet(self, m) -> MAVFTPReturn:  # noqa: PLR0911, PGH004, pylint: disable=too-many-branches, too-many-return-statements
         """Handle a mavlink packet."""
