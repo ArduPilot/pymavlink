@@ -131,7 +131,12 @@ last_msg_rate_t = {}
 def reduce_rate_msg(m, reduction_rate):
     '''return True if this msg should be discarded by reduction'''
     mtype = m.get_type()
-    if mtype in ['PARM','MSG','FMT','FMTU','MULT','MODE','EVT','UNIT', 'VER']:
+    # never drop messages that are sent once or in short bursts (e.g.
+    # parameters, missions, events) rather than at a steady rate, as
+    # rate reduction would discard most of a burst. HEARTBEAT is kept so
+    # that every source system/component remains visible in the output.
+    if mtype in ['PARM','MSG','FMT','FMTU','MULT','MODE','EV','ERR','CMD','UNIT','VER',
+                 'PARAM_VALUE','STATUSTEXT','HEARTBEAT','MISSION_ITEM_INT']:
         return False
     t = getattr(m,'_timestamp',None)
     if t is None:
