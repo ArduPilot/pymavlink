@@ -35,7 +35,7 @@ from pymavlink.mavftp import (
     OP_WriteFile,
 )
 
-# pylint: disable=protected-access
+# pylint: disable=protected-access,too-many-lines
 
 
 class FakeFTPMessage:  # pylint: disable=too-few-public-methods
