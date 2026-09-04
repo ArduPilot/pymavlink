@@ -155,6 +155,25 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.session, 42)
         self.assertEqual(master.mav.sent[-1][-1][2], 42)
 
+    def test_cmd_get_clears_range_read_state(self):
+        """A normal download must not inherit a prior range-read offset."""
+        ftp, master = self.make_ftp([])
+        ftp.requested_offset = 123
+        ftp.requested_size = 2
+
+        try:
+            ftp.cmd_get(["remote", "download"])
+            ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+                ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[4, 0, 0, 0], session=7)
+            )
+
+            self.assertEqual(ftp.requested_offset, 0)
+            self.assertEqual(ftp.requested_size, 4)
+            self.assertEqual(ftp.fh.tell(), 0)
+            self.assertEqual(struct.unpack_from("<I", master.mav.sent[-1][-1], 8)[0], 0)
+        finally:
+            ftp._MAVFTP__release_staging()  # pylint: disable=protected-access
+
     def test_create_file_ack_uses_allocated_session(self):
         """A non-echoing CreateFile server session is used for WriteFile."""
         ftp, master = self.make_ftp([])

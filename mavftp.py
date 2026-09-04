@@ -791,6 +791,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.info("Getting %s to %s", fname, self.filename)
         self.op_start = time.time()
         self.read_to_memory = False
+        self.requested_offset = 0
+        self.requested_size = 0
         self.callback = callback
         self.callback_failure = None
         self.callback_progress = progress_callback
