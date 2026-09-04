@@ -701,7 +701,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         logging.error("closed read with %u gaps", len(self.read_gaps))
         return None
 
-    def cmd_set(self, args: List[str]) -> MAVFTPReturn:
+    def cmd_set(  # pylint: disable=too-many-return-statements,too-many-boolean-expressions
+        self, args: List[str]
+    ) -> MAVFTPReturn:
         """Set a MAVFTP configuration parameter."""
         if len(args) != 2:
             logging.error("Usage: set PARAMETERNAME PARAMETERVALUE")
@@ -866,7 +868,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__terminate_session()
         return ret
 
-    def __check_read_finished(self) -> bool:
+    def __check_read_finished(self) -> bool:  # pylint: disable=too-many-branches
         """Check if download has completed."""
         if self.fh is None:
             return True
