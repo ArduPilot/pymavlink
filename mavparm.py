@@ -193,11 +193,19 @@ class MAVParmDict(dict):
             if not k in other:
                 value = float(self[k])
                 if show_only2:
-                    print("%-16.16s              %12.4f%s" % (k, value, comment(info(k, "FILE2", value))))
+                    c = comment(info(k, "FILE2", value))
+                    if use_tabs:
+                        print("%s\t\t%.4f%s" % (k, value, c))
+                    else:
+                        print("%-16.16s              %12.4f%s" % (k, value, c))
             elif not k in self:
                 if show_only1:
                     value = float(other[k])
-                    print("%-16.16s %12.4f%s" % (k, value, comment(info(k, "FILE1", value))))
+                    c = comment(info(k, "FILE1", value))
+                    if use_tabs:
+                        print("%s\t%.4f%s" % (k, value, c))
+                    else:
+                        print("%-16.16s %12.4f%s" % (k, value, c))
             elif abs(self[k] - other[k]) > self.mindelta:
                 value = float(self[k])
                 c = comment(info(k, "FILE1", float(other[k])), info(k, "FILE2", value))
