@@ -723,7 +723,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
         try:
             setting_value = float(args[1])
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             logging.error("Invalid parameter value: %s", args[1])
             return MAVFTPReturn("Set", FtpError.InvalidArguments)
 
