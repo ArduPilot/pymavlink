@@ -83,6 +83,23 @@ except Exception:
 
 BytesLike = Union[List[int], Tuple[int], bytes, bytearray, str]
 
+# char and char[] fields are bytes on the wire, but callers have always been
+# allowed to pass a str for them (e.g. mav.statustext_send(sev, "hello")).
+CharFieldLike = Union[bytes, bytearray, str]
+
+
+def char_field_to_bytes(value: CharFieldLike) -> bytes:
+    """Normalise a char/char[] field value to bytes.
+
+    str is encoded as ascii to match the decoding done on the receiving side;
+    characters outside ascii are replaced rather than raising.
+    """
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, str):
+        return value.encode("ascii", errors="replace")
+    return bytes(value)
+
 
 class _x25crc_slow(object):
     """CRC-16/MCRF4XX - based on checksum.h from mavlink library"""
@@ -516,8 +533,8 @@ def generate_classes(outf, msgs, enums):
         init_fields = []
         for f in m.fields:
             if f.type == "char":
-                init_fields.append("self._%s_raw = %s" % (f.name, f.name))
-                init_fields.append('self.%s = %s.split(b"\\x00", 1)[0].decode("ascii", errors="replace")' % (f.name, f.name))
+                init_fields.append("self._%s_raw = char_field_to_bytes(%s)" % (f.name, f.name))
+                init_fields.append('self.%s = self._%s_raw.split(b"\\x00", 1)[0].decode("ascii", errors="replace")' % (f.name, f.name))
             else:
                 init_fields.append("self.%s = %s" % (f.name, f.name))
 
@@ -645,7 +662,7 @@ def mavpytype(field):
     c_type_to_py = {
         "float": "float",
         "double": "float",
-        "char": "bytes",
+        "char": "CharFieldLike",
         "int8_t": "int",
         "uint8_t": "int",
         "uint8_t_mavlink_version": "int",
@@ -659,7 +676,7 @@ def mavpytype(field):
 
     if field.array_length:
         if field.type == "char":
-            return "bytes"
+            return "CharFieldLike"
         return "Sequence[{}]".format(c_type_to_py[field.type])
     return c_type_to_py[field.type]
 
