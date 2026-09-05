@@ -270,6 +270,14 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 result = ftp.cmd_set([setting, value])
                 self.assertEqual(result.error_code, FtpError.InvalidArguments)
 
+    def test_cmd_set_rejects_an_integer_too_large_for_float(self):
+        """An overflow while normalising an API-provided integer is invalid input."""
+        ftp, _master = self.make_ftp([])
+
+        result = ftp.cmd_set(["debug", 10**1000])
+
+        self.assertEqual(result.error_code, FtpError.InvalidArguments)
+
     def test_put_rejects_invalid_write_size(self):
         """An API-set invalid write size must not reach division or packet packing."""
         ftp, _master = self.make_ftp([])
