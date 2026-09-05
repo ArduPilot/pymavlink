@@ -31,6 +31,96 @@
 
 
 /**
+ * Converts a regular (32-bit) float to an IEEE-754 binary16 (half precision)
+ * bit pattern (as carried by a float16_t field), rounding to nearest, ties
+ * away from zero on overflow to infinity. Returns uint16_t rather than
+ * float16_t so this header compiles standalone, before float16_t (defined
+ * inside "namespace mavlink" in C++11/CXX-namespace builds) is necessarily
+ * in scope.
+ */
+MAVLINK_HELPER uint16_t mavlink_float_to_float16(float f)
+{
+    uint16_t sign = 0;
+    if (f < 0.0f || (f == 0.0f && signbit(f))) {
+        sign = 0x8000;
+        f = -f;
+    }
+
+    if (isnan(f)) {
+        return (uint16_t)(sign | 0x7E00);
+    }
+    if (isinf(f) || f >= 65520.0f) {
+        return (uint16_t)(sign | 0x7C00);
+    }
+    if (f == 0.0f) {
+        return (uint16_t)sign;
+    }
+
+    int e2;
+    float m2 = frexpf(f, &e2) * 2.0f; /* f == m2 * 2^(e2-1), 1 <= m2 < 2 */
+    e2 -= 1;
+    int half_exp = e2 + 15;
+
+    if (half_exp <= 0) {
+        if (half_exp < -10) {
+            return (uint16_t)sign; /* underflows to zero */
+        }
+        uint32_t submant = (uint32_t)(m2 * (float)ldexp(1.0, half_exp + 9) + 0.5f);
+        if (submant >= 1024) {
+            /* rounded up into the smallest normal number */
+            return (uint16_t)(sign | (1 << 10));
+        }
+        return (uint16_t)(sign | submant);
+    }
+    if (half_exp >= 0x1F) {
+        return (uint16_t)(sign | 0x7C00); /* overflow to inf */
+    }
+
+    {
+        float frac = m2 - 1.0f; /* 0 <= frac < 1 */
+        uint32_t mant = (uint32_t)(frac * 1024.0f + 0.5f);
+        if (mant == 1024) {
+            mant = 0;
+            half_exp += 1;
+            if (half_exp >= 0x1F) {
+                return (uint16_t)(sign | 0x7C00);
+            }
+        }
+        return (uint16_t)(sign | (half_exp << 10) | mant);
+    }
+}
+
+/**
+ * Converts an IEEE-754 binary16 (half precision) bit pattern (as carried by
+ * a float16_t field) to a regular (32-bit) float. Takes/returns uint16_t
+ * rather than float16_t so this header compiles standalone, before
+ * float16_t (defined inside "namespace mavlink" in C++11/CXX-namespace
+ * builds) is necessarily in scope.
+ */
+MAVLINK_HELPER float mavlink_float16_to_float(uint16_t h)
+{
+    uint16_t sign = (h & 0x8000) >> 15;
+    uint16_t exp  = (h >> 10) & 0x1F;
+    uint16_t mant = h & 0x3FF;
+    float value;
+
+    if (exp == 0) {
+        if (mant == 0) {
+            value = 0.0f;
+        } else {
+            /* subnormal: value == mant * 2^-24 */
+            value = (float)mant * (float)ldexp(1.0, -24);
+        }
+    } else if (exp == 0x1F) {
+        value = mant ? (float)NAN : (float)INFINITY;
+    } else {
+        /* normal: value == (1 + mant/1024) * 2^(exp-15) */
+        value = (1.0f + (float)mant / 1024.0f) * (float)ldexp(1.0, exp - 15);
+    }
+    return sign ? -value : value;
+}
+
+/**
  * Converts a quaternion to a rotation matrix
  *
  * @param quaternion a [w, x, y, z] ordered quaternion (null-rotation being 1 0 0 0)

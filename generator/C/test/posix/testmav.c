@@ -80,6 +80,9 @@ static void print_one_field(mavlink_message_t *msg, const mavlink_field_info_t *
 	case MAVLINK_TYPE_DOUBLE:
 		printf(PRINT_FORMAT(f, "%f"), _MAV_RETURN_double(msg, f->wire_offset+idx*8));
 		break;
+	case MAVLINK_TYPE_FLOAT16_T:
+		printf(PRINT_FORMAT(f, "%f"), (double)mavlink_float16_to_float(_MAV_RETURN_float16_t(msg, f->wire_offset+idx*2)));
+		break;
 	}
 }
 

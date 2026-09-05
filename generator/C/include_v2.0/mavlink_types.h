@@ -12,6 +12,19 @@
 namespace mavlink {
 #endif
 
+#ifndef MAVLINK_FLOAT16_T_DEFINED
+#define MAVLINK_FLOAT16_T_DEFINED
+/*
+ * IEEE-754 binary16 (half precision) field value, carried as its raw
+ * 16-bit bit pattern. There is no portable arithmetic half-float type in C
+ * before C23's _Float16, so conversion to/from a regular float must go
+ * through mavlink_float_to_float16()/mavlink_float16_to_float() in
+ * mavlink_conversions.h. Define MAVLINK_FLOAT16_T_DEFINED before including
+ * this header to supply your own float16_t (e.g. from arm_fp16.h).
+ */
+typedef uint16_t float16_t;
+#endif
+
 // Macro to define packed structures
 #ifdef __GNUC__
   #define MAVPACKED( __Declaration__ ) __Declaration__ __attribute__((packed))
@@ -131,7 +144,8 @@ typedef enum {
 	MAVLINK_TYPE_UINT64_T = 7,
 	MAVLINK_TYPE_INT64_T  = 8,
 	MAVLINK_TYPE_FLOAT    = 9,
-	MAVLINK_TYPE_DOUBLE   = 10
+	MAVLINK_TYPE_DOUBLE   = 10,
+	MAVLINK_TYPE_FLOAT16_T = 11
 } mavlink_message_type_t;
 
 #define MAVLINK_MAX_FIELDS 64

@@ -46,6 +46,7 @@ class MAVField(object):
         lengths = {
         'float'    : 4,
         'double'   : 8,
+        'float16_t': 2,
         'char'     : 1,
         'int8_t'   : 1,
         'uint8_t'  : 1,
@@ -92,6 +93,11 @@ class MAVField(object):
             return 17.0 + self.wire_offset*7 + i
         elif self.type == 'double':
             return 123.0 + self.wire_offset*7 + i
+        elif self.type == 'float16_t':
+            # float16_t is carried as a raw 16-bit bit pattern (no native C
+            # half-precision type pre-C23), so the test value is an integer,
+            # not a float literal, matching the other fixed-width int types.
+            return (12345 + self.wire_offset*41 + i) & 0xFFFF
         elif self.type == 'char':
             return chr(ord('A') + (self.wire_offset + i)%26)
         elif self.type in [ 'int8_t', 'uint8_t' ]:

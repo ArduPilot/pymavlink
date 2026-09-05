@@ -603,6 +603,7 @@ def native_mavfmt(field):
     map = {
         "float": "f",
         "double": "d",
+        "float16_t": "e",
         "char": "c",
         "int8_t": "b",
         "uint8_t": "B",
@@ -622,6 +623,7 @@ def mavfmt(field):
     map = {
         "float": "f",
         "double": "d",
+        "float16_t": "e",
         "char": "c",
         "int8_t": "b",
         "uint8_t": "B",
@@ -645,6 +647,7 @@ def mavpytype(field):
     c_type_to_py = {
         "float": "float",
         "double": "float",
+        "float16_t": "float",
         "char": "bytes",
         "int8_t": "int",
         "uint8_t": "int",
