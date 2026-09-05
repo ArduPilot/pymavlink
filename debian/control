@@ -1,0 +1,27 @@
+Source: pymavlink
+Section: python
+Priority: optional
+Maintainer: Andrii Beregovenko <jet@jet.kyiv.ua>
+Build-Depends: debhelper (>= 10),
+  dh-python,
+  python3-setuptools,
+  cython3
+X-Python-Version: >=3.6
+Standards-Version: 4.5.1
+Homepage: https://github.com/ArduPilot/pymavlink
+
+Package: python3-pymavlink
+Architecture: any
+Multi-Arch: same
+Depends: ${python3:Depends}, ${shlibs:Depends}, ${misc:Depends},
+  python3-matplotlib,
+  python3-numpy,
+  python3-scipy,
+  python3-serial,
+  python3-tk,
+Provides: ${python3:Provides}
+Description: Pymavlink is a Python implementation of the MAVLink protocol
+ Pymavlink is a Python implementation of the MAVLink protocol. It includes
+ a source code generator (generator/mavgen.py) to create MAVLink protocol
+ implementations for other programming languages as well. Also contains tools
+ for analyzing flight logs.
