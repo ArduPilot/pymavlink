@@ -1159,6 +1159,33 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.pending_burst_seq, 18)
         self.assertEqual(ftp.seq, next_request_sequence)
 
+    def test_stalled_range_burst_retry_uses_absolute_remote_offset(self):
+        """A range retry includes the requested remote offset in its resume point."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO(b"x" * 120)
+        ftp.fh.seek(80)
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_offset = 1000
+        ftp.last_burst_read = 10
+        ftp.pending_burst_seq = 501
+        ftp.pending_burst_request = FTP_OP(
+            seq=17,
+            session=0,
+            opcode=OP_BurstReadFile,
+            size=40,
+            req_opcode=0,
+            burst_complete=0,
+            offset=1000,
+            payload=None,
+        )
+
+        with patch("pymavlink.mavftp.time.time", return_value=11):
+            ftp._MAVFTP__idle_task()
+
+        request = master.mav.sent[-1][-1]
+        self.assertEqual(struct.unpack_from("<I", request, 8)[0], 1080)
+
     def test_out_of_order_gap_reply_is_dispatched(self):
         ftp, _master = self.make_ftp([])
         ftp.fh = BytesIO()
