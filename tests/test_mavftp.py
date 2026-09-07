@@ -1002,6 +1002,24 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertIsNotNone(ftp.write_list)
         self.assertEqual(ftp.write_acks, 0)
 
+    def test_empty_put_reports_complete_progress(self):
+        """An empty upload completes without a progress division by zero."""
+        ftp, master = self.make_ftp([])
+        progress = []
+
+        ftp.cmd_put(
+            ["local", "remote"],
+            fh=BytesIO(),
+            progress_callback=progress.append,
+        )
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_CreateFile)
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(progress, [1.0])
+        self.assertEqual(self.sent_request_sequences(master, OP_WriteFile), [])
+
     def test_noncurrent_write_nack_fails_upload(self):
         ftp, _master = self.make_ftp(
             [
