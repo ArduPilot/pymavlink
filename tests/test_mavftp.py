@@ -673,6 +673,25 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(len(master.replies), 1)
 
+    def test_put_rejects_non_ascii_remote_name_before_claiming_file(self):
+        """A rejected remote name must not leave upload state in progress."""
+        ftp, master = self.make_ftp([])
+        master.mav.sent.clear()
+
+        with tempfile.NamedTemporaryFile() as local_file:
+            result = ftp.cmd_put(
+                [local_file.name, "r\N{LATIN SMALL LETTER E WITH ACUTE}mote"]
+            )
+
+        self.assertEqual(result.error_code, FtpError.InvalidArguments)
+        self.assertIsNone(ftp.write_list)
+        self.assertIsNone(ftp.fh)
+        self.assertEqual(master.mav.sent, [])
+
+        retry_result = ftp.cmd_put(["local", "remote"], fh=BytesIO(b"payload"))
+
+        self.assertEqual(retry_result.error_code, FtpError.Success)
+
     def test_list_returns_after_eof_before_late_error(self):
         ftp, master = self.make_ftp(
             [

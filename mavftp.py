@@ -1222,7 +1222,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__check_read_send()
         return MAVFTPReturn("ReadFile", FtpError.Success)
 
-    def cmd_put(
+    def cmd_put(  # pylint: disable=too-many-return-statements,too-many-statements
         self, args: List[str], fh=None, callback=None, progress_callback=None
     ) -> MAVFTPReturn:
         """Put file."""
@@ -1240,6 +1240,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.error("FTP: write_qsize must be at least 1")
             return MAVFTPReturn("CreateFile", FtpError.InvalidArguments)
         fname = args[0]
+        if len(args) > 1:
+            filename = args[1]
+        else:
+            filename = os.path.basename(fname)
+        if filename.endswith("/"):
+            filename += os.path.basename(fname)
+        try:
+            enc_fname = bytearray(filename, "ascii")
+        except UnicodeEncodeError:
+            logging.error("Invalid remote file name: %s", filename)
+            return MAVFTPReturn("CreateFile", FtpError.InvalidArguments)
         self.fh = fh
         self.fh_owned = False
         if self.fh is None:
@@ -1249,12 +1260,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             except Exception as ex:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: Failed to open %s: %s", fname, ex)
                 return MAVFTPReturn("CreateFile", FtpError.FailToOpenLocalFile)
-        if len(args) > 1:
-            self.filename = args[1]
-        else:
-            self.filename = os.path.basename(fname)
-        if self.filename.endswith("/"):
-            self.filename += os.path.basename(fname)
+        self.filename = filename
         if callback is None:
             logging.info("Putting %s to %s", fname, self.filename)
         self.fh.seek(0, 2)
@@ -1280,7 +1286,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.put_callback_progress = progress_callback
         self.read_retries = 0
         self.op_start = time.time()
-        enc_fname = bytearray(self.filename, "ascii")
         op = FTP_OP(
             self.seq, self.session, OP_CreateFile, len(enc_fname), 0, 0, 0, enc_fname
         )
