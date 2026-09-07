@@ -20,6 +20,7 @@ from pymavlink import mavutil
 from pymavlink.mavftp import (
     BURST_REPLY_SEQUENCE_WINDOW,
     FTP_OP,
+    MAX_READ_GAPS,
     MAVFTP,
     FtpError,
     MAVFTPReturn,
@@ -1028,6 +1029,71 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             FtpError.Success,
         )
 
+    def test_burst_reply_rejects_unbounded_gap_allocation(self):
+        """A far-ahead burst reply must not allocate unbounded read gaps."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.burst_size = 239
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+        far_offset = (MAX_READ_GAPS + 1) * ftp.burst_size
+
+        result = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=1,
+                session=0,
+                opcode=OP_Ack,
+                size=1,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=0,
+                offset=far_offset,
+                payload=bytearray(b"x"),
+            ),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.InvalidDataSize)
+        self.assertEqual(ftp.read_gaps, [])
+
+    def test_burst_reply_rejects_cumulative_gap_allocation(self):
+        """Successive far-ahead replies must respect the total gap bound."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.burst_size = 239
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+        first_offset = MAX_READ_GAPS * ftp.burst_size
+
+        first_result = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=1,
+                session=0,
+                opcode=OP_Ack,
+                size=1,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=0,
+                offset=first_offset,
+                payload=bytearray(b"x"),
+            ),
+            None,
+        )
+        second_result = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=2,
+                session=0,
+                opcode=OP_Ack,
+                size=1,
+                req_opcode=OP_BurstReadFile,
+                burst_complete=0,
+                offset=first_offset + 1 + (MAX_READ_GAPS * ftp.burst_size),
+                payload=bytearray(b"x"),
+            ),
+            None,
+        )
+
+        self.assertEqual(first_result.error_code, FtpError.Success)
+        self.assertEqual(second_result.error_code, FtpError.InvalidDataSize)
+        self.assertEqual(len(ftp.read_gaps), MAX_READ_GAPS)
     def test_stalled_burst_retries_from_current_read_position(self):
         """A stalled burst retains its sequence but resumes at the next byte."""
         ftp, master = self.make_ftp([])
