@@ -18,6 +18,7 @@ from io import BytesIO, StringIO
 from unittest.mock import patch
 from pymavlink import mavutil
 from pymavlink.mavftp import (
+    BURST_REPLY_SEQUENCE_WINDOW,
     FTP_OP,
     MAVFTP,
     FtpError,
@@ -837,6 +838,46 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(ftp.read_gaps, [])
         self.assertEqual(ftp.get_result, b"a" * 80 + b"b" * 80 + b"c" * 80)
+
+    def test_long_burst_advances_its_trailing_sequence_floor(self):
+        """A burst longer than half the uint16 sequence space remains accepted."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_size = 32770
+        ftp.burst_size = 1
+        ftp.op_start = 1
+        ftp._MAVFTP__send(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=ftp.seq,
+                session=0,
+                opcode=OP_BurstReadFile,
+                size=1,
+                req_opcode=0,
+                burst_complete=0,
+                offset=0,
+                payload=None,
+            )
+        )
+
+        for sequence in range(2, 32771):
+            result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+                ftp_reply(
+                    sequence,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"x",
+                    offset=sequence - 2,
+                )
+            )
+            self.assertEqual(result.error_code, FtpError.Success)
+
+        self.assertEqual(ftp.fh.getvalue(), b"x" * 32769)
+        self.assertLessEqual(
+            (32770 - ftp.pending_burst_seq) & 0xFFFF,
+            BURST_REPLY_SEQUENCE_WINDOW,
+        )
 
     def test_retry_straggler_does_not_block_restarted_burst(self):
         """A high-sequence straggler cannot advance the restarted burst floor."""

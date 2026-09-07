@@ -102,6 +102,7 @@ class FtpError(IntEnum):
 
 HDR_Len = 12
 MAX_Payload = 239
+BURST_REPLY_SEQUENCE_WINDOW = 4096
 # pylint: enable=invalid-name
 
 
@@ -1004,6 +1005,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             if self.ftp_settings.debug > 0:
                 logging.info("FTP: Setting burst size to %u", self.burst_size)
         if op.opcode == OP_Ack and self.fh is not None:
+            if self.pending_burst_seq is not None:
+                sequence_distance = (op.seq - self.pending_burst_seq) & 0xFFFF
+                if sequence_distance > BURST_REPLY_SEQUENCE_WINDOW:
+                    self.pending_burst_seq = (
+                        op.seq - BURST_REPLY_SEQUENCE_WINDOW
+                    ) & 0xFFFF
             ofs = self.__read_position()
             if op.offset < ofs:
                 # writing an earlier portion, possibly remove a gap
