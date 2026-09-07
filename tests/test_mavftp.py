@@ -913,6 +913,37 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.read_gaps, [])
         self.assertEqual(ftp.get_result, b"a" * 40 + b"b" * 40)
 
+    def test_stalled_burst_retries_from_current_read_position(self):
+        """A stalled burst retains its sequence but resumes at the next byte."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO(b"x" * 120)
+        ftp.fh.seek(80)
+        ftp.filename = "-"
+        ftp.last_burst_read = 10
+        ftp.pending_burst_seq = 501
+        ftp.pending_burst_request = FTP_OP(
+            seq=17,
+            session=0,
+            opcode=OP_BurstReadFile,
+            size=40,
+            req_opcode=0,
+            burst_complete=0,
+            offset=0,
+            payload=None,
+        )
+        next_request_sequence = ftp.seq
+
+        with patch("pymavlink.mavftp.time.time", return_value=11):
+            ftp._MAVFTP__idle_task()
+
+        request = master.mav.sent[-1][-1]
+        self.assertEqual(request[3], OP_BurstReadFile)
+        self.assertEqual(struct.unpack_from("<H", request)[0], 17)
+        self.assertEqual(struct.unpack_from("<I", request, 8)[0], 80)
+        self.assertEqual(ftp.pending_burst_offset, 80)
+        self.assertEqual(ftp.pending_burst_seq, 18)
+        self.assertEqual(ftp.seq, next_request_sequence)
+
     def test_out_of_order_gap_reply_is_dispatched(self):
         ftp, _master = self.make_ftp([])
         ftp.fh = BytesIO()

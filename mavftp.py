@@ -1769,6 +1769,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     dt,
                 )
             if self.pending_burst_request is not None:
+                # Resume at the first byte not yet written.  Reusing the
+                # request sequence keeps this a retransmission for servers
+                # that require it, while the new offset avoids re-streaming
+                # an entire stalled burst.
+                self.pending_burst_request.offset = self.__read_position()
                 self.__send(self.pending_burst_request, retry=True)
             self.read_retries += 1
 
