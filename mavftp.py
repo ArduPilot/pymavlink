@@ -103,6 +103,7 @@ class FtpError(IntEnum):
 HDR_Len = 12
 MAX_Payload = 239
 BURST_REPLY_SEQUENCE_WINDOW = 4096
+MAX_READ_GAPS = 4096
 # pylint: enable=invalid-name
 
 
@@ -1060,6 +1061,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 # we have a gap
                 gap = (ofs, op.offset - ofs)
                 max_read = self.burst_size
+                gap_count = (gap[1] + max_read - 1) // max_read
+                total_gap_count = len(self.read_gaps) + gap_count
+                if total_gap_count > MAX_READ_GAPS:
+                    logging.error(
+                        "FTP: burst reply creates too many gaps (%u)", total_gap_count
+                    )
+                    self.__terminate_session()
+                    return MAVFTPReturn("BurstReadFile", FtpError.InvalidDataSize)
                 while True:
                     if gap[1] <= max_read:
                         self.read_gaps.append(gap)
