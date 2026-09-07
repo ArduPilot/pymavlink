@@ -899,6 +899,43 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             BURST_REPLY_SEQUENCE_WINDOW,
         )
 
+    def test_burst_accepts_replies_across_uint16_sequence_wrap(self):
+        """A burst remains accepted when reply sequence numbers wrap."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_size = 21
+        ftp.burst_size = 1
+        ftp.op_start = 1
+        ftp.seq = 65530
+        ftp._MAVFTP__send(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=ftp.seq,
+                session=0,
+                opcode=OP_BurstReadFile,
+                size=1,
+                req_opcode=0,
+                burst_complete=0,
+                offset=0,
+                payload=None,
+            )
+        )
+
+        for offset in range(20):
+            result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+                ftp_reply(
+                    (65531 + offset) & 0xFFFF,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"x",
+                    offset=offset,
+                )
+            )
+            self.assertEqual(result.error_code, FtpError.Success)
+
+        self.assertEqual(ftp.fh.getvalue(), b"x" * 20)
+
     def test_retry_straggler_is_repairable_until_expected_reply(self):
         """A retry writes stragglers without letting them change its floor."""
         ftp, _master = self.make_ftp([])
@@ -932,7 +969,6 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         first_restarted = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
             ftp_reply(2, OP_Ack, OP_BurstReadFile, payload=b"a" * 40, offset=0)
         )
-
         self.assertEqual(first_restarted.error_code, FtpError.Success)
         self.assertFalse(ftp.pending_burst_retry)
         self.assertEqual(ftp.read_gaps, [])
@@ -947,23 +983,11 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.requested_size = 120
         ftp.burst_size = 40
         ftp.op_start = 1
-        request = FTP_OP(
-            seq=1,
-            session=0,
-            opcode=OP_BurstReadFile,
-            size=40,
-            req_opcode=0,
-            burst_complete=0,
-            offset=0,
-            payload=None,
-        )
+        request = FTP_OP(1, 0, OP_BurstReadFile, 40, 0, 0, 0, None)
         ftp._MAVFTP__send(request)  # pylint: disable=protected-access
         ftp._MAVFTP__send(request, retry=True)  # pylint: disable=protected-access
 
-        for seq, offset, payload in (
-            (3, 40, b"b" * 40),
-            (4, 80, b"c" * 40),
-        ):
+        for seq, offset, payload in ((3, 40, b"b" * 40), (4, 80, b"c" * 40)):
             result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
                 ftp_reply(seq, OP_Ack, OP_BurstReadFile, payload=payload, offset=offset)
             )
@@ -1013,16 +1037,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.requested_size = 120
         ftp.burst_size = 40
         ftp.op_start = 1
-        request = FTP_OP(
-            seq=1,
-            session=0,
-            opcode=OP_BurstReadFile,
-            size=40,
-            req_opcode=0,
-            burst_complete=0,
-            offset=0,
-            payload=None,
-        )
+        request = FTP_OP(1, 0, OP_BurstReadFile, 40, 0, 0, 0, None)
         ftp._MAVFTP__send(request)  # pylint: disable=protected-access
         ftp._MAVFTP__send(request, retry=True)  # pylint: disable=protected-access
 
