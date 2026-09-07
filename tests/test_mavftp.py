@@ -1034,7 +1034,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.write_acks, 0)
 
     def test_empty_put_reports_complete_progress(self):
-        """An empty upload completes without a progress division by zero."""
+        """An empty upload completes from CreateFile without a WriteFile ACK."""
         ftp, master = self.make_ftp([])
         progress = []
 
@@ -1049,6 +1049,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(progress, [1.0])
+        self.assertEqual(ftp.write_total, 0)
         self.assertEqual(self.sent_request_sequences(master, OP_WriteFile), [])
 
     def test_noncurrent_write_nack_fails_upload(self):

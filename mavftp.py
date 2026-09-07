@@ -1386,10 +1386,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.write_list.discard(idx)
         self.write_acks += 1
         if self.put_callback_progress:
-            progress = (
-                self.write_acks / float(self.write_total) if self.write_total else 1.0
-            )
-            self.put_callback_progress(progress)
+            self.put_callback_progress(self.write_acks / float(self.write_total))
         self.__send_more_writes(op)
         return MAVFTPReturn("WriteFile", FtpError.Success)
 
