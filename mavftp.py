@@ -364,6 +364,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         # identify whether a reply belongs to the current burst.
         self.pending_burst_offset: Optional[int] = None
         self.pending_burst_seq: Optional[int] = None
+        self.pending_burst_retry = False
         self.pending_burst_request: Optional[FTP_OP] = None
         self.op_start: Union[None, float] = None
         self.dir_offset = 0
@@ -473,6 +474,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if op.opcode == OP_BurstReadFile:
             self.pending_burst_offset = op.offset
             self.pending_burst_seq = expected_reply_seq
+            self.pending_burst_retry = retry
             self.pending_burst_request = op
         elif op.opcode == OP_ReadFile:
             self.pending_read_replies[expected_reply_seq] = (op.offset, op.size)
@@ -1005,12 +1007,27 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             if self.ftp_settings.debug > 0:
                 logging.info("FTP: Setting burst size to %u", self.burst_size)
         if op.opcode == OP_Ack and self.fh is not None:
-            if self.pending_burst_seq is not None:
+            # A retried request must see its first expected reply before a
+            # delayed packet can affect its sequence floor.  Other packets
+            # still reach the writer: their offsets can preserve useful data
+            # and create gaps for normal repair.
+            expected_retry_reply = (
+                self.pending_burst_seq is not None
+                and op.seq == self.pending_burst_seq
+            )
+            if not self.pending_burst_retry or expected_retry_reply:
+                self.pending_burst_retry = False
+            if (
+                self.pending_burst_seq is not None
+                and self.pending_burst_offset is not None
+            ):
                 sequence_distance = (op.seq - self.pending_burst_seq) & 0xFFFF
-                if sequence_distance > BURST_REPLY_SEQUENCE_WINDOW:
-                    self.pending_burst_seq = (
-                        op.seq - BURST_REPLY_SEQUENCE_WINDOW
-                    ) & 0xFFFF
+                offset_distance = op.offset - self.pending_burst_offset
+                # A stream cannot advance its sequence more times than bytes
+                # since its requested offset.  Do not let a delayed reply
+                # with an implausibly distant sequence ratchet the floor.
+                if BURST_REPLY_SEQUENCE_WINDOW < sequence_distance <= offset_distance:
+                    self.pending_burst_seq = (self.pending_burst_seq + 1) & 0xFFFF
             ofs = self.__read_position()
             if op.offset < ofs:
                 # writing an earlier portion, possibly remove a gap
@@ -1766,10 +1783,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     dt,
                 )
             if self.pending_burst_request is not None:
-                # Resume at the first byte not yet written.  Reusing the
-                # request sequence keeps this a retransmission for servers
-                # that require it, while the new offset avoids re-streaming
-                # an entire stalled burst.
+                # Resume at the current high-water mark while preserving the
+                # client's reply gate and re-arming the server's burst offset.
                 self.pending_burst_request.offset = self.__read_position()
                 self.__send(self.pending_burst_request, retry=True)
             self.read_retries += 1
