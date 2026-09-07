@@ -74,7 +74,7 @@ jobs:
     env:
       PYTHON_VERSION: ${{ matrix.python_version }}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up QEMU
       if: matrix.is_riscv
       uses: docker/setup-qemu-action@v4
@@ -89,7 +89,7 @@ jobs:
       shell: bash
       run: echo "CIBW_BUILD=cp${PYTHON_VERSION/./}-*" >> $GITHUB_ENV
     - name: Build wheels
-      uses: pypa/cibuildwheel@v3.4.1
+      uses: pypa/cibuildwheel@v4.2.0
       env:
         PYMAVLINK_FAST_INDEX: "1"
         CIBW_BUILD: ${{ matrix.cibw_build }}
@@ -104,9 +104,9 @@ jobs:
   build-sdist:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.9"
     - name: Install mavlink messages
