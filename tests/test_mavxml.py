@@ -6,7 +6,9 @@ Module to test MAVXML
 import unittest
 from importlib.resources import files as importlib_files
 
+import contextlib
 import importlib.util
+import io
 import os
 import tempfile
 
@@ -101,6 +103,19 @@ class MAVXMLTest(unittest.TestCase):
         self.assertFalse(mav_cmd[189].is_destination)
         self.assertFalse(mav_cmd[20].has_location)
         self.assertFalse(mav_cmd[20].is_destination)
+
+    def test_isdestination_without_haslocation(self):
+        """Test that an enum entry which is isDestination but not hasLocation
+        is parsed with a warning, as older definitions mark some that way"""
+        test_filename = "isdestination-without-haslocation.xml"
+        test_filepath = importlib_files(__spec__.parent).joinpath(test_filename)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            xml = MAVXML(test_filepath)
+        entry = xml.enum[0].entry[0]
+        self.assertFalse(entry.has_location)
+        self.assertTrue(entry.is_destination)
+        self.assertIn("MAV_CMD_TEST is isDestination but not hasLocation", output.getvalue())
 
     def test_wire_protocol_version(self):
         """Test that an unknown MAVLink wire protocol version raises an exception"""

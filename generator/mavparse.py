@@ -252,6 +252,18 @@ class MAVXML(object):
                     raise MAVParseError('expected missing %s "%s" attribute at %s:%u' % (
                         where, c, filename, p.CurrentLineNumber))
 
+        def bool_attr(attrs, name):
+            '''return an optional boolean attribute; absent means False'''
+            value = attrs.get(name, False)
+            if value == 'true':
+                value = True
+            elif value == 'false':
+                value = False
+            if type(value) != bool:
+                raise MAVParseError('invalid %s value "%s" at %s:%u' % (
+                    name, value, filename, p.CurrentLineNumber))
+            return value
+
         def start_element(name, attrs):
             in_element_list.append(name)
             in_element = '.'.join(in_element_list)
@@ -302,20 +314,14 @@ class MAVXML(object):
                 # check highest value
                 if (value > self.enum[-1].highest_value):
                     self.enum[-1].highest_value = value
-                has_location = attrs.get('hasLocation', False)
-                if has_location == 'true':
-                    has_location = True
-                elif has_location == 'false':
-                    has_location = False
-                if type(has_location) != bool:
-                    raise MAVParseError("invalid has_location value %s" % has_location)
-                is_destination = attrs.get('isDestination', False)
-                if is_destination == 'true':
-                    is_destination = True
-                elif is_destination == 'false':
-                    is_destination = False
-                if type(is_destination) != bool:
-                    raise MAVParseError("invalid is_destination value %s" % is_destination)
+                has_location = bool_attr(attrs, 'hasLocation')
+                is_destination = bool_attr(attrs, 'isDestination')
+                if is_destination and not has_location:
+                    # a destination is somewhere the vehicle goes to, so
+                    # it should have a location; older definitions mark
+                    # some entries this way, so warn rather than fail
+                    print('%s is isDestination but not hasLocation at %s:%u' % (
+                        attrs['name'], filename, p.CurrentLineNumber))
 
                 # check bitmask value
                 if self.enum[-1].bitmask:
