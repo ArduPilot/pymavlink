@@ -793,22 +793,27 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.fh.getvalue(), b"")
 
     def test_burst_reply_before_pending_offset_is_discarded(self):
-        """A delayed reply for an earlier burst must not write into this one."""
+        """A delayed reply must not repair a gap before the active burst."""
         ftp, _master = self.make_ftp([])
-        ftp.fh = BytesIO()
+        ftp.fh = BytesIO(b"a" * 80 + b"\0" * 80 + b"b" * 80)
+        ftp.fh.seek(240)
         ftp.filename = "-"
         ftp.read_to_memory = True
-        ftp.requested_offset = 80
-        ftp.pending_burst_offset = 80
+        ftp.requested_size = 240
+        ftp.read_total = 160
+        ftp.read_gaps = [(80, 80)]
+        ftp.read_gap_times = {(80, 80): 0}
+        ftp.pending_burst_offset = 240
         ftp.pending_burst_seq = 2
-        ftp.pending_burst_request = FTP_OP(1, 0, OP_BurstReadFile, 40, 0, 0, 80, None)
+        ftp.pending_burst_request = FTP_OP(1, 0, OP_BurstReadFile, 80, 0, 0, 240, None)
 
         result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
-            ftp_reply(2, OP_Ack, OP_BurstReadFile, payload=b"stale", offset=0)
+            ftp_reply(2, OP_Ack, OP_BurstReadFile, payload=b"s" * 80, offset=80)
         )
 
         self.assertEqual(result.error_code, FtpError.Fail)
-        self.assertEqual(ftp.fh.getvalue(), b"")
+        self.assertEqual(ftp.fh.getvalue(), b"a" * 80 + b"\0" * 80 + b"b" * 80)
+        self.assertEqual(ftp.read_gaps, [(80, 80)])
 
     def test_burst_reply_requires_pending_offset(self):
         """Burst packets are ignored until a request establishes its offset."""
@@ -1128,6 +1133,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(first_result.error_code, FtpError.Success)
         self.assertEqual(second_result.error_code, FtpError.InvalidDataSize)
         self.assertEqual(len(ftp.read_gaps), MAX_READ_GAPS)
+
     def test_stalled_burst_retries_from_current_read_position(self):
         """A stalled burst retains its sequence but resumes at the next byte."""
         ftp, master = self.make_ftp([])
