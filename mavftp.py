@@ -21,6 +21,7 @@ import random
 import struct
 import sys
 import time
+import zlib
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from datetime import datetime
@@ -56,6 +57,7 @@ from pymavlink.mavftp_op import (
     OP_CreateDirectory,
     OP_CreateFile,
     OP_ListDirectory,
+    OP_ListDirectoryWithTime,
     OP_Nack,
     OP_None,
     OP_OpenFileRO,
@@ -109,11 +111,24 @@ MAX_READ_GAPS = 4096
 
 @dataclass
 class DirectoryEntry:
-    """Directory entry, either a file or a directory and the size."""
+    """Directory entry, optionally including a Unix modification timestamp."""
 
     name: str
     is_dir: bool
     size_b: int
+    mtime: Optional[int] = None
+
+
+def local_file_crc(name: str) -> int:
+    """Return the ArduPilot-compatible CRC32 of a local file."""
+    crc = 0xFFFFFFFF
+    with open(name, "rb") as file_handle:
+        while True:
+            block = file_handle.read(65536)
+            if not block:
+                break
+            crc = zlib.crc32(block, crc)
+    return crc ^ 0xFFFFFFFF
 
 
 class WriteQueue:  # pylint: disable=too-few-public-methods
@@ -294,8 +309,18 @@ class MAVFTPReturn:
                 size = entry.size_b
                 if entry.is_dir:
                     logging.info("   %s/", name)
-                else:
+                elif entry.mtime is None:
                     logging.info("   %s\t%u", name, size)
+                elif entry.mtime == 0:
+                    logging.info("   %s\t%u\t-", name, size)
+                else:
+                    try:
+                        mtime = datetime.fromtimestamp(entry.mtime).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
+                    except (OverflowError, OSError, ValueError):
+                        mtime = str(entry.mtime)
+                    logging.info("   %s\t%u\t%s", name, size, mtime)
                 total_size += max(0, size)
             logging.info("Total size %.2f kByte", total_size / 1024.0)
 
@@ -322,6 +347,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             settings = MAVFTPSettings(
                 [
                     ("debug", int, 0),
+                    # Request directory mtimes; cmd_list falls back to the
+                    # standard opcode when an older FC rejects the extension.
+                    ("list_time", int, 1),
+                    # Some older servers silently discard unknown opcodes.
+                    ("list_time_timeout", float, 3.0),
+                    ("list_retries", int, 3),
                     ("pkt_loss_tx", int, 0),
                     ("pkt_loss_rx", int, 0),
                     ("max_backlog", int, 5),
@@ -402,6 +433,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.open_retries = 0
         self.list_result: List[DirectoryEntry] = []
         self.list_temp_result: List[DirectoryEntry] = []
+        self.list_with_time = False
+        self.list_time_retries = 0
+        # A MAVFTP instance has one fixed target, so one capability cache is
+        # sufficient and avoids repeat probe delays on old servers.
+        self.list_time_supported: Optional[bool] = None
         self.requested_size: int = 0
         self.requested_offset: int = 0
         # The synchronous read/read_sector API returns data to its caller and
@@ -429,7 +465,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def cmd_ftp(self, args: List[str]) -> MAVFTPReturn:  # noqa: PLR0911 pylint: disable=too-many-branches,too-many-return-statements
         """FTP operations."""
-        usage = "Usage: ftp <list|set|get|getparams|put|rm|rmdir|rename|mkdir|status|cancel|crc>"
+        usage = "Usage: ftp <list|set|get|getparams|put|rm|rmdir|rename|mkdir|status|cancel|crc|crclocal>"
         if len(args) < 1:
             logging.error(usage)
             return MAVFTPReturn("FTP command", FtpError.InvalidArguments)
@@ -453,6 +489,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return self.cmd_mkdir(args[1:])
         if args[0] == "crc":
             return self.cmd_crc(args[1:])
+        if args[0] == "crclocal":
+            return self.cmd_crclocal(args[1:])
         if args[0] == "status":
             return self.cmd_status()
         if args[0] == "cancel":
@@ -585,10 +623,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         enc_dname = bytearray(dname, "ascii")
         self.total_size = 0
         self.dir_offset = 0
+        self.list_time_retries = 0
+        self.list_with_time = (
+            bool(getattr(self.ftp_settings, "list_time", 0))
+            and self.list_time_supported is not False
+        )
         op = FTP_OP(
             self.seq,
             self.session,
-            OP_ListDirectory,
+            OP_ListDirectoryWithTime if self.list_with_time else OP_ListDirectory,
             len(enc_dname),
             0,
             0,
@@ -596,11 +639,39 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             enc_dname,
         )
         self.__send(op)
-        return self.process_ftp_reply("ListDirectory")
+        timeout = 5.0
+        if self.list_with_time:
+            list_time_timeout = float(
+                getattr(self.ftp_settings, "list_time_timeout", 3.0)
+            )
+            list_retries = int(getattr(self.ftp_settings, "list_retries", 3))
+            timeout = max(
+                timeout,
+                list_time_timeout * (list_retries + 1)
+                + float(self.ftp_settings.idle_detection_time),
+            )
+        return self.process_ftp_reply("ListDirectory", timeout=timeout)
+
+    def __list_without_time(self) -> None:
+        """Restart a timestamp listing with the baseline directory opcode."""
+        self.list_with_time = False
+        self.list_time_supported = False
+        self.list_time_retries = 0
+        self.dir_offset = 0
+        self.total_size = 0
+        self.list_temp_result = []
+        more = self.last_op
+        assert more is not None  # noqa: S101
+        more.opcode = OP_ListDirectory
+        more.offset = 0
+        self.__send(more)
 
     def __handle_list_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle OP_ListDirectory reply."""
         if op.opcode == OP_Ack and op.payload is not None:
+            with_time = op.req_opcode == OP_ListDirectoryWithTime
+            if with_time:
+                self.list_time_supported = True
             dentries = sorted(op.payload.split(b"\x00"))
             for d in dentries:
                 if len(d) == 0:
@@ -616,18 +687,33 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                         DirectoryEntry(name=dir_entry[1:], is_dir=True, size_b=0)
                     )
                 elif dir_entry[0] == "F":
+                    size_str = ""
                     try:
-                        (name, size_str) = dir_entry[1:].rsplit("\t", 1)
+                        fields = dir_entry[1:].rsplit("\t", 2 if with_time else 1)
                     except ValueError:
                         logging.error("Invalid file entry: %s", dir_entry)
                         return MAVFTPReturn("ListDirectory", FtpError.InvalidDataSize)
+                    expected_fields = 3 if with_time else 2
+                    if len(fields) != expected_fields:
+                        logging.error("Invalid file entry: %s", dir_entry)
+                        return MAVFTPReturn("ListDirectory", FtpError.InvalidDataSize)
+                    if with_time:
+                        name, size_str, mtime_str = fields
+                        try:
+                            mtime = int(mtime_str)
+                        except (ValueError, TypeError, OverflowError):
+                            logging.error("Invalid file mtime: %s", mtime_str)
+                            mtime = 0
+                    else:
+                        name, size_str = fields
+                        mtime = None
                     try:
                         size = int(size_str)
                     except (ValueError, TypeError, OverflowError):
                         logging.error("Invalid file size: %s", size_str)
                         size = 0
                     self.list_temp_result.append(
-                        DirectoryEntry(name=name, is_dir=False, size_b=size)
+                        DirectoryEntry(name=name, is_dir=False, size_b=size, mtime=mtime)
                     )
                 else:
                     logging.info(d)
@@ -635,6 +721,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             more = self.last_op
             more.offset = self.dir_offset
             self.__send(more)
+        elif (
+            self.list_with_time
+            and self.dir_offset == 0
+            and op.opcode == OP_Nack
+            and op.payload is not None
+            and len(op.payload) >= 1
+            and op.payload[0] in (FtpError.Fail, FtpError.UnknownCommand)
+        ):
+            # Older servers reject the extension. Retry the same listing with
+            # the standard opcode before reporting a failure to the caller.
+            self.__list_without_time()
+            return MAVFTPReturn("ListDirectory", FtpError.Success)
         elif (
             op.opcode == OP_Nack
             and op.payload is not None
@@ -745,6 +843,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             "debug": (0, 2),
             "pkt_loss_tx": (0, 100),
             "pkt_loss_rx": (0, 100),
+            "list_time": (0, 1),
+            "list_time_timeout": (0, None),
+            "list_retries": (0, None),
             "max_backlog": (1, None),
             "burst_read_size": (1, MAX_Payload),
             "write_size": (1, MAX_Payload),
@@ -758,6 +859,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             or (minimum is not None and setting_value < minimum)
             or (maximum is not None and setting_value > maximum)
         ):
+            logging.error("Invalid value for %s: %s", setting_name, setting_value)
+            return MAVFTPReturn("Set", FtpError.InvalidArguments)
+        if setting_name == "list_time_timeout" and setting_value <= 0:
             logging.error("Invalid value for %s: %s", setting_name, setting_value)
             return MAVFTPReturn("Set", FtpError.InvalidArguments)
 
@@ -1520,6 +1624,24 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__send(op)
         return self.process_ftp_reply("CalcFileCRC32")
 
+    @staticmethod
+    def local_file_crc(name: str) -> int:
+        """Return the ArduPilot-compatible CRC32 of a local file."""
+        return local_file_crc(name)
+
+    def cmd_crclocal(self, args: List[str]) -> MAVFTPReturn:
+        """Calculate the CRC32 used by the vehicle for a local file."""
+        if len(args) != 1:
+            logging.error("Usage: crclocal NAME")
+            return MAVFTPReturn("CalcLocalFileCRC32", FtpError.InvalidArguments)
+        try:
+            crc = self.local_file_crc(args[0])
+        except (OSError, ValueError) as exc:
+            logging.error("crclocal failed for %s: %s", args[0], exc)
+            return MAVFTPReturn("CalcLocalFileCRC32", FtpError.FailToOpenLocalFile)
+        logging.info("crc: %s 0x%08x", args[0], crc)
+        return MAVFTPReturn("CalcLocalFileCRC32", FtpError.Success)
+
     def __handle_crc_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle crc reply."""
         if op.opcode == OP_Ack and op.size == 4:
@@ -1650,7 +1772,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         ):
             self.rtt = max(min(self.rtt, dt), 0.01)
 
-        if op.req_opcode == OP_ListDirectory:
+        if op.req_opcode in {OP_ListDirectory, OP_ListDirectoryWithTime}:
             return self.__handle_list_reply(op, m)
         if op.req_opcode == OP_OpenFileRO:
             return self.__handle_open_ro_reply(op, m)
@@ -1753,6 +1875,32 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         assert (  # noqa: S101
             self.ftp_settings.idle_detection_time > self.ftp_settings.read_retry_time
         ), "settings.idle_detection_time must be > settings.read_retry_time"
+
+        # Probe the optional mtime listing opcode like MAVProxy does. Some
+        # older servers silently ignore it rather than returning UnknownCommand.
+        if (
+            self.list_with_time
+            and self.dir_offset == 0
+            and self.last_op is not None
+            and self.last_op.opcode == OP_ListDirectoryWithTime
+            and now - self.last_op_time
+            >= max(
+                float(self.ftp_settings.retry_time),
+                float(getattr(self.ftp_settings, "list_time_timeout", 3.0)),
+            )
+        ):
+            if self.list_time_retries >= int(
+                getattr(self.ftp_settings, "list_retries", 3)
+            ):
+                if self.ftp_settings.debug > 0:
+                    logging.info("FTP: listing timestamps unsupported, retrying without")
+                self.__list_without_time()
+            else:
+                self.list_time_retries += 1
+                if self.ftp_settings.debug > 0:
+                    logging.info("FTP: retrying directory timestamp request")
+                self.__send(self.last_op, retry=True)
+            return False
 
         # see if we lost an open reply
         if (
@@ -1975,6 +2123,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             OP_TerminateSession: "TerminateSession",
             OP_ResetSessions: "ResetSessions",
             OP_ListDirectory: "ListDirectory",
+            OP_ListDirectoryWithTime: "ListDirectoryWithTime",
             OP_OpenFileRO: "OpenFileRO",
             OP_ReadFile: "ReadFile",
             OP_CreateFile: "CreateFile",
@@ -2338,6 +2487,25 @@ def create_argument_parser() -> ArgumentParser:
         help="Packet loss on RX. Default is %(default)s",
     )
     parser.add_argument(
+        "--list_time",
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help="Request directory modification times. Default is %(default)s",
+    )
+    parser.add_argument(
+        "--list_time_timeout",
+        type=float,
+        default=3.0,
+        help="Seconds before retrying a timestamp listing. Default is %(default)s",
+    )
+    parser.add_argument(
+        "--list_retries",
+        type=int,
+        default=3,
+        help="Timestamp-listing retries before compatibility fallback. Default is %(default)s",
+    )
+    parser.add_argument(
         "--max_backlog", type=int, default=5, help="Max backlog. Default is %(default)s"
     )
     parser.add_argument(
@@ -2532,6 +2700,14 @@ def create_argument_parser() -> ArgumentParser:
         help="Path to the file to calculate the CRC of.",
     )
 
+    # Local CRC command
+    parser_crclocal = subparsers.add_parser(
+        "crclocal", help="Calculate the vehicle-compatible CRC of a local file."
+    )
+    parser_crclocal.add_argument(
+        "arg1", type=str, metavar="local_path", help="Path to the local file."
+    ).completer = FilesCompleter()  # type: ignore[no-untyped-call]
+
     # Add other subparsers commands as needed
     if _ARGCOMPLETE_AVAILABLE:
         argcomplete.autocomplete(parser)
@@ -2632,6 +2808,9 @@ def main() -> None:
     ftp_settings = MAVFTPSettings(
         [
             ("debug", int, args.debug),
+            ("list_time", int, args.list_time),
+            ("list_time_timeout", float, args.list_time_timeout),
+            ("list_retries", int, args.list_retries),
             ("pkt_loss_tx", int, args.pkt_loss_tx),
             ("pkt_loss_rx", int, args.pkt_loss_rx),
             ("max_backlog", int, args.max_backlog),

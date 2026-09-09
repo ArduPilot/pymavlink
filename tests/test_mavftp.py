@@ -19,6 +19,7 @@ from unittest.mock import patch
 from pymavlink import mavutil
 from pymavlink.mavftp import (
     BURST_REPLY_SEQUENCE_WINDOW,
+    DirectoryEntry,
     FTP_OP,
     MAX_READ_GAPS,
     MAVFTP,
@@ -28,6 +29,7 @@ from pymavlink.mavftp import (
     OP_BurstReadFile,
     OP_CreateFile,
     OP_ListDirectory,
+    OP_ListDirectoryWithTime,
     OP_Nack,
     OP_OpenFileRO,
     OP_ReadFile,
@@ -35,6 +37,8 @@ from pymavlink.mavftp import (
     OP_ResetSessions,
     OP_TerminateSession,
     OP_WriteFile,
+    create_argument_parser,
+    local_file_crc,
 )
 
 # pylint: disable=protected-access,too-many-lines
@@ -156,11 +160,13 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
     """Regression tests for FTP replies, retries, and session cleanup."""
 
     @staticmethod
-    def make_ftp(replies):
+    def make_ftp(replies, list_time=0):
         master = FakeMaster(
             [ftp_reply(1, OP_Ack, OP_ResetSessions)] + replies
         )
         ftp = MAVFTP(master, target_system=1, target_component=1)
+        if list_time is not None:
+            ftp.ftp_settings.list_time = list_time
         ftp.ftp_settings.idle_detection_time = 0.02
         ftp.ftp_settings.read_retry_time = 0.01
         ftp.ftp_settings.retry_time = 0.2
@@ -359,6 +365,116 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         )
 
         self.assertEqual(result.error_code, FtpError.InvalidDataSize)
+
+    def test_directory_listing_with_time_preserves_metadata(self):
+        """The optional listing extension returns file modification times."""
+        ftp, _master = self.make_ftp([])
+        ftp.list_with_time = True
+        ftp.last_op = FTP_OP(1, 0, OP_ListDirectoryWithTime, 1, 0, 0, 0, bytearray(b"/"))
+
+        result = ftp._MAVFTP__handle_list_reply(
+            FTP_OP(
+                2,
+                0,
+                OP_Ack,
+                0,
+                OP_ListDirectoryWithTime,
+                0,
+                0,
+                bytearray(b"Ffile.bin\t42\t1700000000\x00Dlogs\x00"),
+            ),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        file_entry = next(entry for entry in ftp.list_temp_result if not entry.is_dir)
+        directory_entry = next(entry for entry in ftp.list_temp_result if entry.is_dir)
+        self.assertEqual(file_entry.mtime, 1700000000)
+        self.assertEqual(file_entry.size_b, 42)
+        self.assertEqual(directory_entry.name, "logs")
+
+    def test_directory_listing_with_time_falls_back_for_old_servers(self):
+        """Old servers are retried with the standard listing opcode."""
+        ftp, master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.Fail]),
+                ftp_reply(3, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile]),
+            ]
+        )
+        ftp.ftp_settings.list_time = 1
+
+        result = ftp.cmd_list([])
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.list_result, [])
+        self.assertEqual(master.replies, [])
+
+    def test_directory_listing_requests_timestamps_by_default(self):
+        """The default client enables the extension for capable servers."""
+        ftp, master = self.make_ftp(
+            [ftp_reply(2, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.EndOfFile])],
+            list_time=None,
+        )
+        self.assertEqual(ftp.ftp_settings.list_time, 1)
+        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
+        self.assertEqual(master.mav.sent[-1][-1][3], OP_ListDirectoryWithTime)
+
+    def test_silent_timestamp_listing_falls_back_after_retries(self):
+        """Servers that drop unknown listing opcodes use the baseline retry path."""
+        ftp, _master = self.make_ftp([], list_time=1)
+        ftp.ftp_settings.list_time_timeout = 1
+        ftp.ftp_settings.list_retries = 1
+        ftp.list_with_time = True
+        ftp.last_op = FTP_OP(1, 0, OP_ListDirectoryWithTime, 1, 0, 0, 0, bytearray(b"/"))
+        ftp.last_op_time = 0
+        ftp.last_send_time = 0
+
+        with patch("pymavlink.mavftp.time.time", return_value=1):
+            self.assertFalse(ftp._MAVFTP__idle_task())
+        self.assertEqual(ftp.list_time_retries, 1)
+        self.assertEqual(ftp.last_op.opcode, OP_ListDirectoryWithTime)
+
+        with patch("pymavlink.mavftp.time.time", return_value=2):
+            self.assertFalse(ftp._MAVFTP__idle_task())
+        self.assertEqual(ftp.last_op.opcode, OP_ListDirectory)
+        self.assertFalse(ftp.list_time_supported)
+
+    def test_directory_listing_display_includes_timestamp(self):
+        """The CLI formatter makes returned timestamps visible to users."""
+        result = MAVFTPReturn(
+            "ListDirectory",
+            FtpError.Success,
+            directory_listing=[DirectoryEntry("file.bin", False, 42, 1700000000)],
+        )
+        with self.assertLogs(level="INFO") as logs:
+            result.display_message()
+        self.assertTrue(any("file.bin\t42\t" in message for message in logs.output))
+
+    def test_local_crc_matches_vehicle_algorithm(self):
+        """Local CRCs use the same raw CRC32 convention as the vehicle."""
+        with tempfile.NamedTemporaryFile() as local_file:
+            local_file.write(b"mavftp")
+            local_file.flush()
+            ftp, _master = self.make_ftp([])
+            self.assertEqual(local_file_crc(local_file.name), 0x0960C765)
+            self.assertEqual(ftp.local_file_crc(local_file.name), 0x0960C765)
+            self.assertEqual(
+                ftp.cmd_crclocal([local_file.name]).error_code, FtpError.Success
+            )
+
+    def test_new_features_are_exposed_by_cli(self):
+        """The timestamp option and local CRC command are parser-visible."""
+        args = create_argument_parser().parse_args(
+            ["--list_time", "1", "crclocal", "local.bin"]
+        )
+        self.assertEqual(args.list_time, 1)
+        self.assertEqual(args.command, "crclocal")
+        self.assertEqual(args.arg1, "local.bin")
+
+        list_args = create_argument_parser().parse_args(["list"])
+        self.assertEqual(list_args.list_time, 1)
+        self.assertEqual(list_args.list_time_timeout, 3.0)
+        self.assertEqual(list_args.list_retries, 3)
 
     def test_write_nack_preserves_server_error(self):
         """WriteFile NACKs retain their precise protocol error code."""
