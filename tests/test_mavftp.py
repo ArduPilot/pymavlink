@@ -801,8 +801,10 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.read_to_memory = True
         ftp.requested_size = 240
         ftp.read_total = 160
+        ftp.op_start = 1
+        ftp.reached_eof = True
         ftp.read_gaps = [(80, 80)]
-        ftp.read_gap_times = {(80, 80): 0}
+        ftp.read_gap_times = {(80, 80): 123}
         ftp.pending_burst_offset = 240
         ftp.pending_burst_seq = 2
         ftp.pending_burst_request = FTP_OP(1, 0, OP_BurstReadFile, 80, 0, 0, 240, None)
@@ -813,7 +815,12 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(result.error_code, FtpError.Fail)
         self.assertEqual(ftp.fh.getvalue(), b"a" * 80 + b"\0" * 80 + b"b" * 80)
+        self.assertEqual(ftp.fh.tell(), 240)
         self.assertEqual(ftp.read_gaps, [(80, 80)])
+        self.assertEqual(ftp.read_gap_times, {(80, 80): 123})
+        self.assertEqual(ftp.read_total, 160)
+        self.assertEqual(ftp.duplicates, 0)
+        self.assertFalse(ftp.read_complete)
 
     def test_burst_reply_requires_pending_offset(self):
         """Burst packets are ignored until a request establishes its offset."""
