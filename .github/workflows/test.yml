@@ -57,6 +57,9 @@ jobs:
       - name: Type check generated python code
         run: mypy --config-file ./.github/workflows/mypy-generated.ini dialects/v10/*.py dialects/v20/*.py
 
+      - name: Type check MAVFTP
+        run: mypy --follow-imports=skip --ignore-missing-imports mavftp.py
+
       - name: Generate messages
         run: |
           ./test_generate_all.sh

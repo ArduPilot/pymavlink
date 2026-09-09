@@ -33,6 +33,8 @@ OP_TruncateFile = 12
 OP_Rename = 13
 OP_CalcFileCRC32 = 14
 OP_BurstReadFile = 15
+# Directory listing with a trailing modification-time field on file entries.
+OP_ListDirectoryWithTime = 16
 OP_Ack = 128
 OP_Nack = 129
 
