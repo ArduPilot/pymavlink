@@ -273,6 +273,29 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 self.assertEqual(result.error_code, FtpError.Fail)
                 self.assertEqual(ftp.pending_terminate_seq, ftp.seq)
 
+    def test_reply_from_another_vehicle_is_rejected(self):
+        """A colliding session reply from another vehicle cannot complete a command."""
+        ftp, _master = self.make_ftp([])
+        ftp.last_op = FTP_OP(1, 0, OP_RemoveFile, 0, 0, 0, 0, bytearray())
+        reply = ftp_reply(2, OP_Ack, OP_RemoveFile)
+        reply.get_srcSystem = lambda: 2
+        reply.get_srcComponent = lambda: 1
+
+        result = ftp._MAVFTP__mavlink_packet(reply)
+
+        self.assertEqual(result.error_code, FtpError.InvalidSession)
+
+    def test_status_reports_a_transfer_during_open_handshake(self):
+        """A transfer remains visible before its remote file handle is opened."""
+        ftp, _master = self.make_ftp([])
+        ftp.transfer_active = True
+
+        with self.assertLogs(level="INFO") as logs:
+            result = ftp.cmd_status()
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertIn("Transfer in progress", "\n".join(logs.output))
+
     @staticmethod
     def sent_request_sequences(master, opcode):
         """Return FTP request sequence numbers sent for an opcode."""

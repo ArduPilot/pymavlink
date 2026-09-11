@@ -2269,7 +2269,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def cmd_status(self) -> MAVFTPReturn:
         """Show status."""
         if self.fh is None:
-            logging.info("No transfer in progress")
+            if self.transfer_active:
+                # A transfer owns the session from its initial open/create
+                # request.  There is no file handle yet while that handshake
+                # is in flight, but reporting it as idle is misleading (and
+                # differs from the MAVProxy FTP status behavior).
+                logging.info("Transfer in progress")
+            else:
+                logging.info("No transfer in progress")
         else:
             ofs = self.fh.tell()
             if self.op_start:
@@ -2299,6 +2306,37 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return FTP_OP(
             seq, session, opcode, size, req_opcode, burst_complete, offset, payload
         )
+
+    def __reply_from_configured_target(self, m) -> bool:
+        """Return whether a reply came from this instance's remote target.
+
+        FILE_TRANSFER_PROTOCOL has no separate routing envelope for the
+        vehicle that handled a request.  Session IDs are only one byte and
+        can therefore collide across vehicles, so use MAVLink's source IDs
+        when the message wrapper exposes them.  Minimal test and legacy
+        wrappers may not provide source accessors; retain their historical
+        behavior in that case.
+        """
+        try:
+            source_system = m.get_srcSystem()
+            source_component = m.get_srcComponent()
+        except AttributeError:
+            return True
+        if self.target_system not in (0, source_system):
+            logging.info(
+                "FTP: reply from wrong system %u, expected %u. Will discard message",
+                source_system,
+                self.target_system,
+            )
+            return False
+        if self.target_component not in (0, source_component):
+            logging.info(
+                "FTP: reply from wrong component %u, expected %u. Will discard message",
+                source_component,
+                self.target_component,
+            )
+            return False
+        return True
 
     def __reply_matches_active_request(self, op: FTP_OP) -> bool:
         """Return whether a reply can safely be dispatched to the active operation."""
@@ -2346,6 +2384,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 m.target_component,
             )
             return MAVFTPReturn(operation_name, FtpError.Fail)
+
+        if not self.__reply_from_configured_target(m):
+            return MAVFTPReturn(operation_name, FtpError.InvalidSession)
 
         try:
             op = self.__op_parse(m)
@@ -2702,6 +2743,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     if (
                         m.target_system == self.master.source_system  # pylint: disable=too-many-boolean-expressions
                         and m.target_component == self.master.source_component
+                        and self.__reply_from_configured_target(m)
                         and op.session == self.session
                         and op.req_opcode == OP_TerminateSession
                         and self.pending_terminate_seq is not None
