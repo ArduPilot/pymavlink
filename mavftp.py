@@ -397,7 +397,7 @@ class MAVFTPReturn:
 TERMINATE_ATTEMPTS = 2
 
 
-class MAVFTP:  # pylint: disable=too-many-instance-attributes
+class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-methods
     """
     Implements the client-side logic for the MAVLink File Transfer Protocol (FTP) over MAVLink connections.
 
@@ -615,7 +615,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 pass
             self.temp_filename = None
 
-    def __terminate_session(self) -> MAVFTPReturn:
+    def __terminate_session(self) -> MAVFTPReturn:  # pylint: disable=too-many-statements
         """Terminate current session."""
         self.pending_terminate_seq = self.seq
         self.__send(
@@ -778,7 +778,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         more.offset = 0
         self.__send(more)
 
-    def __handle_list_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
+    def __handle_list_reply(  # pylint: disable=too-many-boolean-expressions,too-many-branches,too-many-statements
+        self, op: FTP_OP, _m
+    ) -> MAVFTPReturn:
         """Handle OP_ListDirectory reply."""
         if op.opcode == OP_Ack and op.payload is not None:
             with_time = op.req_opcode == OP_ListDirectoryWithTime
@@ -1107,7 +1109,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__terminate_session()
         return ret
 
-    def __check_read_finished(self) -> bool:  # pylint: disable=too-many-branches
+    def __check_read_finished(  # pylint: disable=too-many-branches,too-many-statements
+        self,
+    ) -> bool:
         """Check if download has completed."""
         if self.fh is None:
             return True
@@ -2079,7 +2083,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return
         self.__send_gap_read(g)
 
-    def __idle_task(self) -> bool:
+    def __idle_task(self) -> bool:  # pylint: disable=too-many-branches
         """Check for file gaps and lost requests."""
         now = time.time()
         if self.ftp_settings.idle_detection_time <= self.ftp_settings.read_retry_time:
@@ -2187,7 +2191,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.pending_reset_seq = None
         return self.__decode_ftp_ack_and_nack(op)
 
-    def process_ftp_reply(  # pylint: disable=too-many-branches, too-many-locals
+    def process_ftp_reply(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
         self, operation_name: str, timeout: float = 5
     ) -> MAVFTPReturn:
         """Execute an FTP operation that requires processing a MAVLink response."""
@@ -2663,7 +2667,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 # ------------------------------------------------------------
 
 
-def create_argument_parser() -> ArgumentParser:
+def create_argument_parser() -> ArgumentParser:  # pylint: disable=too-many-statements
     """
     Parses command-line arguments for the script.
 
@@ -3019,7 +3023,7 @@ def wait_heartbeat(m) -> None:
     )
 
 
-def main() -> None:
+def main() -> None:  # pylint: disable=too-many-branches
     """For testing/example purposes only."""
     args = create_argument_parser().parse_args()
 

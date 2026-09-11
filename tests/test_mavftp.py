@@ -49,7 +49,7 @@ from pymavlink.mavftp import (
     local_file_crc,
 )
 
-# pylint: disable=protected-access,too-many-lines
+# pylint: disable=protected-access,too-many-lines,duplicate-code
 
 
 class FakeFTPMessage:  # pylint: disable=too-few-public-methods
@@ -375,7 +375,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertIsNone(ftp.write_list)
 
     def test_download_staging_open_failure_terminates_the_remote_session(self):
-        """Given a staging-file open failure, when OpenFileRO is acknowledged, then download fails and the session is terminated."""
+        """A staging-file failure after OpenFileRO terminates the session."""
         ftp, master = self.make_ftp(
             [ftp_reply(3, OP_Ack, OP_TerminateSession, session=0)]
         )
@@ -440,7 +440,10 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             [("alpha", True, 0), ("beta", False, 0), ("zeta", False, 7)],
         )
         requests = self.sent_requests(master)
-        self.assertEqual([(request.opcode, request.offset) for request in requests[-2:]], [(OP_ListDirectory, 0), (OP_ListDirectory, 3)])
+        self.assertEqual(
+            [(request.opcode, request.offset) for request in requests[-2:]],
+            [(OP_ListDirectory, 0), (OP_ListDirectory, 3)],
+        )
         self.assertEqual([request.payload for request in requests[-2:]], [b"logs", b"logs"])
         self.assertEqual(master.replies, [])
 
@@ -549,7 +552,9 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
     def test_cancel_resets_transfer_state_and_uses_active_session(self):
         """Given an active download, when cancel is requested, then its session is terminated and state is cleared."""
-        ftp, master = self.make_ftp([ftp_reply(2, OP_Ack, OP_TerminateSession, session=6)])
+        ftp, master = self.make_ftp(
+            [ftp_reply(2, OP_Ack, OP_TerminateSession, session=6)]
+        )
         callback_notifications = []
         ftp.session = 6
         ftp.fh = BytesIO(b"partial")
@@ -573,7 +578,9 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
     def test_cleanup_survives_callback_exceptions(self):
         """Given callbacks that raise during cancellation, when the session is terminated, then cleanup still completes."""
-        ftp, master = self.make_ftp([ftp_reply(2, OP_Ack, OP_TerminateSession, session=6)])
+        ftp, _master = self.make_ftp(
+            [ftp_reply(2, OP_Ack, OP_TerminateSession, session=6)]
+        )
         ftp.session = 6
         ftp.fh = BytesIO(b"partial")
         ftp.filename = "remote.bin"
@@ -597,7 +604,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertIsNone(ftp.pending_terminate_seq)
 
     def test_path_commands_reject_non_ascii_without_sending_a_request(self):
-        """Given a non-ASCII path, when any path command is invoked, then it fails before sending a protocol request."""
+        """Non-ASCII paths fail before sending a protocol request."""
         cases = (
             ("list", ["rémote"]),
             ("rm", ["rémote"]),
@@ -616,7 +623,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 self.assertEqual(len(master.mav.sent), 1)  # ResetSessions only.
 
     def test_path_commands_reject_oversized_payloads_without_sending(self):
-        """Given a path exceeding the 239-byte FTP payload, when any path command is invoked, then it fails before sending a request."""
+        """Oversized paths fail before sending a protocol request."""
         oversized = "a" * (mavftp_module.MAX_Payload + 1)
         cases = (
             ("list", [oversized]),
@@ -845,22 +852,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
     def test_timeout_handling_does_not_use_assertions(self):
         """Invalid timing combinations return errors instead of assertions."""
-        settings = MAVFTPSettings(
-            [
-                ("debug", int, 0),
-                ("pkt_loss_tx", int, 0),
-                ("pkt_loss_rx", int, 0),
-                ("max_backlog", int, 5),
-                ("burst_read_size", int, 80),
-                ("write_size", int, 80),
-                ("write_qsize", int, 5),
-                ("idle_detection_time", float, 5.0),
-                ("read_retry_time", float, 1.0),
-                ("retry_time", float, 0.5),
-            ]
-        )
-        master = FakeMaster([ftp_reply(1, OP_Ack, OP_ResetSessions)])
-        ftp = MAVFTP(master, target_system=1, target_component=1, settings=settings)
+        ftp, _master = self.make_ftp([ftp_reply(1, OP_Ack, OP_ResetSessions)])
 
         result = ftp.process_ftp_reply("RemoveFile", timeout=0.01)
 
