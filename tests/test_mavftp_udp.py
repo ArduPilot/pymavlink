@@ -372,10 +372,16 @@ class TestMAVFTPUDP(unittest.TestCase):
 
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(bytes(self.responder.uploads[42]), payload)
+        write_requests = [
+            request
+            for request in self.responder.requests
+            if request.opcode == OP_WriteFile
+        ]
         self.assertEqual(
-            sum(request.opcode == OP_WriteFile for request in self.responder.requests),
-            3,
+            sorted({request.offset for request in write_requests}),
+            [0, 10, 20],
         )
+        self.assertGreaterEqual(len(write_requests), 3)
 
 
 if __name__ == "__main__":

@@ -108,6 +108,8 @@ class FtpError(IntEnum):
 
 HDR_Len = 12
 MAX_Payload = 239
+FTP_SEQ_MODULUS = 1 << 16
+FTP_SESSION_MODULUS = 1 << 8
 BURST_REPLY_SEQUENCE_WINDOW = 4096
 MAX_READ_GAPS = 4096
 # Keep a batch of encoded MAVLink packets below a normal Ethernet MTU.  This
@@ -622,7 +624,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.master.mav.file_transfer_protocol_send(
             self.network, self.target_system, self.target_component, payload
         )
-        expected_reply_seq = (op.seq + 1) % 65536
+        expected_reply_seq = (op.seq + 1) % FTP_SEQ_MODULUS
         if op.opcode == OP_BurstReadFile:
             self.pending_burst_offset = op.offset
             self.pending_burst_seq = expected_reply_seq
@@ -635,7 +637,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.pending_write_replies[expected_reply_seq] = op.offset
             self.pending_write_requests[expected_reply_seq] = op
         if not retry:
-            self.seq = (self.seq + 1) % 65536
+            self.seq = (self.seq + 1) % FTP_SEQ_MODULUS
             self.send_times[op.seq] = time.time()
         else:
             # Do not use a reply to a retransmitted request as an RTT sample.
@@ -816,7 +818,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if termination_result.error_code != FtpError.Success:
             # Do not let an unanswered old handshake block a later operation.
             self.pending_terminate_seq = None
-        self.session = (self.session + 1) % 256
+        self.session = (self.session + 1) % FTP_SESSION_MODULUS
         return termination_result
 
     def __has_active_session(self) -> bool:
@@ -2189,7 +2191,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if (
             self.last_op is not None
             and op.req_opcode == self.last_op.opcode
-            and op.seq == (self.last_op.seq + 1) % 65536
+            and op.seq == (self.last_op.seq + 1) % FTP_SEQ_MODULUS
         ):
             return True
 
@@ -2257,7 +2259,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # Only the first reply to a request is an unambiguous RTT sample.
         # Burst replies advance their sequence number, so later packets do
         # not have a corresponding entry in send_times.
-        request_seq = (op.seq - 1) % 65536
+        request_seq = (op.seq - 1) % FTP_SEQ_MODULUS
         sent = self.send_times.pop(request_seq, None)
         if sent is not None:
             self.update_rtt(now - sent)
@@ -2274,7 +2276,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if (
                 op.req_opcode == OP_TerminateSession
                 and self.pending_terminate_seq is not None
-                and op.seq == (self.pending_terminate_seq + 1) % 65536
+                and op.seq == (self.pending_terminate_seq + 1) % FTP_SEQ_MODULUS
             ):
                 # Ack or Nack (InvalidSession means it was already
                 # closed): the handshake has been answered
@@ -2462,7 +2464,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Handle reset sessions reply."""
         if (
             self.pending_reset_seq is not None
-            and op.seq == (self.pending_reset_seq + 1) % 65536
+            and op.seq == (self.pending_reset_seq + 1) % FTP_SEQ_MODULUS
         ):
             # Ack or Nack, the handshake has been answered; the decoded
             # result below still reports a Nack to the caller
@@ -2525,7 +2527,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         and op.session == self.session
                         and op.req_opcode == OP_TerminateSession
                         and self.pending_terminate_seq is not None
-                        and op.seq == (self.pending_terminate_seq + 1) % 65536
+                        and op.seq == (self.pending_terminate_seq + 1) % FTP_SEQ_MODULUS
                     ):
                         self.pending_terminate_seq = None
                         ret = MAVFTPReturn(operation_name, FtpError.Success)
@@ -2548,7 +2550,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     reply_matches_last_op = (
                         self.last_op is not None
                         and op.req_opcode == self.last_op.opcode
-                        and op.seq == (self.last_op.seq + 1) % 65536
+                        and op.seq == (self.last_op.seq + 1) % FTP_SEQ_MODULUS
                         and op.session == self.session
                     )
                     reply_matches_active_request = (
@@ -2587,7 +2589,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 completed_opcode, completed_seq = self.completed_reply
                 reply_complete = (
                     completed_opcode == self.last_op.opcode
-                    and completed_seq == (self.last_op.seq + 1) % 65536
+                    and completed_seq == (self.last_op.seq + 1) % FTP_SEQ_MODULUS
                 )
                 # A completed upload sends TerminateSession immediately after
                 # its final CreateFile/WriteFile reply. It is explicitly

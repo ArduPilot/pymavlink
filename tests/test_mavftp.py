@@ -25,6 +25,8 @@ from pymavlink.mavftp import (
     BURST_REPLY_SEQUENCE_WINDOW,
     DirectoryEntry,
     FTP_OP,
+    FTP_SEQ_MODULUS,
+    FTP_SESSION_MODULUS,
     MAX_READ_GAPS,
     MAVFTP,
     MAVFTPSetting,
@@ -185,7 +187,7 @@ class AllocatingSessionReplayMaster(FakeMaster):  # pylint: disable=too-few-publ
             request = FTP_OP(
                 seq, session, opcode, size, 0, 0, offset, bytearray(payload[12 : 12 + size])
             )
-            reply_seq = (request.seq + 1) % 65536
+            reply_seq = (request.seq + 1) % FTP_SEQ_MODULUS
             if request.opcode == OP_ResetSessions:
                 self.replies.append(ftp_reply(reply_seq, OP_Ack, OP_ResetSessions))
             elif request.opcode == OP_OpenFileRO:
@@ -2209,12 +2211,39 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
     def test_remove_accepts_16_bit_sequence_wrap(self):
         ftp, master = self.make_ftp([])
+        ftp.seq = FTP_SEQ_MODULUS - 1
+        master.replies.append(ftp_reply(0, OP_Ack, OP_RemoveFile))
+
+        result = ftp.cmd_rm(["remote"])
+
+        self.assertEqual(result.error_code, FtpError.Success)
+
+    def test_remove_sequence_255_advances_to_256(self):
+        """A 16-bit sequence continues from 255 to 256 without wrapping."""
+        ftp, master = self.make_ftp([])
         ftp.seq = 255
         master.replies.append(ftp_reply(256, OP_Ack, OP_RemoveFile))
 
         result = ftp.cmd_rm(["remote"])
 
         self.assertEqual(result.error_code, FtpError.Success)
+
+    def test_ftp_wrap_moduli_match_protocol_field_widths(self):
+        self.assertEqual(FTP_SEQ_MODULUS, 65536)
+        self.assertEqual(FTP_SESSION_MODULUS, 256)
+
+    def test_cancel_wraps_session_255_to_0(self):
+        """A completed session advances from 255 to the protocol's zero ID."""
+        ftp, master = self.make_ftp([])
+        ftp.session = FTP_SESSION_MODULUS - 1
+        master.replies.append(
+            ftp_reply(2, OP_Ack, OP_TerminateSession, session=ftp.session)
+        )
+
+        result = ftp.cmd_cancel()
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.session, 0)
 
     def test_wrong_session_reply_is_not_retained(self):
         ftp, master = self.make_ftp([])
