@@ -59,7 +59,9 @@ def parse_ftp_payload(payload):
     )
 
 
-class FTPUDPResponder(threading.Thread):
+class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
+    threading.Thread
+):
     """Small real-MAVLink server implementing the replies used by scenarios."""
 
     def __init__(self, master):
@@ -77,7 +79,7 @@ class FTPUDPResponder(threading.Thread):
     def stop(self):
         self.stop_event.set()
 
-    def run(self):
+    def run(self):  # pylint: disable=too-many-branches
         try:
             while not self.stop_event.is_set():
                 message = self.master.recv_match(

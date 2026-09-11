@@ -933,7 +933,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         more.offset = 0
         self.__send(more)
 
-    def __handle_list_reply(  # pylint: disable=too-many-boolean-expressions,too-many-branches,too-many-statements
+    def __handle_list_reply(  # pylint: disable=too-many-boolean-expressions,too-many-branches,too-many-statements,too-many-return-statements
         self, op: FTP_OP, _m
     ) -> MAVFTPReturn:
         """Handle OP_ListDirectory reply."""
@@ -1226,7 +1226,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.__send(op)
         return MAVFTPReturn("OpenFileRO", FtpError.Success)
 
-    def __handle_open_ro_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
+    def __handle_open_ro_reply(  # pylint: disable=too-many-branches,too-many-return-statements
+        self, op: FTP_OP, _m
+    ) -> MAVFTPReturn:
         """Handle OP_OpenFileRO reply."""
         if self.fh is not None:
             # A preserved-sequence retry can leave more than one handshake
@@ -1647,7 +1649,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         logging.warning("FTP: burst error: %s", op)
         return MAVFTPReturn("BurstReadFile", FtpError.Fail)
 
-    def __handle_reply_read(self, op: FTP_OP, _m) -> MAVFTPReturn:
+    def __handle_reply_read(  # pylint: disable=too-many-branches,too-many-return-statements
+        self, op: FTP_OP, _m
+    ) -> MAVFTPReturn:
         """Handle OP_ReadFile reply."""
         pending_for_offset = any(
             pending_gap[0] == op.offset
@@ -2134,7 +2138,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         logging.info("crc: %s 0x%08x", args[0], crc)
         return MAVFTPReturn("CalcLocalFileCRC32", FtpError.Success)
 
-    def cmd_crccmp(self, args: List[str]) -> MAVFTPReturn:
+    def cmd_crccmp(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
+        self, args: List[str]
+    ) -> MAVFTPReturn:
         """Compare local files with same-named files on the vehicle."""
         if len(args) != 2:
             logging.error("Usage: crccmp WILDCARD DESTDIR")
@@ -2178,7 +2184,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         for local_name in files:
             basename = os.path.basename(local_name)
-            remote_name = "%s/%s" % (destination, basename)
+            remote_name = f"{destination}/{basename}"
             try:
                 encoded_name = bytearray(remote_name, "ascii")
             except UnicodeEncodeError:
@@ -2322,7 +2328,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Return whether a uint16 sequence is equal to or newer than expected."""
         return ((seq - expected) & 0xFFFF) < 0x8000
 
-    def __mavlink_packet(self, m) -> MAVFTPReturn:  # noqa: PLR0911, PGH004, pylint: disable=too-many-branches, too-many-return-statements
+    def __mavlink_packet(self, m) -> MAVFTPReturn:  # noqa: PLR0911, PGH004, pylint: disable=too-many-branches,too-many-return-statements,too-many-statements
         """Handle a mavlink packet."""
         operation_name = "mavlink_packet"
         mtype = m.get_type()
@@ -2506,7 +2512,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if self.read_gap_times.get(gap, 0) == 0:
                 self.__send_gap_read(gap)
 
-    def __idle_task(self) -> bool:  # pylint: disable=too-many-branches
+    def __idle_task(self) -> bool:  # pylint: disable=too-many-branches,too-many-return-statements
         """Check for file gaps and lost requests."""
         now = time.time()
         if self.ftp_settings.idle_detection_time <= self.ftp_settings.read_retry_time:
@@ -3045,7 +3051,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 f.write("\n")
         logging.info("Outputted %u parameters to %s", len(pdict), filename)
 
-    def cmd_getparams(
+    def cmd_getparams(  # pylint: disable=too-many-arguments
         self,
         args: List[str],
         progress_callback=None,
