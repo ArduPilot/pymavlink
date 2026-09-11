@@ -35,5 +35,5 @@ jobs:
         dialects/v10/__init__.py dialects/v20/__init__.py \
         examples/__init__.py generator/__init__.py tests/test_mavxml.py tools/__init__.py \
         mavftp.py mavftp_op.py examples/mavftp_example.py examples/status_msg.py tests/test_mavftp.py \
-        tests/test_mavxml.py
+        tests/test_mavxml.py tests/test_mavftp_udp.py
 #        $(git ls-files '*.py')
