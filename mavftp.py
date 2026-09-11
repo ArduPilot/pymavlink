@@ -15,6 +15,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 import contextlib
 import glob
+import heapq
 import logging
 import math
 import os
@@ -204,6 +205,10 @@ class MAVFTPSettings:
         "debug": (0, 2, False),
         "pkt_loss_tx": (0, 100, False),
         "pkt_loss_rx": (0, 100, False),
+        "pkt_lag_tx": (0, None, False),
+        "pkt_lag_rx": (0, None, False),
+        "pkt_lag_jitter_tx": (0, None, False),
+        "pkt_lag_jitter_rx": (0, None, False),
         "max_backlog": (1, None, False),
         "burst_read_size": (1, MAX_Payload, False),
         "write_size": (1, MAX_Payload, False),
@@ -461,6 +466,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     ("list_retries", int, 3),
                     ("pkt_loss_tx", int, 0),
                     ("pkt_loss_rx", int, 0),
+                    # Optional link simulation. Delays are in milliseconds,
+                    # matching MAVProxy's FTP module settings.
+                    ("pkt_lag_tx", float, 0.0),
+                    ("pkt_lag_rx", float, 0.0),
+                    ("pkt_lag_jitter_tx", float, 0.0),
+                    ("pkt_lag_jitter_rx", float, 0.0),
+                    ("loss_seed", int, 0),
                     ("crccmp_timeout", float, 120.0),
                     ("max_backlog", int, 5),
                     ("burst_read_size", int, 80),
@@ -581,6 +593,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.master = master
         self.target_system = target_system
         self.target_component = target_component
+        # Optional deterministic loss/latency simulation used by link tests
+        # and by applications that want to exercise poor-link behavior.
+        self.loss_rng = random.Random()
+        self.active_loss_seed: Optional[int] = None
+        self.delay_sequence = 0
+        self.tx_delay_queue: List[Tuple[float, int, bytes]] = []
+        self.rx_delay_queue: List[Tuple[float, int, Any]] = []
+        self.last_tx_deadline = 0.0
+        self.last_rx_deadline = 0.0
+        self._rx_loss_applied = False
         self.get_result: Union[None, bytes] = None
         self.last_crc: Optional[int] = None
         self.crccmp_results: List[str] = []
@@ -593,10 +615,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.show_progress = False
         self.last_status_time = 0.0
 
-        # Reset the flight controller FTP state-machine
-        self.pending_reset_seq = self.seq
-        self.__send(FTP_OP(self.seq, self.session, OP_ResetSessions, 0, 0, 0, 0, None))
-        self.process_ftp_reply("ResetSessions")
+        # The standalone client normally resets the flight controller FTP
+        # state-machine during construction. Keep construction useful for
+        # callers that create an instance before a link is available too.
+        if self.master is not None:
+            self.pending_reset_seq = self.seq
+            self.__send(FTP_OP(self.seq, self.session, OP_ResetSessions, 0, 0, 0, 0, None))
+            self.process_ftp_reply("ResetSessions")
 
     def cmd_ftp(self, args: List[str]) -> MAVFTPReturn:  # noqa: PLR0911 pylint: disable=too-many-branches,too-many-return-statements
         """FTP operations."""
@@ -635,7 +660,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         logging.error(usage)
         return MAVFTPReturn("FTP command", FtpError.InvalidArguments)
 
-    def __send(self, op: FTP_OP, retry: bool = False) -> None:
+    def __send(self, op: FTP_OP, retry: bool = False) -> None:  # pylint: disable=too-many-branches
         """Send a request, preserving its sequence number on retransmission."""
         if not retry:
             op.seq = self.seq
@@ -646,9 +671,23 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         plen = len(payload)
         if plen < MAX_Payload + HDR_Len:
             payload.extend(bytearray([0] * ((HDR_Len + MAX_Payload) - plen)))
-        self.master.mav.file_transfer_protocol_send(
-            self.network, self.target_system, self.target_component, payload
-        )
+        if self.master is None or not hasattr(self.master, "mav"):
+            logging.error("FTP: Can't send request, no master")
+        elif self.__packet_lost("TX"):
+            if self.ftp_settings.debug > 1:
+                logging.info("FTP: dropping packet TX")
+        else:
+            lag = self.__packet_delay("TX")
+            if lag == 0:
+                self.__transmit_payload(payload)
+            else:
+                self.delay_sequence += 1
+                deadline = max(time.monotonic() + lag, self.last_tx_deadline)
+                self.last_tx_deadline = deadline
+                heapq.heappush(
+                    self.tx_delay_queue,
+                    (deadline, self.delay_sequence, bytes(payload)),
+                )
         expected_reply_seq = (op.seq + 1) % FTP_SEQ_MODULUS
         if op.opcode == OP_BurstReadFile:
             self.pending_burst_offset = op.offset
@@ -674,6 +713,98 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             logging.info("FTP: > %s dt=%.2f", op, now - self.last_op_time)
         self.last_op_time = time.time()
         self.last_send_time = now
+
+    def __transmit_payload(self, payload: bytes) -> None:
+        """Transmit an already encoded MAVLink FTP payload."""
+        if self.master is None or not hasattr(self.master, "mav"):
+            return
+        self.master.mav.file_transfer_protocol_send(
+            self.network, self.target_system, self.target_component, payload
+        )
+
+    def __packet_lost(self, direction: str) -> bool:
+        """Return whether the configured transport simulator drops a packet."""
+        seed = int(getattr(self.ftp_settings, "loss_seed", 0))
+        if seed != self.active_loss_seed:
+            self.loss_rng.seed(None if seed == 0 else seed)
+            self.active_loss_seed = seed
+        setting = "pkt_loss_tx" if direction == "TX" else "pkt_loss_rx"
+        percent = int(getattr(self.ftp_settings, setting))
+        return percent > 0 and self.loss_rng.uniform(0, 100) < percent
+
+    def packet_lost(self, direction: str) -> bool:
+        """Return whether the configured transport simulator drops a packet."""
+        return self.__packet_lost(direction)
+
+    def __packet_delay(self, direction: str) -> float:
+        """Return configured one-way delay in seconds, including jitter."""
+        lag_name = "pkt_lag_tx" if direction == "TX" else "pkt_lag_rx"
+        jitter_name = "pkt_lag_jitter_tx" if direction == "TX" else "pkt_lag_jitter_rx"
+        delay_ms = max(0.0, float(getattr(self.ftp_settings, lag_name, 0.0)))
+        jitter_ms = float(getattr(self.ftp_settings, jitter_name, 0.0))
+        if jitter_ms > 0:
+            delay_ms += self.loss_rng.uniform(0, jitter_ms)
+        return delay_ms * 0.001
+
+    def packet_delay(self, direction: str) -> float:
+        """Return simulated one-way delay in seconds."""
+        return self.__packet_delay(direction)
+
+    def __discard_delayed_traffic(self) -> None:
+        """Discard queued traffic belonging to a finished operation."""
+        self.tx_delay_queue.clear()
+        self.rx_delay_queue.clear()
+        self.last_tx_deadline = 0.0
+        self.last_rx_deadline = 0.0
+
+    def __flush_delayed_traffic(self) -> None:
+        """Deliver due simulated packets in FIFO order."""
+        now = time.monotonic()
+        while self.tx_delay_queue and self.tx_delay_queue[0][0] <= now:
+            _, _, payload = heapq.heappop(self.tx_delay_queue)
+            self.__transmit_payload(payload)
+        while self.rx_delay_queue and self.rx_delay_queue[0][0] <= now:
+            _, _, message = heapq.heappop(self.rx_delay_queue)
+            self.__dispatch_received_packet(message)
+
+    def __receive_packet(self, message) -> Optional[MAVFTPReturn]:
+        """Dispatch a reply immediately or enqueue it for simulated latency."""
+        if self.__packet_lost("RX"):
+            if self.ftp_settings.debug > 1:
+                logging.info("FTP: dropping packet RX")
+            return MAVFTPReturn("mavlink_packet", FtpError.Fail)
+        lag = self.__packet_delay("RX")
+        if lag == 0:
+            return self.__dispatch_received_packet(message)
+        self.delay_sequence += 1
+        deadline = max(time.monotonic() + lag, self.last_rx_deadline)
+        self.last_rx_deadline = deadline
+        heapq.heappush(
+            self.rx_delay_queue,
+            (deadline, self.delay_sequence, message),
+        )
+        return None
+
+    def __dispatch_received_packet(self, message) -> MAVFTPReturn:
+        """Dispatch a reply after the transport simulator has handled loss."""
+        self._rx_loss_applied = True
+        try:
+            return self.__mavlink_packet(message)
+        finally:
+            self._rx_loss_applied = False
+
+    def mavlink_packet(self, message) -> Optional[MAVFTPReturn]:
+        """Accept an incoming FTP reply from an event-driven MAVLink loop."""
+        if self.master is None:
+            return MAVFTPReturn("mavlink_packet", FtpError.Fail)
+        if message.get_type() != "FILE_TRANSFER_PROTOCOL":
+            return MAVFTPReturn("mavlink_packet", FtpError.Fail)
+        return self.__receive_packet(message)
+
+    def idle_task(self) -> bool:
+        """Service delayed traffic and run the FTP retry state machine."""
+        self.__flush_delayed_traffic()
+        return self.__idle_task()
 
     def __write_link_data(self, link: Any, data: bytes, is_stream: bool) -> None:
         """Write encoded data, handling partial stream writes."""
@@ -771,8 +902,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 pass
             self.temp_filename = None
 
-    def __terminate_session(self) -> MAVFTPReturn:  # pylint: disable=too-many-statements
+    def __terminate_session(self) -> MAVFTPReturn:  # pylint: disable=too-many-branches,too-many-statements
         """Terminate current session."""
+        # Delayed requests from the old operation must not be delivered after
+        # cancellation or completion. The termination packet is queued below
+        # after this purge and is therefore the only packet retained.
+        self.__discard_delayed_traffic()
         self.pending_terminate_seq = self.seq
         self.__send(
             FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None)
@@ -835,9 +970,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.write_inflight.clear()
         if self.ftp_settings.debug > 0:
             logging.info("FTP: Terminated session")
-        termination_result = self.process_ftp_reply("TerminateSession")
+        if self.master is None:
+            self.pending_terminate_seq = None
+            termination_result = MAVFTPReturn(
+                "TerminateSession", FtpError.RemoteReplyTimeout
+            )
+        else:
+            termination_result = self.process_ftp_reply("TerminateSession")
         for _attempt in range(1, TERMINATE_ATTEMPTS):
             if termination_result.error_code == FtpError.Success:
+                break
+            if self.master is None:
                 break
             self.pending_terminate_seq = self.seq
             self.__send(
@@ -1088,6 +1231,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         self.__send(op)
         timeout = time.time() + 5
+        if self.master is None:
+            return None
         while not self.done and time.time() < timeout:
             try:
                 m = self.master.recv_match(
@@ -1099,10 +1244,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.__idle_task()
                     continue
                 timeout = time.time() + 5
-                self.__mavlink_packet(m)
+                self.__receive_packet(m)
             except TypeError as e:
                 logging.error(e)
-            self.__idle_task()
+            self.idle_task()
             time.sleep(0.0001)
         logging.info("loop closed, gaps:%u, done: %u", len(self.read_gaps), self.done)
         if not self.done and self.__has_active_session():
@@ -1147,6 +1292,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             "debug": (0, 2),
             "pkt_loss_tx": (0, 100),
             "pkt_loss_rx": (0, 100),
+            "pkt_lag_tx": (0, None),
+            "pkt_lag_rx": (0, None),
+            "pkt_lag_jitter_tx": (0, None),
+            "pkt_lag_jitter_rx": (0, None),
             "list_time": (0, 1),
             "list_time_timeout": (0, None),
             "list_retries": (0, None),
@@ -1469,10 +1618,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __handle_burst_read(self, op: FTP_OP, _m) -> MAVFTPReturn:  # noqa: PLR0911, PLR0915 pylint: disable=too-many-statements,too-many-branches,too-many-return-statements
         """Handle OP_BurstReadFile reply."""
-        if (
-            self.ftp_settings.pkt_loss_tx > 0
-            and random.uniform(0, 100) < self.ftp_settings.pkt_loss_tx
-        ):  # noqa: S311
+        if self.__packet_lost("TX"):
             if self.ftp_settings.debug > 0:
                 logging.warning("FTP: dropping TX")
             return MAVFTPReturn("BurstReadFile", FtpError.Fail)
@@ -2421,6 +2567,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if op.req_opcode == OP_WriteFile:
             return op.seq in self.pending_write_replies
 
+        if op.req_opcode == OP_TerminateSession:
+            return (
+                self.pending_terminate_seq is not None
+                and op.seq == (self.pending_terminate_seq + 1) % FTP_SEQ_MODULUS
+            )
+
         if (
             self.last_op is not None
             and op.req_opcode == self.last_op.opcode
@@ -2479,10 +2631,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 )
             return MAVFTPReturn(operation_name, FtpError.InvalidSession)
         self.last_op_time = now
-        if (
-            self.ftp_settings.pkt_loss_rx > 0
-            and random.uniform(0, 100) < self.ftp_settings.pkt_loss_rx
-        ):  # noqa: S311
+        if not self._rx_loss_applied and self.__packet_lost("RX"):
             if self.ftp_settings.debug > 1:
                 logging.warning("FTP: dropping packet RX")
             return MAVFTPReturn(operation_name, FtpError.Fail)
@@ -2769,6 +2918,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Execute an FTP operation that requires processing a MAVLink response."""
         start_time = time.time()
         ret = MAVFTPReturn(operation_name, FtpError.Fail)
+        if self.master is None:
+            logging.error("FTP: Can't receive reply, no master")
+            return MAVFTPReturn(operation_name, FtpError.RemoteReplyTimeout)
         try:
             timeout = float(timeout)
             self.ftp_settings.validate()
@@ -2799,31 +2951,23 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             )
             if m is not None:
                 if operation_name == "TerminateSession":
-                    # consume only the terminate reply itself: stale
-                    # replies from the aborted transfer must not reach
-                    # their handlers, which can re-enter
-                    # __terminate_session from this very wait
-                    try:
-                        op = self.__op_parse(m)
-                    except (struct.error, TypeError, ValueError) as exc:
-                        logging.error(
-                            "FTP: malformed FILE_TRANSFER_PROTOCOL payload: %s", exc
-                        )
-                        ret = MAVFTPReturn(
-                            operation_name, FtpError.InvalidDataSize
-                        )
-                        break
-                    if (
-                        m.target_system == self.master.source_system  # pylint: disable=too-many-boolean-expressions
-                        and m.target_component == self.master.source_component
-                        and self.__reply_from_configured_target(m)
-                        and op.session == self.session
-                        and op.req_opcode == OP_TerminateSession
-                        and self.pending_terminate_seq is not None
-                        and op.seq == (self.pending_terminate_seq + 1) % FTP_SEQ_MODULUS
-                    ):
-                        self.pending_terminate_seq = None
-                        ret = MAVFTPReturn(operation_name, FtpError.Success)
+                    # The normal packet path validates target, session and
+                    # sequence, and also lets a configured RX delay apply to
+                    # termination replies. Stale transfer replies are
+                    # rejected by __reply_matches_active_request().
+                    packet_ret = self.__receive_packet(m)
+                    if packet_ret is not None:
+                        # Keep the historical terminate-session result for
+                        # replies that are not for the pending handshake:
+                        # they are ignored and the receive loop eventually
+                        # reports a generic failure. Malformed packets still
+                        # retain their useful validation error.
+                        if self.pending_terminate_seq is None:
+                            ret = MAVFTPReturn(operation_name, FtpError.Success)
+                        elif packet_ret.error_code == FtpError.InvalidDataSize:
+                            ret = MAVFTPReturn(operation_name, packet_ret.error_code)
+                        else:
+                            ret = MAVFTPReturn(operation_name, FtpError.Fail)
                 else:
                     # Keep a result from the latest request or an active
                     # in-flight request. Packet handlers must still see
@@ -2850,7 +2994,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         op.session == self.session
                         and self.__reply_matches_active_request(op)
                     )
-                    packet_ret = self.__mavlink_packet(m)
+                    packet_ret = self.__receive_packet(m)
                     # An upload's final CreateFile/WriteFile reply starts a
                     # TerminateSession request before returning here.  Its
                     # result is therefore valid even though last_op is now
@@ -2861,7 +3005,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         and self.completed_reply[0]
                         in {OP_CreateFile, OP_WriteFile}
                     )
-                    if (
+                    if packet_ret is not None and (
                         reply_matches_last_op
                         or completed_upload
                         or reply_matches_active_request
@@ -2902,7 +3046,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     reply_complete = self.pending_reset_seq is None
             if reply_complete:
                 break
-            if self.__idle_task():
+            if self.idle_task():
                 if self.last_burst_read is not None and not self.read_complete:
                     ret = MAVFTPReturn(operation_name, FtpError.RemoteReplyTimeout)
                 break
@@ -3295,6 +3439,36 @@ def create_argument_parser() -> ArgumentParser:  # pylint: disable=too-many-stat
         help="Packet loss on RX. Default is %(default)s",
     )
     parser.add_argument(
+        "--pkt_lag_tx",
+        type=float,
+        default=0.0,
+        help="One-way TX lag in milliseconds. Default is %(default)s",
+    )
+    parser.add_argument(
+        "--pkt_lag_rx",
+        type=float,
+        default=0.0,
+        help="One-way RX lag in milliseconds. Default is %(default)s",
+    )
+    parser.add_argument(
+        "--pkt_lag_jitter_tx",
+        type=float,
+        default=0.0,
+        help="Uniform extra TX lag in milliseconds. Default is %(default)s",
+    )
+    parser.add_argument(
+        "--pkt_lag_jitter_rx",
+        type=float,
+        default=0.0,
+        help="Uniform extra RX lag in milliseconds. Default is %(default)s",
+    )
+    parser.add_argument(
+        "--loss_seed",
+        type=int,
+        default=0,
+        help="Seed for repeatable loss/jitter simulation. Default is %(default)s",
+    )
+    parser.add_argument(
         "--list_time",
         type=int,
         default=1,
@@ -3651,6 +3825,11 @@ def main() -> None:  # pylint: disable=too-many-branches
                     ("list_retries", int, args.list_retries),
                     ("pkt_loss_tx", int, args.pkt_loss_tx),
                     ("pkt_loss_rx", int, args.pkt_loss_rx),
+                    ("pkt_lag_tx", float, getattr(args, "pkt_lag_tx", 0.0)),
+                    ("pkt_lag_rx", float, getattr(args, "pkt_lag_rx", 0.0)),
+                    ("pkt_lag_jitter_tx", float, getattr(args, "pkt_lag_jitter_tx", 0.0)),
+                    ("pkt_lag_jitter_rx", float, getattr(args, "pkt_lag_jitter_rx", 0.0)),
+                    ("loss_seed", int, getattr(args, "loss_seed", 0)),
                     ("max_backlog", int, args.max_backlog),
                     ("burst_read_size", int, args.burst_read_size),
                     ("write_size", int, args.write_size),

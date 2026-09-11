@@ -897,6 +897,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             ("write_size", "240"),
             ("write_qsize", "0"),
             ("max_backlog", "0"),
+            ("pkt_lag_tx", "-1"),
+            ("pkt_lag_jitter_rx", "-1"),
             ("retry_time", "0.1"),
             ("idle_detection_time", "0.01"),
             ("read_retry_time", "3.7"),
@@ -1250,6 +1252,61 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertTrue(ftp.rtt_valid)
         self.assertGreater(ftp.retry_timeout(), baseline_timeout)
 
+    def test_packet_lag_is_nonblocking_and_bidirectional(self):
+        """Configured link lag queues packets until idle processing delivers them."""
+        ftp, master = self.make_ftp([])
+        ftp.ftp_settings.pkt_lag_tx = 100
+        ftp._MAVFTP__send(  # pylint: disable=protected-access
+            FTP_OP(ftp.seq, ftp.session, OP_RemoveFile, 1, 0, 0, 0, bytearray(b"x"))
+        )
+        self.assertEqual(len(master.mav.sent), 1)  # ResetSessions
+        self.assertEqual(len(ftp.tx_delay_queue), 1)
+
+        _deadline, sequence, payload = ftp.tx_delay_queue[0]
+        ftp.tx_delay_queue[0] = (time.monotonic() - 1, sequence, payload)
+        ftp.idle_task()
+        self.assertEqual(len(master.mav.sent), 2)  # reset plus the delayed request
+
+        # A download starter does not enter the blocking reply loop, so its
+        # reply can be exercised through the public event-driven hook.
+        ftp.ftp_settings.pkt_lag_tx = 0
+        ftp.ftp_settings.pkt_lag_rx = 100
+        ftp.cmd_get(["remote.bin", "-"])
+        reply = ftp_reply(ftp.last_op.seq + 1, OP_Ack, OP_OpenFileRO,
+                          payload=struct.pack("<I", 1), session=7)
+        self.assertIsNone(ftp.mavlink_packet(reply))
+        self.assertEqual(len(ftp.rx_delay_queue), 1)
+
+        _deadline, sequence, message = ftp.rx_delay_queue[0]
+        ftp.rx_delay_queue[0] = (time.monotonic() - 1, sequence, message)
+        ftp.idle_task()
+        self.assertIsNotNone(ftp.fh)
+        self.assertEqual(
+            self.sent_requests(master)[-1].opcode,
+            OP_BurstReadFile,
+        )
+
+    def test_loss_seed_replays_jitter_sequence(self):
+        """The loss seed makes latency jitter reproducible between clients."""
+        first, _master = self.make_ftp([])
+        second, _master = self.make_ftp([])
+        for ftp in (first, second):
+            ftp.ftp_settings.loss_seed = 1234
+            ftp.ftp_settings.pkt_lag_tx = 100
+            ftp.ftp_settings.pkt_lag_jitter_tx = 500
+            ftp._MAVFTP__packet_lost("TX")  # pylint: disable=protected-access
+
+        first_delays = [
+            first._MAVFTP__packet_delay("TX")  # pylint: disable=protected-access
+            for _ in range(10)
+        ]
+        second_delays = [
+            second._MAVFTP__packet_delay("TX")  # pylint: disable=protected-access
+            for _ in range(10)
+        ]
+        self.assertEqual(first_delays, second_delays)
+        self.assertTrue(all(0.1 <= delay <= 0.6 for delay in first_delays))
+
     def test_batch_writes_are_split_at_network_mtu(self):
         """Several FTP packets are combined without creating an oversized datagram."""
         ftp, _master = self.make_ftp([])
@@ -1281,6 +1338,12 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(list_args.list_time, 1)
         self.assertEqual(list_args.list_time_timeout, 3.0)
         self.assertEqual(list_args.list_retries, 3)
+
+        lag_args = create_argument_parser().parse_args(
+            ["--pkt_lag_tx", "100", "--pkt_lag_jitter_rx", "25", "list"]
+        )
+        self.assertEqual(lag_args.pkt_lag_tx, 100.0)
+        self.assertEqual(lag_args.pkt_lag_jitter_rx, 25.0)
 
     def test_write_nack_preserves_server_error(self):
         """WriteFile NACKs retain their precise protocol error code."""
