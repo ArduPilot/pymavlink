@@ -29,7 +29,7 @@ from datetime import datetime
 from enum import IntEnum
 from io import BufferedRandom, BufferedReader, BufferedWriter
 from io import BytesIO as SIO  # noqa: N814
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 try:
     import argcomplete
@@ -74,6 +74,7 @@ from pymavlink.mavftp_op import (
 )
 
 ParameterDataType = Union[str, int]
+SettingValue = Union[int, float]
 
 
 # pylint: disable=invalid-name
@@ -168,11 +169,11 @@ class ParamData:
 class MAVFTPSetting:  # pylint: disable=too-few-public-methods
     """A single MAVFTP setting with a name, type, value and default value."""
 
-    def __init__(self, name: str, s_type: type, default: Union[int, float]) -> None:
+    def __init__(self, name: str, s_type: type, default: SettingValue) -> None:
         self.name: str = name
         self.type = s_type
-        self.default: Union[int, float] = default
-        self.value: Union[int, float] = default
+        self.default: SettingValue = s_type(default)
+        self.value: SettingValue = self.default
 
 
 class MAVFTPSettings:
@@ -191,13 +192,17 @@ class MAVFTPSettings:
         "idle_detection_time": (0, None, True),
     }
 
-    def __init__(self, s_vars) -> None:
+    def __init__(
+        self, s_vars: List[Union[MAVFTPSetting, Tuple[str, type, SettingValue]]]
+    ) -> None:
         self._vars: Dict[str, MAVFTPSetting] = {}
         for v in s_vars:
             self.append(v)
         self.validate()
 
-    def append(self, v) -> None:
+    def append(
+        self, v: Union[MAVFTPSetting, Tuple[str, type, SettingValue]]
+    ) -> None:
         """Add or replace a setting after validating the resulting collection."""
         if isinstance(v, MAVFTPSetting):
             setting = self.__copy_setting(v)
@@ -225,8 +230,8 @@ class MAVFTPSettings:
     def __validate_vars(cls, settings: Dict[str, MAVFTPSetting]) -> None:
         """Validate settings without mutating the active collection."""
         for name, setting in settings.items():
-            value = setting.value
-            if not isinstance(value, int) and not math.isfinite(value):
+            value = setting.type(setting.value)
+            if isinstance(value, float) and not math.isfinite(value):
                 raise ValueError(f"{name} must be finite")
             bounds = cls._BOUNDS.get(name)
             if bounds is None:
@@ -253,11 +258,12 @@ class MAVFTPSettings:
     def __getattr__(self, name: str) -> Union[int, float]:
         """Get attribute."""
         try:
-            return self._vars[name].type(self._vars[name].value)
-        except Exception as exc:
-            raise AttributeError from exc
+            setting = self._vars[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+        return cast(Union[int, float], setting.type(setting.value))
 
-    def __setattr__(self, name: str, value: Union[int, float]) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:
         """Set attribute."""
         if name[0] == "_":
             self.__dict__[name] = value
@@ -2593,7 +2599,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 f.write("\n")
         logging.info("Outputted %u parameters to %s", len(pdict), filename)
 
-    def cmd_getparams(  # pylint: disable=too-many-arguments
+    def cmd_getparams(
         self,
         args: List[str],
         progress_callback=None,
@@ -3025,7 +3031,8 @@ def wait_heartbeat(m) -> None:
 
 def main() -> None:  # pylint: disable=too-many-branches
     """For testing/example purposes only."""
-    args = create_argument_parser().parse_args()
+    parser = create_argument_parser()
+    args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.getLevelName(args.loglevel), format="%(levelname)s - %(message)s"
@@ -3044,23 +3051,26 @@ def main() -> None:  # pylint: disable=too-many-branches
         # wait for the heartbeat msg to find the system ID
         wait_heartbeat(master)
 
-        ftp_settings = MAVFTPSettings(
-            [
-                ("debug", int, args.debug),
-                ("list_time", int, args.list_time),
-                ("list_time_timeout", float, args.list_time_timeout),
-                ("list_retries", int, args.list_retries),
-                ("pkt_loss_tx", int, args.pkt_loss_tx),
-                ("pkt_loss_rx", int, args.pkt_loss_rx),
-                ("max_backlog", int, args.max_backlog),
-                ("burst_read_size", int, args.burst_read_size),
-                ("write_size", int, args.write_size),
-                ("write_qsize", int, args.write_qsize),
-                ("idle_detection_time", float, args.idle_detection_time),
-                ("read_retry_time", float, args.read_retry_time),
-                ("retry_time", float, args.retry_time),
-            ]
-        )
+        try:
+            ftp_settings = MAVFTPSettings(
+                [
+                    ("debug", int, args.debug),
+                    ("list_time", int, args.list_time),
+                    ("list_time_timeout", float, args.list_time_timeout),
+                    ("list_retries", int, args.list_retries),
+                    ("pkt_loss_tx", int, args.pkt_loss_tx),
+                    ("pkt_loss_rx", int, args.pkt_loss_rx),
+                    ("max_backlog", int, args.max_backlog),
+                    ("burst_read_size", int, args.burst_read_size),
+                    ("write_size", int, args.write_size),
+                    ("write_qsize", int, args.write_qsize),
+                    ("idle_detection_time", float, args.idle_detection_time),
+                    ("read_retry_time", float, args.read_retry_time),
+                    ("retry_time", float, args.retry_time),
+                ]
+            )
+        except (TypeError, ValueError) as exc:
+            parser.error(str(exc))
 
         mav_ftp = MAVFTP(
             master,

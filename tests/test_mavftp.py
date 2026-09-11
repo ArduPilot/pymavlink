@@ -844,6 +844,16 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 ]
             )
 
+    def test_settings_constructor_normalizes_declared_type(self):
+        """Setting defaults and values use the declared setting type."""
+        setting = MAVFTPSetting("custom", int, 3.9)
+        settings = MAVFTPSettings([setting])
+
+        self.assertEqual(setting.value, 3)
+        self.assertEqual(setting.default, 3)
+        self.assertEqual(settings.get_setting("custom").value, 3)
+        self.assertEqual(settings.custom, 3)
+
     def test_settings_accepts_arbitrarily_large_integer(self):
         """Large integer settings do not overflow finiteness validation."""
         settings = MAVFTPSettings([("max_backlog", int, 10**1000)])
@@ -2228,6 +2238,54 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             add_datatype_comments=True,
             add_timestamp_comment=True,
         )
+
+    def test_main_reports_invalid_settings_as_argument_error(self):
+        """Invalid cross-setting CLI values are reported through the parser."""
+        args = Namespace(
+            loglevel="INFO",
+            device="/dev/test",
+            baudrate=115200,
+            source_system=250,
+            debug=0,
+            list_time=0,
+            list_time_timeout=3.0,
+            list_retries=3,
+            pkt_loss_tx=0,
+            pkt_loss_rx=0,
+            max_backlog=5,
+            burst_read_size=80,
+            write_size=80,
+            write_qsize=5,
+            idle_detection_time=1.0,
+            read_retry_time=1.0,
+            retry_time=0.5,
+            command="status",
+            arg1=None,
+            arg2=None,
+        )
+        parser = MagicMock()
+        parser.parse_args.return_value = args
+        parser.error.side_effect = SystemExit(2)
+
+        with (
+            patch.object(mavftp_module, "create_argument_parser", return_value=parser),
+            patch.object(
+                mavftp_module,
+                "auto_connect",
+                return_value=Namespace(device="/dev/test"),
+            ),
+            patch.object(
+                mavftp_module.mavutil,
+                "mavlink_connection",
+                return_value=MagicMock(target_system=1, target_component=1),
+            ),
+            patch.object(mavftp_module, "wait_heartbeat"),
+        ):
+            with self.assertRaises(SystemExit) as exit_context:
+                mavftp_module.main()
+
+        self.assertEqual(exit_context.exception.code, 2)
+        parser.error.assert_called_once()
 
     def test_cancel_reports_termination_failure_when_remote_does_not_ack(self):
         """Cancel retries termination and reports a missing acknowledgement."""
