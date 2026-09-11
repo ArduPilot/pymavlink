@@ -556,21 +556,38 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.fh = None
         self.filename = None
         self.read_to_memory = False
+        self.remote_size_known = False
         self.write_list = None
-        if self.callback is not None:
+        callback = self.callback
+        self.callback = None
+        if callback is not None:
             # tell caller that the transfer failed
-            self.callback(None)
-            self.callback = None
-        if self.callback_progress is not None:
-            self.callback_progress(None)
-            self.callback_progress = None
-        if self.put_callback is not None:
+            try:
+                callback(None)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: download callback failed during cleanup: %s", exc)
+        callback_progress = self.callback_progress
+        self.callback_progress = None
+        if callback_progress is not None:
+            try:
+                callback_progress(None)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: download progress callback failed during cleanup: %s", exc)
+        put_callback = self.put_callback
+        self.put_callback = None
+        if put_callback is not None:
             # tell caller that the transfer failed
-            self.put_callback(None)
-            self.put_callback = None
-        if self.put_callback_progress is not None:
-            self.put_callback_progress(None)
-            self.put_callback_progress = None
+            try:
+                put_callback(None)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: upload callback failed during cleanup: %s", exc)
+        put_callback_progress = self.put_callback_progress
+        self.put_callback_progress = None
+        if put_callback_progress is not None:
+            try:
+                put_callback_progress(None)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: upload progress callback failed during cleanup: %s", exc)
         self.read_gaps = []
         self.read_total = 0
         self.read_gap_times = {}
@@ -608,6 +625,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             }
         )
 
+    @staticmethod
+    def __encode_path(path: str) -> Optional[bytearray]:
+        """Encode an FTP path, returning None for unsupported characters."""
+        try:
+            encoded = bytearray(path, "ascii")
+        except UnicodeEncodeError:
+            return None
+        if len(encoded) > MAX_Payload:
+            return None
+        return encoded
+
     def cmd_list(self, args: List[str]) -> MAVFTPReturn:
         """List files."""
         self.list_result = []
@@ -620,7 +648,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.error("Usage: list [directory]")
             return MAVFTPReturn("ListDirectory", FtpError.InvalidArguments)
         logging.info("Listing %s", dname)
-        enc_dname = bytearray(dname, "ascii")
+        enc_dname = self.__encode_path(dname)
+        if enc_dname is None:
+            logging.error("Invalid directory name: %s", dname)
+            return MAVFTPReturn("ListDirectory", FtpError.InvalidArguments)
         self.total_size = 0
         self.dir_offset = 0
         self.list_time_retries = 0
@@ -754,6 +785,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:
         """Get file."""
+        if size < 0 or offset < 0:
+            logging.error("Invalid read range: offset=%u size=%u", offset, size)
+            return None
+        enc_fname = self.__encode_path(path)
+        if enc_fname is None:
+            logging.error("Invalid file name: %s", path)
+            return None
         self.get_result = None
         self.requested_offset = offset
         self.requested_size = size
@@ -777,7 +815,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.burst_size = int(self.ftp_settings.burst_read_size)
         if self.burst_size < 1 or self.burst_size > 239:
             self.burst_size = 239
-        enc_fname = bytearray(path, "ascii")
         self.open_retries = 0
         op = FTP_OP(
             self.seq, self.session, OP_OpenFileRO, len(enc_fname), 0, 0, 0, enc_fname
@@ -896,6 +933,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.error("Usage: get [FILENAME <LOCALNAME>]")
             return MAVFTPReturn("OpenFileRO", FtpError.InvalidArguments)
         fname = args[0]
+        enc_fname = self.__encode_path(fname)
+        if enc_fname is None:
+            logging.error("Invalid file name: %s", fname)
+            return MAVFTPReturn("OpenFileRO", FtpError.InvalidArguments)
         if len(args) > 1:
             self.filename = args[1]
         else:
@@ -916,7 +957,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if self.burst_size < 1 or self.burst_size > 239:
             self.burst_size = 239
         self.remote_file_size = 0
-        enc_fname = bytearray(fname, "ascii")
         self.open_retries = 0
         op = FTP_OP(
             self.seq, self.session, OP_OpenFileRO, len(enc_fname), 0, 0, 0, enc_fname
@@ -1350,9 +1390,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             filename = os.path.basename(fname)
         if filename.endswith("/"):
             filename += os.path.basename(fname)
-        try:
-            enc_fname = bytearray(filename, "ascii")
-        except UnicodeEncodeError:
+        enc_fname = self.__encode_path(filename)
+        if enc_fname is None:
             logging.error("Invalid remote file name: %s", filename)
             return MAVFTPReturn("CreateFile", FtpError.InvalidArguments)
         self.fh = fh
@@ -1532,7 +1571,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return MAVFTPReturn("RemoveFile", FtpError.InvalidArguments)
         fname = args[0]
         logging.info("Removing file %s", fname)
-        enc_fname = bytearray(fname, "ascii")
+        enc_fname = self.__encode_path(fname)
+        if enc_fname is None:
+            logging.error("Invalid file name: %s", fname)
+            return MAVFTPReturn("RemoveFile", FtpError.InvalidArguments)
         op = FTP_OP(
             self.seq, self.session, OP_RemoveFile, len(enc_fname), 0, 0, 0, enc_fname
         )
@@ -1546,7 +1588,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return MAVFTPReturn("RemoveDirectory", FtpError.InvalidArguments)
         dname = args[0]
         logging.info("Removing directory %s", dname)
-        enc_dname = bytearray(dname, "ascii")
+        enc_dname = self.__encode_path(dname)
+        if enc_dname is None:
+            logging.error("Invalid directory name: %s", dname)
+            return MAVFTPReturn("RemoveDirectory", FtpError.InvalidArguments)
         op = FTP_OP(
             self.seq,
             self.session,
@@ -1572,15 +1617,22 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         name1 = args[0]
         name2 = args[1]
         logging.info("Renaming %s to %s", name1, name2)
-        enc_name1 = bytearray(name1, "ascii")
-        enc_name2 = bytearray(name2, "ascii")
+        enc_name1 = self.__encode_path(name1)
+        enc_name2 = self.__encode_path(name2)
+        if enc_name1 is None or enc_name2 is None:
+            logging.error("Invalid rename path: %s -> %s", name1, name2)
+            return MAVFTPReturn("Rename", FtpError.InvalidArguments)
         enc_both = enc_name1 + b"\x00" + enc_name2
+        if len(enc_both) > MAX_Payload:
+            logging.error("Rename paths are too long: %s -> %s", name1, name2)
+            return MAVFTPReturn("Rename", FtpError.InvalidArguments)
         op = FTP_OP(self.seq, self.session, OP_Rename, len(enc_both), 0, 0, 0, enc_both)
         self.__send(op)
         return self.process_ftp_reply("Rename")
 
     def __handle_rename_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle rename reply."""
+        self.completed_reply = (op.req_opcode, op.seq)
         return self.__decode_ftp_ack_and_nack(op)
 
     def cmd_mkdir(self, args: List[str]) -> MAVFTPReturn:
@@ -1590,7 +1642,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return MAVFTPReturn("CreateDirectory", FtpError.InvalidArguments)
         name = args[0]
         logging.info("Creating directory %s", name)
-        enc_name = bytearray(name, "ascii")
+        enc_name = self.__encode_path(name)
+        if enc_name is None:
+            logging.error("Invalid directory name: %s", name)
+            return MAVFTPReturn("CreateDirectory", FtpError.InvalidArguments)
         op = FTP_OP(
             self.seq, self.session, OP_CreateDirectory, len(enc_name), 0, 0, 0, enc_name
         )
@@ -1599,6 +1654,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __handle_mkdir_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle mkdir reply."""
+        self.completed_reply = (op.req_opcode, op.seq)
         return self.__decode_ftp_ack_and_nack(op)
 
     def cmd_crc(self, args: List[str]) -> MAVFTPReturn:
