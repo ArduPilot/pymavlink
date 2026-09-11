@@ -587,6 +587,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.crccmp_start: Optional[float] = None
         self.done = False
         self.transfer_active = False
+        # Interactive transfers expose periodic status through cmd_status and
+        # the idle hook. Callback-driven operations stay quiet unless the
+        # caller explicitly asks for progress callbacks.
+        self.show_progress = False
+        self.last_status_time = 0.0
 
         # Reset the flight controller FTP state-machine
         self.pending_reset_seq = self.seq
@@ -781,6 +786,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.session_waiting = False
         self.write_list = None
         self.write_open = False
+        self.show_progress = False
         callback = self.callback
         self.callback = None
         if callback is not None:
@@ -1057,6 +1063,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.requested_size = size
         self.filename = path
         self.read_to_memory = True
+        self.show_progress = False
         self.callback = None
         self.callback_failure = None
         self.callback_progress = None
@@ -1211,6 +1218,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.callback = callback
         self.callback_failure = None
         self.callback_progress = progress_callback
+        self.show_progress = callback is None
+        self.last_status_time = 0.0
         self.transfer_active = True
         self.read_retries = 0
         self.duplicates = 0
@@ -1384,6 +1393,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     ofs,
                 )
                 self.done = True
+
+            self.__finished_status("downloading", self.filename, ofs)
 
             assert self.fh is not None  # noqa: S101
             self.fh.seek(0)
@@ -1798,6 +1809,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.put_callback = callback
         self.put_callback_progress = progress_callback
         self.callback_failure = None
+        self.show_progress = callback is None
+        self.last_status_time = 0.0
         self.transfer_active = True
         self.read_retries = 0
         self.op_start = time.time()
@@ -1835,6 +1848,78 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 dt,
                 rate,
             )
+        self.__finished_status("uploading", self.filename, flen)
+
+    def __transfer_status(self) -> Optional[str]:
+        """Return a concise status line for the active transfer."""
+        if not self.transfer_active:
+            return None
+        if self.op_start is None:
+            return "Transfer in progress"
+
+        elapsed = max(time.time() - self.op_start, 1.0e-6)
+        if self.write_list is not None:
+            done = min(self.write_acked_bytes, self.write_file_size)
+            if self.write_file_size:
+                percentage = 100.0 * done / self.write_file_size
+            else:
+                percentage = 100.0
+            rate = (done / elapsed) / 1024.0
+            return (
+                "Uploading %s - %u/%u bytes %.1f%% %.1f kByte/sec"
+                % (self.filename, done, self.write_file_size, percentage, rate)
+            )
+
+        if self.fh is None:
+            return "Opening %s" % self.filename
+
+        if self.remote_size_known:
+            percentage = min(
+                100.0,
+                100.0 * self.read_total / max(1, self.remote_file_size),
+            )
+            progress = "%u/%u bytes %.1f%%" % (
+                self.read_total,
+                self.remote_file_size,
+                percentage,
+            )
+        else:
+            progress = "%u bytes" % self.read_total
+        rate = (self.read_total / elapsed) / 1024.0
+        return (
+            "Downloading %s - %s %.1f kByte/sec (%u retries %u gaps)"
+            % (self.filename, progress, rate, self.read_retries, len(self.read_gaps))
+        )
+
+    def __update_status(self) -> None:
+        """Log interactive transfer status at a human-friendly rate."""
+        if not self.show_progress:
+            return
+        now = time.time()
+        if now - self.last_status_time < 0.5:
+            return
+        status = self.__transfer_status()
+        if status is not None:
+            logging.info("FTP: %s", status)
+            self.last_status_time = now
+
+    def __finished_status(
+        self, verb: str, filename: Optional[str], size: int
+    ) -> None:
+        """Log the final interactive transfer status once."""
+        if not self.show_progress or self.op_start is None:
+            return
+        elapsed = max(time.time() - self.op_start, 1.0e-6)
+        rate = (size / elapsed) / 1024.0
+        logging.info(
+            "FTP: Finished %s %s (%u bytes %.1f seconds, %.1f kByte/sec)",
+            verb,
+            filename,
+            size,
+            elapsed,
+            rate,
+        )
+        self.show_progress = False
 
     def __handle_create_file_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle OP_CreateFile reply."""
@@ -2268,27 +2353,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def cmd_status(self) -> MAVFTPReturn:
         """Show status."""
-        if self.fh is None:
-            if self.transfer_active:
-                # A transfer owns the session from its initial open/create
-                # request.  There is no file handle yet while that handshake
-                # is in flight, but reporting it as idle is misleading (and
-                # differs from the MAVProxy FTP status behavior).
-                logging.info("Transfer in progress")
-            else:
-                logging.info("No transfer in progress")
+        status = self.__transfer_status()
+        if status is None:
+            logging.info("No transfer in progress")
         else:
-            ofs = self.fh.tell()
-            if self.op_start:
-                dt = time.time() - self.op_start
-                rate = (ofs / dt) / 1024.0
-                logging.info(
-                    "Transfer at offset %u with %u gaps %u retries %.1f kByte/sec",
-                    ofs,
-                    len(self.read_gaps),
-                    self.read_retries,
-                    rate,
-                )
+            logging.info("FTP: %s", status)
         return MAVFTPReturn("Status", FtpError.Success)
 
     def __op_parse(self, m) -> FTP_OP:
@@ -2559,6 +2628,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.ftp_settings.idle_detection_time <= self.ftp_settings.read_retry_time:
             logging.error("idle_detection_time must be greater than read_retry_time")
             return True
+
+        # Keep interactive status useful even while no packet is currently
+        # outstanding. Callback-driven transfers deliberately remain quiet.
+        self.__update_status()
 
         # Probe the optional mtime listing opcode like MAVProxy does. Some
         # older servers silently ignore it rather than returning UnknownCommand.

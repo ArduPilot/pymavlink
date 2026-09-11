@@ -296,6 +296,22 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertIn("Transfer in progress", "\n".join(logs.output))
 
+    def test_status_reports_acknowledged_upload_bytes(self):
+        """Upload status is based on remote acknowledgements, not file position."""
+        ftp, _master = self.make_ftp([])
+        ftp.transfer_active = True
+        ftp.op_start = time.time() - 1.0
+        ftp.filename = "remote.bin"
+        ftp.write_list = {1}
+        ftp.write_file_size = 200
+        ftp.write_acked_bytes = 100
+
+        with self.assertLogs(level="INFO") as logs:
+            result = ftp.cmd_status()
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertIn("Uploading remote.bin - 100/200 bytes 50.0%", "\n".join(logs.output))
+
     @staticmethod
     def sent_request_sequences(master, opcode):
         """Return FTP request sequence numbers sent for an opcode."""
