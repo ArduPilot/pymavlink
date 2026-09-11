@@ -1029,7 +1029,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 OP_ListDirectoryWithTime,
                 0,
                 0,
-                bytearray(b"Ffile.bin\t42\t1700000000\x00Dlogs\x00"),
+                bytearray(b"Ffile.bin\t42\t1700000000\x00Dlogs\t0\t1700000001\x00"),
             ),
             None,
         )
@@ -1040,6 +1040,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(file_entry.mtime, 1700000000)
         self.assertEqual(file_entry.size_b, 42)
         self.assertEqual(directory_entry.name, "logs")
+        self.assertEqual(directory_entry.mtime, 1700000001)
 
     def test_directory_listing_with_time_falls_back_for_old_servers(self):
         """Old servers are retried with the standard listing opcode."""
