@@ -17,8 +17,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
 # pylint: disable=duplicate-code
 
 import struct
+import tempfile
 import threading
 import unittest
+from io import BytesIO
 
 from pymavlink import mavutil
 from pymavlink.mavftp import (
@@ -27,6 +29,8 @@ from pymavlink.mavftp import (
     FtpError,
     OP_Ack,
     OP_BurstReadFile,
+    OP_CalcFileCRC32,
+    OP_CreateFile,
     OP_ListDirectory,
     OP_ListDirectoryWithTime,
     OP_Nack,
@@ -34,6 +38,7 @@ from pymavlink.mavftp import (
     OP_RemoveFile,
     OP_ResetSessions,
     OP_TerminateSession,
+    OP_WriteFile,
 )
 
 
@@ -66,6 +71,8 @@ class FTPUDPResponder(threading.Thread):
         self.error = None
         self.error_event = threading.Event()
         self.reject_replies = False
+        self.crc_files = {}
+        self.uploads = {}
 
     def stop(self):
         self.stop_event.set()
@@ -122,6 +129,37 @@ class FTPUDPResponder(threading.Thread):
                         OP_Ack,
                         session=42,
                         payload=struct.pack("<I", 4),
+                    )
+                elif request.opcode == OP_CalcFileCRC32:
+                    name = bytes(request.payload)
+                    if name not in self.crc_files:
+                        self.send_reply(
+                            message,
+                            request,
+                            OP_Nack,
+                            payload=bytes([FtpError.FileNotFound]),
+                        )
+                    else:
+                        self.send_reply(
+                            message,
+                            request,
+                            OP_Ack,
+                            payload=struct.pack("<I", self.crc_files[name]),
+                        )
+                elif request.opcode == OP_CreateFile:
+                    self.uploads[42] = bytearray()
+                    self.send_reply(message, request, OP_Ack, session=42)
+                elif request.opcode == OP_WriteFile:
+                    uploaded = self.uploads.setdefault(request.session, bytearray())
+                    end = request.offset + len(request.payload)
+                    if len(uploaded) < end:
+                        uploaded.extend(b"\0" * (end - len(uploaded)))
+                    uploaded[request.offset:end] = request.payload
+                    self.send_reply(
+                        message,
+                        request,
+                        OP_Ack,
+                        session=request.session,
                     )
                 elif request.opcode == OP_BurstReadFile:
                     self.send_reply(
@@ -281,6 +319,63 @@ class TestMAVFTPUDP(unittest.TestCase):
             ],
         )
         self.assertEqual(self.responder.envelopes, [(0, 1, 1, 250, 190)] * 4)
+
+    def test_real_udp_crc_compare_round_trip(self):
+        """CRC comparison exchanges multiple real MAVLink FTP requests."""
+        # CRC requests are synchronous and do not have a transfer-session
+        # retry path; leave enough idle time for a busy test runner to wake
+        # the responder thread without turning a valid reply into a timeout.
+        self.ftp.ftp_settings.idle_detection_time = 2.0
+        with tempfile.TemporaryDirectory() as temp_dir:
+            files = {
+                "match.bin": b"matching payload",
+                "different.bin": b"local payload",
+                "missing.bin": b"not on vehicle",
+            }
+            for name, payload in files.items():
+                with open(f"{temp_dir}/{name}", "wb") as local_file:
+                    local_file.write(payload)
+            self.responder.crc_files[b"/remote/match.bin"] = MAVFTP.local_file_crc(
+                f"{temp_dir}/match.bin"
+            )
+            self.responder.crc_files[b"/remote/different.bin"] = 0
+
+            result = self.ftp.cmd_crccmp([f"{temp_dir}/*.bin", "/remote"])
+
+            self.assertEqual(result.error_code, FtpError.Success)
+            self.assertEqual(
+                self.ftp.crccmp_results,
+                ["DIFFER", "MATCH", "MISSING"],
+            )
+            self.assertEqual(
+                [request.opcode for request in self.responder.requests],
+                [
+                    OP_ResetSessions,
+                    OP_CalcFileCRC32,
+                    OP_CalcFileCRC32,
+                    OP_CalcFileCRC32,
+                ],
+            )
+
+    def test_real_udp_upload_round_trip_uses_batched_writes(self):
+        """Multiple upload blocks sent over UDP are decoded and acknowledged."""
+        payload = b"0123456789abcdefghijABCDEFGHIJ"
+        self.ftp.ftp_settings.write_size = 10
+        self.ftp.ftp_settings.write_qsize = 3
+
+        result = self.ftp.cmd_put(
+            ["unused", "/remote/upload.bin"],
+            fh=BytesIO(payload),
+        )
+        self.assertEqual(result.error_code, FtpError.Success)
+        result = self.ftp.process_ftp_reply("put", timeout=5)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(bytes(self.responder.uploads[42]), payload)
+        self.assertEqual(
+            sum(request.opcode == OP_WriteFile for request in self.responder.requests),
+            3,
+        )
 
 
 if __name__ == "__main__":

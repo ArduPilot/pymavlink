@@ -122,6 +122,21 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
         if result.error_code != FtpError.Success:
             raise RuntimeError(f"crc failed: {result.error_code.name}")
 
+        with tempfile.TemporaryDirectory(prefix="mavftp_crccmp_") as temp_dir:
+            local_compare = f"{temp_dir}/{remote.rsplit('/', 1)[-1]}"
+            with open(local_compare, "wb") as compare_file:
+                compare_file.write(payload)
+            result = ftp.cmd_crccmp([f"{temp_dir}/*.bin", "/APM"])
+            print(
+                f"crccmp: {result.error_code.name} {ftp.crccmp_results}",
+                flush=True,
+            )
+            if result.error_code != FtpError.Success or ftp.crccmp_results != ["MATCH"]:
+                raise RuntimeError(
+                    f"CRC comparison failed: {result.error_code.name} "
+                    f"{ftp.crccmp_results}"
+                )
+
         result = ftp.cmd_get([remote, "-"])
         result = ftp.process_ftp_reply("Get", timeout=60)
         print(f"get: {result.error_code.name}", flush=True)

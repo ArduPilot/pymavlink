@@ -522,15 +522,21 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.write_list: Union[None, Set[int]] = None
         self.write_block_size: int = 0
         self.write_acks = 0
+        self.write_acked_bytes = 0
         self.write_total = 0
         self.write_file_size = 0
         self.write_idx = 0
         self.write_recv_idx = -1
         self.write_pending = 0
+        # Do not send WriteFile packets until the remote CreateFile handshake
+        # has completed. This matters on real links where the ACK can arrive
+        # after an idle-task pass.
+        self.write_open = False
         # Uploads have several WriteFile requests in flight. Map each
         # response sequence to its requested offset.
         self.pending_write_replies: Dict[int, int] = {}
         self.pending_write_requests: Dict[int, FTP_OP] = {}
+        self.write_inflight: Set[int] = set()
         self.write_last_send: Union[None, float] = None
         self.open_retries = 0
         self.list_result: List[DirectoryEntry] = []
@@ -749,6 +755,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.read_to_memory = False
         self.remote_size_known = False
         self.write_list = None
+        self.write_open = False
         callback = self.callback
         self.callback = None
         if callback is not None:
@@ -794,6 +801,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.duplicates = 0
         self.pending_write_replies = {}
         self.pending_write_requests = {}
+        self.write_inflight.clear()
         if self.ftp_settings.debug > 0:
             logging.info("FTP: Terminated session")
         termination_result = self.process_ftp_reply("TerminateSession")
@@ -1659,12 +1667,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             write_blockcount += 1
 
         self.write_list = set(range(write_blockcount))
+        self.write_open = False
         self.write_acks = 0
+        self.write_acked_bytes = 0
         self.write_total = write_blockcount
         self.write_idx = 0
         self.write_recv_idx = -1
         self.write_pending = 0
         self.write_last_send = None
+        self.write_inflight.clear()
 
         self.put_callback = callback
         self.put_callback_progress = progress_callback
@@ -1711,8 +1722,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.fh is None:
             self.__terminate_session()
             return MAVFTPReturn("CreateFile", FtpError.FileNotFound)
+        if self.write_open:
+            # A retransmitted CreateFile reply can arrive after writes have
+            # started; it must not restart or duplicate the upload.
+            return MAVFTPReturn("CreateFile", FtpError.Success)
         if op.opcode == OP_Ack:
             self.session = op.session
+            self.write_open = True
             self.__send_more_writes(op)
         else:
             ret = self.__decode_ftp_ack_and_nack(op)
@@ -1720,8 +1736,22 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return ret
         return MAVFTPReturn("CreateFile", FtpError.Success)
 
+    def __write_block_len(self, idx: int) -> int:
+        """Return the number of source bytes represented by a write block."""
+        offset = idx * self.write_block_size
+        return max(0, min(self.write_block_size, self.write_file_size - offset))
+
     def __send_more_writes(self, completed_reply: Optional[FTP_OP] = None) -> None:
         """Send some more writes."""
+        # Keep direct-use compatibility for callers that initialize the write
+        # state themselves without a CreateFile handshake. Normal puts have
+        # last_op == CreateFile until this flag is raised.
+        if (
+            not self.write_open
+            and self.last_op is not None
+            and self.last_op.opcode == OP_CreateFile
+        ):
+            return
         if self.write_list is None or len(self.write_list) == 0:
             # all done
             self.__put_finished(self.write_file_size)
@@ -1738,16 +1768,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.retry_timeout(), 0.2
         ):
             # we seem to have lost a block of replies
-            self.write_pending = max(0, self.write_pending - 1)
+            self.write_inflight.clear()
+            self.write_pending = 0
 
         n = min(
-            self.ftp_settings.write_qsize - self.write_pending, len(self.write_list)
+            max(0, self.ftp_settings.write_qsize - self.write_pending),
+            len(self.write_list - self.write_inflight),
         )
         writes: List[FTP_OP] = []
         for _i in range(n):
             # send in round-robin, skipping any that have been acked
             idx = self.write_idx
-            while idx not in self.write_list:
+            while idx not in self.write_list or idx in self.write_inflight:
                 idx = (idx + 1) % self.write_total
             ofs = idx * self.write_block_size
             write = next(
@@ -1774,6 +1806,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 writes.append(write)
             else:
                 self.__send(write, retry=True)
+            self.write_inflight.add(idx)
             self.write_idx = (idx + 1) % self.write_total
             self.write_pending += 1
             self.write_last_send = now
@@ -1804,16 +1837,23 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.__terminate_session()
             return ret
 
-        # assume the FTP server processes the blocks sequentially. This means
-        # when we receive an ack that any blocks between the last ack and this
-        # one have been lost
+        # If an ACK jumps forward, the intervening requests were not
+        # acknowledged. Release those slots for retry, but only count the
+        # block named by this ACK as successfully stored.
         idx = op.offset // self.write_block_size
         count = (idx - self.write_recv_idx) % self.write_total
 
-        self.write_pending = max(0, self.write_pending - count)
+        for gap_idx in range(1, count):
+            self.write_inflight.discard(
+                (self.write_recv_idx + gap_idx) % self.write_total
+            )
         self.write_recv_idx = idx
-        self.write_list.discard(idx)
-        self.write_acks += 1
+        if idx in self.write_list:
+            self.write_list.discard(idx)
+            self.write_acks += 1
+            self.write_acked_bytes += self.__write_block_len(idx)
+        self.write_inflight.discard(idx)
+        self.write_pending = len(self.write_inflight)
         if self.put_callback_progress:
             progress = self.write_acks / float(self.write_total)
             try:

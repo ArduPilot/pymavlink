@@ -10,8 +10,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import os
+import socket
 import struct
 import tempfile
+import time
 import unittest
 from argparse import Namespace
 from io import BytesIO, StringIO
@@ -88,6 +90,28 @@ class FakeMAV:  # pylint: disable=too-few-public-methods
         self.sent.append(args)
 
 
+class BatchLink:  # pylint: disable=too-few-public-methods
+    """Collect raw writes from the upload batching path."""
+
+    def __init__(self):
+        self.port = type("Port", (), {"type": socket.SOCK_DGRAM})()
+        self.writes = []
+
+    def write(self, data):
+        self.writes.append(bytes(data))
+        return len(data)
+
+
+class BatchMAV:  # pylint: disable=too-few-public-methods
+    """Minimal MAVLink encoder that writes through a replaceable link."""
+
+    def __init__(self, link):
+        self.file = link
+
+    def file_transfer_protocol_send(self, _network, _target_system, _target_component, payload):
+        self.file.write(b"F" + bytes(payload))
+
+
 class FakeMaster:  # pylint: disable=too-few-public-methods
     """Serve a predetermined sequence of FTP replies."""
 
@@ -108,6 +132,38 @@ class FakeMaster:  # pylint: disable=too-few-public-methods
         if self.replies:
             return self.replies.pop(0)
         return None
+
+
+class StaleCRCReplyMaster(FakeMaster):  # pylint: disable=too-few-public-methods
+    """Return one stale CRC reply before the reply to the active request."""
+
+    def __init__(self, crc):
+        super().__init__([ftp_reply(1, OP_Ack, OP_ResetSessions)])
+        self.crc = crc
+        self.stale_sent = False
+        self.current_sent = False
+
+    def recv_match(self, **kwargs):
+        if self.mav.sent and self.mav.sent[-1][-1][3] == OP_CalcFileCRC32:
+            request_payload = self.mav.sent[-1][-1]
+            request_seq = struct.unpack_from("<H", request_payload)[0]
+            if not self.stale_sent:
+                self.stale_sent = True
+                return ftp_reply(
+                    request_seq + 7,
+                    OP_Ack,
+                    OP_CalcFileCRC32,
+                    payload=struct.pack("<I", self.crc ^ 1),
+                )
+            if not self.current_sent:
+                self.current_sent = True
+                return ftp_reply(
+                    request_seq + 1,
+                    OP_Ack,
+                    OP_CalcFileCRC32,
+                    payload=struct.pack("<I", self.crc),
+                )
+        return super().recv_match(**kwargs)
 
 
 class AllocatingSessionReplayMaster(FakeMaster):  # pylint: disable=too-few-public-methods
@@ -774,6 +830,23 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.session, 37)
         self.assertEqual(master.mav.sent[-1][-1][2], 37)
 
+    def test_put_waits_for_create_ack_before_sending_write(self):
+        """A write cannot race the CreateFile request on a real transport."""
+        ftp, master = self.make_ftp([])
+
+        ftp.cmd_put(["local", "remote"], fh=BytesIO(b"payload"))
+        ftp._MAVFTP__idle_task()  # pylint: disable=protected-access
+
+        self.assertEqual(self.sent_request_sequences(master, OP_WriteFile), [])
+        self.assertEqual(self.sent_request_sequences(master, OP_CreateFile), [1])
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(2, OP_Ack, OP_CreateFile, session=37)
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(self.sent_request_sequences(master, OP_WriteFile), [2])
+
     def test_cmd_set_rejects_unsafe_transfer_settings(self):
         """Transfer settings must remain valid for the FTP state machine."""
         ftp, _master = self.make_ftp([])
@@ -1035,14 +1108,132 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 ftp.cmd_crclocal([local_file.name]).error_code, FtpError.Success
             )
 
+    def test_crccmp_reports_match_difference_and_missing_files(self):
+        """CRC comparison checks each basename and preserves result categories."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = {}
+            for name, data in (("a.bin", b"match"), ("b.bin", b"different"), ("c.bin", b"missing")):
+                path = os.path.join(temp_dir, name)
+                with open(path, "wb") as local_file:
+                    local_file.write(data)
+                paths[name] = path
+
+            a_crc = local_file_crc(paths["a.bin"])
+            b_crc = local_file_crc(paths["b.bin"])
+            master = FakeMaster(
+                [
+                    ftp_reply(1, OP_Ack, OP_ResetSessions),
+                    ftp_reply(2, OP_Ack, OP_CalcFileCRC32, payload=struct.pack("<I", a_crc)),
+                    ftp_reply(3, OP_Ack, OP_CalcFileCRC32, payload=struct.pack("<I", b_crc ^ 1)),
+                    ftp_reply(4, OP_Nack, OP_CalcFileCRC32, payload=[FtpError.FileNotFound]),
+                ]
+            )
+            ftp = MAVFTP(master, target_system=1, target_component=1)
+
+            result = ftp.cmd_crccmp([os.path.join(temp_dir, "*.bin"), "/remote"])
+
+            self.assertEqual(result.error_code, FtpError.Success)
+            self.assertEqual(ftp.crccmp_results, ["MATCH", "DIFFER", "MISSING"])
+            crc_requests = [
+                request
+                for request in self.sent_requests(master)
+                if request.opcode == OP_CalcFileCRC32
+            ]
+            self.assertEqual(
+                [request.payload for request in crc_requests],
+                [b"/remote/a.bin", b"/remote/b.bin", b"/remote/c.bin"],
+            )
+
+    def test_crccmp_ignores_stale_crc_reply(self):
+        """A delayed CRC reply cannot be reported for the active comparison."""
+        with tempfile.NamedTemporaryFile(suffix=".bin") as local_file:
+            local_file.write(b"crc regression")
+            local_file.flush()
+            crc = local_file_crc(local_file.name)
+            master = StaleCRCReplyMaster(crc)
+            ftp = MAVFTP(master, target_system=1, target_component=1)
+
+            result = ftp.cmd_crccmp([local_file.name, "/remote"])
+
+            self.assertEqual(result.error_code, FtpError.Success)
+            self.assertEqual(ftp.crccmp_results, ["MATCH"])
+            self.assertTrue(master.stale_sent)
+            self.assertTrue(master.current_sent)
+
+    def test_crccmp_rejects_duplicate_basenames_before_sending(self):
+        """Comparing duplicate basenames is rejected before any CRC request."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first_dir = os.path.join(temp_dir, "first")
+            second_dir = os.path.join(temp_dir, "second")
+            os.makedirs(first_dir)
+            os.makedirs(second_dir)
+            for directory in (first_dir, second_dir):
+                with open(os.path.join(directory, "same.bin"), "wb") as local_file:
+                    local_file.write(b"same")
+            ftp, master = self.make_ftp([])
+
+            result = ftp.cmd_crccmp([os.path.join(temp_dir, "*", "same.bin"), "/remote"])
+
+            self.assertEqual(result.error_code, FtpError.InvalidArguments)
+            self.assertEqual(len(master.mav.sent), 1)
+
+    def test_crccmp_rejects_remote_names_that_would_be_truncated(self):
+        """The comparison uses the server-safe filename limit, not the raw payload limit."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            name = "x" * (mavftp_module.MAX_FTP_NAME - len("/remote/")) + ".bin"
+            path = os.path.join(temp_dir, name)
+            with open(path, "wb") as local_file:
+                local_file.write(b"too long")
+            ftp, master = self.make_ftp([])
+
+            result = ftp.cmd_crccmp([path, "/remote"])
+
+            self.assertEqual(result.error_code, FtpError.Fail)
+            self.assertEqual(ftp.crccmp_results, ["ERROR"])
+            self.assertEqual(len(master.mav.sent), 1)
+
+    def test_rtt_adapts_retry_timeout_after_delayed_reply(self):
+        """A delayed first reply increases the retry timeout for poor links."""
+        ftp, _master = self.make_ftp([])
+        ftp.cmd_crc(["remote.bin"])
+        baseline_timeout = ftp.retry_timeout()
+        request_seq = ftp.last_op.seq
+        ftp.send_times[request_seq] = time.time() - 2.0
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(request_seq + 1, OP_Ack, OP_CalcFileCRC32, payload=struct.pack("<I", 1))
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertTrue(ftp.rtt_valid)
+        self.assertGreater(ftp.retry_timeout(), baseline_timeout)
+
+    def test_batch_writes_are_split_at_network_mtu(self):
+        """Several FTP packets are combined without creating an oversized datagram."""
+        ftp, _master = self.make_ftp([])
+        link = BatchLink()
+        ftp.master.mav = BatchMAV(link)
+        operations = [
+            FTP_OP(ftp.seq, ftp.session, OP_WriteFile, 1, 0, 0, index, bytearray([index]))
+            for index in range(8)
+        ]
+
+        ftp._MAVFTP__send_batch(operations)  # pylint: disable=protected-access
+
+        self.assertGreater(len(link.writes), 1)
+        self.assertTrue(all(len(write) <= mavftp_module.MAX_NETWORK_BATCH for write in link.writes))
+        self.assertEqual(sum(len(write) for write in link.writes), 8 * 252)
+
     def test_new_features_are_exposed_by_cli(self):
-        """The timestamp option and local CRC command are parser-visible."""
+        """The timestamp, CRC, and comparison options are parser-visible."""
         args = create_argument_parser().parse_args(
-            ["--list_time", "1", "crclocal", "local.bin"]
+            ["--list_time", "1", "--crccmp_timeout", "8", "crccmp", "*.bin", "/remote"]
         )
         self.assertEqual(args.list_time, 1)
-        self.assertEqual(args.command, "crclocal")
-        self.assertEqual(args.arg1, "local.bin")
+        self.assertEqual(args.crccmp_timeout, 8.0)
+        self.assertEqual(args.command, "crccmp")
+        self.assertEqual(args.arg1, "*.bin")
+        self.assertEqual(args.arg2, "/remote")
 
         list_args = create_argument_parser().parse_args(["list"])
         self.assertEqual(list_args.list_time, 1)
