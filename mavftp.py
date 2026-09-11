@@ -14,11 +14,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 # FLAKE_CLEAN
 
 import contextlib
+import glob
 import logging
 import math
 import os
 import tempfile
 import random
+import socket
 import struct
 import sys
 import time
@@ -108,6 +110,11 @@ HDR_Len = 12
 MAX_Payload = 239
 BURST_REPLY_SEQUENCE_WINDOW = 4096
 MAX_READ_GAPS = 4096
+# Keep a batch of encoded MAVLink packets below a normal Ethernet MTU.  This
+# is used only when the underlying pymavlink link supports collecting writes.
+MAX_NETWORK_BATCH = 1200
+# The server null-terminates the final byte of its filename buffer.
+MAX_FTP_NAME = MAX_Payload - 1
 # pylint: enable=invalid-name
 
 
@@ -144,6 +151,18 @@ class WriteQueue:  # pylint: disable=too-few-public-methods
         self.ofs = ofs  # Offset where the write operation starts.
         self.size = size  # Size of the data to be written.
         self.last_send = 0  # Timestamp of the last send operation.
+
+
+class MAVLinkBatchWriter:  # pylint: disable=too-few-public-methods
+    """Collect encoded MAVLink packets for one link write."""
+
+    def __init__(self) -> None:
+        self.packets: List[bytes] = []
+
+    def write(self, packet: bytes) -> int:
+        """Collect one encoded packet."""
+        self.packets.append(bytes(packet))
+        return len(packet)
 
 
 class ParamData:
@@ -189,6 +208,7 @@ class MAVFTPSettings:
         "write_qsize": (1, None, False),
         "read_retry_time": (0, None, False),
         "retry_time": (0.1, None, True),
+        "crccmp_timeout": (0.1, None, True),
         "idle_detection_time": (0, None, True),
     }
 
@@ -429,6 +449,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     ("list_retries", int, 3),
                     ("pkt_loss_tx", int, 0),
                     ("pkt_loss_rx", int, 0),
+                    ("crccmp_timeout", float, 120.0),
                     ("max_backlog", int, 5),
                     ("burst_read_size", int, 80),
                     ("write_size", int, 80),
@@ -478,6 +499,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.last_op_time = time.time()
         self.last_send_time = time.time()
         self.rtt = 0.5
+        self.rttvar = 0.25
+        self.rtt_valid = False
+        # Requests are keyed by their uint16 sequence. Retransmissions do
+        # not replace the sample (Karn's algorithm), so a reply to a retry
+        # cannot make the adaptive timeout spuriously small.
+        self.send_times: Dict[int, Optional[float]] = {}
         self.reached_eof = False
         self.read_complete = False
         # Explicit terminal reply, identified by (request opcode, reply
@@ -531,6 +558,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.target_system = target_system
         self.target_component = target_component
         self.get_result: Union[None, bytes] = None
+        self.last_crc: Optional[int] = None
+        self.crccmp_results: List[str] = []
+        self.crccmp_start: Optional[float] = None
         self.done = False
 
         # Reset the flight controller FTP state-machine
@@ -540,7 +570,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def cmd_ftp(self, args: List[str]) -> MAVFTPReturn:  # noqa: PLR0911 pylint: disable=too-many-branches,too-many-return-statements
         """FTP operations."""
-        usage = "Usage: ftp <list|set|get|getparams|put|rm|rmdir|rename|mkdir|status|cancel|crc|crclocal>"
+        usage = "Usage: ftp <list|set|get|getparams|put|rm|rmdir|rename|mkdir|status|cancel|crc|crclocal|crccmp>"
         if len(args) < 1:
             logging.error(usage)
             return MAVFTPReturn("FTP command", FtpError.InvalidArguments)
@@ -566,6 +596,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return self.cmd_crc(args[1:])
         if args[0] == "crclocal":
             return self.cmd_crclocal(args[1:])
+        if args[0] == "crccmp":
+            return self.cmd_crccmp(args[1:])
         if args[0] == "status":
             return self.cmd_status()
         if args[0] == "cancel":
@@ -598,12 +630,96 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.pending_write_requests[expected_reply_seq] = op
         if not retry:
             self.seq = (self.seq + 1) % 65536
+            self.send_times[op.seq] = time.time()
+        else:
+            # Do not use a reply to a retransmitted request as an RTT sample.
+            self.send_times[op.seq] = None
         self.last_op = op
         now = time.time()
         if self.ftp_settings.debug > 1:
             logging.info("FTP: > %s dt=%.2f", op, now - self.last_op_time)
         self.last_op_time = time.time()
         self.last_send_time = now
+
+    def __write_link_data(self, link: Any, data: bytes, is_stream: bool) -> None:
+        """Write encoded data, handling partial stream writes."""
+        if is_stream:
+            port = getattr(link, "port", None)
+            if port is not None and hasattr(port, "sendall"):
+                try:
+                    port.sendall(data)
+                except OSError:
+                    if hasattr(link, "handle_disconnect"):
+                        link.handle_disconnect()
+                return
+
+        offset = 0
+        while offset < len(data):
+            written = link.write(data[offset:])
+            # Datagram and several pymavlink wrappers return None after a
+            # complete write. Integer-returning writers may accept a prefix.
+            if written is None or written <= 0:
+                return
+            offset += written
+
+    def __send_batch(self, operations: List[FTP_OP]) -> None:
+        """Send several requests in one underlying link write when possible."""
+        if len(operations) <= 1 or not hasattr(self.master.mav, "file"):
+            for operation in operations:
+                self.__send(operation)
+            return
+
+        mav = self.master.mav
+        link = mav.file
+        collector = MAVLinkBatchWriter()
+        mav.file = collector
+        try:
+            for operation in operations:
+                self.__send(operation)
+        finally:
+            mav.file = link
+
+        if not collector.packets:
+            return
+        port = getattr(link, "port", None)
+        port_type = getattr(port, "type", None)
+        link_name = type(link).__name__
+        is_stream = link_name in ("mavtcp", "mavtcpin") or port_type == socket.SOCK_STREAM
+        is_network = (
+            link_name == "mavudp"
+            or port_type in (socket.SOCK_DGRAM, socket.SOCK_STREAM)
+            or is_stream
+        )
+        if not is_network:
+            self.__write_link_data(link, b"".join(collector.packets), False)
+            return
+
+        batch = bytearray()
+        for packet in collector.packets:
+            if batch and len(batch) + len(packet) > MAX_NETWORK_BATCH:
+                self.__write_link_data(link, bytes(batch), is_stream)
+                batch = bytearray()
+            batch.extend(packet)
+        if batch:
+            self.__write_link_data(link, bytes(batch), is_stream)
+
+    def update_rtt(self, sample: float) -> None:
+        """Update the smoothed RTT and variance from an unambiguous reply."""
+        sample = max(0.001, sample)
+        if not self.rtt_valid:
+            self.rtt = sample
+            self.rttvar = sample / 2.0
+            self.rtt_valid = True
+            return
+        self.rttvar = 0.75 * self.rttvar + 0.25 * abs(self.rtt - sample)
+        self.rtt = 0.875 * self.rtt + 0.125 * sample
+
+    def retry_timeout(self) -> float:
+        """Return an RTT-sensitive retransmission timeout."""
+        minimum = max(0.05, float(self.ftp_settings.retry_time))
+        if not self.rtt_valid:
+            return max(1.0, minimum)
+        return max(minimum, min(10.0, self.rtt + 4.0 * self.rttvar))
 
     def __release_staging(self) -> None:
         """Close and remove this instance's own staging resources.
@@ -1619,7 +1735,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         now = time.time()
         if self.write_last_send is not None and now - self.write_last_send > max(
-            min(10 * self.rtt, 1), 0.2
+            self.retry_timeout(), 0.2
         ):
             # we seem to have lost a block of replies
             self.write_pending = max(0, self.write_pending - 1)
@@ -1627,6 +1743,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         n = min(
             self.ftp_settings.write_qsize - self.write_pending, len(self.write_list)
         )
+        writes: List[FTP_OP] = []
         for _i in range(n):
             # send in round-robin, skipping any that have been acked
             idx = self.write_idx
@@ -1654,12 +1771,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     ofs,
                     bytearray(data),
                 )
-                self.__send(write)
+                writes.append(write)
             else:
                 self.__send(write, retry=True)
             self.write_idx = (idx + 1) % self.write_total
             self.write_pending += 1
             self.write_last_send = now
+        if writes:
+            self.__send_batch(writes)
 
     def __handle_write_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle OP_WriteFile reply."""
@@ -1802,12 +1921,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.completed_reply = (op.req_opcode, op.seq)
         return self.__decode_ftp_ack_and_nack(op)
 
-    def cmd_crc(self, args: List[str]) -> MAVFTPReturn:
+    def cmd_crc(
+        self, args: List[str], timeout: Optional[float] = None
+    ) -> MAVFTPReturn:
         """Get file crc."""
         if len(args) != 1:
             logging.error("Usage: crc [NAME]")
             return MAVFTPReturn("CalcFileCRC32", FtpError.InvalidArguments)
         name = args[0]
+        self.last_crc = None
         self.filename = name
         self.op_start = time.time()
         logging.info("Getting CRC for %s", name)
@@ -1828,7 +1950,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             bytearray(enc_name),
         )
         self.__send(op)
-        return self.process_ftp_reply("CalcFileCRC32")
+        if timeout is None:
+            timeout = 5.0
+        return self.process_ftp_reply("CalcFileCRC32", timeout=timeout)
 
     @staticmethod
     def local_file_crc(name: str) -> int:
@@ -1848,6 +1972,110 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         logging.info("crc: %s 0x%08x", args[0], crc)
         return MAVFTPReturn("CalcLocalFileCRC32", FtpError.Success)
 
+    def cmd_crccmp(self, args: List[str]) -> MAVFTPReturn:
+        """Compare local files with same-named files on the vehicle."""
+        if len(args) != 2:
+            logging.error("Usage: crccmp WILDCARD DESTDIR")
+            return MAVFTPReturn("CRCCompare", FtpError.InvalidArguments)
+
+        pattern, destination = args
+        if destination == "":
+            logging.error("crccmp: empty DESTDIR, use / for the vehicle's root")
+            return MAVFTPReturn("CRCCompare", FtpError.InvalidArguments)
+
+        files = sorted(path for path in glob.glob(pattern) if os.path.isfile(path))
+        if not files:
+            logging.error("crccmp: no files matching %s", pattern)
+            return MAVFTPReturn("CRCCompare", FtpError.FileNotFound)
+
+        by_name: Dict[str, List[str]] = {}
+        for path in files:
+            by_name.setdefault(os.path.basename(path), []).append(path)
+        clashes = {name: paths for name, paths in by_name.items() if len(paths) > 1}
+        if clashes:
+            for name, paths in sorted(clashes.items()):
+                logging.error(
+                    "crccmp: %s matches %u local files: %s",
+                    name,
+                    len(paths),
+                    " ".join(paths),
+                )
+            logging.error("crccmp: duplicate names, narrow the wildcard")
+            return MAVFTPReturn("CRCCompare", FtpError.InvalidArguments)
+
+        destination = destination.rstrip("/")
+        self.crccmp_results = []
+        self.crccmp_start = time.time()
+        operation_failed = False
+        logging.info(
+            "crccmp: %u files matching %s against %s",
+            len(files),
+            pattern,
+            destination,
+        )
+
+        for local_name in files:
+            basename = os.path.basename(local_name)
+            remote_name = "%s/%s" % (destination, basename)
+            try:
+                encoded_name = bytearray(remote_name, "ascii")
+            except UnicodeEncodeError:
+                logging.error("  ERROR   %s (non-ascii remote path)", basename)
+                self.crccmp_results.append("ERROR")
+                operation_failed = True
+                continue
+            if len(encoded_name) > MAX_FTP_NAME:
+                logging.error(
+                    "  ERROR   %s (remote path over %u bytes)",
+                    basename,
+                    MAX_FTP_NAME,
+                )
+                self.crccmp_results.append("ERROR")
+                operation_failed = True
+                continue
+            try:
+                local_crc = self.local_file_crc(local_name)
+            except (OSError, ValueError) as exc:
+                logging.error("  ERROR   %s (%s)", basename, exc)
+                self.crccmp_results.append("ERROR")
+                operation_failed = True
+                continue
+
+            crc_timeout = float(getattr(self.ftp_settings, "crccmp_timeout", 120.0))
+            result = self.cmd_crc([remote_name], timeout=crc_timeout)
+            if result.error_code == FtpError.Success and self.last_crc is not None:
+                if self.last_crc == local_crc:
+                    logging.info("  MATCH   %s 0x%08x", basename, local_crc)
+                    self.crccmp_results.append("MATCH")
+                else:
+                    logging.info(
+                        "  DIFFER  %s local 0x%08x remote 0x%08x",
+                        basename,
+                        local_crc,
+                        self.last_crc,
+                    )
+                    self.crccmp_results.append("DIFFER")
+            elif result.error_code == FtpError.FileNotFound:
+                logging.info("  MISSING %s", basename)
+                self.crccmp_results.append("MISSING")
+            else:
+                logging.error("  ERROR   %s (%s)", basename, result.operation_name)
+                self.crccmp_results.append("ERROR")
+                operation_failed = True
+
+        elapsed = time.time() - (self.crccmp_start or time.time())
+        logging.info(
+            "crccmp: %u match, %u differ, %u missing, %u errors in %.1fs",
+            self.crccmp_results.count("MATCH"),
+            self.crccmp_results.count("DIFFER"),
+            self.crccmp_results.count("MISSING"),
+            self.crccmp_results.count("ERROR"),
+            elapsed,
+        )
+        return MAVFTPReturn(
+            "CRCCompare", FtpError.Fail if operation_failed else FtpError.Success
+        )
+
     def __handle_crc_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle crc reply."""
         self.completed_reply = (op.req_opcode, op.seq)
@@ -1858,6 +2086,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return MAVFTPReturn("CalcFileCRC32", FtpError.InvalidDataSize)
         if op.opcode == OP_Ack:
             (crc,) = struct.unpack("<I", op.payload)
+            self.last_crc = crc
             now = time.time()
             if self.op_start:
                 logging.info(
@@ -1985,12 +2214,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 logging.warning("FTP: stale reply. Will discard message: %s", op)
             return MAVFTPReturn(operation_name, FtpError.Fail)
 
-        if (
-            self.last_op is not None
-            and op.req_opcode == self.last_op.opcode
-            and op.seq == (self.last_op.seq + 1) % 65536
-        ):
-            self.rtt = max(min(self.rtt, dt), 0.01)
+        # Only the first reply to a request is an unambiguous RTT sample.
+        # Burst replies advance their sequence number, so later packets do
+        # not have a corresponding entry in send_times.
+        request_seq = (op.seq - 1) % 65536
+        sent = self.send_times.pop(request_seq, None)
+        if sent is not None:
+            self.update_rtt(now - sent)
 
         if op.req_opcode in {OP_ListDirectory, OP_ListDirectoryWithTime}:
             return self.__handle_list_reply(op, m)
@@ -2073,7 +2303,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 if gap_time == 0:
                     self.__send_gap_read(g)
             return
-        if self.read_gap_times[g] > 0 and dt > self.ftp_settings.retry_time:
+        if self.read_gap_times[g] > 0 and dt > self.retry_timeout():
             if self.backlog > 0:
                 self.backlog -= 1
             self.read_gap_times[g] = 0
@@ -2105,7 +2335,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             and self.last_op.opcode == OP_ListDirectoryWithTime
             and now - self.last_op_time
             >= max(
-                float(self.ftp_settings.retry_time),
+                self.retry_timeout(),
                 float(getattr(self.ftp_settings, "list_time_timeout", 3.0)),
             )
         ):
@@ -2125,7 +2355,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # see if we lost an open reply
         if (
             self.op_start is not None
-            and now - self.op_start > self.ftp_settings.read_retry_time
+            and now - self.op_start > max(
+                float(self.ftp_settings.read_retry_time), self.retry_timeout()
+            )
             and self.last_op.opcode == OP_OpenFileRO
         ):
             self.op_start = now
@@ -2153,7 +2385,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if (
             not self.reached_eof
             and self.last_burst_read is not None
-            and now - self.last_burst_read > self.ftp_settings.retry_time
+            and now - self.last_burst_read > self.retry_timeout()
         ):
             dt = now - self.last_burst_read
             self.last_burst_read = now
@@ -2782,6 +3014,12 @@ def create_argument_parser() -> ArgumentParser:  # pylint: disable=too-many-stat
         default=0.5,
         help="Retry time. Default is %(default)s",
     )
+    parser.add_argument(
+        "--crccmp_timeout",
+        type=float,
+        default=120.0,
+        help="Seconds allowed for each remote CRC comparison. Default is %(default)s",
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -2949,6 +3187,24 @@ def create_argument_parser() -> ArgumentParser:  # pylint: disable=too-many-stat
         "arg1", type=str, metavar="local_path", help="Path to the local file."
     ).completer = FilesCompleter()  # type: ignore[no-untyped-call]
 
+    # CRC comparison command
+    parser_crccmp = subparsers.add_parser(
+        "crccmp",
+        help="Compare local files with same-named files on the remote vehicle.",
+    )
+    parser_crccmp.add_argument(
+        "arg1",
+        type=str,
+        metavar="wildcard",
+        help="Local wildcard selecting files to compare.",
+    ).completer = FilesCompleter()  # type: ignore[no-untyped-call]
+    parser_crccmp.add_argument(
+        "arg2",
+        type=str,
+        metavar="remote_directory",
+        help="Remote directory containing the files.",
+    )
+
     # Add other subparsers commands as needed
     if _ARGCOMPLETE_AVAILABLE:
         argcomplete.autocomplete(parser)
@@ -3067,6 +3323,7 @@ def main() -> None:  # pylint: disable=too-many-branches
                     ("idle_detection_time", float, args.idle_detection_time),
                     ("read_retry_time", float, args.read_retry_time),
                     ("retry_time", float, args.retry_time),
+                    ("crccmp_timeout", float, getattr(args, "crccmp_timeout", 120.0)),
                 ]
             )
         except (TypeError, ValueError) as exc:
