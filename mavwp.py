@@ -672,6 +672,7 @@ class MAVRallyLoader(object):
         '''remove a rally point'''
         if i < 1 or i > self.rally_count():
             print("Invalid rally point number %u" % i)
+            return
         self.rally_points.pop(i-1)
         self.reindex()
 
@@ -679,6 +680,7 @@ class MAVRallyLoader(object):
         '''move a rally point'''
         if i < 1 or i > self.rally_count():
             print("Invalid rally point number %u" % i)
+            return
         self.rally_points[i-1].lat = int(lat*1e7)
         self.rally_points[i-1].lng = int(lng*1e7)
         if change_time:
@@ -801,6 +803,7 @@ class MAVFenceLoader(object):
         '''move a fence point'''
         if i < 0 or i >= self.count():
             print("Invalid fence point number %u" % i)
+            return
         self.points[i].lat = lat
         self.points[i].lng = lng
         # ensure we close the polygon
@@ -817,6 +820,7 @@ class MAVFenceLoader(object):
         '''remove a fence point'''
         if i < 0 or i >= self.count():
             print("Invalid fence point number %u" % i)
+            return
         self.points.pop(i)
          # ensure we close the polygon
         if i == 1:
