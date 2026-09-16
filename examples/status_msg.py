@@ -203,12 +203,7 @@ class FlightcontrollerInfo:  # pylint: disable=too-many-instance-attributes
             mavutil.mavlink.MAV_TYPE_FLAPPING_WING: 'ArduPlane',
             mavutil.mavlink.MAV_TYPE_KITE: 'ArduPlane',
             mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER: 'AP_Periph',
-            mavutil.mavlink.MAV_TYPE_VTOL_DUOROTOR: 'ArduPlane',
-            mavutil.mavlink.MAV_TYPE_VTOL_QUADROTOR: 'ArduPlane',
             mavutil.mavlink.MAV_TYPE_VTOL_TILTROTOR: 'ArduPlane',
-            mavutil.mavlink.MAV_TYPE_VTOL_RESERVED2: 'ArduPlane',
-            mavutil.mavlink.MAV_TYPE_VTOL_RESERVED3: 'ArduPlane',
-            mavutil.mavlink.MAV_TYPE_VTOL_RESERVED4: 'ArduPlane',
             mavutil.mavlink.MAV_TYPE_VTOL_RESERVED5: 'ArduPlane',
             mavutil.mavlink.MAV_TYPE_GIMBAL: 'AP_Periph',
             mavutil.mavlink.MAV_TYPE_ADSB: 'AP_Periph',
@@ -229,6 +224,25 @@ class FlightcontrollerInfo:  # pylint: disable=too-many-instance-attributes
             mavutil.mavlink.MAV_TYPE_WINCH: 'AP_Periph',
             # Add more mappings as needed
         }
+
+        # cope with enumeration renaming; each of these names is only
+        # present in some versions of the MAVLink message definitions
+        for mav_type_name in [
+                'VTOL_DUOROTOR',  # renamed to VTOL_TAILSITTER_DUOROTOR
+                'VTOL_TAILSITTER_DUOROTOR',
+                'VTOL_QUADROTOR',  # renamed to VTOL_TAILSITTER_QUADROTOR
+                'VTOL_TAILSITTER_QUADROTOR',
+                'VTOL_RESERVED2',  # renamed to VTOL_FIXEDROTOR
+                'VTOL_FIXEDROTOR',
+                'VTOL_RESERVED3',  # renamed to VTOL_TAILSITTER
+                'VTOL_TAILSITTER',
+                'VTOL_RESERVED4',  # renamed to VTOL_TILTWING
+                'VTOL_TILTWING',
+        ]:
+            mav_type = getattr(mavutil.mavlink, f"MAV_TYPE_{mav_type_name}", None)
+            if mav_type is None:
+                continue
+            mav_type_to_vehicle_type[mav_type] = 'ArduPlane'
 
         # Return the classified vehicle type based on the MAV_TYPE enum
         return mav_type_to_vehicle_type.get(mav_type_int, None)
