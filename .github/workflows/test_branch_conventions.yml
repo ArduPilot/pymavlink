@@ -1,4 +1,4 @@
-name: Fail on Malformed Commits in PR Branch
+name: Test for Malformed Commits in PR Branch
 
 # brazenly copied from ArduPilot's test_branch_conventions.yml
 
@@ -6,9 +6,21 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  check-merge-commits:
+  check-branch-conventions:
     runs-on: ubuntu-latest
+    # pull_request context values reach run: blocks through env, never through
+    # ${{ }} interpolation, which a branch name could otherwise break out of
+    env:
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+      BASE_CLONE_URL: ${{ github.event.pull_request.base.repo.clone_url }}
 
     steps:
       - name: Checkout PR branch
@@ -21,39 +33,11 @@ jobs:
       - name: Fetch base branch
         run: |
           git remote -v
-          git remote add upstream ${{ github.event.pull_request.base.repo.clone_url }}
-          git fetch upstream ${{ github.base_ref }}
-          git show upstream/${{ github.base_ref }}
+          git remote add upstream "$BASE_CLONE_URL"
+          git fetch upstream "$BASE_REF"
+          git show "upstream/$BASE_REF"
 
-      - name: Check for merge commits in PR branch
+      - name: Check branch conventions
+        shell: bash
         run: |
-          # Find merge-base between base branch and (rebased) PR branch
-          echo "Merge target is origin/${{ github.base_ref }}"
-          echo "github.event.pull_request.base.ref=${{ github.event.pull_request.base.ref }} "
-
-          # Look for merge commits in PR branch only
-          MERGE_COMMITS=$(git log upstream/${{ github.base_ref }}..HEAD --merges --oneline)
-          echo "Merge commits:"
-          echo "$MERGE_COMMITS"
-
-          if [[ -n "$MERGE_COMMITS" ]]; then
-            echo "❌ Merge commits detected in the PR branch (not allowed):"
-            echo "Please see https://ardupilot.org/dev/docs/submitting-patches-back-to-master.html"
-            exit 1
-          else
-            echo "✅ No merge commits found in the PR branch."
-          fi
-
-          # Look for fixup! commits in PR branch only
-          COMMITS=$(git log upstream/${{ github.base_ref }}..HEAD --oneline)
-          echo "Commits:"
-          echo "$COMMITS"
-
-          if [[ "$COMMITS" == *"fixup!"* ]]; then
-            echo "❌ fixup commits detected in the PR branch (not allowed):"
-            echo "$COMMITS"
-            echo "Please see https://ardupilot.org/dev/docs/submitting-patches-back-to-master.html"
-            exit 1
-          else
-            echo "✅ No fixup commits found in the PR branch."
-          fi
+          .github/scripts/check_branch_conventions.py --base-branch "upstream/$BASE_REF"
