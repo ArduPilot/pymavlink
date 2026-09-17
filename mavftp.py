@@ -1595,53 +1595,37 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.done = True
             elif self.filename == "-":
                 self.fh.seek(0)
-            else:
-                logging.info(
-                    "Wrote %u/%u bytes to %s in %.2fs %.1fkByte/s",
-                    self.read_total,
-                    self.requested_size,
-                    self.filename,
-                    dt,
-                    rate,
-                )
-                logging.info(
-                    "terminating with %u out of %u (ofs=%u)",
-                    self.read_total,
-                    self.requested_size,
-                    ofs,
-                )
-                self.done = True
-
-            self.__finished_status("downloading", self.filename, ofs)
 
             assert self.fh is not None  # noqa: S101
-            self.fh.flush()
-            actual_size = ofs
-            if self.read_to_memory or self.filename == "-":
-                self.fh.seek(0)
-                result = self.fh.read()
-                actual_size = len(result)
-            elif self.temp_filename is not None:
-                actual_size = os.fstat(self.fh.fileno()).st_size
-            else:
-                result = b""
-            if self.read_to_memory:
-                self.get_result = result[: self.requested_size]
-            elif not self.remote_size_known:
-                self.requested_size = max(0, actual_size - self.requested_offset)
-            if self.read_to_memory and len(self.get_result) < self.requested_size:
-                logging.warning(
-                    "expected %u, got %u", self.requested_size, len(self.get_result)
-                )
-            elif not self.read_to_memory and actual_size < self.requested_size:
-                logging.warning(
-                    "expected %u, got %u", self.requested_size, actual_size
-                )
-            if self.read_to_memory:
-                logging.info("read %u bytes", len(self.get_result))
-            if self.callback_progress is not None:
-                self.callback_progress = None
+            # Final local-file I/O and publication share this cleanup boundary
+            # so a delayed buffered-write failure still releases the session.
             try:
+                self.fh.flush()
+                actual_size = ofs
+                if self.read_to_memory or self.filename == "-":
+                    self.fh.seek(0)
+                    result = self.fh.read()
+                    actual_size = len(result)
+                elif self.temp_filename is not None:
+                    actual_size = os.fstat(self.fh.fileno()).st_size
+                else:
+                    result = b""
+                if self.read_to_memory:
+                    self.get_result = result[: self.requested_size]
+                elif not self.remote_size_known:
+                    self.requested_size = max(0, actual_size - self.requested_offset)
+                if self.read_to_memory and len(self.get_result) < self.requested_size:
+                    logging.warning(
+                        "expected %u, got %u", self.requested_size, len(self.get_result)
+                    )
+                elif not self.read_to_memory and actual_size < self.requested_size:
+                    logging.warning(
+                        "expected %u, got %u", self.requested_size, actual_size
+                    )
+                if self.read_to_memory:
+                    logging.info("read %u bytes", len(self.get_result))
+                if self.callback_progress is not None:
+                    self.callback_progress = None
                 if self.filename == "-" and publish_result:
                     stdout_buffer = getattr(sys.stdout, "buffer", None)
                     if stdout_buffer is not None:
@@ -1672,6 +1656,24 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.__fsync_directory(
                         os.path.dirname(os.path.abspath(self.filename))
                     )
+                if publish_result and self.filename not in (None, "-"):
+                    self.done = True
+                    logging.info(
+                        "Wrote %u/%u bytes to %s in %.2fs %.1fkByte/s",
+                        self.read_total,
+                        self.requested_size,
+                        self.filename,
+                        dt,
+                        rate,
+                    )
+                    logging.info(
+                        "terminating with %u out of %u (ofs=%u)",
+                        self.read_total,
+                        self.requested_size,
+                        ofs,
+                    )
+                if self.callback_failure is None:
+                    self.__finished_status("downloading", self.filename, ofs)
             except OSError as exc:
                 logging.error(
                     "FTP: failed to publish local destination %s: %s",

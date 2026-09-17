@@ -884,6 +884,109 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             )
             self.assertEqual(master.replies, [])
 
+    def assert_download_finalization_failure(self, inject_failure):  # pylint: disable=too-many-locals
+        """A terminal local-I/O failure must leave no staging file or remote session."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            destination = os.path.join(tempdir, "download.bin")
+            ftp, master = self.make_ftp(
+                [
+                    ftp_reply(
+                        2,
+                        OP_Ack,
+                        OP_OpenFileRO,
+                        payload=struct.pack("<I", 4),
+                        session=8,
+                    ),
+                    ftp_reply(
+                        3,
+                        OP_Ack,
+                        OP_BurstReadFile,
+                        payload=b"data",
+                        burst_complete=1,
+                        session=8,
+                    ),
+                    ftp_reply(4, OP_Ack, OP_TerminateSession, session=8),
+                ]
+            )
+
+            self.assertEqual(ftp.cmd_get(["remote.bin", destination]).error_code, FtpError.Success)
+            finished_status = MagicMock()
+            setattr(ftp, "_MAVFTP__finished_status", finished_status)
+            staging_handle = None
+            staging_filename = None
+            undo_failure_injection = None
+            original_recv_match = master.recv_match
+
+            def capture_staging_handle(**kwargs):
+                nonlocal staging_handle, staging_filename, undo_failure_injection
+                requests = self.sent_requests(master)
+                if (
+                    staging_handle is None
+                    and ftp.fh is not None
+                    and requests[-1].opcode == OP_BurstReadFile
+                ):
+                    staging_handle = ftp.fh
+                    staging_filename = ftp.temp_filename
+                    undo_failure_injection = inject_failure(ftp, staging_handle)
+                return original_recv_match(**kwargs)
+
+            master.recv_match = capture_staging_handle
+
+            try:
+                result = ftp.process_ftp_reply("get", timeout=1)
+            except OSError:
+                result = None
+            finally:
+                assert staging_handle is not None  # noqa: S101
+                assert staging_filename is not None  # noqa: S101
+                staging_file_exists = os.path.exists(staging_filename)
+                staging_handle_closed = staging_handle.closed
+                sent_opcodes = [
+                    request.opcode
+                    for request in self.sent_requests(master)
+                    if request.opcode
+                    in {OP_OpenFileRO, OP_BurstReadFile, OP_TerminateSession}
+                ]
+                if undo_failure_injection is not None:
+                    undo_failure_injection()
+                if not staging_handle.closed:
+                    staging_handle.close()
+                if os.path.exists(staging_filename):
+                    os.unlink(staging_filename)
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result.error_code, FtpError.Fail)
+            self.assertTrue(staging_handle_closed)
+            self.assertIsNone(ftp.fh)
+            self.assertIsNone(ftp.temp_filename)
+            self.assertFalse(os.path.exists(destination))
+            self.assertFalse(staging_file_exists)
+            self.assertEqual([OP_OpenFileRO, OP_BurstReadFile], sent_opcodes[:2])
+            self.assertTrue(all(opcode == OP_TerminateSession for opcode in sent_opcodes[2:]))
+            finished_status.assert_not_called()
+
+    def test_download_final_flush_failure_cleans_up_staging_and_session(self):
+        """A final buffered-write failure must remove staging data and terminate the remote session."""
+
+        def fail_flush(ftp, staging_handle):
+            failing_handle = MagicMock(wraps=staging_handle)
+            failing_handle.flush.side_effect = OSError("disk full")
+            ftp.fh = failing_handle
+
+        self.assert_download_finalization_failure(fail_flush)
+
+    def test_download_final_stat_failure_cleans_up_staging_and_session(self):
+        """A staging-file size check failure must remove staging data and terminate the session."""
+
+        def fail_stat(_ftp, _staging_handle):
+            fstat_patch = patch(
+                "pymavlink.mavftp.os.fstat", side_effect=OSError("disk full")
+            )
+            fstat_patch.start()
+            return fstat_patch.stop
+
+        self.assert_download_finalization_failure(fail_stat)
+
     def test_upload_sends_exact_data_at_the_allocated_session(self):
         """Given local bytes, when put receives its allocated session, then its write has exact bytes, offset, and session."""
         ftp, master = self.make_ftp(
