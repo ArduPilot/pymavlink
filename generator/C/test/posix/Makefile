@@ -65,5 +65,4 @@ test_diagnostics_be: test_diagnostics_be.c
 
 .PHONY: test_diagnostics_positive
 test_diagnostics_positive: test_diagnostics_positive.c check_diagnostics_fire.sh
-	chmod +x check_diagnostics_fire.sh
 	./check_diagnostics_fire.sh $(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/wip_deprecated_superseded

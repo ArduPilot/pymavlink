@@ -1,22 +1,5 @@
 <?xml version="1.0"?>
 <mavlink>
-  <messages>
-    <message id="0" name="WIP_MESSAGE">
-      <wip/>
-      <description>A message flagged work-in-progress.</description>
-      <field type="int8_t" name="value"/>
-    </message>
-    <message id="1" name="DEPRECATED_MESSAGE">
-      <deprecated since="2024-01" replaced_by="WIP_MESSAGE">Use WIP_MESSAGE instead.</deprecated>
-      <description>A message flagged deprecated.</description>
-      <field type="int8_t" name="value"/>
-    </message>
-    <message id="2" name="SUPERSEDED_MESSAGE">
-      <superseded since="2024-01" replaced_by="WIP_MESSAGE">Use WIP_MESSAGE instead.</superseded>
-      <description>A message flagged superseded.</description>
-      <field type="int8_t" name="value"/>
-    </message>
-  </messages>
   <enums>
     <enum name="DEPRECATED_ENUM">
       <deprecated since="2024-01" replaced_by="SOME_OTHER_ENUM">Use SOME_OTHER_ENUM instead.</deprecated>
@@ -51,4 +34,21 @@
       </entry>
     </enum>
   </enums>
+  <messages>
+    <message id="0" name="WIP_MESSAGE">
+      <wip/>
+      <description>A message flagged work-in-progress.</description>
+      <field type="int8_t" name="value"/>
+    </message>
+    <message id="1" name="DEPRECATED_MESSAGE">
+      <deprecated since="2024-01" replaced_by="WIP_MESSAGE">Use WIP_MESSAGE instead.</deprecated>
+      <description>A message flagged deprecated.</description>
+      <field type="int8_t" name="value"/>
+    </message>
+    <message id="2" name="SUPERSEDED_MESSAGE">
+      <superseded since="2024-01" replaced_by="WIP_MESSAGE">Use WIP_MESSAGE instead.</superseded>
+      <description>A message flagged superseded.</description>
+      <field type="int8_t" name="value"/>
+    </message>
+  </messages>
 </mavlink>
