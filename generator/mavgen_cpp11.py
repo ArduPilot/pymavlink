@@ -114,11 +114,11 @@ ${{include_list:#include "../${base}/${base}.hpp"
 def generate_message_hpp(directory, m):
     '''generate per-message header for a XML file'''
     if m.wip:
-        m.MSG_ATTRIBUTE = 'MAVLINK_WIP '
+        m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_WIP '
     elif m.deprecated:
-        m.MSG_ATTRIBUTE = 'MAVLINK_DEPRECATED '
+        m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_DEPRECATED '
     elif m.superseded:
-        m.MSG_ATTRIBUTE = 'MAVLINK_SUPERSEDED '
+        m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_SUPERSEDED '
     else:
         m.MSG_ATTRIBUTE = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')

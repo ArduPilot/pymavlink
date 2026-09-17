@@ -258,7 +258,7 @@ ${{arg_fields: * @param ${name} ${units} ${description}
 }}
  * @return length of the message in bytes (excluding serial stream start sign)
  */
-static inline uint16_t mavlink_msg_${name_lower}_pack_status(uint8_t system_id, uint8_t component_id, mavlink_status_t *_status, mavlink_message_t* msg,
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_pack_status(uint8_t system_id, uint8_t component_id, mavlink_status_t *_status, mavlink_message_t* msg,
                               ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
@@ -329,7 +329,9 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
+    MAVLINK_DEPRECATED_CALL_BEGIN
     return mavlink_msg_${name_lower}_pack(system_id, component_id, msg,${{arg_fields: ${name_lower}->${name},}});
+    MAVLINK_DEPRECATED_CALL_END
 }
 
 /**
@@ -343,7 +345,9 @@ ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t 
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
+    MAVLINK_DEPRECATED_CALL_BEGIN
     return mavlink_msg_${name_lower}_pack_chan(system_id, component_id, chan, msg,${{arg_fields: ${name_lower}->${name},}});
+    MAVLINK_DEPRECATED_CALL_END
 }
 
 /**
@@ -355,9 +359,11 @@ ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uin
  * @param msg The MAVLink message to compress the data into
  * @param ${name_lower} C-struct to read the message contents from
  */
-static inline uint16_t mavlink_msg_${name_lower}_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
+    MAVLINK_DEPRECATED_CALL_BEGIN
     return mavlink_msg_${name_lower}_pack_status(system_id, component_id, _status, msg, ${{arg_fields: ${name_lower}->${name},}});
+    MAVLINK_DEPRECATED_CALL_END
 }
 
 /**

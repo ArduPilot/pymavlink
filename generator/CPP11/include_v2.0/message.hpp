@@ -17,7 +17,11 @@
   entries flagged in the XML as work-in-progress, deprecated or superseded.
   Kept in sync with the equivalent block in protocol.h (not #include-d here,
   since its typed declarations assume the un-namespaced C build). See
-  protocol.h for usage/severity guidance.
+  protocol.h for usage/severity guidance. These are function-only macros:
+  they never annotate the C++11 message struct itself (see
+  MAVLINK_MSG_TYPE_* below for that), but they do still apply to the plain
+  C pack/encode/send/decode helper functions that TEST_INTEROP builds pull
+  in from mavlink.h alongside this header.
 */
 #ifndef MAVLINK_WIP
 #define MAVLINK_WIP
@@ -36,6 +40,28 @@
 #endif
 #ifndef MAVLINK_ENUM_SUPERSEDED
 #define MAVLINK_ENUM_SUPERSEDED
+#endif
+
+/*
+  Type-only counterparts of the three MAVLINK_* macros above, applied to
+  the C++11 message struct itself (e.g. "struct MAVLINK_MSG_TYPE_WIP Ping
+  : mavlink::Message"). A struct/class is not a function, so GCC's
+  function-only warning()/error() attributes cannot be used here -- as
+  with MAVLINK_ENUM_WIP/DEPRECATED/SUPERSEDED, only deprecated/unavailable
+  (or the standard [[deprecated("...")]]) are valid, e.g.:
+
+    #define MAVLINK_MSG_TYPE_WIP         __attribute__((unavailable("MAVLink WIP message used")))
+    #define MAVLINK_MSG_TYPE_DEPRECATED  __attribute__((deprecated("MAVLink deprecated message used")))
+    #define MAVLINK_MSG_TYPE_SUPERSEDED  // leave undefined/empty: still fully supported
+*/
+#ifndef MAVLINK_MSG_TYPE_WIP
+#define MAVLINK_MSG_TYPE_WIP
+#endif
+#ifndef MAVLINK_MSG_TYPE_DEPRECATED
+#define MAVLINK_MSG_TYPE_DEPRECATED
+#endif
+#ifndef MAVLINK_MSG_TYPE_SUPERSEDED
+#define MAVLINK_MSG_TYPE_SUPERSEDED
 #endif
 
 #define MAVLINK_USE_CXX_NAMESPACE	// put C-lib into namespace

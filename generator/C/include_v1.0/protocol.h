@@ -51,6 +51,12 @@
 
   Note: on enum entries only deprecated/unavailable are valid attributes;
   GCC's function-only warning()/error() cannot be applied to enumerators.
+  The same restriction applies to the C++11 message struct type emitted by
+  the C++11 generator: see MAVLINK_MSG_TYPE_WIP/DEPRECATED/SUPERSEDED in
+  message.hpp, which are a separate, type-only set of macros for that
+  purpose (this MAVLINK_WIP/DEPRECATED/SUPERSEDED set stays function-only
+  and still backs the plain-C helper functions used by C++11 interop
+  builds).
 */
 #ifndef MAVLINK_WIP
 #define MAVLINK_WIP
@@ -69,6 +75,26 @@
 #endif
 #ifndef MAVLINK_ENUM_SUPERSEDED
 #define MAVLINK_ENUM_SUPERSEDED
+#endif
+
+/*
+  The _encode()/_encode_chan()/_encode_status() wrappers below delegate to
+  a _pack()/_pack_chan()/_pack_status() that carries the same attribute
+  above. That internal call must not itself warn/error under
+  MAVLINK_DEPRECATED/MAVLINK_SUPERSEDED (GCC, unlike clang, does not
+  suppress -Wdeprecated-declarations just because the calling function
+  carries the same attribute), so it is wrapped with these two macros.
+  This only silences the diagnostic for that one internal call; a real
+  caller of _pack()/_encode() still gets the diagnostic as normal.
+*/
+#if defined(__GNUC__) || defined(__clang__)
+# define MAVLINK_DEPRECATED_CALL_BEGIN \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+# define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
+#else
+# define MAVLINK_DEPRECATED_CALL_BEGIN
+# define MAVLINK_DEPRECATED_CALL_END
 #endif
 
 /* option to provide alternative implementation of mavlink_helpers.h */
