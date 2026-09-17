@@ -56,6 +56,15 @@
   purpose (this MAVLINK_WIP/DEPRECATED/SUPERSEDED set stays function-only
   and still backs the plain-C helper functions used by C++11 interop
   builds).
+
+  Note: unavailable() requires clang or GCC >= 12. On an older GCC (e.g.
+  GCC 11 on Ubuntu 22.04) it is not simply inert: GCC emits "attribute
+  directive ignored" for every entry/type so flagged, at declaration time,
+  independent of -Werror and of whether the flagged entry is ever used - so
+  a -Werror build fails on #include alone, and a non-Werror build gets a
+  diagnostic that never actually fires. Guard on __GNUC__/__clang__ (as
+  the generator's own tests do) or use deprecated() if you need to support
+  GCC < 12.
 */
 #ifndef MAVLINK_WIP
 #define MAVLINK_WIP
