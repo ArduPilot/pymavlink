@@ -34,11 +34,40 @@
 #endif
 
 /*
-  to get warnings when any WIP message is used, add this:
-  #define MAVLINK_WIP __attribute__((warning("MAVLink work in progress")))
+  Opt-in compile-time diagnostics for MAVLink messages and MAV_CMD/enum
+  entries flagged in the XML as work-in-progress, deprecated or superseded.
+  Each macro defaults to a no-op; define it before including mavlink.h to
+  get a diagnostic, and pick the attribute that matches how strict you want
+  that category to be, e.g.:
+
+    #define MAVLINK_WIP              __attribute__((error("MAVLink WIP message used")))
+    #define MAVLINK_DEPRECATED       __attribute__((deprecated("MAVLink deprecated message used")))
+    #define MAVLINK_SUPERSEDED       // leave undefined/empty: still fully supported
+
+    #define MAVLINK_ENUM_WIP         __attribute__((unavailable("MAVLink WIP command/enum entry used")))
+    #define MAVLINK_ENUM_DEPRECATED  __attribute__((deprecated("MAVLink deprecated command/enum entry used")))
+    #define MAVLINK_ENUM_SUPERSEDED  // leave undefined/empty: still fully supported
+
+  Note: on enum entries only deprecated/unavailable are valid attributes;
+  GCC's function-only warning()/error() cannot be applied to enumerators.
 */
 #ifndef MAVLINK_WIP
 #define MAVLINK_WIP
+#endif
+#ifndef MAVLINK_DEPRECATED
+#define MAVLINK_DEPRECATED
+#endif
+#ifndef MAVLINK_SUPERSEDED
+#define MAVLINK_SUPERSEDED
+#endif
+#ifndef MAVLINK_ENUM_WIP
+#define MAVLINK_ENUM_WIP
+#endif
+#ifndef MAVLINK_ENUM_DEPRECATED
+#define MAVLINK_ENUM_DEPRECATED
+#endif
+#ifndef MAVLINK_ENUM_SUPERSEDED
+#define MAVLINK_ENUM_SUPERSEDED
 #endif
 
 /* option to provide alternative implementation of mavlink_helpers.h */

@@ -118,7 +118,7 @@ ${{enum:
 #define HAVE_ENUM_${name}
 typedef enum ${name}
 {
-${{entry:   ${name}=${value}, /* ${description} |${{param:${description}| }} */
+${{entry:   ${name}${ENTRY_ATTRIBUTE}=${value}, /* ${description} |${{param:${description}| }} */
 }}
 } ${name};
 #endif
@@ -165,6 +165,10 @@ def generate_message_h(directory, m):
     '''generate per-message header for a XML file'''
     if m.wip:
         m.MSG_ATTRIBUTE = 'MAVLINK_WIP\n'
+    elif m.deprecated:
+        m.MSG_ATTRIBUTE = 'MAVLINK_DEPRECATED\n'
+    elif m.superseded:
+        m.MSG_ATTRIBUTE = 'MAVLINK_SUPERSEDED\n'
     else:
         m.MSG_ATTRIBUTE = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w', encoding='utf-8')
@@ -739,6 +743,18 @@ def generate_one(basename, xml):
                 f.putname = f.name
             else:
                 f.putname = f.const_value
+
+    # add attribute for enum/MAV_CMD entries flagged wip/deprecated/superseded
+    for enum in xml.enum:
+        for entry in enum.entry:
+            if entry.wip:
+                entry.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_WIP'
+            elif entry.deprecated:
+                entry.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_DEPRECATED'
+            elif entry.superseded:
+                entry.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_SUPERSEDED'
+            else:
+                entry.ENTRY_ATTRIBUTE = ''
 
     generate_mavlink_h(directory, xml)
     generate_version_h(directory, xml)

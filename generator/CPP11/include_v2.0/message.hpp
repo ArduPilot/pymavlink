@@ -12,6 +12,32 @@
 #define MAVLINK_HELPER static inline
 #endif
 
+/*
+  Opt-in compile-time diagnostics for MAVLink messages and MAV_CMD/enum
+  entries flagged in the XML as work-in-progress, deprecated or superseded.
+  Kept in sync with the equivalent block in protocol.h (not #include-d here,
+  since its typed declarations assume the un-namespaced C build). See
+  protocol.h for usage/severity guidance.
+*/
+#ifndef MAVLINK_WIP
+#define MAVLINK_WIP
+#endif
+#ifndef MAVLINK_DEPRECATED
+#define MAVLINK_DEPRECATED
+#endif
+#ifndef MAVLINK_SUPERSEDED
+#define MAVLINK_SUPERSEDED
+#endif
+#ifndef MAVLINK_ENUM_WIP
+#define MAVLINK_ENUM_WIP
+#endif
+#ifndef MAVLINK_ENUM_DEPRECATED
+#define MAVLINK_ENUM_DEPRECATED
+#endif
+#ifndef MAVLINK_ENUM_SUPERSEDED
+#define MAVLINK_ENUM_SUPERSEDED
+#endif
+
 #define MAVLINK_USE_CXX_NAMESPACE	// put C-lib into namespace
 #include "mavlink_types.h"
 

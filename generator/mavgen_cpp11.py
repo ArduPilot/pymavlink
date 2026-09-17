@@ -87,7 +87,7 @@ ${{enum:
 /** @brief ${description} */
 enum class ${name}${cxx_underlying_type}
 {
-${{entry_flt:    ${name_trim}=${value}, /* ${description} |${{param:${description}| }} */
+${{entry_flt:    ${name_trim}${ENTRY_ATTRIBUTE}=${value}, /* ${description} |${{param:${description}| }} */
 }}
 };
 
@@ -113,6 +113,14 @@ ${{include_list:#include "../${base}/${base}.hpp"
 
 def generate_message_hpp(directory, m):
     '''generate per-message header for a XML file'''
+    if m.wip:
+        m.MSG_ATTRIBUTE = 'MAVLINK_WIP '
+    elif m.deprecated:
+        m.MSG_ATTRIBUTE = 'MAVLINK_DEPRECATED '
+    elif m.superseded:
+        m.MSG_ATTRIBUTE = 'MAVLINK_SUPERSEDED '
+    else:
+        m.MSG_ATTRIBUTE = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 // MESSAGE ${name} support class
@@ -128,7 +136,7 @@ namespace msg {
  *
  * ${description}
  */
-struct ${name} : mavlink::Message {
+struct ${MSG_ATTRIBUTE}${name} : mavlink::Message {
     static constexpr msgid_t MSG_ID = ${id};
     static constexpr size_t LENGTH = ${wire_length};
     static constexpr size_t MIN_LENGTH = ${wire_min_length};
@@ -429,6 +437,14 @@ def generate_one(basename, xml):
         e.entry_flt = []
         for f in e.entry:
             f.name_trim = enum_remove_prefix(e.name, f.name)
+            if f.wip:
+                f.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_WIP'
+            elif f.deprecated:
+                f.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_DEPRECATED'
+            elif f.superseded:
+                f.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_SUPERSEDED'
+            else:
+                f.ENTRY_ATTRIBUTE = ''
             if not f.end_marker:
                 e.entry_flt.append(f)
                 # XXX check all values in acceptable range
