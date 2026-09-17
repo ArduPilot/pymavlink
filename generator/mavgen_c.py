@@ -171,6 +171,16 @@ def generate_message_h(directory, m):
         m.MSG_ATTRIBUTE = 'MAVLINK_SUPERSEDED\n'
     else:
         m.MSG_ATTRIBUTE = ''
+    # only emit the MAVLINK_DEPRECATED_CALL_BEGIN/END pragma pair around the
+    # self-referential calls below for flagged messages, so headers stay
+    # byte-identical to the unflagged-message case for anyone who never
+    # opts into these diagnostics
+    if m.MSG_ATTRIBUTE:
+        m.CALL_GUARD_BEGIN = '    MAVLINK_DEPRECATED_CALL_BEGIN\n'
+        m.CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n'
+    else:
+        m.CALL_GUARD_BEGIN = ''
+        m.CALL_GUARD_END = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 #pragma once
@@ -329,10 +339,8 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
-    MAVLINK_DEPRECATED_CALL_BEGIN
-    return mavlink_msg_${name_lower}_pack(system_id, component_id, msg,${{arg_fields: ${name_lower}->${name},}});
-    MAVLINK_DEPRECATED_CALL_END
-}
+${CALL_GUARD_BEGIN}    return mavlink_msg_${name_lower}_pack(system_id, component_id, msg,${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}}
 
 /**
  * @brief Encode a ${name_lower} struct on a channel
@@ -345,10 +353,8 @@ ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t 
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
-    MAVLINK_DEPRECATED_CALL_BEGIN
-    return mavlink_msg_${name_lower}_pack_chan(system_id, component_id, chan, msg,${{arg_fields: ${name_lower}->${name},}});
-    MAVLINK_DEPRECATED_CALL_END
-}
+${CALL_GUARD_BEGIN}    return mavlink_msg_${name_lower}_pack_chan(system_id, component_id, chan, msg,${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}}
 
 /**
  * @brief Encode a ${name_lower} struct with provided status structure
@@ -361,10 +367,8 @@ ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uin
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
-    MAVLINK_DEPRECATED_CALL_BEGIN
-    return mavlink_msg_${name_lower}_pack_status(system_id, component_id, _status, msg, ${{arg_fields: ${name_lower}->${name},}});
-    MAVLINK_DEPRECATED_CALL_END
-}
+${CALL_GUARD_BEGIN}    return mavlink_msg_${name_lower}_pack_status(system_id, component_id, _status, msg, ${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}}
 
 /**
  * @brief Send a ${name_lower} message
@@ -402,8 +406,8 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
 ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_struct(mavlink_channel_t chan, const mavlink_${name_lower}_t* ${name_lower})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_${name_lower}_send(chan,${{arg_fields: ${name_lower}->${name},}});
-#else
+${CALL_GUARD_BEGIN}    mavlink_msg_${name_lower}_send(chan,${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}#else
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_${name}, (const char *)${name_lower}, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC);
 #endif
 }
@@ -461,9 +465,9 @@ ${MSG_ATTRIBUTE}static inline ${return_type} mavlink_msg_${name_lower}_get_${nam
 ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_decode(const mavlink_message_t* msg, mavlink_${name_lower}_t* ${name_lower})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${decode_right});
+${CALL_GUARD_BEGIN}${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${decode_right});
 }}
-#else
+${CALL_GUARD_END}#else
         uint8_t len = msg->len < MAVLINK_MSG_ID_${name}_LEN? msg->len : MAVLINK_MSG_ID_${name}_LEN;
         memset(${name_lower}, 0, MAVLINK_MSG_ID_${name}_LEN);
     memcpy(${name_lower}, _MAV_PAYLOAD(msg), len);

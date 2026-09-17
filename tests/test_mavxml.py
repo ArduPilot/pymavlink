@@ -40,7 +40,7 @@ class MAVXMLTest(unittest.TestCase):
 
     def test_wip_deprecated_superseded(self):
         """Test that wip/deprecated/superseded are parsed for messages, enums and enum entries"""
-        test_filename = "wip-deprecated-superseded.xml"
+        test_filename = "wip_deprecated_superseded.xml"
         test_filepath = importlib_files(__spec__.parent).joinpath(test_filename)
         xml = MAVXML(test_filepath)
 
