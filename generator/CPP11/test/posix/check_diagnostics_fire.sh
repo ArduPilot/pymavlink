@@ -15,6 +15,16 @@ fi
 CXX=$1
 shift
 
+extra_flags=()
+if "$CXX" --version 2>/dev/null | grep -qi clang; then
+    # Clang caps itself at 20 errors by default (-ferror-limit=20). Only 6
+    # symbols are checked here today, well under that cap, but the C
+    # counterpart of this script (27 symbols) hit exactly this with a
+    # plain `cc` that turned out to be clang (e.g. macOS) - matching the
+    # fix here too so this file doesn't quietly grow into the same trap.
+    extra_flags+=(-ferror-limit=0)
+fi
+
 log=$(mktemp)
 bin=$(mktemp)
 trap 'rm -f "$log" "$bin"' EXIT
@@ -23,7 +33,7 @@ trap 'rm -f "$log" "$bin"' EXIT
 # greps for the English "is deprecated"/"is unavailable" wording, which a
 # localised g++/clang++ would translate, turning a working feature into a
 # wall of spurious FAILs.
-LC_ALL=C "$CXX" "$@" -o "$bin" test_diagnostics_positive.cpp >"$log" 2>&1
+LC_ALL=C "$CXX" "$@" "${extra_flags[@]}" -o "$bin" test_diagnostics_positive.cpp >"$log" 2>&1
 rc=$?
 
 if [ "$rc" -eq 0 ]; then

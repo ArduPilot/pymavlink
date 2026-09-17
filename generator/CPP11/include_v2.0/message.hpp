@@ -50,7 +50,14 @@
   with MAVLINK_ENUM_WIP/DEPRECATED/SUPERSEDED, only deprecated/unavailable
   (or the standard [[deprecated("...")]]) are valid, e.g.:
 
+    // unavailable() requires clang or GCC >= 12 (see protocol.h): guard it,
+    // or just use deprecated() unconditionally if you don't need the harder
+    // failure and want to support older GCC too.
+    #if defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)
     #define MAVLINK_MSG_TYPE_WIP         __attribute__((unavailable("MAVLink WIP message used")))
+    #else
+    #define MAVLINK_MSG_TYPE_WIP         __attribute__((deprecated("MAVLink WIP message used")))
+    #endif
     #define MAVLINK_MSG_TYPE_DEPRECATED  __attribute__((deprecated("MAVLink deprecated message used")))
     #define MAVLINK_MSG_TYPE_SUPERSEDED  // leave undefined/empty: still fully supported
 */

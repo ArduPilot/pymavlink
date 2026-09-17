@@ -16,6 +16,17 @@ fi
 CC=$1
 shift
 
+extra_flags=()
+if "$CC" --version 2>/dev/null | grep -qi clang; then
+    # Clang caps itself at 20 errors by default (-ferror-limit=20) and then
+    # bails with "too many errors emitted" - with 27 symbols each producing
+    # its own -Werror error, that cap is reached before every symbol below
+    # gets a chance to be diagnosed, turning a working feature into a wall
+    # of spurious FAILs on any toolchain where CC is clang (e.g. plain `cc`
+    # on macOS). GCC has no such default limit.
+    extra_flags+=(-ferror-limit=0)
+fi
+
 log=$(mktemp)
 bin=$(mktemp)
 trap 'rm -f "$log" "$bin"' EXIT
@@ -24,7 +35,7 @@ trap 'rm -f "$log" "$bin"' EXIT
 # greps for the English "is deprecated"/"is unavailable" wording, which a
 # localised gcc/clang would translate, turning a working feature into a
 # wall of spurious FAILs.
-LC_ALL=C "$CC" "$@" -o "$bin" test_diagnostics_positive.c >"$log" 2>&1
+LC_ALL=C "$CC" "$@" "${extra_flags[@]}" -o "$bin" test_diagnostics_positive.c >"$log" 2>&1
 rc=$?
 
 if [ "$rc" -eq 0 ]; then
