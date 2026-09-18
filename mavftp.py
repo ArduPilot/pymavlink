@@ -1674,13 +1674,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     )
                 if self.callback_failure is None:
                     self.__finished_status("downloading", self.filename, ofs)
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 logging.error(
                     "FTP: failed to publish local destination %s: %s",
                     self.filename,
                     exc,
                 )
-                self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
+                if self.callback_failure is None:
+                    self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
             finally:
                 # terminate the remote session and release the staging
                 # file even when the destination cannot be written

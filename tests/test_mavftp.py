@@ -574,13 +574,16 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         """A colliding session reply from another vehicle cannot complete a command."""
         ftp, _master = self.make_ftp([])
         ftp.last_op = FTP_OP(1, 0, OP_RemoveFile, 0, 0, 0, 0, bytearray())
+        previous_op = ftp.last_op
         reply = ftp_reply(2, OP_Ack, OP_RemoveFile)
         reply.get_srcSystem = lambda: 2  # pylint: disable=invalid-name,attribute-defined-outside-init
         reply.get_srcComponent = lambda: 1  # pylint: disable=invalid-name,attribute-defined-outside-init
 
         result = ftp._MAVFTP__mavlink_packet(reply)
 
+        self.assertEqual(result.operation_name, "mavlink_packet")
         self.assertEqual(result.error_code, FtpError.InvalidSession)
+        self.assertIs(ftp.last_op, previous_op)
 
     def test_status_reports_a_transfer_during_open_handshake(self):
         """A transfer remains visible before its remote file handle is opened."""
@@ -712,6 +715,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             RawFTPMessage(b"\x00" * 3)
         )
 
+        self.assertEqual(result.operation_name, "mavlink_packet")
         self.assertEqual(result.error_code, FtpError.InvalidDataSize)
 
     def test_declared_ftp_payload_larger_than_bytes_returns_invalid_data_size(self):
@@ -723,6 +727,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             RawFTPMessage(malformed_header)
         )
 
+        self.assertEqual(result.operation_name, "mavlink_packet")
         self.assertEqual(result.error_code, FtpError.InvalidDataSize)
 
     def test_process_rejects_malformed_ftp_header_without_raising(self):
@@ -731,6 +736,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         result = ftp.process_ftp_reply("RemoveFile", timeout=1)
 
+        self.assertEqual(result.operation_name, "RemoveFile")
         self.assertEqual(result.error_code, FtpError.InvalidDataSize)
 
     def test_packet_loss_settings_drop_packets_at_the_expected_boundary(self):
@@ -1431,6 +1437,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 result = ftp.cmd_crccmp([os.path.join(tempdir, "*.bin"), "/remote"])
 
             self.assertEqual(result.error_code, FtpError.Fail)
+            self.assertEqual(ftp.crccmp_results, ["ERROR", "SKIPPED"])
+            ftp.cmd_crc.assert_not_called()
 
     def test_crccmp_records_files_skipped_after_deadline(self):
         """A deadline-expired batch includes an explicit result for every file."""
@@ -2436,6 +2444,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         result = ftp.cmd_rm(["remote.bin"])
 
         self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(master.replies, [])
+        self.assertEqual(self.sent_requests(master)[-1].opcode, OP_RemoveFile)
 
     def test_loss_seed_replays_jitter_sequence(self):
         """The loss seed makes latency jitter reproducible between clients."""
@@ -3679,6 +3689,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         result = ftp.cmd_rm(["remote"])
 
         self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.seq, 0)
+        self.assertEqual(self.sent_requests(master)[-1].seq, FTP_SEQ_MODULUS - 1)
 
     def test_remove_sequence_255_advances_to_256(self):
         """A 16-bit sequence continues from 255 to 256 without wrapping."""
@@ -3689,6 +3701,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         result = ftp.cmd_rm(["remote"])
 
         self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.seq, 256)
+        self.assertEqual(self.sent_requests(master)[-1].seq, 255)
 
     def test_ftp_wrap_moduli_match_protocol_field_widths(self):
         self.assertEqual(FTP_SEQ_MODULUS, 65536)
@@ -4067,6 +4081,63 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(terminated, [True])
         self.assertIsNotNone(ftp.callback_failure)
         self.assertEqual(ftp.callback_failure.error_code, FtpError.Fail)
+
+    def test_callback_closing_download_buffer_returns_failure(self):
+        """A callback closing its buffer must not leak ValueError from finalization."""
+        ftp, _master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[4, 0, 0, 0]),
+                ftp_reply(
+                    3,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"data",
+                    burst_complete=1,
+                ),
+                ftp_reply(4, OP_Ack, OP_TerminateSession),
+            ]
+        )
+
+        def closing_callback(fh):
+            fh.close()
+
+        ftp.cmd_get(["remote.bin", "ignored.bin"], callback=closing_callback)
+        result = ftp.process_ftp_reply("get", timeout=1)
+
+        self.assertEqual(result.operation_name, "Get")
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertTrue(ftp.read_complete)
+        self.assertIsNone(ftp.fh)
+
+    def test_finalization_failure_preserves_callback_failure(self):
+        """A later local-I/O failure must retain the callback's diagnostic result."""
+        ftp, _master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[4, 0, 0, 0]),
+                ftp_reply(
+                    3,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"data",
+                    burst_complete=1,
+                ),
+                ftp_reply(4, OP_Ack, OP_TerminateSession),
+            ]
+        )
+
+        def failing_callback(fh):
+            failing_handle = MagicMock(wraps=fh)
+            failing_handle.flush.side_effect = OSError("disk full")
+            ftp.fh = failing_handle
+            return MAVFTPReturn("GetParams", FtpError.InvalidDataSize)
+
+        ftp.cmd_get(["remote.bin", "ignored.bin"], callback=failing_callback)
+        result = ftp.process_ftp_reply("get", timeout=1)
+
+        self.assertEqual(result.operation_name, "GetParams")
+        self.assertEqual(result.error_code, FtpError.InvalidDataSize)
+        self.assertTrue(ftp.read_complete)
+        self.assertIsNone(ftp.fh)
 
     def test_callback_success_does_not_publish_download(self):
         """Callbacks accept virtual files shorter than their advertised estimate."""
