@@ -130,7 +130,7 @@ def generate_message_hpp(directory, m):
         m.CALL_GUARD_BEGIN = '    MAVLINK_DEPRECATED_CALL_BEGIN\n'
     else:
         m.CALL_GUARD_BEGIN = ''
-    # gtestsuite.hpp is a single ${{testable_message: ...}} repetition, and
+    # gtestsuite.hpp is a single ${{message: ...}} repetition, and
     # a raw "}}" anywhere inside it - whether from a genuine nested
     # repetition closing or just an incidental ${VAR} followed by a
     # literal '}' - confuses the template parser's nested-repetition
@@ -139,7 +139,7 @@ def generate_message_hpp(directory, m):
     #  - the first TEST()'s close is NOT adjacent to the outer
     #    repetition's own closing '}}' (the TEST_INTEROP block follows
     #    it), so a spurious "}}" there would prematurely end the whole
-    #    ${{testable_message: ...}} scan. Fix: embed the closing brace
+    #    ${{message: ...}} scan. Fix: embed the closing brace
     #    *and* the blank line that already followed it in the value, so
     #    the raw template has no brace immediately after ${CALL_GUARD_END}
     #    at all (next char is '#', not '}').
@@ -156,6 +156,28 @@ def generate_message_hpp(directory, m):
     else:
         m.CALL_GUARD_END = '}\n\n'
         m.TEST_INTEROP_CALL_GUARD_END = '}\n#endif\n'
+    # WIP is different from deprecated/superseded: MAVLINK_MSG_TYPE_WIP is
+    # documented to use unavailable(), which neither GCC nor clang can
+    # silence with a diagnostic pragma (confirmed: GCC rejects
+    # -Wunavailable-declarations as an unknown pragma option, clang still
+    # diagnoses it even inside push/ignore/pop) - so CALL_GUARD_BEGIN/END
+    # above cannot make a WIP struct instantiation safe the way they do
+    # for deprecated/superseded. But MAVLINK_MSG_TYPE_WIP defaults to a
+    # no-op (see message.hpp) - nobody who hasn't opted in is affected -
+    # so unlike deprecated/superseded this must not unconditionally drop
+    # the test at generation time either, or every consumer who never
+    # touches this feature silently loses WIP test coverage (this was
+    # tried and reverted: it removed a test that a mutation check proved
+    # was catching real (de)serialization bugs). Instead wrap the whole
+    # per-message block in a *consumer*-controlled, off-by-default
+    # preprocessor guard, documented in message.hpp: only someone who
+    # both opts into the unavailable()/error() form of WIP *and* builds
+    # this generated testsuite needs to also opt out of the WIP tests.
+    if m.wip:
+        m.WIP_TEST_GUARD_BEGIN = '#ifndef MAVLINK_TESTSUITE_SKIP_WIP\n'
+        m.TEST_INTEROP_CALL_GUARD_END += '#endif // MAVLINK_TESTSUITE_SKIP_WIP\n'
+    else:
+        m.WIP_TEST_GUARD_BEGIN = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 // MESSAGE ${name} support class
@@ -228,15 +250,6 @@ ${{ordered_fields:        map >> ${name};${ser_whitespace}// offset: ${wire_offs
 
 def generate_gtestsuite_hpp(directory, xml):
     '''generate gtestsuite.hpp per XML file'''
-    # WIP messages are excluded from the round-trip self-test: unlike
-    # deprecated/superseded (backed by the pragma-suppressible
-    # -Wdeprecated-declarations), MAVLINK_MSG_TYPE_WIP is documented to use
-    # unavailable(), which neither GCC nor clang can silence with a
-    # diagnostic pragma - so there is no way to instantiate a WIP struct
-    # here without the opt-in diagnostic firing on the library's own
-    # generated code. WIP also, by definition, has no wire format stable
-    # enough to be worth round-trip testing yet.
-    xml.testable_message = [m for m in xml.message if not m.wip]
     f = open(os.path.join(directory, "gtestsuite.hpp"), mode='w', encoding='utf-8')
     t.write(f, '''
 /** @file
@@ -255,8 +268,8 @@ using namespace mavlink;
 #include "mavlink.h"
 #endif
 
-${{testable_message:
-TEST(${dialect_name}, ${name})
+${{message:
+${WIP_TEST_GUARD_BEGIN}TEST(${dialect_name}, ${name})
 {
 ${CALL_GUARD_BEGIN}    mavlink::mavlink_message_t msg;
     mavlink::MsgMap map1(msg);
