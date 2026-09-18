@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<mavlink>
+  <enums>
+    <enum name="MAV_CMD">
+      <description>An isDestination entry which is not hasLocation should raise an exception.</description>
+      <entry value="1" name="MAV_CMD_TEST" hasLocation="false" isDestination="true">
+        <description>Test command.</description>
+        <param index="1">Param 1.</param>
+        <param index="2">Param 2.</param>
+        <param index="3">Param 3.</param>
+        <param index="4">Param 4.</param>
+        <param index="5">Param 5.</param>
+        <param index="6">Param 6.</param>
+        <param index="7">Param 7.</param>
+      </entry>
+    </enum>
+  </enums>
+</mavlink>
