@@ -614,7 +614,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.delay_sequence = 0
         self.tx_delay_queue: List[Tuple[float, int, bytes]] = []
         self.rx_delay_queue: List[Tuple[float, int, Any]] = []
-        self.delayed_rx_results: List[Tuple[MAVFTPReturn, bool, bool, bool]] = []
+        self.delayed_rx_results: List[Tuple[MAVFTPReturn, bool, bool, bool, bool]] = []
         self.last_tx_deadline = 0.0
         self.last_rx_deadline = 0.0
         self._rx_loss_applied = False
@@ -813,6 +813,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         reply_matches_last_op,
                         reply_matches_active_request,
                         addressed_to_us and op is None,
+                        addressed_to_us,
                     )
                 )
 
@@ -1350,7 +1351,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     timeout=1.0,
                 )
                 if m is None:
+                    accepted_before_idle = self.accepted_reply_generation
                     self.idle_task()
+                    if accepted_before_idle != self.accepted_reply_generation:
+                        timeout = time.time() + 5
+                        accepted_reply_generation = self.accepted_reply_generation
                     continue
                 self.__receive_packet(m)
                 # A busy MAVLink link can carry FTP replies for other GCSes
@@ -1617,6 +1622,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             # close its BytesIO handle, so there is no local publication work
             # left to flush, stat, or otherwise perform on that handle.
             if callback_consumed:
+                if not self.remote_size_known:
+                    self.requested_size = max(0, ofs - self.requested_offset)
+                if ofs < self.requested_size:
+                    logging.warning("expected %u, got %u", self.requested_size, ofs)
                 if self.callback_progress is not None:
                     self.callback_progress = None
                 if self.callback_failure is None:
@@ -3304,12 +3313,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     reply_matches_last_op,
                     reply_matches_active_request,
                     malformed,
+                    addressed_to_us,
                 ) in delayed_results:
                     if malformed:
                         ret = MAVFTPReturn(operation_name, FtpError.InvalidDataSize)
                         malformed_result = True
                         break
                     if operation_name == "TerminateSession":
+                        if not addressed_to_us:
+                            continue
                         if self.pending_terminate_seq is None:
                             ret = MAVFTPReturn(operation_name, FtpError.Success)
                         elif packet_ret.error_code == FtpError.InvalidDataSize:

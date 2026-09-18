@@ -570,6 +570,93 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 self.assertEqual(result.error_code, FtpError.Fail)
                 self.assertEqual(ftp.pending_terminate_seq, ftp.seq)
 
+    def test_delayed_terminate_ignores_reply_for_wrong_target(self):
+        """RX-lagged wrong-target termination replies do not count as accepted."""
+        class WrongTargetMaster:  # pylint: disable=too-few-public-methods
+            """Serve one wrong-target reply after initialization."""
+
+            source_system = 1
+            source_component = 1
+
+            def __init__(self, reply):
+                self.mav = FakeMAV()
+                self.reply = reply
+                self.calls = 0
+
+            def recv_match(self, **_kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return self.reply
+                raise AssertionError("wrong-target delayed reply was treated as accepted")
+
+        master = FakeMaster([ftp_reply(1, OP_Ack, OP_ResetSessions)])
+        ftp = MAVFTP(master, target_system=1, target_component=1)
+        reply = ftp_reply(ftp.seq + 1, OP_Ack, OP_TerminateSession)
+        reply.target_system = 99
+        master = WrongTargetMaster(reply)
+        ftp.master = master
+        ftp.pending_terminate_seq = ftp.seq
+        ftp.ftp_settings.pkt_lag_rx = 1
+        original_idle_task = ftp.idle_task
+
+        def flush_then_expire():
+            if ftp.rx_delay_queue:
+                _deadline, sequence, message = ftp.rx_delay_queue[0]
+                ftp.rx_delay_queue[0] = (time.monotonic() - 1, sequence, message)
+            original_idle_task()
+            return True
+
+        ftp.idle_task = flush_then_expire
+
+        with patch.object(
+            ftp,
+            "_MAVFTP__op_parse",
+            side_effect=AssertionError("wrong-target delayed payload was parsed"),
+        ):
+            result = ftp.process_ftp_reply("TerminateSession", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(master.calls, 1)
+
+    def test_delayed_wrong_target_malformed_reply_is_not_local_malformed(self):
+        """A malformed delayed packet for another target remains unrelated traffic."""
+        class WrongTargetMaster:  # pylint: disable=too-few-public-methods
+            """Serve one malformed wrong-target reply."""
+
+            source_system = 1
+            source_component = 1
+
+            def __init__(self, reply):
+                self.mav = FakeMAV()
+                self.reply = reply
+
+            def recv_match(self, **_kwargs):
+                return self.reply
+
+        master = FakeMaster([ftp_reply(1, OP_Ack, OP_ResetSessions)])
+        ftp = MAVFTP(master, target_system=1, target_component=1)
+        reply = RawFTPMessage(b"bad")
+        reply.target_system = 99
+        master = WrongTargetMaster(reply)
+        ftp.master = master
+        ftp.pending_terminate_seq = ftp.seq
+        ftp.ftp_settings.pkt_lag_rx = 1
+        original_idle_task = ftp.idle_task
+
+        def flush_then_expire():
+            if ftp.rx_delay_queue:
+                _deadline, sequence, message = ftp.rx_delay_queue[0]
+                ftp.rx_delay_queue[0] = (time.monotonic() - 1, sequence, message)
+            original_idle_task()
+            return True
+
+        ftp.idle_task = flush_then_expire
+
+        result = ftp.process_ftp_reply("TerminateSession", timeout=1)
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+
+
     def test_reply_from_another_vehicle_is_rejected(self):
         """A colliding session reply from another vehicle cannot complete a command."""
         ftp, _master = self.make_ftp([])
@@ -592,7 +679,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.last_op_reply = False
         ftp.last_op_time = 0
         send = MagicMock()
-        ftp._MAVFTP__send = send  # pylint: disable=invalid-name
+        setattr(ftp, "_MAVFTP__send", send)
 
         with patch("pymavlink.mavftp.time.time", return_value=10.0):
             result = ftp._MAVFTP__mavlink_packet(
@@ -1694,10 +1781,132 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ):
             ftp = MAVFTP(master, target_system=1, target_component=1)
             ftp.idle_task = lambda: False
-            ftp._MAVFTP__terminate_session = lambda: None  # pylint: disable=invalid-name
+            setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
             self.assertIsNone(ftp.read("remote", 1))
 
         self.assertLessEqual(master.recv_calls, 20)
+
+    def test_read_renews_deadline_for_delayed_accepted_replies(self):
+        """RX-lagged transfer progress renews the synchronous read deadline."""
+        class EmptyMaster:  # pylint: disable=too-few-public-methods
+            """Return empty polls while delayed RX traffic makes progress."""
+
+            source_system = 1
+            source_component = 1
+
+            def __init__(self, clock):
+                self.mav = FakeMAV()
+                self.clock = clock
+
+            def recv_match(self, **_kwargs):
+                self.clock[0] += 6 if self.clock[0] == 0 else 1
+
+        clock = [0]
+        master = EmptyMaster(clock)
+        with patch.object(mavftp_module.time, "time", side_effect=lambda: clock[0]), patch.object(
+            mavftp_module.time, "sleep"
+        ):
+            bootstrap_master = FakeMaster([ftp_reply(1, OP_Ack, OP_ResetSessions)])
+            ftp = MAVFTP(bootstrap_master, target_system=1, target_component=1)
+            ftp.master = master
+            accepted_before_read = ftp.accepted_reply_generation
+            ftp.ftp_settings.pkt_lag_rx = 1
+            flush_count = 0
+            original_idle_task = ftp.idle_task
+
+            def queue_delayed_progress():
+                nonlocal flush_count
+                if flush_count == 0:
+                    reply = ftp_reply(
+                        ftp.last_op.seq + 1,
+                        OP_Ack,
+                        OP_OpenFileRO,
+                        payload=struct.pack("<I", 1),
+                        session=7,
+                    )
+                elif flush_count == 1:
+                    reply = ftp_reply(
+                        ftp.last_op.seq + 1,
+                        OP_Ack,
+                        OP_BurstReadFile,
+                        payload=b"x",
+                        burst_complete=1,
+                        session=7,
+                    )
+                else:
+                    return original_idle_task()
+                flush_count += 1
+                ftp._MAVFTP__receive_packet(reply)
+                _deadline, sequence, message = ftp.rx_delay_queue[0]
+                ftp.rx_delay_queue[0] = (time.monotonic() - 1, sequence, message)
+                return original_idle_task()
+
+            ftp.idle_task = queue_delayed_progress
+            setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+
+            self.assertEqual(ftp.read("remote", 1), b"x")
+            self.assertEqual(ftp.accepted_reply_generation, accepted_before_read + 2)
+
+    def test_read_renews_deadline_after_nonempty_delayed_receive(self):
+        """Progress flushed after a received packet renews the read deadline."""
+        class DelayedMaster:  # pylint: disable=too-few-public-methods
+            """Return an open reply, then its delayed burst reply."""
+
+            source_system = 1
+            source_component = 1
+
+            def __init__(self, clock):
+                self.clock = clock
+                self.mav = FakeMAV()
+                self.ftp = None
+                self.calls = 0
+
+            def recv_match(self, **_kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    self.clock[0] = 4
+                    return ftp_reply(
+                        self.ftp.last_op.seq + 1,
+                        OP_Ack,
+                        OP_OpenFileRO,
+                        payload=struct.pack("<I", 1),
+                        session=7,
+                    )
+                self.clock[0] = 6
+                return ftp_reply(
+                    self.ftp.last_op.seq + 1,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"x",
+                    burst_complete=1,
+                    session=7,
+                )
+
+        clock = [0]
+        master = DelayedMaster(clock)
+        with patch.object(mavftp_module.time, "time", side_effect=lambda: clock[0]), patch.object(
+            mavftp_module.time, "sleep"
+        ):
+            bootstrap_master = FakeMaster([ftp_reply(1, OP_Ack, OP_ResetSessions)])
+            ftp = MAVFTP(bootstrap_master, target_system=1, target_component=1)
+            ftp.master = master
+            master.ftp = ftp
+            ftp.ftp_settings.pkt_lag_rx = 1
+            original_idle_task = ftp.idle_task
+
+            def flush_and_advance_clock():
+                if ftp.rx_delay_queue:
+                    _deadline, sequence, message = ftp.rx_delay_queue[0]
+                    ftp.rx_delay_queue[0] = (time.monotonic() - 1, sequence, message)
+                result = original_idle_task()
+                if master.calls == 1:
+                    clock[0] = 6
+                return result
+
+            ftp.idle_task = flush_and_advance_clock
+            setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+
+            self.assertEqual(ftp.read("remote", 1), b"x")
 
     def test_read_flushes_delayed_tx_packets(self):
         """A synchronous read services the simulated TX queue while waiting."""
@@ -4247,6 +4456,42 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             self.assertEqual(result.error_code, FtpError.Success)
             self.assertEqual(callback_data, [b"data"])
             self.assertFalse(os.path.exists(destination))
+
+    def test_callback_short_read_warns_when_remote_size_is_known(self):
+        """A callback download keeps the short-read diagnostic."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO(b"data")
+        ftp.fh.seek(4)
+        ftp.filename = "virtual-file"
+        ftp.op_start = 1
+        ftp.requested_size = 1000
+        ftp.read_total = 4
+        ftp.reached_eof = True
+        ftp.remote_size_known = True
+        ftp.callback = lambda _fh: None
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+
+        with self.assertLogs(level="WARNING") as logs:
+            self.assertTrue(ftp._MAVFTP__check_read_finished())
+
+        self.assertTrue(any("expected 1000, got 4" in line for line in logs.output))
+
+    def test_callback_short_read_updates_unknown_remote_size(self):
+        """A callback download retains the normal estimated-size fixup."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO(b"data")
+        ftp.fh.seek(4)
+        ftp.filename = "virtual-file"
+        ftp.op_start = 1
+        ftp.requested_size = 1000
+        ftp.read_total = 4
+        ftp.reached_eof = True
+        ftp.callback = lambda _fh: None
+        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+
+        self.assertTrue(ftp._MAVFTP__check_read_finished())
+
+        self.assertEqual(ftp.requested_size, 4)
 
     def test_malformed_burst_nacks_are_decoded(self):
         for payload, expected_error in (
