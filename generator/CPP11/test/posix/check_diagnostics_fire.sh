@@ -33,7 +33,7 @@ trap 'rm -f "$log" "$bin"' EXIT
 # greps for the English "is deprecated"/"is unavailable" wording, which a
 # localised g++/clang++ would translate, turning a working feature into a
 # wall of spurious FAILs.
-LC_ALL=C "$CXX" "$@" "${extra_flags[@]}" -o "$bin" test_diagnostics_positive.cpp >"$log" 2>&1
+LC_ALL=C "$CXX" "$@" ${extra_flags[@]+"${extra_flags[@]}"} -o "$bin" test_diagnostics_positive.cpp >"$log" 2>&1
 rc=$?
 
 if [ "$rc" -eq 0 ]; then
