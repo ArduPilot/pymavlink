@@ -585,6 +585,24 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.InvalidSession)
         self.assertIs(ftp.last_op, previous_op)
 
+    def test_stale_reply_does_not_delay_request_retry(self):
+        """A stale reply cannot restart the active request's retry timer."""
+        ftp, _master = self.make_ftp([])
+        ftp.last_op = FTP_OP(1, 0, OP_RemoveFile, 0, 0, 0, 0, bytearray())
+        ftp.last_op_reply = False
+        ftp.last_op_time = 0
+        send = MagicMock()
+        ftp._MAVFTP__send = send  # pylint: disable=invalid-name
+
+        with patch("pymavlink.mavftp.time.time", return_value=10.0):
+            result = ftp._MAVFTP__mavlink_packet(
+                ftp_reply(99, OP_Ack, OP_RemoveFile)
+            )
+            ftp.idle_task()
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        send.assert_called_once_with(ftp.last_op, retry=True)
+
     def test_status_reports_a_transfer_during_open_handshake(self):
         """A transfer remains visible before its remote file handle is opened."""
         ftp, _master = self.make_ftp([])
@@ -738,6 +756,18 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(result.operation_name, "RemoveFile")
         self.assertEqual(result.error_code, FtpError.InvalidDataSize)
+
+    def test_process_ignores_malformed_reply_for_another_gcs(self):
+        """A malformed packet for another client cannot abort this client's receive loop."""
+        malformed = RawFTPMessage(b"\x00" * 3)
+        malformed.target_system = 99
+        ftp, _master = self.make_ftp(
+            [malformed, ftp_reply(2, OP_Ack, OP_RemoveFile)]
+        )
+
+        result = ftp.cmd_ftp(["rm", "remote"])
+
+        self.assertEqual(result.error_code, FtpError.Success)
 
     def test_packet_loss_settings_drop_packets_at_the_expected_boundary(self):
         """TX loss drops sends and RX loss drops replies before they are handled."""
@@ -1634,6 +1664,40 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             any(request.opcode == OP_OpenFileRO for request in self.sent_requests(master))
         )
         self.assertEqual(master.replies, [])
+
+    def test_read_wrong_target_traffic_does_not_extend_inactivity_deadline(self):
+        """Replies for another GCS cannot keep a synchronous read alive."""
+        class WrongTargetFloodMaster:  # pylint: disable=too-few-public-methods
+            """Return wrong-target replies while advancing the test clock."""
+
+            source_system = 1
+            source_component = 1
+
+            def __init__(self, clock):
+                self.mav = FakeMAV()
+                self.clock = clock
+                self.recv_calls = 0
+                self.reply = ftp_reply(2, OP_Ack, OP_OpenFileRO)
+                self.reply.target_system = 99
+
+            def recv_match(self, **_kwargs):
+                self.recv_calls += 1
+                if self.recv_calls > 20:
+                    raise AssertionError("wrong-target traffic kept read alive")
+                self.clock[0] += 0.5
+                return self.reply
+
+        clock = [0.0]
+        master = WrongTargetFloodMaster(clock)
+        with patch.object(mavftp_module.time, "time", side_effect=lambda: clock[0]), patch.object(
+            mavftp_module.time, "sleep"
+        ):
+            ftp = MAVFTP(master, target_system=1, target_component=1)
+            ftp.idle_task = lambda: False
+            ftp._MAVFTP__terminate_session = lambda: None  # pylint: disable=invalid-name
+            self.assertIsNone(ftp.read("remote", 1))
+
+        self.assertLessEqual(master.recv_calls, 20)
 
     def test_read_flushes_delayed_tx_packets(self):
         """A synchronous read services the simulated TX queue while waiting."""
@@ -4082,8 +4146,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertIsNotNone(ftp.callback_failure)
         self.assertEqual(ftp.callback_failure.error_code, FtpError.Fail)
 
-    def test_callback_closing_download_buffer_returns_failure(self):
-        """A callback closing its buffer must not leak ValueError from finalization."""
+    def test_callback_closing_download_buffer_succeeds(self):
+        """A callback owns its buffer, including the option to close it."""
         ftp, _master = self.make_ftp(
             [
                 ftp_reply(2, OP_Ack, OP_OpenFileRO, payload=[4, 0, 0, 0]),
@@ -4104,10 +4168,22 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.cmd_get(["remote.bin", "ignored.bin"], callback=closing_callback)
         result = ftp.process_ftp_reply("get", timeout=1)
 
-        self.assertEqual(result.operation_name, "Get")
-        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(result.error_code, FtpError.Success)
         self.assertTrue(ftp.read_complete)
         self.assertIsNone(ftp.fh)
+
+    def test_release_staging_ignores_closed_owned_handle(self):
+        """Staging cleanup must not leak ValueError from an owned closed handle."""
+        ftp, _master = self.make_ftp([])
+        handle = MagicMock()
+        handle.close.side_effect = ValueError("I/O operation on closed file")
+        ftp.fh = handle
+        ftp.fh_owned = True
+
+        ftp._MAVFTP__release_staging()
+
+        handle.close.assert_called_once_with()
+        self.assertFalse(ftp.fh_owned)
 
     def test_finalization_failure_preserves_callback_failure(self):
         """A later local-I/O failure must retain the callback's diagnostic result."""

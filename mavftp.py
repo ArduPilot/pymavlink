@@ -519,6 +519,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.last_gap_send = 0.0
         self.read_retries = 0
         self.read_total = 0
+        self.accepted_reply_generation = 0
         self.remote_file_size: int = 0
         self.remote_size_known = False
         self.duplicates = 0
@@ -784,9 +785,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.__transmit_payload(payload)
         while self.rx_delay_queue and self.rx_delay_queue[0][0] <= now:
             _, _, message = heapq.heappop(self.rx_delay_queue)
-            try:
-                op = self.__op_parse(message)
-            except (struct.error, TypeError, ValueError):
+            addressed_to_us = self.__reply_addressed_to_local_client(message)
+            if addressed_to_us:
+                try:
+                    op = self.__op_parse(message)
+                except (struct.error, TypeError, ValueError):
+                    op = None
+            else:
                 op = None
             reply_matches_last_op = (
                 op is not None
@@ -807,7 +812,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         packet_ret,
                         reply_matches_last_op,
                         reply_matches_active_request,
-                        op is None,
+                        addressed_to_us and op is None,
                     )
                 )
 
@@ -943,7 +948,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.fh is not None and self.fh_owned:
             try:
                 self.fh.close()
-            except OSError:
+            except (OSError, ValueError):
                 pass
         self.fh_owned = False
         if self.temp_filename is not None:
@@ -1295,7 +1300,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         logging.info("reading sector %s, offset=%u, size=%u", path, offset, size)
         return self.read(path, size, offset)
 
-    def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:
+    def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:  # pylint: disable=too-many-statements
         """Get file."""
         if size < 0 or offset < 0:
             logging.error("Invalid read range: offset=%u size=%u", offset, size)
@@ -1334,6 +1339,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         self.__send(op)
         timeout = time.time() + 5
+        accepted_reply_generation = self.accepted_reply_generation
         if self.master is None:
             return None
         while not self.done and time.time() < timeout:
@@ -1346,11 +1352,21 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 if m is None:
                     self.idle_task()
                     continue
-                timeout = time.time() + 5
                 self.__receive_packet(m)
+                # A busy MAVLink link can carry FTP replies for other GCSes
+                # (or stale replies for an earlier request).  They must not
+                # turn this into an unbounded wait: only a reply accepted by
+                # the active transfer is progress for this deadline.
+                if accepted_reply_generation != self.accepted_reply_generation:
+                    timeout = time.time() + 5
+                    accepted_reply_generation = self.accepted_reply_generation
             except TypeError as e:
                 logging.error(e)
+            accepted_before_idle = self.accepted_reply_generation
             self.idle_task()
+            if accepted_before_idle != self.accepted_reply_generation:
+                timeout = time.time() + 5
+                accepted_reply_generation = self.accepted_reply_generation
             time.sleep(0.0001)
         logging.info("loop closed, gaps:%u, done: %u", len(self.read_gaps), self.done)
         if not self.done and self.__has_active_session():
@@ -1572,6 +1588,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             dt = max(time.time() - self.op_start, 1.0e-6)
             rate = (ofs / dt) / 1024.0
             publish_result = True
+            callback_consumed = self.callback is not None
             if self.callback is not None:
                 # The callback owns the downloaded data.  This is also used
                 # for virtual MAVFTP paths such as param.pck?withdefaults=1,
@@ -1595,6 +1612,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.done = True
             elif self.filename == "-":
                 self.fh.seek(0)
+
+            # The callback owns the in-memory result.  In particular, it may
+            # close its BytesIO handle, so there is no local publication work
+            # left to flush, stat, or otherwise perform on that handle.
+            if callback_consumed:
+                if self.callback_progress is not None:
+                    self.callback_progress = None
+                if self.callback_failure is None:
+                    self.__finished_status("downloading", self.filename, ofs)
+                self.__terminate_session()
+                self.read_complete = True
+                return True
 
             assert self.fh is not None  # noqa: S101
             # Final local-file I/O and publication share this cleanup boundary
@@ -2720,6 +2749,20 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return False
         return True
 
+    def __reply_addressed_to_local_client(self, m) -> bool:
+        """Return whether an FTP reply is addressed to this GCS.
+
+        Perform this routing check before decoding the FTP payload: malformed
+        traffic for another client is unrelated noise and must not abort our
+        receive loop.
+        """
+        if self.master is None:
+            return False
+        return (
+            m.target_system == self.master.source_system
+            and m.target_component == self.master.source_component
+        )
+
     def __reply_matches_active_request(self, op: FTP_OP) -> bool:
         """Return whether a reply can safely be dispatched to the active operation."""
         if op.req_opcode == OP_BurstReadFile:
@@ -2762,10 +2805,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             logging.error("FTP: Unexpected MAVLink message type %s", mtype)
             return MAVFTPReturn(operation_name, FtpError.Fail)
 
-        if (
-            m.target_system != self.master.source_system
-            or m.target_component != self.master.source_component
-        ):
+        if not self.__reply_addressed_to_local_client(m):
             logging.info(
                 "FTP: wrong MAVLink target %u component %u. Will discard message",
                 m.target_system,
@@ -2797,7 +2837,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.session,
                 )
             return MAVFTPReturn(operation_name, FtpError.InvalidSession)
-        self.last_op_time = now
         if not self._rx_loss_applied and self.__packet_lost("RX"):
             if self.ftp_settings.debug > 1:
                 logging.warning("FTP: dropping packet RX")
@@ -2807,6 +2846,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if self.ftp_settings.debug > 0:
                 logging.warning("FTP: stale reply. Will discard message: %s", op)
             return MAVFTPReturn(operation_name, FtpError.Fail)
+
+        # Only an active reply demonstrates progress; stale packets must not
+        # postpone retransmission of the request that is still outstanding.
+        self.last_op_time = now
+        self.accepted_reply_generation += 1
 
         if (
             self.last_op is not None
@@ -3149,7 +3193,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     type=["FILE_TRANSFER_PROTOCOL"], timeout=recv_timeout
                 )
                 if m is not None:
-                    if operation_name == "TerminateSession":
+                    # A recipient check does not require decoding the FTP
+                    # payload.  Do it first so malformed traffic for another
+                    # GCS cannot turn into a local InvalidDataSize result.
+                    if not self.__reply_addressed_to_local_client(m):
+                        self.__receive_packet(m)
+                    elif operation_name == "TerminateSession":
                         # The normal packet path validates target, session and
                         # sequence, and also lets a configured RX delay apply to
                         # termination replies. Stale transfer replies are
