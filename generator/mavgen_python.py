@@ -371,6 +371,40 @@ msg_name =  msg.msgname if hasattr(msg, "msgname") else msg.name"""
     )
 
 
+# enumeration entries which have been renamed in the message
+# definitions, as (old name, new name) pairs.  Whichever of the pair
+# is missing from the definitions is emitted as an alias of the other,
+# so code written against either side of the rename keeps working.
+# The alias is a module-level constant only; the enums dict keeps the
+# name used in the definitions.
+ENUM_ENTRY_RENAMES = [
+    # https://github.com/ArduPilot/mavlink/pull/521
+    ("MAV_TYPE_VTOL_DUOROTOR", "MAV_TYPE_VTOL_TAILSITTER_DUOROTOR"),
+    ("MAV_TYPE_VTOL_QUADROTOR", "MAV_TYPE_VTOL_TAILSITTER_QUADROTOR"),
+    ("MAV_TYPE_VTOL_RESERVED2", "MAV_TYPE_VTOL_FIXEDROTOR"),
+    ("MAV_TYPE_VTOL_RESERVED3", "MAV_TYPE_VTOL_TAILSITTER"),
+    ("MAV_TYPE_VTOL_RESERVED4", "MAV_TYPE_VTOL_TILTWING"),
+]
+
+
+def generate_enum_entry_aliases(outf, enums):
+    values = {}
+    for e in enums:
+        for entry in e.entry:
+            values[entry.name] = entry.value
+    aliases = []
+    for (old, new) in ENUM_ENTRY_RENAMES:
+        if old in values and new not in values:
+            aliases.append((new, old))
+        elif new in values and old not in values:
+            aliases.append((old, new))
+    if not aliases:
+        return
+    outf.write("\n# aliases for renamed enumeration entries\n")
+    for (alias, name) in aliases:
+        outf.write("%s = %s\n" % (alias, name))
+
+
 def generate_enums(outf, enums):
     print("Generating enums")
 
@@ -1200,6 +1234,7 @@ def generate(basename, xml):
     xml = xml[0].__dict__
     generate_preamble(outf, msgs, basename, filelist, xml)
     generate_enums(outf, enums)
+    generate_enum_entry_aliases(outf, enums)
     generate_message_ids(outf, msgs)
     generate_classes(outf, msgs, enums)
     generate_mavlink_class(outf, msgs, xml)
