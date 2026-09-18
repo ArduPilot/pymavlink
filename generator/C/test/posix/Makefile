@@ -64,5 +64,5 @@ test_diagnostics_be: test_diagnostics_be.c
 	$(CC) $(CFLAGS) -DNATIVE_BIG_ENDIAN -I../../include_v2.0 -I../../include_v2.0/all -o $@ test_diagnostics_be.c
 
 .PHONY: test_diagnostics_positive
-test_diagnostics_positive: test_diagnostics_positive.c check_diagnostics_fire.sh
+test_diagnostics_positive: test_diagnostics_positive.c check_diagnostics_fire.sh ../../include_v2.0/wip_deprecated_superseded/mavlink.h
 	./check_diagnostics_fire.sh $(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/wip_deprecated_superseded

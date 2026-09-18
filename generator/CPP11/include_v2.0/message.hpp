@@ -71,6 +71,24 @@
 #define MAVLINK_MSG_TYPE_SUPERSEDED
 #endif
 
+/*
+  Generated gtestsuite.hpp instantiates every message type, including
+  flagged ones, to round-trip test it - that self-reference must not
+  itself warn/error under MAVLINK_MSG_TYPE_DEPRECATED/_SUPERSEDED, the
+  same reasoning and mechanism as MAVLINK_DEPRECATED_CALL_BEGIN/END in
+  protocol.h. This only silences the diagnostic for that one internal
+  use; a real caller instantiating the type directly still gets it.
+*/
+#if defined(__GNUC__) || defined(__clang__)
+# define MAVLINK_DEPRECATED_CALL_BEGIN \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+# define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
+#else
+# define MAVLINK_DEPRECATED_CALL_BEGIN
+# define MAVLINK_DEPRECATED_CALL_END
+#endif
+
 #define MAVLINK_USE_CXX_NAMESPACE	// put C-lib into namespace
 #include "mavlink_types.h"
 

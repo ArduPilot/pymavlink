@@ -121,6 +121,17 @@ def generate_message_hpp(directory, m):
         m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_SUPERSEDED '
     else:
         m.MSG_ATTRIBUTE = ''
+    # generate_gtestsuite_hpp() below instantiates every message type,
+    # including flagged ones, to round-trip test it; that self-reference
+    # must not itself be diagnosed, so it's wrapped in these two - see
+    # message.hpp. Gated on a non-empty MSG_ATTRIBUTE so gtestsuite.hpp
+    # stays unchanged for the common case of no flagged messages.
+    if m.MSG_ATTRIBUTE:
+        m.CALL_GUARD_BEGIN = '    MAVLINK_DEPRECATED_CALL_BEGIN\n'
+        m.CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n'
+    else:
+        m.CALL_GUARD_BEGIN = ''
+        m.CALL_GUARD_END = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 // MESSAGE ${name} support class
@@ -214,7 +225,7 @@ using namespace mavlink;
 ${{message:
 TEST(${dialect_name}, ${name})
 {
-    mavlink::mavlink_message_t msg;
+${CALL_GUARD_BEGIN}    mavlink::mavlink_message_t msg;
     mavlink::MsgMap map1(msg);
     mavlink::MsgMap map2(msg);
 
@@ -237,12 +248,13 @@ ${{fields:    packet_in.${name} = ${cxx_test_value};
 
 ${{fields:    EXPECT_EQ(packet1.${name}, packet2.${name});
 }}
+${CALL_GUARD_END}
 }
 
 #ifdef TEST_INTEROP
 TEST(${dialect_name}_interop, ${name})
 {
-    mavlink_message_t msg;
+${CALL_GUARD_BEGIN}    mavlink_message_t msg;
 
     // to get nice print
     memset(&msg, 0, sizeof(msg));
@@ -272,6 +284,7 @@ ${{fields:    EXPECT_EQ(packet_in.${name}, packet2.${name});
 #ifdef PRINT_MSG
     PRINT_MSG(msg);
 #endif
+${CALL_GUARD_END}
 }
 #endif
 }}

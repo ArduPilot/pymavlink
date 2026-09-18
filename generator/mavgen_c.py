@@ -513,7 +513,7 @@ ${{include_list:#include "../${base}/testsuite.h"
 ${{message:
 static void mavlink_test_${name_lower}(uint8_t system_id, uint8_t component_id, mavlink_message_t *last_msg)
 {
-#ifdef MAVLINK_STATUS_FLAG_OUT_MAVLINK1
+${CALL_GUARD_BEGIN}#ifdef MAVLINK_STATUS_FLAG_OUT_MAVLINK1
     mavlink_status_t *status = mavlink_get_channel_status(MAVLINK_COMM_0);
         if ((status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) && MAVLINK_MSG_ID_${name} >= 256) {
             return;
@@ -569,6 +569,7 @@ static void mavlink_test_${name_lower}(uint8_t system_id, uint8_t component_id, 
     MAVLINK_ASSERT(mavlink_get_message_info_by_name("${name}") != NULL);
     MAVLINK_ASSERT(mavlink_get_message_info_by_id(MAVLINK_MSG_ID_${name}) != NULL);
 #endif
+${CALL_GUARD_END}
 }
 }}
 
