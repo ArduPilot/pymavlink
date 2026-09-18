@@ -79,14 +79,21 @@
   protocol.h. This only silences the diagnostic for that one internal
   use; a real caller instantiating the type directly still gets it.
 */
-#if defined(__GNUC__) || defined(__clang__)
-# define MAVLINK_DEPRECATED_CALL_BEGIN \
+#ifndef MAVLINK_DEPRECATED_CALL_BEGIN
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_BEGIN \
     _Pragma("GCC diagnostic push") \
     _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
-# define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
-#else
-# define MAVLINK_DEPRECATED_CALL_BEGIN
-# define MAVLINK_DEPRECATED_CALL_END
+# else
+#  define MAVLINK_DEPRECATED_CALL_BEGIN
+# endif
+#endif
+#ifndef MAVLINK_DEPRECATED_CALL_END
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
+# else
+#  define MAVLINK_DEPRECATED_CALL_END
+# endif
 #endif
 
 #define MAVLINK_USE_CXX_NAMESPACE	// put C-lib into namespace

@@ -105,14 +105,21 @@
   caller of _pack()/_encode()/_send()/_get_<field>() still gets the
   diagnostic as normal.
 */
-#if defined(__GNUC__) || defined(__clang__)
-# define MAVLINK_DEPRECATED_CALL_BEGIN \
+#ifndef MAVLINK_DEPRECATED_CALL_BEGIN
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_BEGIN \
     _Pragma("GCC diagnostic push") \
     _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
-# define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
-#else
-# define MAVLINK_DEPRECATED_CALL_BEGIN
-# define MAVLINK_DEPRECATED_CALL_END
+# else
+#  define MAVLINK_DEPRECATED_CALL_BEGIN
+# endif
+#endif
+#ifndef MAVLINK_DEPRECATED_CALL_END
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
+# else
+#  define MAVLINK_DEPRECATED_CALL_END
+# endif
 #endif
 
 /* option to provide alternative implementation of mavlink_helpers.h */
