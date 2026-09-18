@@ -128,10 +128,34 @@ def generate_message_hpp(directory, m):
     # stays unchanged for the common case of no flagged messages.
     if m.MSG_ATTRIBUTE:
         m.CALL_GUARD_BEGIN = '    MAVLINK_DEPRECATED_CALL_BEGIN\n'
-        m.CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n'
     else:
         m.CALL_GUARD_BEGIN = ''
-        m.CALL_GUARD_END = ''
+    # gtestsuite.hpp is a single ${{testable_message: ...}} repetition, and
+    # a raw "}}" anywhere inside it - whether from a genuine nested
+    # repetition closing or just an incidental ${VAR} followed by a
+    # literal '}' - confuses the template parser's nested-repetition
+    # bracket matching (see mavgen_c.py's generate_testsuite_h() for the
+    # same issue). Two different fixes for the two closing points below:
+    #  - the first TEST()'s close is NOT adjacent to the outer
+    #    repetition's own closing '}}' (the TEST_INTEROP block follows
+    #    it), so a spurious "}}" there would prematurely end the whole
+    #    ${{testable_message: ...}} scan. Fix: embed the closing brace
+    #    *and* the blank line that already followed it in the value, so
+    #    the raw template has no brace immediately after ${CALL_GUARD_END}
+    #    at all (next char is '#', not '}').
+    #  - the last TEST_INTEROP one's close *is* immediately before that
+    #    same outer '}}', which has to stay as literal template text for
+    #    the parser to find it - so only the function-closing brace and
+    #    '#endif' are embedded here, leaving the raw template text as
+    #    "${VAR}}}" (three '}' with no separator), which is exactly the
+    #    pattern the parser's ignore_end_token logic does handle
+    #    correctly (same as mavgen_c.py's testsuite.h fix).
+    if m.MSG_ATTRIBUTE:
+        m.CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n}\n\n'
+        m.TEST_INTEROP_CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n}\n#endif\n'
+    else:
+        m.CALL_GUARD_END = '}\n\n'
+        m.TEST_INTEROP_CALL_GUARD_END = '}\n#endif\n'
     f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 // MESSAGE ${name} support class
@@ -204,6 +228,15 @@ ${{ordered_fields:        map >> ${name};${ser_whitespace}// offset: ${wire_offs
 
 def generate_gtestsuite_hpp(directory, xml):
     '''generate gtestsuite.hpp per XML file'''
+    # WIP messages are excluded from the round-trip self-test: unlike
+    # deprecated/superseded (backed by the pragma-suppressible
+    # -Wdeprecated-declarations), MAVLINK_MSG_TYPE_WIP is documented to use
+    # unavailable(), which neither GCC nor clang can silence with a
+    # diagnostic pragma - so there is no way to instantiate a WIP struct
+    # here without the opt-in diagnostic firing on the library's own
+    # generated code. WIP also, by definition, has no wire format stable
+    # enough to be worth round-trip testing yet.
+    xml.testable_message = [m for m in xml.message if not m.wip]
     f = open(os.path.join(directory, "gtestsuite.hpp"), mode='w', encoding='utf-8')
     t.write(f, '''
 /** @file
@@ -222,7 +255,7 @@ using namespace mavlink;
 #include "mavlink.h"
 #endif
 
-${{message:
+${{testable_message:
 TEST(${dialect_name}, ${name})
 {
 ${CALL_GUARD_BEGIN}    mavlink::mavlink_message_t msg;
@@ -248,10 +281,7 @@ ${{fields:    packet_in.${name} = ${cxx_test_value};
 
 ${{fields:    EXPECT_EQ(packet1.${name}, packet2.${name});
 }}
-${CALL_GUARD_END}
-}
-
-#ifdef TEST_INTEROP
+${CALL_GUARD_END}#ifdef TEST_INTEROP
 TEST(${dialect_name}_interop, ${name})
 {
 ${CALL_GUARD_BEGIN}    mavlink_message_t msg;
@@ -284,10 +314,7 @@ ${{fields:    EXPECT_EQ(packet_in.${name}, packet2.${name});
 #ifdef PRINT_MSG
     PRINT_MSG(msg);
 #endif
-${CALL_GUARD_END}
-}
-#endif
-}}
+${TEST_INTEROP_CALL_GUARD_END}}}
 ''', xml)
 
     f.close()

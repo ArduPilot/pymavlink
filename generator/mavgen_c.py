@@ -181,6 +181,21 @@ def generate_message_h(directory, m):
     else:
         m.CALL_GUARD_BEGIN = ''
         m.CALL_GUARD_END = ''
+    # generate_testsuite_h() below is a single ${{message: ...}} repetition,
+    # so its per-message block's closing brace has to sit inside this value
+    # rather than as separate template text immediately after ${...}: the
+    # template parser mishandles a literal '}' immediately following a
+    # ${VAR} token when it's also immediately followed by the repetition's
+    # own '}}' (three '}' in a row with no separator confuses its nested-
+    # repetition bracket matching) - see generate_message_h()'s CALL_GUARD_*
+    # above, which doesn't have this problem since it isn't inside a
+    # repetition. Embedding the brace in the substituted value instead
+    # keeps the raw template text as "${VAR}}}", which is exactly the
+    # pattern the parser's ignore_end_token logic does handle correctly.
+    if m.MSG_ATTRIBUTE:
+        m.TESTSUITE_CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n}\n'
+    else:
+        m.TESTSUITE_CALL_GUARD_END = '}\n'
     f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 #pragma once
@@ -569,9 +584,7 @@ ${CALL_GUARD_BEGIN}#ifdef MAVLINK_STATUS_FLAG_OUT_MAVLINK1
     MAVLINK_ASSERT(mavlink_get_message_info_by_name("${name}") != NULL);
     MAVLINK_ASSERT(mavlink_get_message_info_by_id(MAVLINK_MSG_ID_${name}) != NULL);
 #endif
-${CALL_GUARD_END}
-}
-}}
+${TESTSUITE_CALL_GUARD_END}}}
 
 static void mavlink_test_${basename}(uint8_t system_id, uint8_t component_id, mavlink_message_t *last_msg)
 {
