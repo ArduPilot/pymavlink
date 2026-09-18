@@ -4,7 +4,7 @@
 #include <algorithm>
 #ifdef FREEBSD
 #include <sys/endian.h>
-#elif __APPLE__
+#elif defined(__APPLE__) && __APPLE__
 #include <machine/endian.h>
 #else
 #include <endian.h>
