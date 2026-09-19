@@ -118,7 +118,7 @@ ${{enum:
 #define HAVE_ENUM_${name}
 typedef enum ${name}
 {
-${{entry:   ${name}=${value}, /* ${description} |${{param:${description}| }} */
+${{entry:   ${name}${ENTRY_ATTRIBUTE}=${value}, /* ${description} |${{param:${description}| }} */
 }}
 } ${name};
 #endif
@@ -165,8 +165,37 @@ def generate_message_h(directory, m):
     '''generate per-message header for a XML file'''
     if m.wip:
         m.MSG_ATTRIBUTE = 'MAVLINK_WIP\n'
+    elif m.deprecated:
+        m.MSG_ATTRIBUTE = 'MAVLINK_DEPRECATED\n'
+    elif m.superseded:
+        m.MSG_ATTRIBUTE = 'MAVLINK_SUPERSEDED\n'
     else:
         m.MSG_ATTRIBUTE = ''
+    # only emit the MAVLINK_DEPRECATED_CALL_BEGIN/END pragma pair around the
+    # self-referential calls below for flagged messages, so headers stay
+    # byte-identical to the unflagged-message case for anyone who never
+    # opts into these diagnostics
+    if m.MSG_ATTRIBUTE:
+        m.CALL_GUARD_BEGIN = '    MAVLINK_DEPRECATED_CALL_BEGIN\n'
+        m.CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n'
+    else:
+        m.CALL_GUARD_BEGIN = ''
+        m.CALL_GUARD_END = ''
+    # generate_testsuite_h() below is a single ${{message: ...}} repetition,
+    # so its per-message block's closing brace has to sit inside this value
+    # rather than as separate template text immediately after ${...}: the
+    # template parser mishandles a literal '}' immediately following a
+    # ${VAR} token when it's also immediately followed by the repetition's
+    # own '}}' (three '}' in a row with no separator confuses its nested-
+    # repetition bracket matching) - see generate_message_h()'s CALL_GUARD_*
+    # above, which doesn't have this problem since it isn't inside a
+    # repetition. Embedding the brace in the substituted value instead
+    # keeps the raw template text as "${VAR}}}", which is exactly the
+    # pattern the parser's ignore_end_token logic does handle correctly.
+    if m.MSG_ATTRIBUTE:
+        m.TESTSUITE_CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n}\n'
+    else:
+        m.TESTSUITE_CALL_GUARD_END = '}\n'
     f = open(os.path.join(directory, 'mavlink_msg_%s.h' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 #pragma once
@@ -254,7 +283,7 @@ ${{arg_fields: * @param ${name} ${units} ${description}
 }}
  * @return length of the message in bytes (excluding serial stream start sign)
  */
-static inline uint16_t mavlink_msg_${name_lower}_pack_status(uint8_t system_id, uint8_t component_id, mavlink_status_t *_status, mavlink_message_t* msg,
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_pack_status(uint8_t system_id, uint8_t component_id, mavlink_status_t *_status, mavlink_message_t* msg,
                               ${{arg_fields: ${array_const}${type} ${array_prefix}${name},}})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
@@ -325,8 +354,8 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
-    return mavlink_msg_${name_lower}_pack(system_id, component_id, msg,${{arg_fields: ${name_lower}->${name},}});
-}
+${CALL_GUARD_BEGIN}    return mavlink_msg_${name_lower}_pack(system_id, component_id, msg,${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}}
 
 /**
  * @brief Encode a ${name_lower} struct on a channel
@@ -339,8 +368,8 @@ ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode(uint8_t 
  */
 ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
-    return mavlink_msg_${name_lower}_pack_chan(system_id, component_id, chan, msg,${{arg_fields: ${name_lower}->${name},}});
-}
+${CALL_GUARD_BEGIN}    return mavlink_msg_${name_lower}_pack_chan(system_id, component_id, chan, msg,${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}}
 
 /**
  * @brief Encode a ${name_lower} struct with provided status structure
@@ -351,10 +380,10 @@ ${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_chan(uin
  * @param msg The MAVLink message to compress the data into
  * @param ${name_lower} C-struct to read the message contents from
  */
-static inline uint16_t mavlink_msg_${name_lower}_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
+${MSG_ATTRIBUTE}static inline uint16_t mavlink_msg_${name_lower}_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_${name_lower}_t* ${name_lower})
 {
-    return mavlink_msg_${name_lower}_pack_status(system_id, component_id, _status, msg, ${{arg_fields: ${name_lower}->${name},}});
-}
+${CALL_GUARD_BEGIN}    return mavlink_msg_${name_lower}_pack_status(system_id, component_id, _status, msg, ${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}}
 
 /**
  * @brief Send a ${name_lower} message
@@ -392,8 +421,8 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
 ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_struct(mavlink_channel_t chan, const mavlink_${name_lower}_t* ${name_lower})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_${name_lower}_send(chan,${{arg_fields: ${name_lower}->${name},}});
-#else
+${CALL_GUARD_BEGIN}    mavlink_msg_${name_lower}_send(chan,${{arg_fields: ${name_lower}->${name},}});
+${CALL_GUARD_END}#else
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_${name}, (const char *)${name_lower}, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC);
 #endif
 }
@@ -451,9 +480,9 @@ ${MSG_ATTRIBUTE}static inline ${return_type} mavlink_msg_${name_lower}_get_${nam
 ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_decode(const mavlink_message_t* msg, mavlink_${name_lower}_t* ${name_lower})
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${decode_right});
+${CALL_GUARD_BEGIN}${{ordered_fields:    ${decode_left}mavlink_msg_${name_lower}_get_${name}(msg${decode_right});
 }}
-#else
+${CALL_GUARD_END}#else
         uint8_t len = msg->len < MAVLINK_MSG_ID_${name}_LEN? msg->len : MAVLINK_MSG_ID_${name}_LEN;
         memset(${name_lower}, 0, MAVLINK_MSG_ID_${name}_LEN);
     memcpy(${name_lower}, _MAV_PAYLOAD(msg), len);
@@ -499,7 +528,7 @@ ${{include_list:#include "../${base}/testsuite.h"
 ${{message:
 static void mavlink_test_${name_lower}(uint8_t system_id, uint8_t component_id, mavlink_message_t *last_msg)
 {
-#ifdef MAVLINK_STATUS_FLAG_OUT_MAVLINK1
+${CALL_GUARD_BEGIN}#ifdef MAVLINK_STATUS_FLAG_OUT_MAVLINK1
     mavlink_status_t *status = mavlink_get_channel_status(MAVLINK_COMM_0);
         if ((status->flags & MAVLINK_STATUS_FLAG_OUT_MAVLINK1) && MAVLINK_MSG_ID_${name} >= 256) {
             return;
@@ -555,8 +584,7 @@ static void mavlink_test_${name_lower}(uint8_t system_id, uint8_t component_id, 
     MAVLINK_ASSERT(mavlink_get_message_info_by_name("${name}") != NULL);
     MAVLINK_ASSERT(mavlink_get_message_info_by_id(MAVLINK_MSG_ID_${name}) != NULL);
 #endif
-}
-}}
+${TESTSUITE_CALL_GUARD_END}}}
 
 static void mavlink_test_${basename}(uint8_t system_id, uint8_t component_id, mavlink_message_t *last_msg)
 {
@@ -739,6 +767,18 @@ def generate_one(basename, xml):
                 f.putname = f.name
             else:
                 f.putname = f.const_value
+
+    # add attribute for enum/MAV_CMD entries flagged wip/deprecated/superseded
+    for enum in xml.enum:
+        for entry in enum.entry:
+            if entry.wip:
+                entry.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_WIP'
+            elif entry.deprecated:
+                entry.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_DEPRECATED'
+            elif entry.superseded:
+                entry.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_SUPERSEDED'
+            else:
+                entry.ENTRY_ATTRIBUTE = ''
 
     generate_mavlink_h(directory, xml)
     generate_version_h(directory, xml)

@@ -12,6 +12,111 @@
 #define MAVLINK_HELPER static inline
 #endif
 
+/*
+  Opt-in compile-time diagnostics for MAVLink messages and MAV_CMD/enum
+  entries flagged in the XML as work-in-progress, deprecated or superseded.
+  Kept in sync with the equivalent block in protocol.h (not #include-d here,
+  since its typed declarations assume the un-namespaced C build). See
+  protocol.h for usage/severity guidance. These are function-only macros:
+  they never annotate the C++11 message struct itself (see
+  MAVLINK_MSG_TYPE_* below for that), but they do still apply to the plain
+  C pack/encode/send/decode helper functions that TEST_INTEROP builds pull
+  in from mavlink.h alongside this header.
+*/
+#ifndef MAVLINK_WIP
+#define MAVLINK_WIP
+#endif
+#ifndef MAVLINK_DEPRECATED
+#define MAVLINK_DEPRECATED
+#endif
+#ifndef MAVLINK_SUPERSEDED
+#define MAVLINK_SUPERSEDED
+#endif
+#ifndef MAVLINK_ENUM_WIP
+#define MAVLINK_ENUM_WIP
+#endif
+#ifndef MAVLINK_ENUM_DEPRECATED
+#define MAVLINK_ENUM_DEPRECATED
+#endif
+#ifndef MAVLINK_ENUM_SUPERSEDED
+#define MAVLINK_ENUM_SUPERSEDED
+#endif
+
+/*
+  Type-only counterparts of the three MAVLINK_* macros above, applied to
+  the C++11 message struct itself (e.g. "struct MAVLINK_MSG_TYPE_WIP Ping
+  : mavlink::Message"). A struct/class is not a function, so GCC's
+  function-only warning()/error() attributes cannot be used here -- as
+  with MAVLINK_ENUM_WIP/DEPRECATED/SUPERSEDED, only deprecated/unavailable
+  (or the standard [[deprecated("...")]]) are valid, e.g.:
+
+    // unavailable() requires clang or GCC >= 12 (see protocol.h): guard it,
+    // or just use deprecated() unconditionally if you don't need the harder
+    // failure and want to support older GCC too.
+    #if defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)
+    #define MAVLINK_MSG_TYPE_WIP         __attribute__((unavailable("MAVLink WIP message used")))
+    #else
+    #define MAVLINK_MSG_TYPE_WIP         __attribute__((deprecated("MAVLink WIP message used")))
+    #endif
+    #define MAVLINK_MSG_TYPE_DEPRECATED  __attribute__((deprecated("MAVLink deprecated message used")))
+    #define MAVLINK_MSG_TYPE_SUPERSEDED  // leave undefined/empty: still fully supported
+*/
+#ifndef MAVLINK_MSG_TYPE_WIP
+#define MAVLINK_MSG_TYPE_WIP
+#endif
+#ifndef MAVLINK_MSG_TYPE_DEPRECATED
+#define MAVLINK_MSG_TYPE_DEPRECATED
+#endif
+#ifndef MAVLINK_MSG_TYPE_SUPERSEDED
+#define MAVLINK_MSG_TYPE_SUPERSEDED
+#endif
+
+/*
+  Generated gtestsuite.hpp instantiates every message type, including
+  flagged ones, to round-trip test it - that self-reference must not
+  itself warn/error under MAVLINK_MSG_TYPE_DEPRECATED/_SUPERSEDED, the
+  same reasoning and mechanism as MAVLINK_DEPRECATED_CALL_BEGIN/END in
+  protocol.h. This only silences the diagnostic for that one internal
+  use; a real caller instantiating the type directly still gets it.
+*/
+#ifndef MAVLINK_DEPRECATED_CALL_BEGIN
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_BEGIN \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+# else
+#  define MAVLINK_DEPRECATED_CALL_BEGIN
+# endif
+#endif
+#ifndef MAVLINK_DEPRECATED_CALL_END
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
+# else
+#  define MAVLINK_DEPRECATED_CALL_END
+# endif
+#endif
+
+/*
+  WIP is different from deprecated/superseded above: MAVLINK_MSG_TYPE_WIP
+  is documented to use unavailable() (or error()'s C++ equivalent isn't
+  available, so unavailable() is the closest strict option), and unlike
+  deprecated(), neither GCC nor clang lets a diagnostic pragma silence
+  unavailable() - MAVLINK_DEPRECATED_CALL_BEGIN/END above cannot make a
+  WIP struct's self-test instantiation safe the way they do for
+  deprecated/superseded. deprecated() on MAVLINK_MSG_TYPE_WIP (like the
+  GCC < 12 fallback documented above) is still pragma-suppressible and
+  needs nothing extra - the suite builds clean and all tests still run.
+  So if, and only if, you both (a) define MAVLINK_MSG_TYPE_WIP to
+  unavailable() (or any other form a diagnostic pragma can't silence)
+  and (b) build the generated gtestsuite.hpp, define
+  MAVLINK_TESTSUITE_SKIP_WIP too, to drop the round-trip/interop tests
+  for WIP-flagged messages - there is no way to keep them and build
+  cleanly in that specific combination. Nothing needs to be #defined here:
+  gtestsuite.hpp only checks whether you've defined it, so its absence
+  (the default) keeps full test coverage, matching every other
+  generated header's default of "nothing changes until you opt in".
+*/
+
 #define MAVLINK_USE_CXX_NAMESPACE	// put C-lib into namespace
 #include "mavlink_types.h"
 

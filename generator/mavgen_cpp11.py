@@ -87,7 +87,7 @@ ${{enum:
 /** @brief ${description} */
 enum class ${name}${cxx_underlying_type}
 {
-${{entry_flt:    ${name_trim}=${value}, /* ${description} |${{param:${description}| }} */
+${{entry_flt:    ${name_trim}${ENTRY_ATTRIBUTE}=${value}, /* ${description} |${{param:${description}| }} */
 }}
 };
 
@@ -113,6 +113,71 @@ ${{include_list:#include "../${base}/${base}.hpp"
 
 def generate_message_hpp(directory, m):
     '''generate per-message header for a XML file'''
+    if m.wip:
+        m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_WIP '
+    elif m.deprecated:
+        m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_DEPRECATED '
+    elif m.superseded:
+        m.MSG_ATTRIBUTE = 'MAVLINK_MSG_TYPE_SUPERSEDED '
+    else:
+        m.MSG_ATTRIBUTE = ''
+    # generate_gtestsuite_hpp() below instantiates every message type,
+    # including flagged ones, to round-trip test it; that self-reference
+    # must not itself be diagnosed, so it's wrapped in these two - see
+    # message.hpp. Gated on a non-empty MSG_ATTRIBUTE so gtestsuite.hpp
+    # stays unchanged for the common case of no flagged messages.
+    if m.MSG_ATTRIBUTE:
+        m.CALL_GUARD_BEGIN = '    MAVLINK_DEPRECATED_CALL_BEGIN\n'
+    else:
+        m.CALL_GUARD_BEGIN = ''
+    # gtestsuite.hpp is a single ${{message: ...}} repetition, and
+    # a raw "}}" anywhere inside it - whether from a genuine nested
+    # repetition closing or just an incidental ${VAR} followed by a
+    # literal '}' - confuses the template parser's nested-repetition
+    # bracket matching (see mavgen_c.py's generate_testsuite_h() for the
+    # same issue). Two different fixes for the two closing points below:
+    #  - the first TEST()'s close is NOT adjacent to the outer
+    #    repetition's own closing '}}' (the TEST_INTEROP block follows
+    #    it), so a spurious "}}" there would prematurely end the whole
+    #    ${{message: ...}} scan. Fix: embed the closing brace
+    #    *and* the blank line that already followed it in the value, so
+    #    the raw template has no brace immediately after ${CALL_GUARD_END}
+    #    at all (next char is '#', not '}').
+    #  - the last TEST_INTEROP one's close *is* immediately before that
+    #    same outer '}}', which has to stay as literal template text for
+    #    the parser to find it - so only the function-closing brace and
+    #    '#endif' are embedded here, leaving the raw template text as
+    #    "${VAR}}}" (three '}' with no separator), which is exactly the
+    #    pattern the parser's ignore_end_token logic does handle
+    #    correctly (same as mavgen_c.py's testsuite.h fix).
+    if m.MSG_ATTRIBUTE:
+        m.CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n}\n\n'
+        m.TEST_INTEROP_CALL_GUARD_END = '    MAVLINK_DEPRECATED_CALL_END\n}\n#endif\n'
+    else:
+        m.CALL_GUARD_END = '}\n\n'
+        m.TEST_INTEROP_CALL_GUARD_END = '}\n#endif\n'
+    # WIP is different from deprecated/superseded: MAVLINK_MSG_TYPE_WIP is
+    # documented to use unavailable(), which neither GCC nor clang can
+    # silence with a diagnostic pragma (confirmed: GCC rejects
+    # -Wunavailable-declarations as an unknown pragma option, clang still
+    # diagnoses it even inside push/ignore/pop) - so CALL_GUARD_BEGIN/END
+    # above cannot make a WIP struct instantiation safe the way they do
+    # for deprecated/superseded. But MAVLINK_MSG_TYPE_WIP defaults to a
+    # no-op (see message.hpp) - nobody who hasn't opted in is affected -
+    # so unlike deprecated/superseded this must not unconditionally drop
+    # the test at generation time either, or every consumer who never
+    # touches this feature silently loses WIP test coverage (this was
+    # tried and reverted: it removed a test that a mutation check proved
+    # was catching real (de)serialization bugs). Instead wrap the whole
+    # per-message block in a *consumer*-controlled, off-by-default
+    # preprocessor guard, documented in message.hpp: only someone who
+    # both opts into the unavailable()/error() form of WIP *and* builds
+    # this generated testsuite needs to also opt out of the WIP tests.
+    if m.wip:
+        m.WIP_TEST_GUARD_BEGIN = '#ifndef MAVLINK_TESTSUITE_SKIP_WIP\n'
+        m.TEST_INTEROP_CALL_GUARD_END += '#endif // MAVLINK_TESTSUITE_SKIP_WIP\n'
+    else:
+        m.WIP_TEST_GUARD_BEGIN = ''
     f = open(os.path.join(directory, 'mavlink_msg_%s.hpp' % m.name_lower), mode='w', encoding='utf-8')
     t.write(f, '''
 // MESSAGE ${name} support class
@@ -128,7 +193,7 @@ namespace msg {
  *
  * ${description}
  */
-struct ${name} : mavlink::Message {
+struct ${MSG_ATTRIBUTE}${name} : mavlink::Message {
     static constexpr msgid_t MSG_ID = ${id};
     static constexpr size_t LENGTH = ${wire_length};
     static constexpr size_t MIN_LENGTH = ${wire_min_length};
@@ -204,9 +269,9 @@ using namespace mavlink;
 #endif
 
 ${{message:
-TEST(${dialect_name}, ${name})
+${WIP_TEST_GUARD_BEGIN}TEST(${dialect_name}, ${name})
 {
-    mavlink::mavlink_message_t msg;
+${CALL_GUARD_BEGIN}    mavlink::mavlink_message_t msg;
     mavlink::MsgMap map1(msg);
     mavlink::MsgMap map2(msg);
 
@@ -229,12 +294,10 @@ ${{fields:    packet_in.${name} = ${cxx_test_value};
 
 ${{fields:    EXPECT_EQ(packet1.${name}, packet2.${name});
 }}
-}
-
-#ifdef TEST_INTEROP
+${CALL_GUARD_END}#ifdef TEST_INTEROP
 TEST(${dialect_name}_interop, ${name})
 {
-    mavlink_message_t msg;
+${CALL_GUARD_BEGIN}    mavlink_message_t msg;
 
     // to get nice print
     memset(&msg, 0, sizeof(msg));
@@ -264,9 +327,7 @@ ${{fields:    EXPECT_EQ(packet_in.${name}, packet2.${name});
 #ifdef PRINT_MSG
     PRINT_MSG(msg);
 #endif
-}
-#endif
-}}
+${TEST_INTEROP_CALL_GUARD_END}}}
 ''', xml)
 
     f.close()
@@ -429,6 +490,14 @@ def generate_one(basename, xml):
         e.entry_flt = []
         for f in e.entry:
             f.name_trim = enum_remove_prefix(e.name, f.name)
+            if f.wip:
+                f.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_WIP'
+            elif f.deprecated:
+                f.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_DEPRECATED'
+            elif f.superseded:
+                f.ENTRY_ATTRIBUTE = ' MAVLINK_ENUM_SUPERSEDED'
+            else:
+                f.ENTRY_ATTRIBUTE = ''
             if not f.end_marker:
                 e.entry_flt.append(f)
                 # XXX check all values in acceptable range

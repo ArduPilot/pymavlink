@@ -34,11 +34,92 @@
 #endif
 
 /*
-  to get warnings when any WIP message is used, add this:
-  #define MAVLINK_WIP __attribute__((warning("MAVLink work in progress")))
+  Opt-in compile-time diagnostics for MAVLink messages and MAV_CMD/enum
+  entries flagged in the XML as work-in-progress, deprecated or superseded.
+  Each macro defaults to a no-op; define it before including mavlink.h to
+  get a diagnostic, and pick the attribute that matches how strict you want
+  that category to be, e.g.:
+
+    #define MAVLINK_WIP              __attribute__((error("MAVLink WIP message used")))
+    #define MAVLINK_DEPRECATED       __attribute__((deprecated("MAVLink deprecated message used")))
+    #define MAVLINK_SUPERSEDED       // leave undefined/empty: still fully supported
+
+    // unavailable() requires clang or GCC >= 12 (see note below): guard it,
+    // or just use deprecated() unconditionally if you don't need the harder
+    // failure and want to support older GCC too.
+    #if defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)
+    #define MAVLINK_ENUM_WIP         __attribute__((unavailable("MAVLink WIP command/enum entry used")))
+    #else
+    #define MAVLINK_ENUM_WIP         __attribute__((deprecated("MAVLink WIP command/enum entry used")))
+    #endif
+    #define MAVLINK_ENUM_DEPRECATED  __attribute__((deprecated("MAVLink deprecated command/enum entry used")))
+    #define MAVLINK_ENUM_SUPERSEDED  // leave undefined/empty: still fully supported
+
+  Note: on enum entries only deprecated/unavailable are valid attributes;
+  GCC's function-only warning()/error() cannot be applied to enumerators.
+  The same restriction applies to the C++11 message struct type emitted by
+  the C++11 generator: see MAVLINK_MSG_TYPE_WIP/DEPRECATED/SUPERSEDED in
+  message.hpp, which are a separate, type-only set of macros for that
+  purpose (this MAVLINK_WIP/DEPRECATED/SUPERSEDED set stays function-only
+  and still backs the plain-C helper functions used by C++11 interop
+  builds).
+
+  Note: unavailable() requires clang or GCC >= 12. On an older GCC (e.g.
+  GCC 11 on Ubuntu 22.04, this project's own CI baseline) it is not simply
+  inert: GCC emits "attribute directive ignored" for every entry/type so
+  flagged, at declaration time, independent of -Werror and of whether the
+  flagged entry is ever used - so a -Werror build fails on #include alone,
+  and a non-Werror build gets a diagnostic that never actually fires. The
+  guarded MAVLINK_ENUM_WIP example above (and MAVLINK_MSG_TYPE_WIP in
+  message.hpp) show the pattern the generator's own tests use.
 */
 #ifndef MAVLINK_WIP
 #define MAVLINK_WIP
+#endif
+#ifndef MAVLINK_DEPRECATED
+#define MAVLINK_DEPRECATED
+#endif
+#ifndef MAVLINK_SUPERSEDED
+#define MAVLINK_SUPERSEDED
+#endif
+#ifndef MAVLINK_ENUM_WIP
+#define MAVLINK_ENUM_WIP
+#endif
+#ifndef MAVLINK_ENUM_DEPRECATED
+#define MAVLINK_ENUM_DEPRECATED
+#endif
+#ifndef MAVLINK_ENUM_SUPERSEDED
+#define MAVLINK_ENUM_SUPERSEDED
+#endif
+
+/*
+  Five call sites below delegate to another wrapper that carries the same
+  attribute: _encode()/_encode_chan()/_encode_status() each call the
+  matching _pack*(), _send_struct() calls _send() (byte-swap/unaligned
+  build only), and _decode() calls each field's _get_<field>() (same
+  build). That internal call must not itself warn/error under
+  MAVLINK_DEPRECATED/MAVLINK_SUPERSEDED (GCC, unlike clang, does not
+  suppress -Wdeprecated-declarations just because the calling function
+  carries the same attribute), so each is wrapped with these two macros.
+  This only silences the diagnostic for that one internal call; a real
+  caller of _pack()/_encode()/_send()/_get_<field>() still gets the
+  diagnostic as normal.
+*/
+#ifndef MAVLINK_DEPRECATED_CALL_BEGIN
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_BEGIN \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+# else
+#  define MAVLINK_DEPRECATED_CALL_BEGIN
+# endif
+#endif
+#ifndef MAVLINK_DEPRECATED_CALL_END
+# if defined(__GNUC__) || defined(__clang__)
+#  define MAVLINK_DEPRECATED_CALL_END _Pragma("GCC diagnostic pop")
+# else
+#  define MAVLINK_DEPRECATED_CALL_END
+# endif
 #endif
 
 /* option to provide alternative implementation of mavlink_helpers.h */
