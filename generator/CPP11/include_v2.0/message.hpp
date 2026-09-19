@@ -103,12 +103,15 @@
   deprecated(), neither GCC nor clang lets a diagnostic pragma silence
   unavailable() - MAVLINK_DEPRECATED_CALL_BEGIN/END above cannot make a
   WIP struct's self-test instantiation safe the way they do for
-  deprecated/superseded. So if, and only if, you both (a) define
-  MAVLINK_MSG_TYPE_WIP to something that actually diagnoses (not the
-  empty default above) and (b) build the generated gtestsuite.hpp,
-  define MAVLINK_TESTSUITE_SKIP_WIP too, to drop the round-trip/interop
-  tests for WIP-flagged messages - there is no way to keep them and
-  build cleanly in that combination. Nothing needs to be #defined here:
+  deprecated/superseded. deprecated() on MAVLINK_MSG_TYPE_WIP (like the
+  GCC < 12 fallback documented above) is still pragma-suppressible and
+  needs nothing extra - the suite builds clean and all tests still run.
+  So if, and only if, you both (a) define MAVLINK_MSG_TYPE_WIP to
+  unavailable() (or any other form a diagnostic pragma can't silence)
+  and (b) build the generated gtestsuite.hpp, define
+  MAVLINK_TESTSUITE_SKIP_WIP too, to drop the round-trip/interop tests
+  for WIP-flagged messages - there is no way to keep them and build
+  cleanly in that specific combination. Nothing needs to be #defined here:
   gtestsuite.hpp only checks whether you've defined it, so its absence
   (the default) keeps full test coverage, matching every other
   generated header's default of "nothing changes until you opt in".
