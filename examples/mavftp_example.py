@@ -163,9 +163,12 @@ def argument_parser(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Upload a file with MAVFTP, download it, and verify the result."
     )
-    parser.add_argument("local_file", type=Path, help="Local file to upload")
+    parser.add_argument(
+        "local_file", nargs="?", type=Path, help="Local file to upload"
+    )
     parser.add_argument(
         "remote_file",
+        nargs="?",
         help="Remote destination path; its basename must match LOCAL_FILE",
     )
     parser.add_argument(
@@ -216,7 +219,7 @@ def argument_parser(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(  # pylint: disable=too-many-return-statements
+def main(  # pylint: disable=too-many-branches,too-many-return-statements
     argv: Optional[Sequence[str]] = None,
 ) -> int:
     """Run the upload/download/verify example."""
@@ -226,6 +229,9 @@ def main(  # pylint: disable=too-many-return-statements
         format="%(levelname)s - %(message)s",
     )
 
+    if args.local_file is None or args.remote_file is None:
+        LOG.error("LOCAL_FILE and REMOTE_FILE are required")
+        return 1
     if not args.local_file.is_file():
         LOG.error("Local file does not exist: %s", args.local_file)
         return 1
