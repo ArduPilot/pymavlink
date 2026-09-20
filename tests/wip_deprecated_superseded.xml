@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<mavlink>
+  <enums>
+    <enum name="DEPRECATED_ENUM">
+      <deprecated since="2024-01" replaced_by="SOME_OTHER_ENUM">Use SOME_OTHER_ENUM instead.</deprecated>
+      <description>An enum flagged deprecated.</description>
+      <entry name="DEPRECATED_ENUM_A" value="0">
+        <description>Entry A.</description>
+      </entry>
+    </enum>
+    <enum name="SUPERSEDED_ENUM">
+      <superseded since="2024-01" replaced_by="SOME_OTHER_ENUM">Use SOME_OTHER_ENUM instead.</superseded>
+      <description>An enum flagged superseded.</description>
+      <entry name="SUPERSEDED_ENUM_A" value="0">
+        <description>Entry A.</description>
+      </entry>
+    </enum>
+    <enum name="ENTRY_FLAGS_ENUM">
+      <description>An enum whose entries are individually flagged.</description>
+      <entry name="ENTRY_FLAGS_ENUM_WIP" value="0">
+        <wip/>
+        <description>Entry flagged work-in-progress.</description>
+      </entry>
+      <entry name="ENTRY_FLAGS_ENUM_DEPRECATED" value="1">
+        <deprecated since="2024-01" replaced_by="ENTRY_FLAGS_ENUM_WIP">Use the WIP entry instead.</deprecated>
+        <description>Entry flagged deprecated.</description>
+      </entry>
+      <entry name="ENTRY_FLAGS_ENUM_SUPERSEDED" value="2">
+        <superseded since="2024-01" replaced_by="ENTRY_FLAGS_ENUM_WIP">Use the WIP entry instead.</superseded>
+        <description>Entry flagged superseded.</description>
+      </entry>
+      <entry name="ENTRY_FLAGS_ENUM_PLAIN" value="3">
+        <description>Entry with no flag at all.</description>
+      </entry>
+    </enum>
+  </enums>
+  <messages>
+    <message id="0" name="WIP_MESSAGE">
+      <wip/>
+      <description>A message flagged work-in-progress.</description>
+      <field type="int8_t" name="value"/>
+    </message>
+    <message id="1" name="DEPRECATED_MESSAGE">
+      <deprecated since="2024-01" replaced_by="WIP_MESSAGE">Use WIP_MESSAGE instead.</deprecated>
+      <description>A message flagged deprecated.</description>
+      <field type="int8_t" name="value"/>
+    </message>
+    <message id="2" name="SUPERSEDED_MESSAGE">
+      <superseded since="2024-01" replaced_by="WIP_MESSAGE">Use WIP_MESSAGE instead.</superseded>
+      <description>A message flagged superseded.</description>
+      <field type="int8_t" name="value"/>
+    </message>
+  </messages>
+</mavlink>
