@@ -14,7 +14,7 @@ test:
 valgrindtest:
 	for p in ${ALLPROTOCOLS}; do make -f Makefile valgrindprogs TESTPROTOCOL=$$p || exit 1; done
 
-build: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL} test_issues
+build: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL} test_issues test_diagnostics test_diagnostics_be test_diagnostics_positive
 
 testprogs: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL}
 	./testmav2.0_${TESTPROTOCOL}
@@ -25,7 +25,7 @@ valgrindprogs: testmav2.0_${TESTPROTOCOL} testmav1.0_${TESTPROTOCOL}
 	valgrind -q ./testmav1.0_${TESTPROTOCOL}
 
 clean:
-	rm -rf *.o *~ testmav1.0* testmav2.0* sha256_test test_issues
+	rm -rf *.o *~ testmav1.0* testmav2.0* sha256_test test_issues test_diagnostics test_diagnostics_be
 
 testmav1.0_${TESTPROTOCOL}: testmav.c $(COMMON)
 	$(CC) $(CFLAGS) -I../../include_v1.0 -I../../include_v1.0/${TESTPROTOCOL} -o $@ testmav.c
@@ -56,3 +56,18 @@ parse_tlog: parse_tlog.c
 
 test_issues: test_issues.c
 	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/all -o $@ test_issues.c
+
+test_diagnostics: test_diagnostics.c
+	$(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/all -o $@ test_diagnostics.c
+
+test_diagnostics_be: test_diagnostics_be.c
+	$(CC) $(CFLAGS) -DNATIVE_BIG_ENDIAN -I../../include_v2.0 -I../../include_v2.0/all -o $@ test_diagnostics_be.c
+
+# Fixture dialect used by the positive test; generated on demand so a plain
+# `make` works without test_generator.sh having run first.
+../../include_v2.0/wip_deprecated_superseded/mavlink.h: ../../../../tests/wip_deprecated_superseded.xml
+	../../../../tools/mavgen.py --lang C -o ../../include_v2.0 --wire-protocol=2.0 $<
+
+.PHONY: test_diagnostics_positive
+test_diagnostics_positive: test_diagnostics_positive.c check_diagnostics_fire.sh ../../include_v2.0/wip_deprecated_superseded/mavlink.h
+	./check_diagnostics_fire.sh $(CC) $(CFLAGS) -I../../include_v2.0 -I../../include_v2.0/wip_deprecated_superseded
