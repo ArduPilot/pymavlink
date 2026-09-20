@@ -39,6 +39,18 @@ from pymavlink import mavutil
 from pymavlink.mavftp import FtpError, MAVFTP
 
 
+def _check_crc_result(result, actual_crc, expected_crc) -> None:
+    """Report and validate a remote CRC without formatting a missing value."""
+    actual_text = "None" if actual_crc is None else f"0x{actual_crc:08x}"
+    print(
+        f"crc: {result.error_code.name} ({actual_text} / "
+        f"expected 0x{expected_crc:08x})",
+        flush=True,
+    )
+    if result.error_code != FtpError.Success or actual_crc != expected_crc:
+        raise RuntimeError(f"crc failed: {result.error_code.name}")
+
+
 def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
     payload = (b"pymavlink-mavftp-hardware-test\x00" * 8) + bytes(range(64))
     remote = f"/APM/mavftp_hwtest_{int(time.time())}.bin"
@@ -140,19 +152,13 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
         result = ftp.cmd_put(["-", remote], fh=io.BytesIO(payload))
         if result.error_code != FtpError.Success:
             raise RuntimeError(f"upload setup failed: {result.error_code.name}")
-        result = ftp.process_ftp_reply("CreateFile", timeout=60)
+        result = ftp.process_ftp_reply("put", timeout=60)
         print(f"upload: {result.error_code.name}", flush=True)
         if result.error_code != FtpError.Success:
             raise RuntimeError(f"upload failed: {result.error_code.name}")
 
         result = ftp.cmd_crc([remote])
-        print(
-            f"crc: {result.error_code.name} (0x{ftp.last_crc:08x} / "
-            f"expected 0x{local_crc:08x})",
-            flush=True,
-        )
-        if result.error_code != FtpError.Success or ftp.last_crc != local_crc:
-            raise RuntimeError(f"crc failed: {result.error_code.name}")
+        _check_crc_result(result, ftp.last_crc, local_crc)
 
         with tempfile.TemporaryDirectory(prefix="mavftp_crccmp_") as temp_dir:
             local_compare = f"{temp_dir}/{remote.rsplit('/', 1)[-1]}"
