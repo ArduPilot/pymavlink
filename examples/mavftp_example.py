@@ -158,7 +158,9 @@ def exercise_crc_commands(
     return True
 
 
-def argument_parser(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+def argument_parser(
+    argv: Optional[Sequence[str]] = None, *, require_paths: bool = False
+) -> argparse.Namespace:
     """Parse arguments for the upload/download round-trip example."""
     parser = argparse.ArgumentParser(
         description="Upload a file with MAVFTP, download it, and verify the result."
@@ -216,22 +218,22 @@ def argument_parser(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default="INFO",
         help="Logging level (default: %(default)s)",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if require_paths and (args.local_file is None or args.remote_file is None):
+        parser.error("LOCAL_FILE and REMOTE_FILE are required")
+    return args
 
 
-def main(  # pylint: disable=too-many-branches,too-many-return-statements
+def main(  # pylint: disable=too-many-return-statements
     argv: Optional[Sequence[str]] = None,
 ) -> int:
     """Run the upload/download/verify example."""
-    args = argument_parser(argv)
+    args = argument_parser(argv, require_paths=True)
     logging.basicConfig(
         level=getattr(logging, args.loglevel),
         format="%(levelname)s - %(message)s",
     )
 
-    if args.local_file is None or args.remote_file is None:
-        LOG.error("LOCAL_FILE and REMOTE_FILE are required")
-        return 1
     if not args.local_file.is_file():
         LOG.error("Local file does not exist: %s", args.local_file)
         return 1
