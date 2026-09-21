@@ -28,6 +28,7 @@ from pymavlink import mavutil
 from pymavlink.mavftp import (
     DirectoryEntry,
     FTP_OP,
+    MAX_INITIAL_RETRIES,
     MAVFTP,
     FtpError,
     OP_Ack,
@@ -348,14 +349,27 @@ class TestMAVFTPUDP(unittest.TestCase):
         )
 
     def test_real_udp_wrong_target_reply_is_rejected(self):
-        """Given a reply addressed to another component, when rm waits, then it is not accepted as completion."""
+        """Wrong-target replies are ignored while the request retry budget runs out."""
         self.responder.reject_replies = True
-        self.ftp.ftp_settings.idle_detection_time = 0.3
+        # A delayed sample from a prior command must not make this five-second
+        # caller timeout omit the latter steps of the initial retry ladder.
+        self.ftp.rtt_valid = True
+        self.ftp.rtt = 0.3
+        self.ftp.rttvar = 0.15
 
         result = self.ftp.cmd_rm(["remote.bin"])
 
-        self.assertEqual(result.error_code, FtpError.Fail)
-        self.assertEqual(self.responder.requests[-1].opcode, OP_RemoveFile)
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        remove_requests = [
+            request
+            for request in self.responder.requests
+            if request.opcode == OP_RemoveFile
+        ]
+        self.assertEqual(len(remove_requests), MAX_INITIAL_RETRIES + 1)
+        self.assertEqual(
+            [request.seq for request in remove_requests],
+            [remove_requests[0].seq] * (MAX_INITIAL_RETRIES + 1),
+        )
 
     def test_real_udp_download_round_trip_uses_remote_session(self):
         """Given a real UDP link, when get receives a file, then data and session termination complete end-to-end."""
