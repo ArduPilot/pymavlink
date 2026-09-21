@@ -16,10 +16,10 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.x']
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python ${{ matrix.python-version }}
 
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
@@ -30,7 +30,7 @@ jobs:
           sudo apt update
           sudo apt install -y libgtest-dev g++ tshark
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '16'
 
@@ -81,17 +81,17 @@ jobs:
       matrix:  # Node.js 18 for Debian 12.
         node-version: [latest, lts/*, lts/-1, lts/-2, 18]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: 'recursive'
       - name: Set up Python 3.9
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: 3.9
       - name: Install dependencies
         run: |
           pip install lxml
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
       - name: Install mavlink message
