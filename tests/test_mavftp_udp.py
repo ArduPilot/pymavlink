@@ -351,6 +351,7 @@ class TestMAVFTPUDP(unittest.TestCase):
     def test_real_udp_wrong_target_reply_is_rejected(self):
         """Wrong-target replies are ignored while the request retry budget runs out."""
         self.responder.reject_replies = True
+        self.ftp.ftp_settings.initial_retries = MAX_INITIAL_RETRIES
         # A delayed sample from a prior command must not make this five-second
         # caller timeout omit the latter steps of the initial retry ladder.
         self.ftp.rtt_valid = True
