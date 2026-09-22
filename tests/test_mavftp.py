@@ -581,6 +581,91 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.ftp_settings.retry_time = 0.2
         return ftp, master
 
+    def test_managed_transport_uses_explicit_session_and_never_waits(self):
+        """A wrapper can own session scheduling without duplicating FTP logic."""
+        master = FakeMaster([])
+        sent = []
+        completed = []
+        ftp = MAVFTP(
+            master,
+            target_system=1,
+            target_component=1,
+            session=37,
+            reset_sessions=False,
+            send_payloads=sent.extend,
+            operation_callback=completed.append,
+        )
+
+        result = ftp.cmd_rm(["/remote"], wait=False)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(master.mav.sent, [])
+        self.assertEqual(len(sent), 1)
+        request = master._decode_payload(sent[0])
+        self.assertEqual((request.session, request.opcode), (37, OP_RemoveFile))
+
+        reply = ftp_reply(1, OP_Ack, OP_RemoveFile, session=37)
+        ftp.mavlink_packet(reply)
+
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(
+            [(item.operation_name, item.error_code) for item in completed],
+            [("RemoveFile", FtpError.Success)],
+        )
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(
+            master._decode_payload(sent[-1]).opcode, OP_TerminateSession
+        )
+
+    def test_managed_transport_completes_after_second_no_sessions_nack(self):
+        """An exhausted backpressure retry reports a terminal event result."""
+        master = FakeMaster([])
+        sent = []
+        completed = []
+        ftp = MAVFTP(
+            master,
+            target_system=1,
+            target_component=1,
+            session=37,
+            reset_sessions=False,
+            send_payloads=sent.extend,
+            operation_callback=completed.append,
+        )
+
+        self.assertEqual(ftp.cmd_rm(["/remote"], wait=False).error_code, FtpError.Success)
+        first_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                (first_request.seq + 1) % FTP_SEQ_MODULUS,
+                OP_Nack,
+                OP_RemoveFile,
+                payload=[FtpError.NoSessionsAvailable],
+                session=37,
+            )
+        )
+        self.assertFalse(ftp.event_complete)
+        ftp.last_op_time = 0.0
+        with patch("pymavlink.mavftp.time.time", return_value=1.01):
+            ftp.idle_task()
+
+        retry_request = master._decode_payload(sent[-1])
+        self.assertEqual(retry_request.opcode, OP_RemoveFile)
+        self.assertNotEqual(retry_request.seq, first_request.seq)
+        ftp.mavlink_packet(
+            ftp_reply(
+                (retry_request.seq + 1) % FTP_SEQ_MODULUS,
+                OP_Nack,
+                OP_RemoveFile,
+                payload=[FtpError.NoSessionsAvailable],
+                session=37,
+            )
+        )
+
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.NoSessionsAvailable)
+        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_TerminateSession)
+
     def test_fake_master_withholds_reply_until_matching_request_is_sent(self):
         """The unit transport must not deliver an unrelated canned reply."""
         master = FakeMaster([ftp_reply(1, OP_Ack, OP_RemoveFile)])
