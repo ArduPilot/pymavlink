@@ -1495,6 +1495,20 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 self.assertEqual(result.error_code, FtpError.InvalidArguments)
                 self.assertEqual(len(master.mav.sent), 1)  # ResetSessions only.
 
+    def test_rename_and_getparams_require_exact_argument_counts(self):
+        """Malformed API calls fail before starting a remote operation."""
+        ftp, master = self.make_ftp([])
+        result = ftp.cmd_rename(["old", "new", "ignored"])
+        self.assertEqual(result.error_code, FtpError.InvalidArguments)
+        self.assertEqual(len(master.mav.sent), 1)  # ResetSessions only.
+
+        for args in ([], ["values.param", "defaults.param", "ignored"]):
+            with self.subTest(getparams_args=args):
+                ftp, master = self.make_ftp([])
+                result = ftp.cmd_getparams(args)
+                self.assertEqual(result.error_code, FtpError.InvalidArguments)
+                self.assertEqual(len(master.mav.sent), 1)  # ResetSessions only.
+
     def test_write_ack_offset_must_match_sequence_request(self):
         """A valid reply sequence cannot acknowledge a different write block."""
         ftp, _master = self.make_ftp([])
@@ -1529,6 +1543,52 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.InvalidDataSize)
         self.assertEqual(terminated, [True])
         self.assertEqual(ftp.write_acks, 0)
+
+    def test_upload_aborts_when_source_shrinks_between_write_blocks(self):
+        """A short local read must not be ACKed as a full remote write."""
+        ftp, master = self.make_ftp([])
+        source = BytesIO(b"ab")
+        ftp.ftp_settings.write_size = 1
+        ftp.ftp_settings.write_qsize = 1
+        self.assertEqual(
+            ftp.cmd_put(["local.bin", "remote.bin"], fh=source).error_code,
+            FtpError.Success,
+        )
+        self.assertEqual(
+            ftp._MAVFTP__handle_create_file_reply(  # pylint: disable=protected-access
+                FTP_OP(2, 0, OP_Ack, 0, OP_CreateFile, 0, 0, bytearray()),
+                None,
+            ).error_code,
+            FtpError.Success,
+        )
+        write_reply_seq = next(iter(ftp.pending_write_replies))
+        source.truncate(1)
+
+        with patch.object(
+            ftp,
+            "_MAVFTP__terminate_session",
+            return_value=MAVFTPReturn("TerminateSession", FtpError.Success),
+        ) as terminate:
+            result = ftp._MAVFTP__handle_write_reply(  # pylint: disable=protected-access
+                FTP_OP(
+                    write_reply_seq,
+                    0,
+                    OP_Ack,
+                    0,
+                    OP_WriteFile,
+                    0,
+                    0,
+                    bytearray(),
+                ),
+                None,
+            )
+
+        self.assertEqual(result.error_code, FtpError.Fail)
+        terminate.assert_called_once()
+        self.assertEqual(
+            [request.offset for request in self.sent_requests(master) if request.opcode == OP_WriteFile],
+            [0],
+        )
 
     def test_write_nack_with_zero_offset_preserves_server_error(self):
         """NACK offsets are unspecified and must not be validated as ACKs."""
@@ -3292,6 +3352,22 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(
             self.sent_requests(master)[-1].opcode,
             OP_BurstReadFile,
+        )
+
+    def test_timed_out_lagged_remove_is_not_sent_after_return(self):
+        """A timed-out remove must cancel its delayed simulated TX packet."""
+        ftp, master = self.make_ftp([])
+        ftp.ftp_settings.pkt_lag_tx = 1000
+
+        result = ftp.cmd_rm(["late-delete"], timeout=0.01)
+
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertEqual(ftp.tx_delay_queue, [])
+        self.assertTrue(ftp.request_cancelled)
+        ftp.idle_task()
+        self.assertEqual(
+            [request for request in self.sent_requests(master) if request.opcode == OP_RemoveFile],
+            [],
         )
 
     def test_tx_loss_does_not_discard_received_burst_reply(self):

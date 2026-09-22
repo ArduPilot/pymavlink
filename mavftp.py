@@ -558,6 +558,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # distinguishing an already-open session from an initial failure.
         self.request_retries = 0
         self.last_op_reply = False
+        # A synchronous operation that has returned an error must not be
+        # retried later by idle_task(), including through the optional
+        # delayed-traffic simulator.
+        self.request_cancelled = False
         self.terminal_timeout = False
         # sequence numbers of in-flight terminate/reset requests, None
         # when nothing is outstanding: replies are correlated by
@@ -694,6 +698,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             op.seq = self.seq
             self.request_retries = 0
             self.last_op_reply = False
+            self.request_cancelled = False
         payload = op.pack()
         plen = len(payload)
         if plen < MAX_Payload + HDR_Len:
@@ -2340,6 +2345,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.session = op.session
             self.write_open = True
             self.__send_more_writes(op)
+            if self.callback_failure is not None:
+                return self.callback_failure
         else:
             ret = self.__decode_ftp_ack_and_nack(op)
             self.__terminate_session()
@@ -2401,8 +2408,27 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 None,
             )
             if write is None:
-                self.fh.seek(ofs)
-                data = self.fh.read(self.write_block_size)
+                expected_length = self.__write_block_len(idx)
+                try:
+                    if self.fh is None:
+                        raise ValueError("local upload file is not open")
+                    self.fh.seek(ofs)
+                    data = self.fh.read(expected_length)
+                except (OSError, ValueError) as exc:
+                    logging.error("FTP: failed to read local upload file: %s", exc)
+                    self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
+                    self.__terminate_session()
+                    return
+                if len(data) != expected_length:
+                    logging.error(
+                        "FTP: local upload file changed at offset %u: expected %u bytes, got %u",
+                        ofs,
+                        expected_length,
+                        len(data),
+                    )
+                    self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
+                    self.__terminate_session()
+                    return
                 write = FTP_OP(
                     self.seq,
                     self.session,
@@ -2423,7 +2449,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if writes:
             self.__send_batch(writes)
 
-    def __handle_write_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
+    def __handle_write_reply(  # pylint: disable=too-many-return-statements
+        self, op: FTP_OP, _m
+    ) -> MAVFTPReturn:
         """Handle OP_WriteFile reply."""
         expected_offset = self.pending_write_replies.get(op.seq)
         if (
@@ -2504,6 +2532,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.__terminate_session()
                 return self.callback_failure
         self.__send_more_writes(op)
+        if self.callback_failure is not None:
+            return self.callback_failure
         return MAVFTPReturn("WriteFile", FtpError.Success)
 
     def cmd_rm(
@@ -2577,7 +2607,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         valid_timeout, timeout = self.__coerce_optional_timeout(timeout)
         if not valid_timeout:
             return MAVFTPReturn("Rename", FtpError.InvalidArguments)
-        if len(args) < 2:
+        if len(args) != 2:
             logging.error("Usage: rename [OLDNAME NEWNAME]")
             return MAVFTPReturn("Rename", FtpError.InvalidArguments)
         name1 = args[0]
@@ -3176,7 +3206,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # Probe the optional mtime listing opcode like MAVProxy does. Some
         # older servers silently ignore it rather than returning UnknownCommand.
         timestamp_probe_eligible = (
-            self.list_with_time
+            not self.request_cancelled
+            and self.list_with_time
             and self.list_time_supported is not True
             and self.dir_offset == 0
             and self.last_op is not None
@@ -3248,6 +3279,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         initial_request_pending = (
             self.last_op is not None
+            and not self.request_cancelled
             and not self.last_op_reply
             and self.last_op.opcode in initial_opcodes
             and not (
@@ -3599,9 +3631,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if (
             ret.error_code != FtpError.Success
             and operation_name != "TerminateSession"
-            and self.__has_active_session()
         ):
-            self.__terminate_session()
+            if self.__has_active_session():
+                self.__terminate_session()
+            else:
+                # A synchronous command that has timed out or failed must not
+                # leave simulated TX packets queued to execute later. This is
+                # especially important for mutations such as RemoveFile.
+                self.__discard_delayed_traffic()
+                self.request_cancelled = True
         return ret
 
     def __decode_ftp_ack_and_nack(
@@ -3859,6 +3897,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         add_timestamp_comment: bool = False,
     ) -> MAVFTPReturn:
         """Decode the parameter file and save the values and defaults to disk."""
+        if len(args) not in {1, 2}:
+            logging.error("Usage: getparams PARAM_VALUES_PATH [PARAM_DEFAULTS_PATH]")
+            return MAVFTPReturn("GetParams", FtpError.InvalidArguments)
 
         def decode_and_save_params(fh) -> MAVFTPReturn:
             if fh is None:
