@@ -64,22 +64,22 @@ from pymavlink.tools.test_mavftp_hardware import _check_crc_result
 class FakeFTPMessage:
     """Minimal FILE_TRANSFER_PROTOCOL message for reply-loop tests."""
 
-    def __init__(self, op):
+    def __init__(self, op, source_system=1, source_component=1):
         self.payload = op.pack()
         self.target_system = 1
         self.target_component = 1
+        self.source_system = source_system
+        self.source_component = source_component
 
     @staticmethod
     def get_type():
         return "FILE_TRANSFER_PROTOCOL"
 
-    @staticmethod
-    def get_srcSystem():  # pylint: disable=invalid-name
-        return 1
+    def get_srcSystem(self):  # pylint: disable=invalid-name
+        return self.source_system
 
-    @staticmethod
-    def get_srcComponent():  # pylint: disable=invalid-name
-        return 1
+    def get_srcComponent(self):  # pylint: disable=invalid-name
+        return self.source_component
 
 
 class RawFTPMessage:
@@ -546,7 +546,15 @@ class AllocatingSessionReplayMaster(FakeMaster):  # pylint: disable=too-few-publ
 
 
 def ftp_reply(  # pylint: disable=too-many-arguments
-    seq, opcode, req_opcode, payload=None, offset=0, burst_complete=0, session=0
+    seq,
+    opcode,
+    req_opcode,
+    payload=None,
+    offset=0,
+    burst_complete=0,
+    session=0,
+    source_system=1,
+    source_component=1,
 ):
     """Create a parsed FTP response represented as a minimal MAVLink message."""
     data = bytearray(payload) if payload is not None else bytearray()
@@ -560,7 +568,9 @@ def ftp_reply(  # pylint: disable=too-many-arguments
             burst_complete=burst_complete,
             offset=offset,
             payload=data,
-        )
+        ),
+        source_system=source_system,
+        source_component=source_component,
     )
 
 
@@ -580,6 +590,658 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.ftp_settings.idle_detection_time = 0.02
         ftp.ftp_settings.retry_time = 0.2
         return ftp, master
+
+    def test_managed_transport_uses_explicit_session_and_never_waits(self):
+        """A wrapper can own session scheduling without duplicating FTP logic."""
+        master = FakeMaster([])
+        sent = []
+        completed = []
+        ftp = MAVFTP(
+            master,
+            target_system=1,
+            target_component=1,
+            session=37,
+            reset_sessions=False,
+            send_payloads=sent.extend,
+            operation_callback=completed.append,
+        )
+
+        result = ftp.cmd_rm(["/remote"], wait=False)
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(master.mav.sent, [])
+        self.assertEqual(len(sent), 1)
+        request = master._decode_payload(sent[0])
+        self.assertEqual((request.session, request.opcode), (37, OP_RemoveFile))
+
+        reply = ftp_reply(1, OP_Ack, OP_RemoveFile, session=37)
+        ftp.mavlink_packet(reply)
+
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(
+            [(item.operation_name, item.error_code) for item in completed],
+            [("RemoveFile", FtpError.Success)],
+        )
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(
+            master._decode_payload(sent[-1]).opcode, OP_TerminateSession
+        )
+
+    def test_managed_transport_completes_after_second_no_sessions_nack(self):
+        """An exhausted backpressure retry reports a terminal event result."""
+        master = FakeMaster([])
+        sent = []
+        completed = []
+        ftp = MAVFTP(
+            master,
+            target_system=1,
+            target_component=1,
+            session=37,
+            reset_sessions=False,
+            send_payloads=sent.extend,
+            operation_callback=completed.append,
+        )
+
+        self.assertEqual(ftp.cmd_rm(["/remote"], wait=False).error_code, FtpError.Success)
+        first_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                (first_request.seq + 1) % FTP_SEQ_MODULUS,
+                OP_Nack,
+                OP_RemoveFile,
+                payload=[FtpError.NoSessionsAvailable],
+                session=37,
+            )
+        )
+        self.assertFalse(ftp.event_complete)
+        ftp.last_op_time = 0.0
+        with patch("pymavlink.mavftp.time.time", return_value=1.01):
+            ftp.idle_task()
+
+        retry_request = master._decode_payload(sent[-1])
+        self.assertEqual(retry_request.opcode, OP_RemoveFile)
+        self.assertNotEqual(retry_request.seq, first_request.seq)
+        ftp.mavlink_packet(
+            ftp_reply(
+                (retry_request.seq + 1) % FTP_SEQ_MODULUS,
+                OP_Nack,
+                OP_RemoveFile,
+                payload=[FtpError.NoSessionsAvailable],
+                session=37,
+            )
+        )
+
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.NoSessionsAvailable)
+        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_TerminateSession)
+
+    @staticmethod
+    def managed_ftp():
+        """Build an event-driven client and capture raw packets and completions."""
+        master = FakeMaster([])
+        sent = []
+        completed = []
+        ftp = MAVFTP(master, 1, 1, session=37, reset_sessions=False,
+                     send_payloads=sent.extend, operation_callback=completed.append)
+        return ftp, master, sent, completed
+
+    def test_managed_get_and_put_nacks_preserve_error(self):
+        """A transfer teardown must deliver its actual NACK, not generic Fail."""
+        for command, request_opcode in (("get", OP_OpenFileRO), ("put", OP_CreateFile)):
+            with self.subTest(command=command):
+                ftp, master, sent, completed = self.managed_ftp()
+                if command == "get":
+                    ftp.cmd_get(["remote", "-"])
+                else:
+                    ftp.cmd_put(["remote"], fh=BytesIO(b"abc"))
+                request = master._decode_payload(sent[-1])
+                ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Nack,
+                                            request_opcode, [FtpError.FileNotFound], session=37))
+                self.assertEqual(len(completed), 1)
+                self.assertEqual(completed[0].error_code, FtpError.FileNotFound)
+
+    def test_managed_get_and_put_complete_callbacks_on_success(self):
+        """Successful transfer callbacks and operation results are delivered once."""
+        ftp, master, sent, completed = self.managed_ftp()
+        downloaded = []
+        ftp.cmd_get(
+            ["remote", "-"],
+            callback=lambda stream: downloaded.append(stream.read()),
+        )
+        open_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                open_request.seq + 1,
+                OP_Ack,
+                OP_OpenFileRO,
+                payload=struct.pack("<I", 4),
+                session=37,
+            )
+        )
+        burst_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                burst_request.seq + 1,
+                OP_Ack,
+                OP_BurstReadFile,
+                payload=b"data",
+                burst_complete=1,
+                session=37,
+            )
+        )
+
+        self.assertEqual(downloaded, [b"data"])
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.Success)
+        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_TerminateSession)
+
+        ftp, master, sent, completed = self.managed_ftp()
+        uploaded = []
+        ftp.cmd_put(["remote"], fh=BytesIO(b"data"), callback=uploaded.append)
+        create_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                create_request.seq + 1,
+                OP_Ack,
+                OP_CreateFile,
+                session=37,
+            )
+        )
+        write_request = master._decode_payload(sent[-1])
+        self.assertEqual(write_request.opcode, OP_WriteFile)
+        ftp.mavlink_packet(
+            ftp_reply(
+                write_request.seq + 1,
+                OP_Ack,
+                OP_WriteFile,
+                offset=write_request.offset,
+                session=37,
+            )
+        )
+
+        self.assertEqual(uploaded, [4])
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.Success)
+        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_TerminateSession)
+
+    def test_managed_get_rejects_payload_over_size_cap(self):
+        """The streaming download cap is enforced against received bytes."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_get(["remote", "-"], max_size=3)
+        open_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                open_request.seq + 1,
+                OP_Ack,
+                OP_OpenFileRO,
+                payload=struct.pack("<I", 2),
+                session=37,
+            )
+        )
+        burst_request = master._decode_payload(sent[-1])
+
+        ftp.mavlink_packet(
+            ftp_reply(
+                burst_request.seq + 1,
+                OP_Ack,
+                OP_BurstReadFile,
+                payload=b"four",
+                session=37,
+            )
+        )
+
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.InvalidDataSize)
+        self.assertEqual(ftp.read_total, 0)
+        self.assertIsNone(ftp.max_download_size)
+        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_TerminateSession)
+
+    def test_managed_transfer_data_nacks_preserve_error(self):
+        """Burst, gap read, and upload NACKs propagate their server code."""
+        for command, opcode in (("burst", OP_BurstReadFile),
+                                ("read", OP_ReadFile), ("write", OP_WriteFile)):
+            with self.subTest(command=command):
+                ftp, master, sent, completed = self.managed_ftp()
+                if command == "write":
+                    ftp.cmd_put(["remote"], fh=BytesIO(b"abc"))
+                    request = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Ack,
+                                                OP_CreateFile, session=37))
+                else:
+                    ftp.cmd_get(["remote", "-"], callback=lambda _data: None)
+                    request = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Ack,
+                                                OP_OpenFileRO, struct.pack("<I", 3),
+                                                session=37))
+                    if command == "read":
+                        ftp.read_gaps = [(0, 3)]
+                        ftp.read_gap_times = {(0, 3): 0}
+                        ftp.check_read_send()
+                request = master._decode_payload(sent[-1])
+                self.assertEqual(request.opcode, opcode)
+                ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Nack, opcode,
+                                            [FtpError.FileNotFound], session=37))
+                self.assertEqual(len(completed), 1)
+                self.assertEqual(completed[0].error_code, FtpError.FileNotFound)
+
+    def test_managed_rejects_foreign_source_without_completing_operation(self):
+        """Only the configured sender can complete a worker operation."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.source_system = 42
+        ftp.source_component = 7
+        ftp.cmd_rm(["remote"], wait=False)
+        request = master._decode_payload(sent[-1])
+        reply = ftp_reply(request.seq + 1, OP_Ack, OP_RemoveFile, session=37)
+        ftp.mavlink_packet(reply)
+        self.assertFalse(ftp.event_complete)
+        reply.target_system = 42
+        reply.target_component = 7
+        ftp.mavlink_packet(reply)
+        self.assertEqual([result.error_code for result in completed], [FtpError.Success])
+
+    def test_managed_rejects_replies_from_other_vehicle_ids(self):
+        """A colliding session from another vehicle cannot finish the command."""
+        for source_system, source_component in ((2, 1), (1, 2)):
+            with self.subTest(
+                source_system=source_system, source_component=source_component
+            ):
+                ftp, master, sent, completed = self.managed_ftp()
+                ftp.cmd_rm(["remote"], wait=False, timeout=0)
+                request = master._decode_payload(sent[-1])
+
+                ftp.mavlink_packet(
+                    ftp_reply(
+                        request.seq + 1,
+                        OP_Ack,
+                        OP_RemoveFile,
+                        session=37,
+                        source_system=source_system,
+                        source_component=source_component,
+                    )
+                )
+
+                self.assertFalse(ftp.event_complete)
+                self.assertEqual(completed, [])
+                self.assertEqual(len(sent), 1)
+
+                ftp.mavlink_packet(
+                    ftp_reply(request.seq + 1, OP_Ack, OP_RemoveFile, session=37)
+                )
+                self.assertTrue(ftp.event_complete)
+                self.assertEqual(len(completed), 1)
+                self.assertEqual(completed[0].error_code, FtpError.Success)
+
+    def test_managed_single_reply_commands_complete_with_success(self):
+        """Managed one-reply command handlers publish their terminal ACK."""
+        commands = (
+            ("rmdir", ["remote"], OP_RemoveDirectory, b""),
+            ("rename", ["old", "new"], OP_Rename, b""),
+            ("mkdir", ["remote"], OP_CreateDirectory, b""),
+            ("crc", ["remote"], OP_CalcFileCRC32, struct.pack("<I", 0x12345678)),
+        )
+        for method, args, opcode, payload in commands:
+            with self.subTest(method=method):
+                ftp, master, sent, completed = self.managed_ftp()
+                getattr(ftp, f"cmd_{method}")(args, wait=False)
+                request = master._decode_payload(sent[-1])
+                self.assertEqual(request.opcode, opcode)
+
+                ftp.mavlink_packet(
+                    ftp_reply(
+                        request.seq + 1,
+                        OP_Ack,
+                        opcode,
+                        payload=payload,
+                        session=37,
+                    )
+                )
+
+                self.assertTrue(ftp.event_complete)
+                self.assertEqual(len(completed), 1)
+                self.assertEqual(completed[0].error_code, FtpError.Success)
+                self.assertEqual(
+                    master._decode_payload(sent[-1]).opcode, OP_TerminateSession
+                )
+                if method == "crc":
+                    self.assertEqual(ftp.last_crc, 0x12345678)
+
+    def test_managed_list_completes_only_after_eof(self):
+        """A listing spans data pages and completes on its terminal EOF NACK."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_list(["/"], wait=False)
+        first_page = master._decode_payload(sent[-1])
+
+        ftp.mavlink_packet(
+            ftp_reply(
+                first_page.seq + 1,
+                OP_Ack,
+                OP_ListDirectory,
+                payload=b"Ffile.bin\t3\x00",
+                session=37,
+            )
+        )
+
+        self.assertFalse(ftp.event_complete)
+        second_page = master._decode_payload(sent[-1])
+        self.assertEqual(
+            (second_page.opcode, second_page.offset), (OP_ListDirectory, 1)
+        )
+        ftp.mavlink_packet(
+            ftp_reply(
+                second_page.seq + 1,
+                OP_Nack,
+                OP_ListDirectory,
+                payload=[FtpError.EndOfFile],
+                session=37,
+            )
+        )
+
+        self.assertTrue(ftp.event_complete)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.Success)
+        self.assertEqual(
+            [(entry.name, entry.size_b) for entry in completed[0].directory_listing],
+            [("file.bin", 3)],
+        )
+        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_TerminateSession)
+
+    def test_managed_transfer_status_tracks_download_and_upload_progress(self):
+        """Public status reflects transfer setup, byte progress, and teardown."""
+        ftp, master, sent, _completed = self.managed_ftp()
+        ftp.cmd_get(["remote"], callback=lambda _stream: None)
+        self.assertEqual(ftp.transfer_status(), "Opening remote")
+        open_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                open_request.seq + 1,
+                OP_Ack,
+                OP_OpenFileRO,
+                payload=struct.pack("<I", 10),
+                session=37,
+            )
+        )
+        self.assertIn("0/10 bytes 0.0%", ftp.transfer_status())
+
+        burst_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                burst_request.seq + 1,
+                OP_Ack,
+                OP_BurstReadFile,
+                payload=b"data",
+                offset=0,
+                session=37,
+            )
+        )
+        self.assertIn("4/10 bytes 40.0%", ftp.transfer_status())
+        ftp.terminate_session()
+        self.assertIsNone(ftp.transfer_status())
+
+        ftp, master, sent, _completed = self.managed_ftp()
+        ftp.cmd_put(["remote"], fh=BytesIO(b"x" * 150))
+        self.assertIn("0/150 bytes 0.0%", ftp.transfer_status())
+        create_request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(
+            ftp_reply(
+                create_request.seq + 1,
+                OP_Ack,
+                OP_CreateFile,
+                session=37,
+            )
+        )
+        write_requests = [
+            master._decode_payload(payload)
+            for payload in sent
+            if master._decode_payload(payload).opcode == OP_WriteFile
+        ]
+        first_write = next(request for request in write_requests if request.offset == 0)
+        ftp.mavlink_packet(
+            ftp_reply(
+                first_write.seq + 1,
+                OP_Ack,
+                OP_WriteFile,
+                offset=first_write.offset,
+                session=37,
+            )
+        )
+        self.assertIn("80/150 bytes 53.3%", ftp.transfer_status())
+        ftp.terminate_session()
+        self.assertIsNone(ftp.transfer_status())
+
+    def test_managed_public_terminate_session_completes_with_supplied_result(self):
+        """The public managed teardown forwards its result exactly once."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_rm(["remote"], wait=False, timeout=0)
+        supplied_result = MAVFTPReturn("RemoveFile", FtpError.FileProtected)
+
+        terminate_result = ftp.terminate_session(result=supplied_result)
+
+        self.assertEqual(terminate_result.error_code, FtpError.Success)
+        self.assertTrue(ftp.event_complete)
+        self.assertIs(ftp.event_result, supplied_result)
+        self.assertEqual(completed, [supplied_result])
+        self.assertEqual(
+            [master._decode_payload(payload).opcode for payload in sent],
+            [OP_RemoveFile, OP_TerminateSession],
+        )
+        ftp.idle_task()
+        self.assertEqual(completed, [supplied_result])
+
+    def test_managed_size_cap_completes_with_invalid_data_size(self):
+        """A large advertised size rejects the download and resets its cap."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_get(["remote", "-"], max_size=1)
+        request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Ack, OP_OpenFileRO,
+                                    struct.pack("<I", 3), session=37))
+        self.assertEqual([result.error_code for result in completed],
+                         [FtpError.InvalidDataSize])
+        self.assertIsNone(ftp.max_download_size)
+
+    def test_managed_lost_replies_have_deadlines(self):
+        """A manager ignoring idle's boolean still receives exactly one timeout."""
+        for command in ("rm", "crc", "get", "put"):
+            with self.subTest(command=command):
+                ftp, _master, _sent, completed = self.managed_ftp()
+                if command == "rm":
+                    ftp.cmd_rm(["remote"], wait=False, timeout=2)
+                elif command == "crc":
+                    ftp.cmd_crc(["remote"], wait=False, timeout=2)
+                elif command == "get":
+                    ftp.cmd_get(["remote", "-"])
+                else:
+                    ftp.cmd_put(["remote"], fh=BytesIO(b"abc"))
+                self.assertFalse(ftp.event_complete)
+                with patch("pymavlink.mavftp.time.time", return_value=time.time() + 0.5):
+                    ftp.idle_task()
+                self.assertFalse(ftp.event_complete)
+                with patch("pymavlink.mavftp.time.time", return_value=time.time() + 200):
+                    ftp.idle_task()
+                    ftp.idle_task()
+                self.assertEqual(len(completed), 1)
+                self.assertEqual(completed[0].error_code, FtpError.RemoteReplyTimeout)
+
+    def test_managed_default_single_reply_commands_time_out(self):
+        """Missing replies complete even when the caller omits a timeout."""
+        for method, args in (("cmd_rm", ["remote"]),
+                             ("cmd_rmdir", ["remote"]),
+                             ("cmd_rename", ["old", "new"]),
+                             ("cmd_mkdir", ["remote"]),
+                             ("cmd_list", ["/"]),
+                             ("cmd_crc", ["remote"])):
+            with self.subTest(method=method):
+                ftp, _master, _sent, completed = self.managed_ftp()
+                getattr(ftp, method)(args, wait=False)
+                with patch("pymavlink.mavftp.time.time", return_value=time.time() + 30):
+                    ftp.idle_task()
+                self.assertEqual([result.error_code for result in completed],
+                                 [FtpError.RemoteReplyTimeout])
+
+    def test_managed_timestamp_probe_keeps_its_full_retry_budget(self):
+        """The overall deadline must leave room for the listing fallback."""
+        ftp, _master, _sent, completed = self.managed_ftp()
+        ftp.ftp_settings.list_time = 1
+        ftp.cmd_list(["/"], wait=False)
+        self.assertGreater(ftp._event_deadline - time.time(), 10)
+        with patch("pymavlink.mavftp.time.time", return_value=time.time() + 5.1):
+            ftp.idle_task()
+        self.assertEqual(completed, [])
+
+    def test_managed_explicit_zero_timeout_remains_unbounded(self):
+        """An explicit zero retains the blocking API's unbounded meaning."""
+        ftp, _master, _sent, completed = self.managed_ftp()
+        ftp.cmd_rm(["remote"], wait=False, timeout=0)
+        with patch("pymavlink.mavftp.time.time", return_value=time.time() + 30):
+            ftp.idle_task()
+        self.assertEqual(completed, [])
+
+    def test_managed_download_progress_renews_inactivity_deadline(self):
+        """A long active transfer must not be cut off by its start time."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_get(["remote", "-"], callback=lambda _data: None)
+        request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Ack, OP_OpenFileRO,
+                                    struct.pack("<I", 100), session=37))
+        request = master._decode_payload(sent[-1])
+        deadline = ftp._event_deadline
+        with patch("pymavlink.mavftp.time.time", return_value=deadline - 0.5):
+            ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Ack, OP_BurstReadFile,
+                                        b"data", session=37))
+        self.assertGreater(ftp._event_deadline, deadline)
+        self.assertEqual(completed, [])
+
+    def test_managed_crccmp_continues_after_lost_file_and_counts_timeout(self):
+        """A lost CRC reply must not prevent later files from being compared."""
+        ftp, master, sent, completed = self.managed_ftp()
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("a.bin", "b.bin", "c.bin"):
+                with open(os.path.join(directory, name), "wb") as stream:
+                    stream.write(name.encode())
+            ftp.ftp_settings.crccmp_timeout = 120
+            with self.assertLogs(level="INFO") as logs:
+                ftp.cmd_crccmp([os.path.join(directory, "*.bin"), "/remote"], wait=False)
+                first = master._decode_payload(sent[-1])
+                local_crc = ftp.local_file_crc(os.path.join(directory, "a.bin"))
+                ftp.mavlink_packet(ftp_reply(first.seq + 1, OP_Ack, OP_CalcFileCRC32,
+                                            struct.pack("<I", local_crc), session=37))
+                second = master._decode_payload(sent[-1])
+                deadline = time.time() + mavftp_module.CRC_TIMEOUT_SECONDS + 1
+                with patch("pymavlink.mavftp.time.time", return_value=deadline):
+                    ftp.idle_task()
+                third = master._decode_payload(sent[-1])
+                self.assertNotEqual(third.seq, second.seq)
+                ftp.mavlink_packet(ftp_reply(third.seq + 1, OP_Nack, OP_CalcFileCRC32,
+                                            [FtpError.FileNotFound], session=37))
+            self.assertEqual(ftp.crccmp_results, ["MATCH", "TIMEOUT", "MISSING"])
+            self.assertIn("1 errors", " ".join(logs.output))
+            self.assertEqual(len(completed), 1)
+
+    def test_managed_crccmp_reserves_batch_time_for_later_files(self):
+        """A short batch still schedules file three after file two is lost."""
+        ftp, master, sent, _completed = self.managed_ftp()
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("a.bin", "b.bin", "c.bin"):
+                with open(os.path.join(directory, name), "wb") as stream:
+                    stream.write(b"abc")
+            ftp.ftp_settings.crccmp_timeout = 4
+            ftp.cmd_crccmp([os.path.join(directory, "*.bin"), "/remote"], wait=False)
+            first = master._decode_payload(sent[-1])
+            ftp.mavlink_packet(ftp_reply(first.seq + 1, OP_Ack, OP_CalcFileCRC32,
+                                        struct.pack("<I", ftp.local_file_crc(os.path.join(directory, "a.bin"))), session=37))
+            second = master._decode_payload(sent[-1])
+            self.assertLess(ftp.crccmp_file_deadline, ftp.crccmp_deadline)
+            with patch("pymavlink.mavftp.time.time", return_value=ftp.crccmp_file_deadline + 0.01):
+                ftp.idle_task()
+            self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_CalcFileCRC32)
+            self.assertNotEqual(master._decode_payload(sent[-1]).seq, second.seq)
+
+    def test_managed_crccmp_backpressure_reply_uses_new_sequence(self):
+        """A successful CRC ACK for the fresh-sequence retry must be accepted."""
+        ftp, master, sent, completed = self.managed_ftp()
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "crc.bin")
+            with open(path, "wb") as stream:
+                stream.write(b"abc")
+            ftp.cmd_crccmp([path, "/remote"], wait=False)
+            first = master._decode_payload(sent[-1])
+            ftp.mavlink_packet(ftp_reply(first.seq + 1, OP_Nack, OP_CalcFileCRC32,
+                                        [FtpError.NoSessionsAvailable], session=37))
+            ftp.last_op_time = 0
+            ftp.idle_task()
+            retry = master._decode_payload(sent[-1])
+            self.assertNotEqual(retry.seq, first.seq)
+            ftp.mavlink_packet(ftp_reply(retry.seq + 1, OP_Ack, OP_CalcFileCRC32,
+                                        struct.pack("<I", ftp.local_file_crc(path)), session=37))
+        self.assertEqual(ftp.crccmp_results, ["MATCH"])
+        self.assertEqual([result.error_code for result in completed], [FtpError.Success])
+
+    def test_managed_cancel_crccmp_clears_deadline_before_next_operation(self):
+        """A cancelled comparison cannot complete a later command's callback."""
+        ftp, _master, _sent, completed = self.managed_ftp()
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "crc.bin")
+            with open(path, "wb") as stream:
+                stream.write(b"abc")
+            ftp.cmd_crccmp([path, "/remote"], wait=False)
+            self.assertIsNotNone(ftp.crccmp_deadline)
+            ftp.cmd_cancel()
+            ftp.cmd_get(["remote", "-"])
+            with patch("pymavlink.mavftp.time.time", return_value=time.time() + 121):
+                ftp.idle_task()
+        self.assertIsNone(ftp.crccmp_deadline)
+        self.assertNotIn("CRCCompare", [result.operation_name for result in completed[1:]])
+
+    def test_managed_get_limit_does_not_leak_into_read(self):
+        """A subsequent memory read can exceed the prior get's size cap."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_get(["remote", "-"], max_size=1)
+        request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(request.seq + 1, OP_Nack, OP_OpenFileRO,
+                                    [FtpError.FileNotFound], session=37))
+        self.assertIsNone(ftp.max_download_size)
+
+        # Managed sends are owned by the caller, so disable FakeMaster's
+        # ordinary-send validation while its replies drive the real read loop.
+        master.validate_replies = False
+        read_open_seq = ftp.seq
+        master.replies.extend(
+            [
+                ftp_reply(
+                    read_open_seq + 1,
+                    OP_Ack,
+                    OP_OpenFileRO,
+                    payload=struct.pack("<I", 4),
+                    session=37,
+                ),
+                ftp_reply(
+                    read_open_seq + 2,
+                    OP_Ack,
+                    OP_BurstReadFile,
+                    payload=b"data",
+                    session=37,
+                ),
+            ]
+        )
+
+        self.assertEqual(ftp.read("remote", 4), b"data")
+        self.assertIsNone(ftp.max_download_size)
+        self.assertEqual(len(completed), 1)
+
+    def test_open_retry_uses_latest_backpressure_timestamp(self):
+        """A busy server's response restarts the open retry timer."""
+        ftp, _master, sent, _completed = self.managed_ftp()
+        ftp.cmd_get(["remote", "-"])
+        ftp.op_start = 0
+        ftp.last_op_time = 10
+        before = len(sent)
+        with patch("pymavlink.mavftp.time.time", return_value=10.5):
+            ftp.idle_task()
+        self.assertEqual(len(sent), before)
+
 
     def test_fake_master_withholds_reply_until_matching_request_is_sent(self):
         """The unit transport must not deliver an unrelated canned reply."""
@@ -1629,7 +2291,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.fh = BytesIO(b"x" * 160)
         ftp.pending_write_replies[2] = 80
         terminated = []
-        setattr(ftp, "_MAVFTP__terminate_session", lambda: terminated.append(True))
+        setattr(ftp, "_MAVFTP__terminate_session", lambda **_kwargs: terminated.append(True))
 
         result = ftp._MAVFTP__handle_write_reply(
             FTP_OP(2, 0, OP_Nack, 2, OP_WriteFile, 0, 0,
@@ -2504,7 +3166,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         setattr(
             ftp,
             "_MAVFTP__terminate_session",
-            lambda: terminated.append(True),
+            lambda **_kwargs: terminated.append(True),
         )
 
         open_result = ftp._MAVFTP__handle_open_ro_reply(  # pylint: disable=protected-access
@@ -2533,7 +3195,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         setattr(
             ftp,
             "_MAVFTP__terminate_session",
-            lambda: terminated.append(True),
+            lambda **_kwargs: terminated.append(True),
         )
 
         result = ftp._MAVFTP__handle_create_file_reply(  # pylint: disable=protected-access
@@ -2564,7 +3226,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         setattr(
             ftp,
             "_MAVFTP__terminate_session",
-            lambda: terminated.append(True),
+            lambda **_kwargs: terminated.append(True),
         )
 
         result = ftp._MAVFTP__handle_create_file_reply(  # pylint: disable=protected-access
@@ -3022,7 +3684,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         setattr(
             ftp,
             "_MAVFTP__terminate_session",
-            lambda: terminated.append(True),
+            lambda **_kwargs: terminated.append(True),
         )
 
         result = ftp._MAVFTP__handle_reply_read(
@@ -3383,6 +4045,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         # a real download would subsequently attempt session cleanup too.
         ftp.filename = None
         ftp.op_start = 0.0
+        ftp.last_op_time = 0.0
         ftp.open_retries = MAX_READ_RETRIES
         terminate = MagicMock()
 
@@ -4113,7 +4776,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         setattr(
             ftp,
             "_MAVFTP__terminate_session",
-            lambda: terminated.append(True),
+            lambda **_kwargs: terminated.append(True),
         )
 
         result = ftp._MAVFTP__handle_write_reply(  # pylint: disable=protected-access
@@ -4236,6 +4899,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp, master = self.make_ftp([])
         ftp.cmd_get(["remote", "-"])
         ftp.op_start = 0
+        ftp.last_op_time = 0
 
         with patch("pymavlink.mavftp.time.time", return_value=1):
             ftp._MAVFTP__idle_task()  # pylint: disable=protected-access
@@ -4290,12 +4954,14 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         for _ in range(MAX_READ_RETRIES):
             ftp.op_start = 0
+            ftp.last_op_time = 0
             with patch("pymavlink.mavftp.time.time", return_value=1):
                 ftp._MAVFTP__idle_task()  # pylint: disable=protected-access
 
         terminated.assert_not_called()
 
         ftp.op_start = 0
+        ftp.last_op_time = 0
         with patch("pymavlink.mavftp.time.time", return_value=1):
             ftp._MAVFTP__idle_task()  # pylint: disable=protected-access
 
@@ -5468,7 +6134,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             offset=0,
             payload=None,
         )
-        terminate = MagicMock(side_effect=lambda: setattr(ftp, "fh", None))
+        terminate = MagicMock(side_effect=lambda **_kwargs: setattr(ftp, "fh", None))
 
         clock = [0.0]
 
@@ -5509,7 +6175,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.last_send_time = 0.0
         ftp.op_start = None
 
-        def terminate_session():
+        def terminate_session(**_kwargs):
             ftp.last_burst_read = None
             ftp.fh = None
 
