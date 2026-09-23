@@ -1811,6 +1811,52 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return True
         return False
 
+    def __is_end_of_file(self, op) -> bool:
+        """Does this reply carry the last bytes of the file?
+
+        A server is free to answer a read with fewer bytes than were asked
+        for, and the size field carries what it actually read, so a reply
+        being shorter than the request says nothing about where the file ends.
+        A server that sizes its packets to fit a telemetry radio answers every
+        read that way. Go by the size the server reported when it opened the
+        file, and otherwise wait for the NAK with EOF, which is how the end of
+        a file is announced.
+        """
+        if self.remote_file_size > 0:
+            return op.offset + op.size >= self.remote_file_size
+
+        return False
+
+    def __fill_gap_front(self, op, gap) -> bool:
+        """Write a reply covering the front of a gap and keep the remainder.
+
+        Returns False if the payload could not be written.
+        """
+        self.read_gaps.remove(gap)
+        self.read_gap_times.pop(gap, None)
+        self.pending_read_replies = {
+            seq: pending_gap
+            for seq, pending_gap in self.pending_read_replies.items()
+            if pending_gap != gap
+        }
+        self.pending_read_requests = {
+            seq: pending_read
+            for seq, pending_read in self.pending_read_requests.items()
+            if (pending_read.offset, pending_read.size) != gap
+        }
+
+        ofs = self.__read_position()
+
+        if not self.__write_payload(op):
+            return False
+
+        self.__seek_read_position(ofs)
+
+        remainder = (op.offset + op.size, gap[1] - op.size)
+        self.read_gaps.append(remainder)
+        self.read_gap_times[remainder] = 0
+        return True
+
     def __write_payload(self, op: FTP_OP) -> bool:
         """Write payload from a read op, returning whether processing may continue."""
         write_offset = op.offset
@@ -1986,9 +2032,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     "BurstReadFile", FtpError.Success
                 )
             if op.burst_complete:
-                if op.size > 0 and op.size < self.burst_size:
-                    # a burst complete with non-zero size and less than burst packet size
-                    # means EOF
+                if op.size > 0 and self.__is_end_of_file(op):
+                    # the burst ended on the last byte of the file, so there
+                    # is nothing further to ask for
                     if (
                         not self.reached_eof
                         and self.op_start
@@ -2064,10 +2110,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self, op: FTP_OP, _m
     ) -> MAVFTPReturn:
         """Handle OP_ReadFile reply."""
-        pending_for_offset = any(
-            pending_gap[0] == op.offset
-            for pending_gap in self.pending_read_replies.values()
-        )
         self.pending_read_replies.pop(op.seq, None)
         self.pending_read_requests.pop(op.seq, None)
         if self.fh is None or self.filename is None:
@@ -2117,23 +2159,39 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     return self.callback_failure or MAVFTPReturn(
                         "ReadFile", FtpError.Success
                     )
+            elif requested_gap is not None and 0 < op.size < requested_gap[1]:
+                # The server answered with fewer bytes than the gap asked for,
+                # which it is free to do. Keep what arrived and ask again for
+                # the rest.
+                if not self.__fill_gap_front(op, requested_gap):
+                    return self.callback_failure or MAVFTPReturn(
+                        "ReadFile", FtpError.Fail
+                    )
+                if self.ftp_settings.debug > 0:
+                    logging.info(
+                        "FTP: gap %s filled to %u, %u gaps",
+                        requested_gap,
+                        op.offset + op.size,
+                        len(self.read_gaps),
+                    )
+                if self.__check_read_finished():
+                    return self.callback_failure or MAVFTPReturn(
+                        "ReadFile", FtpError.Success
+                    )
             elif requested_gap is not None:
+                # More than was asked for, or nothing at all: the file is not
+                # what this transfer started out reading.
                 logging.info("FTP: file size changed to %u", op.offset + op.size)
                 self.__terminate_session()
                 return MAVFTPReturn("ReadFile", FtpError.Fail)
             else:
-                # A short reply for a gap already filled by burst data is a
-                # delayed duplicate. Preserve the existing safety check for
-                # an unsolicited short reply, which can indicate that the
-                # remote file changed underneath the transfer.
-                if pending_for_offset or op.size >= self.burst_size:
-                    self.duplicates += 1
-                    if self.ftp_settings.debug > 0:
-                        logging.info("FTP: no gap read %u, %u", gap, len(self.read_gaps))
-                else:
-                    logging.info("FTP: unexpected short read at %u", op.offset)
-                    self.__terminate_session()
-                    return MAVFTPReturn("ReadFile", FtpError.Fail)
+                # Nothing is outstanding at this offset, so this is a delayed
+                # duplicate of a gap that burst data has already filled. Its
+                # length says nothing: a server may answer any read with fewer
+                # bytes than were asked for.
+                self.duplicates += 1
+                if self.ftp_settings.debug > 0:
+                    logging.info("FTP: no gap read %u, %u", gap, len(self.read_gaps))
         elif op.opcode == OP_Nack:
             logging.info(
                 "FTP: Read failed with %u gaps %s", len(self.read_gaps), str(op)
