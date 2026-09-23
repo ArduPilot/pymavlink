@@ -2110,10 +2110,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self, op: FTP_OP, _m
     ) -> MAVFTPReturn:
         """Handle OP_ReadFile reply."""
-        pending_for_offset = any(
-            pending_gap[0] == op.offset
-            for pending_gap in self.pending_read_replies.values()
-        )
         self.pending_read_replies.pop(op.seq, None)
         self.pending_read_requests.pop(op.seq, None)
         if self.fh is None or self.filename is None:
