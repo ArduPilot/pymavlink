@@ -1548,6 +1548,35 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(terminated, [True])
         self.assertEqual(ftp.write_acks, 0)
 
+    def test_two_slot_write_ring_ack_releases_slot_without_advancing_cursor(self):
+        """The half-ring ACK is ambiguous but still completes its own block."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO(b"ab")
+        ftp.filename = "remote"
+        ftp.write_list = {1}
+        ftp.write_block_size = 1
+        ftp.write_total = 2
+        ftp.write_file_size = 2
+        ftp.write_recv_idx = 0
+        ftp.write_inflight = {1}
+        ftp.write_pending = 1
+        ftp.pending_write_replies = {2: 1}
+
+        with patch.object(ftp, "_MAVFTP__send_more_writes") as send_more:
+            result = ftp._MAVFTP__handle_write_reply(  # pylint: disable=protected-access
+                FTP_OP(2, 0, OP_Ack, 0, OP_WriteFile, 0, 1, bytearray()),
+                None,
+            )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(ftp.write_recv_idx, 0)
+        self.assertEqual(ftp.write_list, set())
+        self.assertEqual(ftp.write_inflight, set())
+        self.assertEqual(ftp.write_pending, 0)
+        self.assertEqual(ftp.write_acks, 1)
+        self.assertEqual(ftp.write_acked_bytes, 1)
+        send_more.assert_called_once()
+
     def test_upload_aborts_when_source_shrinks_between_write_blocks(self):
         """A short local read must not be ACKed as a full remote write."""
         ftp, master = self.make_ftp([])
@@ -3131,7 +3160,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         )
 
     def test_directory_listing_with_time_falls_back_for_old_servers(self):
-        """Old servers are retried with the standard listing opcode."""
+        """A first generic extension failure falls back without latching."""
         ftp, master = self.make_ftp(
             [
                 ftp_reply(2, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.Fail]),
@@ -3144,18 +3173,18 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(ftp.list_result, [])
-        self.assertFalse(ftp.list_time_supported)
+        self.assertIsNone(ftp.list_time_supported)
         self.assertEqual(master.replies, [])
 
-    def test_directory_listing_requests_timestamps_by_default(self):
-        """The default client enables the extension for capable servers."""
+    def test_directory_listing_uses_the_standard_opcode_by_default(self):
+        """Timestamp probing is opt-in until released firmware supports it."""
         ftp, master = self.make_ftp(
-            [ftp_reply(2, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.EndOfFile])],
+            [ftp_reply(2, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile])],
             list_time=None,
         )
-        self.assertEqual(ftp.ftp_settings.list_time, 1)
+        self.assertEqual(ftp.ftp_settings.list_time, 0)
         self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
-        self.assertEqual(master.mav.sent[-1][-1][3], OP_ListDirectoryWithTime)
+        self.assertEqual(master.mav.sent[-1][-1][3], OP_ListDirectory)
 
     def test_silent_timestamp_listing_falls_back_during_cmd_list(self):
         """A silent optional-opcode server completes a whole list operation."""
@@ -3168,6 +3197,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         with patch("pymavlink.mavftp.time.time", side_effect=fake_time):
             ftp = MAVFTP(master, target_system=1, target_component=1)
+            ftp.ftp_settings.list_time = 1
+            ftp.ftp_settings.initial_retries = MAX_INITIAL_RETRIES
             ftp.ftp_settings.retry_time = 0.2
             ftp.ftp_settings.list_time_timeout = 0.4
             ftp.ftp_settings.list_retries = 1
@@ -3250,8 +3281,10 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                     4,
                     OP_Nack,
                     OP_ListDirectoryWithTime,
-                    payload=[FtpError.EndOfFile],
+                    payload=[FtpError.Fail],
                 ),
+                ftp_reply(5, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile]),
+                ftp_reply(6, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile]),
             ],
             list_time=1,
         )
@@ -3259,9 +3292,87 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
         self.assertIsNone(ftp.list_time_supported)
         self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
+        self.assertFalse(ftp.list_time_supported)
+        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
         self.assertEqual(
             [request.opcode for request in self.sent_requests(master)],
-            [OP_ResetSessions, OP_ListDirectoryWithTime, OP_ListDirectory, OP_ListDirectoryWithTime],
+            [
+                OP_ResetSessions,
+                OP_ListDirectoryWithTime,
+                OP_ListDirectory,
+                OP_ListDirectoryWithTime,
+                OP_ListDirectory,
+                OP_ListDirectory,
+            ],
+        )
+
+    def test_empty_timestamp_listing_resets_probe_failure_count(self):
+        """A timed EOF confirms the extension after an earlier transient failure."""
+        ftp, _master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.Fail]),
+                ftp_reply(3, OP_Nack, OP_ListDirectory, payload=[FtpError.EndOfFile]),
+                ftp_reply(
+                    4,
+                    OP_Nack,
+                    OP_ListDirectoryWithTime,
+                    payload=[FtpError.EndOfFile],
+                ),
+            ],
+            list_time=1,
+        )
+
+        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
+        self.assertEqual(ftp.list_time_failures, 1)
+        self.assertEqual(ftp.cmd_list([]).error_code, FtpError.Success)
+        self.assertTrue(ftp.list_time_supported)
+        self.assertEqual(ftp.list_time_failures, 0)
+
+    def test_timestamp_fail_only_latches_after_successful_baseline_listing(self):
+        """Invalid directories cannot disable timestamps on a capable server."""
+        ftp, master = self.make_ftp(
+            [
+                ftp_reply(2, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.Fail]),
+                ftp_reply(3, OP_Nack, OP_ListDirectory, payload=[FtpError.Fail]),
+                ftp_reply(4, OP_Nack, OP_ListDirectoryWithTime, payload=[FtpError.Fail]),
+                ftp_reply(5, OP_Nack, OP_ListDirectory, payload=[FtpError.Fail]),
+                ftp_reply(
+                    6,
+                    OP_Nack,
+                    OP_ListDirectoryWithTime,
+                    payload=[FtpError.EndOfFile],
+                ),
+            ],
+            list_time=1,
+        )
+        clock = [0.0]
+        ftp.ftp_settings.idle_detection_time = 0.02
+
+        def fake_time():
+            clock[0] += 0.005
+            return clock[0]
+
+        with patch("pymavlink.mavftp.time.time", side_effect=fake_time):
+            self.assertEqual(
+                ftp.cmd_list(["/missing"], timeout=1).error_code, FtpError.Fail
+            )
+            self.assertEqual(
+                ftp.cmd_list(["/missing"], timeout=1).error_code, FtpError.Fail
+            )
+            self.assertEqual(ftp.list_time_failures, 0)
+            self.assertIsNone(ftp.list_time_supported)
+            self.assertEqual(ftp.cmd_list(["/valid"]).error_code, FtpError.Success)
+
+        self.assertEqual(
+            [request.opcode for request in self.sent_requests(master)],
+            [
+                OP_ResetSessions,
+                OP_ListDirectoryWithTime,
+                OP_ListDirectory,
+                OP_ListDirectoryWithTime,
+                OP_ListDirectory,
+                OP_ListDirectoryWithTime,
+            ],
         )
 
     def test_open_retry_exhaustion_sets_terminal_timeout_for_reply_loop(self):
@@ -3517,7 +3628,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ]
         self.assertEqual(
             [(request.seq, request.offset) for request in timestamp_requests],
-            [(1, 0), (2, 1), (3, 0), (3, 0), (4, 1)],
+            [(1, 0), (2, 1), (3, 0), (4, 0), (5, 1)],
         )
 
     def test_directory_listing_display_includes_timestamp(self):
@@ -4036,6 +4147,71 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(self.sent_request_sequences(master, OP_ReadFile), [1, 1])
 
+    def test_post_eof_gap_read_retries_are_bounded(self):
+        """A lost repair reply after EOF must eventually terminate the transfer."""
+        ftp, master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.reached_eof = True
+        ftp.read_gaps = [(80, 80)]
+        ftp.read_gap_times = {(80, 80): 0}
+        ftp.ftp_settings.retry_time = 0.2
+        ftp.rtt_valid = True
+        ftp.rtt = 0.2
+        ftp.rttvar = 0.0
+        terminated = MagicMock()
+        setattr(ftp, "_MAVFTP__terminate_session", terminated)
+        clock = [1.0]
+
+        with patch("pymavlink.mavftp.time.time", side_effect=lambda: clock[0]):
+            self.assertFalse(ftp.idle_task())  # Initial gap request.
+            for _ in range(MAX_READ_RETRIES):
+                clock[0] += 0.3
+                self.assertFalse(ftp.idle_task())
+            clock[0] += 0.3
+            self.assertFalse(ftp.idle_task())
+
+        terminated.assert_called_once()
+        self.assertTrue(ftp.terminal_timeout)
+        self.assertEqual(
+            len(
+                [
+                    request
+                    for request in self.sent_requests(master)
+                    if request.opcode == OP_ReadFile
+                ]
+            ),
+            MAX_READ_RETRIES + 1,
+        )
+
+    def test_exhausted_gap_retry_is_not_reported_as_a_successful_read(self):
+        """An ACK for one gap cannot hide another gap's terminal timeout."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.op_start = 0.1
+        ftp.burst_size = 80
+        ftp.read_gaps = [(0, 1), (2, 1)]
+        ftp.read_gap_times = {(0, 1): 0, (2, 1): 0}
+        ftp.ftp_settings.retry_time = 0.2
+        ftp.rtt_valid = True
+        ftp.rtt = 0.2
+        ftp.rttvar = 0.0
+        ftp._MAVFTP__send_gap_read((0, 1))  # pylint: disable=protected-access
+        ftp._MAVFTP__send_gap_read((2, 1))  # pylint: disable=protected-access
+        ftp.read_gap_times[(2, 1)] = 0.5
+        ftp.read_gap_retries = {(2, 1): MAX_READ_RETRIES}
+        terminated = MagicMock()
+        setattr(ftp, "_MAVFTP__terminate_session", terminated)
+
+        with patch("pymavlink.mavftp.time.time", return_value=1.0):
+            result = ftp.mavlink_packet(
+                ftp_reply(2, OP_Ack, OP_ReadFile, payload=b"x", offset=0)
+            )
+
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        terminated.assert_called_once()
+
     def test_gap_read_ack_releases_one_backlog_slot(self):
         """A gap ACK must release exactly the request's backlog slot."""
         ftp, _master = self.make_ftp([])
@@ -4532,6 +4708,32 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             self.assertTrue(ftp._MAVFTP__check_read_finished())
         self.assertIsNone(ftp.callback_failure)
         self.assertEqual(stdout.buffer.getvalue(), b"x" * 2560)
+
+    def test_short_known_size_destination_is_not_published(self):
+        """A short non-callback download preserves the existing destination."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = MagicMock()
+        ftp.fh.tell.return_value = 88
+        ftp.fh.fileno.return_value = 7
+        ftp.filename = "destination.bin"
+        ftp.temp_filename = "staging.bin"
+        ftp.op_start = time.time() - 1
+        ftp.read_total = 88
+        ftp.requested_size = 1000
+        ftp.remote_size_known = True
+        ftp.reached_eof = True
+        terminated = MagicMock()
+
+        with (
+            patch("pymavlink.mavftp.os.fstat", return_value=Namespace(st_size=88)),
+            patch("pymavlink.mavftp.os.replace") as replace,
+            patch.object(ftp, "_MAVFTP__terminate_session", terminated),
+        ):
+            self.assertTrue(ftp._MAVFTP__check_read_finished())  # pylint: disable=protected-access
+
+        self.assertEqual(ftp.callback_failure.error_code, FtpError.InvalidDataSize)
+        replace.assert_not_called()
+        terminated.assert_called_once()
 
     def test_read_sector_relative_buffer_preserves_remote_gap_offsets(self):
         """Compact buffers still track absolute remote offsets for gaps."""
@@ -5368,6 +5570,73 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(stale_result.error_code, FtpError.Fail)
         self.assertEqual(ftp.read_gaps, [(0, 2)])
         self.assertEqual(ftp.fh.getvalue(), b"\x00\x00cd")
+
+    def test_debug_gap_removal_formats_gap_tuple(self):
+        """Debug logging must not apply an integer format to a gap tuple."""
+        for opcode, handler in (
+            (OP_BurstReadFile, "_MAVFTP__handle_burst_read"),
+            (OP_ReadFile, "_MAVFTP__handle_reply_read"),
+        ):
+            with self.subTest(opcode=opcode):
+                ftp, _master = self.make_ftp([])
+                ftp.fh = BytesIO(b"xx")
+                ftp.fh.seek(2)
+                ftp.filename = "-"
+                ftp.burst_size = 80
+                ftp.ftp_settings.debug = 1
+                ftp.read_gaps = [(0, 1)]
+                ftp.read_gap_times = {(0, 1): 0}
+
+                with self.assertLogs(level="INFO") as logs:
+                    result = getattr(ftp, handler)(
+                        FTP_OP(
+                            1,
+                            0,
+                            OP_Ack,
+                            1,
+                            opcode,
+                            0,
+                            0,
+                            bytearray(b"x"),
+                        ),
+                        None,
+                    )
+
+                self.assertEqual(result.error_code, FtpError.Success)
+                self.assertTrue(
+                    any("FTP: removed gap (0, 1)" in message for message in logs.output)
+                )
+
+    def test_debug_duplicate_gap_logging_formats_gap_tuple(self):
+        """Debug logging must format a stale full-size gap read as a tuple."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.burst_size = 80
+        ftp.requested_size = 80
+        ftp.ftp_settings.debug = 1
+
+        with patch.object(ftp, "_MAVFTP__check_read_send", return_value=True), self.assertLogs(
+            level="INFO"
+        ) as logs:
+            result = ftp._MAVFTP__handle_reply_read(  # pylint: disable=protected-access
+                FTP_OP(
+                    1,
+                    0,
+                    OP_Ack,
+                    80,
+                    OP_ReadFile,
+                    0,
+                    0,
+                    bytearray(b"x" * 80),
+                ),
+                None,
+            )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertTrue(
+            any("FTP: no gap read (0, 80), 0" in message for message in logs.output)
+        )
 
     def test_out_of_order_final_gap_reply_reports_success(self):
         """A successful final gap repair completes a read when it is not last_op."""
