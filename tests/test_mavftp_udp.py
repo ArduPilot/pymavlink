@@ -295,6 +295,7 @@ class TestMAVFTPUDP(unittest.TestCase):
 
     def test_real_udp_list_round_trip_decodes_entries(self):
         """Given a real UDP link, when list is sent, then paged directory entries are decoded end-to-end."""
+        self.ftp.ftp_settings.list_time = 1
         self.ftp.ftp_settings.idle_detection_time = 2.0
         result = self.ftp.cmd_list(["logs"])
 
@@ -321,6 +322,7 @@ class TestMAVFTPUDP(unittest.TestCase):
     def test_real_udp_silent_timestamp_listing_falls_back(self):
         """A real UDP server that drops timestamps is reached by baseline fallback."""
         self.responder.silent_timestamp_listing = True
+        self.ftp.ftp_settings.list_time = 1
         self.ftp.ftp_settings.list_time_timeout = 0.6
         self.ftp.ftp_settings.list_retries = 0
 
