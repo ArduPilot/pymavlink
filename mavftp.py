@@ -114,6 +114,7 @@ BURST_REPLY_SEQUENCE_WINDOW = 4096
 MAX_READ_GAPS = 4096
 MAX_READ_RETRIES = 10
 MAX_INITIAL_RETRIES = 3
+LIST_TIME_FAIL_LIMIT = 2
 READ_DEADLINE_SECONDS = 5.0
 CRC_TIMEOUT_SECONDS = 5.0
 # Keep a batch of encoded MAVLink packets below a normal Ethernet MTU.  This
@@ -476,9 +477,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             settings = MAVFTPSettings(
                 [
                     ("debug", int, 0),
-                    # Request directory mtimes; cmd_list falls back to the
-                    # standard opcode when an older FC rejects the extension.
-                    ("list_time", int, 1),
+                    # Timestamp listings are opt-in until they are implemented
+                    # by released flight-controller firmware.
+                    ("list_time", int, 0),
                     # Some older servers silently discard unknown opcodes.
                     ("list_time_timeout", float, 3.0),
                     ("list_retries", int, 3),
@@ -519,6 +520,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.total_size = 0
         self.read_gaps: List[Tuple[int, int]] = []
         self.read_gap_times: Dict[Tuple[int, int], float] = {}
+        self.read_gap_retries: Dict[Tuple[int, int], int] = {}
         # FTP permits several ReadFile requests in flight. Track their
         # expected response sequences so delayed replies from a prior request
         # cannot be dispatched as a current gap repair.
@@ -611,6 +613,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.list_temp_result: List[DirectoryEntry] = []
         self.list_with_time = False
         self.list_time_retries = 0
+        self.list_time_failures = 0
+        self.list_time_probe_fail_pending = False
         # A MAVFTP instance has one fixed target, so one capability cache is
         # sufficient and avoids repeat probe delays on old servers.
         self.list_time_supported: Optional[bool] = None
@@ -1155,6 +1159,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.read_gaps = []
         self.read_total = 0
         self.read_gap_times = {}
+        self.read_gap_retries = {}
         self.pending_read_replies = {}
         self.pending_read_requests = {}
         self.last_read = None
@@ -1251,6 +1256,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.total_size = 0
         self.dir_offset = 0
         self.list_time_retries = 0
+        self.list_time_probe_fail_pending = False
         self.list_with_time = (
             bool(getattr(self.ftp_settings, "list_time", 0))
             and self.list_time_supported is not False
@@ -1298,12 +1304,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.total_size = 0
         self.list_temp_result = []
         more = self.last_op
-        assert more is not None  # noqa: S101
+        if more is None:
+            logging.error("FTP: cannot fall back to baseline listing without a request")
+            return
         more.opcode = OP_ListDirectory
         more.offset = 0
         self.__send(more)
 
-    def __handle_list_reply(  # pylint: disable=too-many-boolean-expressions,too-many-branches,too-many-statements
+    def __handle_list_reply(  # pylint: disable=too-many-boolean-expressions,too-many-branches,too-many-statements,too-many-locals
         self, op: FTP_OP, _m
     ) -> MAVFTPReturn:
         """Handle OP_ListDirectory reply."""
@@ -1315,6 +1323,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if op.opcode == OP_Ack and op.payload is not None:
             if with_time:
                 self.list_time_supported = True
+                self.list_time_failures = 0
+                self.list_time_probe_fail_pending = False
             dentries = sorted(op.payload.split(b"\x00"))
             for d in dentries:
                 if len(d) == 0:
@@ -1392,25 +1402,46 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ):
             # Older servers reject the extension. Retry the same listing with
             # the standard opcode before reporting a failure to the caller.
-            # ``Fail`` is not a capability answer. Retry the baseline request
-            # for this listing, but keep probing on later listings. Only
-            # UnknownCommand proves the extension is unsupported.
+            # Released ArduPilot versions report an unknown extension as
+            # ``Fail`` rather than ``UnknownCommand``. A single Fail can be
+            # transient, but do not send the unsupported extension forever.
+            mark_unsupported = op.payload[0] == FtpError.UnknownCommand
+            if op.payload[0] == FtpError.Fail:
+                # A generic Fail is only evidence of an unsupported extension
+                # if the baseline listing for this same path succeeds.
+                self.list_time_probe_fail_pending = True
             self.__list_without_time(
-                mark_unsupported=op.payload[0] == FtpError.UnknownCommand
+                mark_unsupported=mark_unsupported
             )
-            return MAVFTPReturn("ListDirectory", FtpError.Success)
+            # Fallback is still in progress. In particular, do not let an
+            # idle check between this request and the baseline reply report
+            # the failed timestamp probe as a completed listing.
+            return MAVFTPReturn("ListDirectory", FtpError.Fail)
         elif (
             op.opcode == OP_Nack
             and op.payload is not None
             and len(op.payload) == 1
             and op.payload[0] == FtpError.EndOfFile
         ):
+            # An empty timestamp listing has no ACK payload before its EOF
+            # NACK, but it still proves that the extension is implemented.
+            if self.list_with_time:
+                self.list_time_supported = True
+                self.list_time_failures = 0
+                self.list_time_probe_fail_pending = False
+            elif self.list_time_probe_fail_pending:
+                self.list_time_probe_fail_pending = False
+                self.list_time_failures += 1
+                if self.list_time_failures >= LIST_TIME_FAIL_LIMIT:
+                    self.list_time_supported = False
             self.list_result = self.list_temp_result
             self.completed_reply = (op.req_opcode, op.seq)
             return MAVFTPReturn(
                 "ListDirectory", FtpError.Success, directory_listing=self.list_result
             )
         else:
+            if not self.list_with_time:
+                self.list_time_probe_fail_pending = False
             return self.__decode_ftp_ack_and_nack(op)
         return MAVFTPReturn("ListDirectory", FtpError.Success)
 
@@ -1752,6 +1783,26 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     logging.warning(
                         "expected %u, got %u", self.requested_size, actual_size
                     )
+                if (
+                    self.remote_size_known
+                    and not self.read_to_memory
+                    and self.filename not in (None, "-")
+                    and self.temp_filename is not None
+                    and actual_size < self.requested_size
+                ):
+                    # A destination-file transfer must not atomically replace
+                    # an existing good file with a known-truncated download.
+                    # Callback and stdout consumers intentionally retain their
+                    # historical EOF-authoritative behavior above.
+                    logging.error(
+                        "FTP: refusing to publish short download: expected %u, got %u",
+                        self.requested_size,
+                        actual_size,
+                    )
+                    self.callback_failure = MAVFTPReturn(
+                        "Get", FtpError.InvalidDataSize
+                    )
+                    publish_result = False
                 if self.read_to_memory:
                     logging.info("read %u bytes", len(self.get_result))
                 if self.callback_progress is not None:
@@ -1916,9 +1967,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         self.backlog -= 1
                     self.read_gaps.remove(gap)
                     self.read_gap_times.pop(gap)
+                    self.read_gap_retries.pop(gap, None)
                     if self.ftp_settings.debug > 0:
                         logging.info(
-                            "FTP: removed gap %u, %u, %u",
+                            "FTP: removed gap %s, %u, %u",
                             gap,
                             self.reached_eof,
                             len(self.read_gaps),
@@ -1960,10 +2012,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     if gap[1] <= max_read:
                         self.read_gaps.append(gap)
                         self.read_gap_times[gap] = 0
+                        self.read_gap_retries[gap] = 0
                         break
                     g = (gap[0], max_read)
                     self.read_gaps.append(g)
                     self.read_gap_times[g] = 0
+                    self.read_gap_retries[g] = 0
                     gap = (gap[0] + max_read, gap[1] - max_read)
                 if not self.__write_payload(op):
                     return self.callback_failure or MAVFTPReturn(
@@ -2017,7 +2071,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         return self.callback_failure or MAVFTPReturn(
                             "BurstReadFile", FtpError.Success
                         )
-                    self.__check_read_send()
+                    if not self.__check_read_send():
+                        return MAVFTPReturn(
+                            "BurstReadFile", FtpError.RemoteReplyTimeout
+                        )
                     return MAVFTPReturn("BurstReadFile", FtpError.Success)
                 more = self.pending_burst_request
                 if more is None:
@@ -2060,7 +2117,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     return self.callback_failure or MAVFTPReturn(
                         "BurstReadFile", FtpError.Success
                     )
-                self.__check_read_send()
+                if not self.__check_read_send():
+                    return MAVFTPReturn(
+                        "BurstReadFile", FtpError.RemoteReplyTimeout
+                    )
                 return MAVFTPReturn("BurstReadFile", FtpError.Fail)
             if self.ftp_settings.debug > 0:
                 logging.error("FTP: burst nack: %s", op)
@@ -2099,6 +2159,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if requested_gap == gap:
                 self.read_gaps.remove(gap)
                 self.read_gap_times.pop(gap)
+                self.read_gap_retries.pop(gap, None)
                 self.pending_read_replies = {
                     seq: pending_gap
                     for seq, pending_gap in self.pending_read_replies.items()
@@ -2117,7 +2178,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.__seek_read_position(ofs)
                 if self.ftp_settings.debug > 0:
                     logging.info(
-                        "FTP: removed gap %u, %u, %u",
+                        "FTP: removed gap %s, %u, %u",
                         gap,
                         self.reached_eof,
                         len(self.read_gaps),
@@ -2138,7 +2199,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 if pending_for_offset or op.size >= self.burst_size:
                     self.duplicates += 1
                     if self.ftp_settings.debug > 0:
-                        logging.info("FTP: no gap read %u, %u", gap, len(self.read_gaps))
+                        logging.info("FTP: no gap read %s, %u", gap, len(self.read_gaps))
                 else:
                     logging.info("FTP: unexpected short read at %u", op.offset)
                     self.__terminate_session()
@@ -2150,7 +2211,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             ret = self.__decode_ftp_ack_and_nack(op)
             self.__terminate_session()
             return ret
-        self.__check_read_send()
+        if not self.__check_read_send():
+            return MAVFTPReturn("ReadFile", FtpError.RemoteReplyTimeout)
         return MAVFTPReturn("ReadFile", FtpError.Success)
 
     def cmd_put(  # pylint: disable=too-many-return-statements,too-many-statements
@@ -2496,7 +2558,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # intervening requests were not acknowledged. Release those slots for
         # retry, but only count the block named by this ACK as successfully
         # stored. At exactly half a ring the direction is ambiguous, so wait
-        # for normal retry handling rather than release active slots.
+        # for normal retry handling rather than release active slots. This
+        # deliberately includes the sole non-zero move in a two-slot ring:
+        # that ACK still releases its own slot below, but does not advance the
+        # ambiguous receive cursor.
         idx = op.offset // self.write_block_size
         count = (idx - self.write_recv_idx) % self.write_total
         if self.write_recv_idx < 0 or (
@@ -3197,17 +3262,29 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.read_gaps.append(g)
         self.last_gap_send = time.time()
         self.read_gap_times[g] = self.last_gap_send
+        self.read_gap_retries.setdefault(g, 0)
         self.backlog += 1
 
-    def __check_read_send(self) -> None:
+    def __check_read_send(self) -> bool:
         """Keep a bounded window of gap reads in flight."""
         if not self.read_gaps:
-            return
+            return True
         now = time.time()
         timeout = self.retry_timeout()
         for gap in list(self.read_gaps):
             sent = self.read_gap_times.get(gap, 0)
             if sent > 0 and now - sent > timeout:
+                retries = self.read_gap_retries.get(gap, 0)
+                if retries >= MAX_READ_RETRIES:
+                    logging.error(
+                        "FTP: gap read timed out after %u retries: %s",
+                        retries,
+                        gap,
+                    )
+                    self.terminal_timeout = True
+                    self.__terminate_session()
+                    return False
+                self.read_gap_retries[gap] = retries + 1
                 self.read_gap_times[gap] = 0
                 if self.backlog > 0:
                     self.backlog -= 1
@@ -3218,6 +3295,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 break
             if self.read_gap_times.get(gap, 0) == 0:
                 self.__send_gap_read(gap)
+        return True
 
     def __idle_task(self) -> bool:  # pylint: disable=too-many-branches,too-many-return-statements,too-many-statements
         """Check for file gaps and lost requests."""
@@ -3418,7 +3496,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.read_retries += 1
 
         # see if we can fill gaps
-        self.__check_read_send()
+        if not self.__check_read_send():
+            return False
 
         if self.write_list is not None:
             self.__send_more_writes()
