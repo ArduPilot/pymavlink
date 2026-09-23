@@ -1341,7 +1341,16 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                         session=3,
                     ),
                     ftp_reply(3, OP_Ack, OP_BurstReadFile, payload=parameter_data, burst_complete=1, session=3),
-                    ftp_reply(4, OP_Ack, OP_TerminateSession, session=3),
+                    ftp_reply(
+                        5,
+                        OP_Nack,
+                        OP_BurstReadFile,
+                        payload=[FtpError.EndOfFile],
+                        offset=len(parameter_data),
+                        burst_complete=1,
+                        session=3,
+                    ),
+                    ftp_reply(6, OP_Ack, OP_TerminateSession, session=3),
                 ]
             )
             progress = []
@@ -2614,8 +2623,15 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.FileNotFound)
         self.assertEqual(terminated, [True])
 
-    def test_unexpected_short_gap_ack_reports_failure(self):
-        """A short reply for an unknown gap must not report a completed read."""
+    def test_reply_for_an_unknown_gap_is_ignored(self):
+        """A reply that fits no outstanding gap is stale, and must be ignored.
+
+        It used to end the session when it was also shorter than the read
+        size, on the grounds that the file must have changed. A server may
+        answer a read with fewer bytes than were asked for, so the length says
+        nothing; a file that really did change still ends the read through the
+        NAK with EOF.
+        """
         ftp, _master = self.make_ftp([])
         ftp.fh = BytesIO()
         ftp.filename = "remote"
@@ -2633,8 +2649,32 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             None,
         )
 
-        self.assertEqual(result.error_code, FtpError.Fail)
-        self.assertEqual(terminated, [True])
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(terminated, [])
+        self.assertEqual(ftp.read_gaps, [(4, 2)])
+
+    def test_short_reply_fills_the_front_of_a_gap(self):
+        """A reply shorter than the gap it answers leaves the rest outstanding."""
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "remote"
+        ftp.read_gaps = [(4, 8)]
+        ftp.read_gap_times = {(4, 8): 1}
+        terminated = []
+        setattr(
+            ftp,
+            "_MAVFTP__terminate_session",
+            lambda: terminated.append(True),
+        )
+
+        result = ftp._MAVFTP__handle_reply_read(
+            FTP_OP(1, 0, OP_Ack, 3, OP_ReadFile, 0, 4, bytearray(b"abc")),
+            None,
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertEqual(terminated, [])
+        self.assertEqual(ftp.read_gaps, [(7, 5)])
 
     def test_malformed_file_entry_does_not_discard_the_listing(self):
         """A malformed file entry is skipped while valid entries still complete."""
@@ -4488,6 +4528,52 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(result.error_code, FtpError.Success)
         self.assertEqual(ftp.seq, 43)
 
+    def test_short_packet_ending_a_burst_is_not_the_end_of_the_file(self):
+        """A server may end a burst with a packet shorter than was asked for.
+
+        One that sizes its packets to fit a telemetry radio answers a 239 byte
+        request with 91 bytes and marks the end of every chunk it streams.
+        Reading that as the end of the file truncates the download and reports
+        it as a success, which is how a multi-megabyte log arrives as its
+        first chunk.
+        """
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.filename = "-"
+        ftp.read_to_memory = True
+        ftp.requested_size = 240
+        ftp.remote_size_known = True
+        ftp.remote_file_size = 240
+        ftp.burst_size = 239
+        ftp.op_start = 1
+        ftp._MAVFTP__send(  # pylint: disable=protected-access
+            FTP_OP(
+                seq=ftp.seq,
+                session=0,
+                opcode=OP_BurstReadFile,
+                size=239,
+                req_opcode=0,
+                burst_complete=0,
+                offset=0,
+                payload=None,
+            )
+        )
+
+        result = ftp._MAVFTP__mavlink_packet(  # pylint: disable=protected-access
+            ftp_reply(
+                2,
+                OP_Ack,
+                OP_BurstReadFile,
+                payload=b"a" * 91,
+                offset=0,
+                burst_complete=1,
+            )
+        )
+
+        self.assertEqual(result.error_code, FtpError.Success)
+        self.assertFalse(ftp.reached_eof)
+        self.assertIsNone(ftp.get_result)
+
     def test_long_burst_advances_its_trailing_sequence_floor(self):
         """A burst longer than half the uint16 sequence space remains accepted."""
         ftp, _master = self.make_ftp([])
@@ -5542,7 +5628,18 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                         payload=b"data",
                         burst_complete=1,
                     ),
-                    ftp_reply(4, OP_Ack, OP_TerminateSession),
+                    # A virtual file is shorter than the size that was
+                    # advertised for it, and the server says so with the NAK
+                    # that ends the burst.
+                    ftp_reply(
+                        5,
+                        OP_Nack,
+                        OP_BurstReadFile,
+                        payload=[FtpError.EndOfFile],
+                        offset=4,
+                        burst_complete=1,
+                    ),
+                    ftp_reply(6, OP_Ack, OP_TerminateSession),
                 ]
             )
 
