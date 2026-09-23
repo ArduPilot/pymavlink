@@ -1533,7 +1533,8 @@ class mavmmaplog(mavlogfile):
         
         while ofs+8+6 < self.data_len:
             marker = u_ord(self.data_map[ofs+8])
-            mlen = u_ord(self.data_map[ofs+9]) + 8
+            payload_len = u_ord(self.data_map[ofs+9])
+            mlen = payload_len + 8
             if marker == MARKER_V1:
                 mtype = u_ord(self.data_map[ofs+13])
                 mlen += 8
@@ -1574,30 +1575,23 @@ class mavmmaplog(mavlogfile):
                         self.instance_lengths[mtype] = 1
 
             if mtype in self.instance_offsets:
-                # populate the messages array with a new instance. This assumes we can get the instance
-                # as a single byte integer
-                instance_field_ofs = ofs + data_ofs + self.instance_offsets[mtype]
-                if instance_field_ofs >= self.data_len:
+                # Populate instance keys from a string or single-byte field.
+                payload_end = ofs + data_ofs + payload_len
+                if payload_end > self.data_len:
                     # truncated log
                     break
+                instance_field_ofs = ofs + data_ofs + self.instance_offsets[mtype]
                 self.f.seek(instance_field_ofs)
-                ilen = self.instance_lengths[mtype]
-                ipad = 0
-                if ilen + (instance_field_ofs - ofs) > mlen-2:
-                    # message is MAVLink2.0 zero truncated
-                    ipad = ilen + (instance_field_ofs - ofs) - (mlen-2)
-                    ilen -= ipad
-                if ilen > 0:
-                    b = self.f.read(ilen)
-                else:
-                    b = bytes([0]*ilen)
-                if ipad > 0:
-                    b += bytes([0]*ipad)
-                if ilen+ipad > 1:
-                    # assume string
-                    while len(b) > 0 and b[-1] == 0:
-                        b = b[:-1]
-                    instance = b.decode('ASCII',errors='ignore').rstrip()
+                instance_len = self.instance_lengths[mtype]
+                # MAVLink2 truncates trailing zero bytes from the payload.
+                # mlen also includes the CRC and optional signing trailer;
+                # neither belongs to a partially or fully omitted instance.
+                ilen = min(instance_len, max(0, payload_end - instance_field_ofs))
+                b = self.f.read(ilen).ljust(instance_len, b'\x00')
+                if instance_len > 1:
+                    # Match generated char-array decoding: stop at the first
+                    # NUL, preserving whitespace and replacing non-ASCII bytes.
+                    instance = b.split(b'\x00', 1)[0].decode('ASCII', errors='replace')
                 else:
                     instance, = struct.unpack('b', b[:1])
                 mname = self.id_to_name[mtype]
