@@ -135,10 +135,14 @@ ${MAVHEAD}.MAVLINK_TYPE_FLOAT    = 9
 ${MAVHEAD}.MAVLINK_TYPE_DOUBLE   = 10
 
 ${MAVHEAD}.MAVLINK_IFLAG_SIGNED = 0x01
+${MAVHEAD}.MAVLINK_IFLAG_SYSID32 = 0x02   // MAVLink2.1 32 bit system ID in the header
+// Extended targeting is independent of whether the source system ID is extended.
+${MAVHEAD}.MAVLINK_IFLAG_TARGET32 = 0x04 // MAVLink2.1 extended target header
+${MAVHEAD}.MAVLINK_IFLAG_MASK = ${IFLAG_MASK}      // mask of incompat bits this parser understands
 ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 // Mavlink headers incorporate sequence, source system (platform) and source component. 
-${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0) {
+${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0, target_system=0) {
 
     this.mlen = ( typeof mlen === 'undefined' ) ? 0 : mlen;
     this.seq = ( typeof seq === 'undefined' ) ? 0 : seq;
@@ -147,19 +151,32 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
     this.msgId = msgId
     this.incompat_flags = incompat_flags
     this.compat_flags = compat_flags
+    // extended target, only valid when MAVLINK_IFLAG_TARGET32 is set
+    this.target_system = ( typeof target_system === 'undefined' ) ? 0 : target_system;
 
 }
 """, {'FILELIST' : ",".join(args),
       'PROTOCOL_MARKER' : xml.protocol_marker,
       'WIRE_PROTOCOL_VERSION' : ("2.0" if xml.protocol_marker == 253 else "1.0"),
       'MAVHEAD': get_mavhead(xml),
-      'HEADERLEN': ("10" if xml.protocol_marker == 253 else "6")})
+      'HEADERLEN': ("10" if xml.protocol_marker == 253 else "6"),
+      'IFLAG_MASK': ("0x07" if xml.protocol_marker == 253 else "0x00")})
 
     # Mavlink2
     if (xml.protocol_marker == 253):
         t.write(outf, """
 ${MAVHEAD}.header.prototype.pack = function() {
-    return jspack.Pack('BBBBBBBHB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq, this.srcSystem, this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]);
+    var buf = jspack.Pack('BBBBB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq]);
+    if (this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SYSID32) {
+        buf = buf.concat(jspack.Pack('<I', [this.srcSystem]));
+    } else {
+        buf = buf.concat(jspack.Pack('B', [this.srcSystem]));
+    }
+    buf = buf.concat(jspack.Pack('BHB', [this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]));
+    if (this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGET32) {
+        buf = buf.concat(jspack.Pack('<I', [this.target_system]));
+    }
+    return buf;
 }
 """, {'PROTOCOL_MARKER' : xml.protocol_marker,
               'MAVHEAD': get_mavhead(xml)})
@@ -349,14 +366,43 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
     this._payload = this._payload.slice(0, plen);
     """)
 
+    # flags and extended targets differ between MAVLink2 and MAVLink1
+    if (xml.protocol_marker == 253):
+        t.write(outf, """
+// signing is our first incompat flag.
+    var incompat_flags = 0;
+    if (mav.signing.sign_outgoing){
+            incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_SIGNED
+    }
+    var compat_flags = 0;
+    var target_system = 0;
+    if (mav.srcSystem > 255) {
+        incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_SYSID32;
+    }
+    if ((this._target_system_fieldname != null) && (this[this._target_system_fieldname] > 255)) {
+        // the target goes in the extended header; the payload byte was
+        // packed as zero
+        incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_TARGET32;
+        target_system = this[this._target_system_fieldname];
+    }
+
+""", {'MAVHEAD': get_mavhead(xml)})
+    else:
+        t.write(outf, """
+    var incompat_flags = 0;
+    var compat_flags = 0;
+    var target_system = 0;
+    if (mav.srcSystem > 255) {
+        throw new Error("srcSystem > 255 requires MAVLink2");
+    }
+    if ((this._target_system_fieldname != null) && (this[this._target_system_fieldname] > 255)) {
+        throw new Error("target_system > 255 requires MAVLink2");
+    }
+""", {'MAVHEAD': get_mavhead(xml)})
+
     t.write(outf, """
-// signing is our first incompat flag. 
-    var incompat_flags = 0; 
-    if (mav.signing.sign_outgoing){ 
-            incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_SIGNED 
-    } 
     // header 
-    this._header = new ${MAVHEAD}.header(this._id, this._payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);
+    this._header = new ${MAVHEAD}.header(this._id, this._payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, compat_flags, target_system);
     // payload     
     this._msgbuf = this._header.pack().concat(this._payload);
     // crc -  for now, assume always using crc_extra = True.  TODO: check/fix this. 
@@ -464,6 +510,9 @@ def generate_classes(outf, msgs, xml):
     this._instance_field = %s;
     this._instance_offset = %d;
 
+    this._target_system_fieldname = %s;
+    this._target_component_fieldname = %s;
+
 """     % (
         m.fmtstr, 
         get_mavhead(xml), 
@@ -474,7 +523,9 @@ def generate_classes(outf, msgs, xml):
         m.crc_extra, 
         m.name.upper(),
         instance_field,
-        instance_offset
+        instance_offset,
+        ("'%s'" % m.target_system_fieldname) if m.target_system_fieldname is not None else "null",
+        ("'%s'" % m.target_component_fieldname) if m.target_component_fieldname is not None else "null"
         ))
         
         # body: set own properties
@@ -486,7 +537,15 @@ def generate_classes(outf, msgs, xml):
         # inherit methods from the base message class
         outf.write("\n%s.messages.%s.prototype = new %s.message;\n" % ( get_mavhead(xml), m.name.lower() ,get_mavhead(xml) ) )
 
-        orderedfields =    "var orderedfields = [ this." + ", this.".join(m.ordered_fieldnames) + "];";
+        ordered_terms = []
+        for fname in m.ordered_fieldnames:
+            if fname == m.target_system_fieldname:
+                # targets > 255 travel in the extended header; the payload
+                # byte uses 255 to avoid broadcast interpretation
+                ordered_terms.append("(this.%s > 255 ? 255 : this.%s)" % (fname, fname))
+            else:
+                ordered_terms.append("this." + fname)
+        orderedfields =    "var orderedfields = [ " + ", ".join(ordered_terms) + "];";
 
 
         # Implement the pack() function for this message
@@ -684,8 +743,18 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
         this.expected_length = unpacked[1] + ${MAVHEAD}.HEADER_LEN + 2 // length of message + header + CRC (ie non-signed length)
         this.incompat_flags = unpacked[2];
         // mavlink2 only..  in mavlink1, incompat_flags var above is actually the 'seq', but for this test its ok.
-        if ((magic == ${MAVHEAD}.PROTOCOL_MARKER_V2 ) && ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED )){
-            this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
+        if (magic == ${MAVHEAD}.PROTOCOL_MARKER_V2 ) {
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SIGNED ){
+                this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
+            }
+            // MAVLink2.1 extended headers: account for their length so the
+            // stream stays in sync through decode()
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SYSID32 ){
+                this.expected_length += 3;
+            }
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGET32 ){
+                this.expected_length += 4;
+            }
         }
     }
 
@@ -860,6 +929,7 @@ ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcCompo
 ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
 
     var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId, signature_len, header_len;
+    var target_system = 0;
 
     // decode the header
     try {
@@ -870,18 +940,31 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
     if (xml.protocol_marker == 253):
         t.write(outf, """
 if (msgbuf[0] == 253) {
-    var unpacked = jspack.Unpack('BBBBBBBHB', msgbuf.slice(0, 10));  // the H in here causes msgIDlow to takeup 2 bytes, the rest 1
-        magic = unpacked[0];
-        mlen = unpacked[1];
-        incompat_flags = unpacked[2];
-        compat_flags = unpacked[3];
-        seq = unpacked[4];
-        srcSystem = unpacked[5];
-        srcComponent = unpacked[6];
-        var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF); // first-two msgid bytes 
-        var msgIDhigh = unpacked[8];   // the 3rd msgid byte 
-        msgId = msgIDlow | (msgIDhigh<<16);  // combined result. 0 - 16777215  24bit number
+        magic = msgbuf[0];
+        mlen = msgbuf[1];
+        incompat_flags = msgbuf[2];
+        compat_flags = msgbuf[3];
+        seq = msgbuf[4];
         header_len = 10;
+        var hofs = 5;
+        if (incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SYSID32) {
+            // MAVLink2.1 32 bit source system ID
+            srcSystem = (msgbuf[5] | (msgbuf[6]<<8) | (msgbuf[7]<<16)) + (msgbuf[8]*16777216);
+            header_len += 3;
+            hofs = 9;
+        } else {
+            srcSystem = msgbuf[5];
+            hofs = 6;
+        }
+        srcComponent = msgbuf[hofs];
+        msgId = msgbuf[hofs+1] | (msgbuf[hofs+2]<<8) | (msgbuf[hofs+3]<<16);  // 0 - 16777215  24bit number
+        if (incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGET32) {
+            // MAVLink2.1 extended target header
+            target_system = msgbuf[hofs+4];
+            target_system |= (msgbuf[hofs+5]<<8) | (msgbuf[hofs+6]<<16);
+            target_system += msgbuf[hofs+7]*16777216;
+            header_len += 4;
+        }
 } else {
     var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
         magic = unpacked[0];
@@ -894,7 +977,7 @@ if (msgbuf[0] == 253) {
         compat_flags = 0;
         header_len = 6;
 }
-        """)
+        """, {'MAVHEAD': get_mavhead(xml)})
     # Mavlink1 only
     else:
         t.write(outf, """
@@ -916,6 +999,10 @@ var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
 
     if (magic != this.protocol_marker) {
         throw new Error("Invalid MAVLink prefix ("+magic+")");
+    }
+
+    if (incompat_flags & ~${MAVHEAD}.MAVLINK_IFLAG_MASK) {
+        throw new Error("Unsupported incompat_flags ("+incompat_flags+")");
     }
 
     // is packet supposed to be signed?
@@ -948,7 +1035,7 @@ var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
     }
 
     // here's the common chunks of packet we want to work with below..
-    var payloadBuf = msgbuf.slice(${MAVHEAD}.HEADER_LEN, -(signature_len+2)); // the remaining bit between the header and the crc
+    var payloadBuf = msgbuf.slice(header_len, -(signature_len+2)); // the remaining bit between the header and the crc
     var crcCheckBuf = msgbuf.slice(1, -(signature_len+2)); // the part uses to calculate the crc - ie between the magic and signature,
 
     // decode the payload
@@ -1109,12 +1196,17 @@ var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
     }
 
     m._signed = sig_ok;
-    if (m._signed) { m._link_id = msgbuf[-13]; }
+    if (m._signed) { m._link_id = msgbuf.slice(-13)[0]; }
  
     m._msgbuf = msgbuf;
     m._payload = payloadBuf;
     m.crc = receivedChecksum;
-    m._header = new ${MAVHEAD}.header(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags, compat_flags);
+    if ((incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGET32) && (m._target_system_fieldname != null)) {
+        // overlay the extended header target onto the decoded fields so
+        // existing code reading msg.target_system keeps working
+        m[m._target_system_fieldname] = target_system;
+    }
+    m._header = new ${MAVHEAD}.header(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags, compat_flags, target_system);
     this.log(m);
     return m;
 }
@@ -1380,4 +1472,3 @@ def generate(basename, xml):
     generate_tests_footer(outf, xml[0])
     outf.close()
     print("Generating TESTS %s" % testfilename)
-
