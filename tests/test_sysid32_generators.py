@@ -256,6 +256,19 @@ def test_lua_layout_and_flags(tmp_path):
     lua_run("package.path = %r .. '/?.lua;' .. package.path\nROOT = %r\n" % (str(modules), str(tmp_path)) + (RESOURCES / 'layout.lua').read_text())
 
 
+def test_wlua_rejects_extensions(tmp_path, streams):
+    lua = generate(tmp_path / 'mavlink.lua', 'WLua')
+    # PCAP DLT_USER0 is registered by the generated dissector.
+    packets = [p.read_bytes() for p in sorted(streams.glob('*.v2'))]
+    pcap = struct.pack('<IHHIIII', 0xa1b2c3d4, 2, 4, 0, 0, 65535, 147)
+    for data in packets:
+        pcap += struct.pack('<IIII', 0, 0, len(data), len(data)) + data
+    capture = tmp_path / 'frames.pcap'
+    capture.write_bytes(pcap)
+    output = run([tool('tshark'), '-n', '-r', capture, '-X', 'lua_script:' + str(lua), '-V'])
+    assert 'Lua Error' not in output
+    assert output.count('[Expert Info (Warning/Undecoded): Unsupported MAVLink incompatibility flags]') == len(packets)
+    assert output.count('Message id: HEARTBEAT') == len(packets)
 
 
 @pytest.mark.parametrize('protocol', ['1.0', '2.0'])

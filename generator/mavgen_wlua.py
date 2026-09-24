@@ -550,6 +550,24 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         -- some Wireshark decoration
         pinfo.cols.protocol = protocolString
 
+        -- Unsupported headers must not be decoded at MAVLink2.0 offsets.
+        -- Skip the complete frame, including its signature, before continuing.
+        local unsupported = version == 0xfd and buffer:len() - offset >= 3
+            and bit.band(buffer(offset + 2, 1):uint(), 0xfe) ~= 0
+        if unsupported then
+            local flags = buffer(offset + 2, 1):uint()
+            local frame_size = 12 + buffer(offset + 1, 1):uint()
+            if bit.band(flags, 1) ~= 0 then frame_size = frame_size + 13 end
+            if bit.band(flags, 2) ~= 0 then frame_size = frame_size + 3 end
+            if bit.band(flags, 4) ~= 0 then
+                frame_size = frame_size + 4
+            end
+            local available = math.min(frame_size, buffer:len() - offset)
+            subtree:add(f.rawpayload, buffer(offset, available))
+            subtree:add_expert_info(PI_UNDECODED, PI_WARN, "Unsupported MAVLink incompatibility flags")
+            pinfo.cols.info:append(" Unsupported MAVLink frame")
+            offset = offset + available
+        else
         -- HEADER ----------------------------------------
     
         local msgid
@@ -691,6 +709,8 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 offset = offset + 6
             end
         end
+
+        end -- supported header
 
     end
 end
