@@ -51,6 +51,7 @@ public class Parser {
     public MAVLinkStats stats;
     private MAVLinkPacket m;
     private boolean isMavlink2;
+    private int discardRemaining;
 
     public Parser() {
         this(false);
@@ -74,6 +75,12 @@ public class Parser {
 
         // force to 8 bits
         c &= 0xFF;
+
+        // Do not interpret magic bytes inside an unsupported frame as a new packet.
+        if (discardRemaining > 0) {
+            discardRemaining--;
+            return null;
+        }
 
         switch (state) {
             case MAVLINK_PARSE_STATE_UNINIT:
@@ -107,8 +114,12 @@ public class Parser {
             case MAVLINK_PARSE_STATE_GOT_LENGTH:
                 // MAVLink 1 and 2
                 m.incompatFlags = c;
-                if (c != 0 && c != 1) {
-                    // message includes an incompatible feature flag
+                if (c != 0) {
+                    // This parser does not verify signatures or support extended headers.
+                    discardRemaining = m.len + 9;
+                    if ((c & 1) != 0) discardRemaining += 13;
+                    if ((c & 2) != 0) discardRemaining += 3;
+                    if ((c & 4) != 0) discardRemaining += 4;
                     state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
                     break;
                 }
@@ -193,15 +204,9 @@ public class Parser {
                 } else { // crc is good
                     stats.newPacket(m);
                     
-                    if (!isMavlink2 || (m.incompatFlags != 0x01)) {
-                        // If no signature, then return the message.
-                        state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                        return m;
-                    } else {
-                        // TODO: MAVLink 2 - signed
-                        state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
-                        stats.crcError();
-                    }
+                    // Frames with incompatibility flags were discarded at GOT_LENGTH.
+                    state = MAV_states.MAVLINK_PARSE_STATE_IDLE;
+                    return m;
                 }
                 break;
                 

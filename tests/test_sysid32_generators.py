@@ -136,6 +136,14 @@ def test_c_no_per_message_target_system_getters(tmp_path, protocol):
         assert 'implicit declaration' in result.stderr
 
 
+def test_java_rejects_extensions(tmp_path, streams):
+    java = generate(tmp_path / 'java', 'Java')
+    sources = list(java.rglob('*.java'))
+    run([tool('javac'), '-d', tmp_path / 'classes', *sources, RESOURCES / 'Reject.java'])
+    # Only the fixture's extension may change; a parent directory can contain .v2.
+    java_streams = tmp_path / 'parent.v2' / 'frames'
+    shutil.copytree(streams, java_streams)
+    run([tool('java'), '-cp', tmp_path / 'classes', 'Reject', java_streams])
 
 
 def test_cs_rejects_extensions(tmp_path, streams):
