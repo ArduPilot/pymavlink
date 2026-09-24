@@ -1,0 +1,54 @@
+OBJ
+    parser : "mavlink"
+VAR
+    long cursor, limit, fragment, pause_next
+PUB main() | mode, index, length, count, packet, data
+    pinhigh(62)
+    waitx(1000)
+    parser.init_session(42, 11, 115200, @tx, @rx)
+    repeat mode from 0 to 1
+        fragment := mode
+        data := @streams
+        repeat index from 0 to 23
+            length := byte[data] + (byte[data+1] << 8)
+            cursor := data + 2
+            limit := cursor + length
+            count := 0
+            pause_next := 0
+            parser.newPacket()
+            repeat while cursor < limit
+                if parser.receive()
+                    packet := parser.getPacket()
+                    if byte[packet] <> $FD || byte[packet+5] <> 42 || byte[packet+7] <> 0
+                        finish(1)
+                    count++
+            if count <> 1
+                finish(2)
+            data := limit
+    tx("O")
+    tx("K")
+    finish(0)
+PRI rx(timeout) : value
+    if fragment && pause_next
+        pause_next := 0
+        return -1
+    if cursor == limit
+        return -1
+    pause_next := 1
+    return byte[cursor++]
+PRI finish(code)
+    tx(255)
+    tx(0)
+    tx(code)
+    repeat
+PRI tx(value) | i
+    pinlow(62)
+    waitx(694)
+    repeat i from 0 to 7
+        pinwrite(62, value & 1)
+        value >>= 1
+        waitx(694)
+    pinhigh(62)
+    waitx(694)
+DAT
+streams file "streams.bin"

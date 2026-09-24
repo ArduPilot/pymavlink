@@ -66,7 +66,7 @@ VAR
     LONG total_packets_sent
     BYTE srcSystemId
     BYTE srcComponentId
-    BYTE expected_length
+    WORD expected_length
     ' long startup_time
     
 ' OBJ
@@ -495,7 +495,8 @@ CON
 VAR 
     BYTE parse_state
     MAVLink inPacket
-    BYTE payloadIndex    
+    BYTE payloadIndex
+    WORD discardRemaining
     
 PRI crcError()
     ' Do nothing for now. TODO: implement error handling
@@ -503,14 +504,18 @@ PRI crcError()
 
 PUB newPacket()
     parse_state := PARSE_STATE_IDLE
-    inPacket~
+    BYTEFILL(@inPacket, 0, sizeof(inPacket))
     payloadIndex~
+    discardRemaining~
 
 PUB getPacket(): packetAddr
     packetAddr := @inPacket
     return packetAddr
 
 PUB parse_char(c)
+    if discardRemaining > 0
+        discardRemaining--
+        return
     CASE_FAST parse_state
         PARSE_STATE_UNINIT..PARSE_STATE_IDLE:
             IF (c == PROTOCOL_MARKER_V2)
@@ -531,7 +536,14 @@ PUB parse_char(c)
                 parse_state := PARSE_STATE_GOT_COMPAT_FLAGS ' skip to seq, mavlink 1
         PARSE_STATE_GOT_LENGTH:
             inPacket.incompat_flags := c
-            if (c <> 0 && c <> 1) ' I am incompatible
+            if c <> 0 ' signatures and extended headers are unsupported
+                discardRemaining := inPacket.len + 9
+                if c & 1
+                    discardRemaining += 13
+                if c & 2
+                    discardRemaining += 3
+                if c & 4
+                    discardRemaining += 4
                 parse_state := PARSE_STATE_IDLE
             else
                 parse_state := PARSE_STATE_GOT_INCOMPAT_FLAGS
@@ -570,23 +582,19 @@ PUB parse_char(c)
             parse_state := PARSE_STATE_IDLE
             crcError()        
 
-PUB receive() : hasPacket | b, intended_packet_length
-        b := recvSerial(0):1
-        'we should be able to eat a whole packet but are we being flooded?
-            if(b == $FD) ' start packet; we may need to figure out why the GCS has started sending mavlink1 packets                                        
-                newPacket()
-                hasPacket := TRUE
-                intended_packet_length := recvSerial(10):1 ' second byte is payload length, packet length is payload length +12 (10 before, 2 after)
-                IF (intended_packet_length == -1)
-                    return FALSE            
-                parse_char(b)
-                parse_char(intended_packet_length)
-                REPEAT intended_packet_length + 10 ' 12 bytes, but we already parsed the first two
-                    b := recvSerial(10):1
-                    if(b == -1)
-                        hasPacket := FALSE
-                        quit
-                    parse_char(b)                    
+PUB receive() : hasPacket | b
+    if parse_state == PARSE_STATE_UNINIT || parse_state == PARSE_STATE_GOT_CRC2
+        newPacket()
+    b := recvSerial(0):1
+    repeat
+        if b == -1
+            return FALSE
+        parse_char(b)
+        if parse_state == PARSE_STATE_GOT_CRC2
+            return TRUE
+        if parse_state == PARSE_STATE_IDLE && discardRemaining == 0
+            return FALSE
+        b := recvSerial(10):1
 ''',
         xml,
     )
