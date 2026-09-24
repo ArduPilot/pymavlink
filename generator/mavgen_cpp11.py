@@ -301,7 +301,10 @@ def enum_remove_prefix(prefix, s):
     sl = s.split('_')
 
     for i in range(len(pl)):
-        if pl[i] == sl[0]:
+        # keep at least one component, so that an entry whose name is a
+        # prefix of the enum name (e.g. SOME_ENUM in SOME_ENUM_NAME) does
+        # not end up with an empty name
+        if len(sl) > 1 and pl[i] == sl[0]:
             sl = sl[1:]
         else:
             break
