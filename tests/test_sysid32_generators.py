@@ -197,6 +197,11 @@ def test_nextgen_field_target(tmp_path):
     assert actual == expected
 
 
+def test_cpp_rejects_extensions(tmp_path, streams):
+    headers = generate(tmp_path / 'cpp', 'C++11')
+    exe = tmp_path / 'reject'
+    run([tool('g++'), '-std=c++11', '-I' + str(headers), RESOURCES / 'reject.cpp', '-o', exe])
+    run([exe, streams])
 
 
 def lua_run(script):

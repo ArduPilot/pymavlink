@@ -10,6 +10,7 @@
 #include <endian.h>
 #endif
 #include <type_traits>
+#include <stdexcept>
 
 namespace mavlink {
 
@@ -216,6 +217,11 @@ template<typename _T>
 void mavlink::MsgMap::operator>> (_T &data)
 {
     assert(cmsg);
+    // The C framing layer understands extended headers, but these C++ payload
+    // classes still expose 8 bit targets. Do not decode one as a broadcast.
+    if (cmsg->magic == MAVLINK_STX && (cmsg->incompat_flags & ~MAVLINK_IFLAG_SIGNED)) {
+        throw std::runtime_error("C++ message wrappers do not support extended MAVLink headers");
+    }
     assert(pos + sizeof(_T) <= MAVLINK_MAX_PAYLOAD_LEN);
 
     ssize_t remaining_non_zero_data = cmsg->len - pos;
