@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "description": "Optional runtime dependencies for the generated TypeScript parser tests",
+  "dependencies": {
+    "@ifrunistuttgart/node-mavlink": "0.1.2",
+    "@types/node": "22.19.11",
+    "typescript": "5.9.3"
+  }
+}
