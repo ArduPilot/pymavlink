@@ -134,3 +134,60 @@ def test_c_no_per_message_target_system_getters(tmp_path, protocol):
         assert result.returncode != 0
         assert getter in result.stderr
         assert 'implicit declaration' in result.stderr
+
+
+
+
+
+
+def node_environment():
+    env = os.environ.copy()
+    modules = ROOT / 'generator/javascript/node_modules'
+    missing = [name for name in ('jspack', 'long', 'underscore')
+               if not (modules / name / 'package.json').is_file()]
+    if missing:
+        pytest.skip('Missing JavaScript dependencies: %s (npm install in generator/javascript)' % ', '.join(missing))
+    env['NODE_PATH'] = str(modules) + os.pathsep + env.get('NODE_PATH', '')
+    return env
+
+
+@pytest.mark.parametrize('missing', ['jspack', 'long', 'underscore'])
+def test_node_environment_missing_dependencies(tmp_path, monkeypatch, missing):
+    # A clean checkout has vendored jspack/long symlinks, but no underscore.
+    modules = tmp_path / 'generator/javascript/node_modules'
+    modules.mkdir(parents=True)
+    for name in ('jspack', 'long', 'underscore'):
+        if name != missing:
+            (modules / name).symlink_to(ROOT / 'generator/javascript/node_modules' / name)
+    monkeypatch.setitem(node_environment.__globals__, 'ROOT', tmp_path)
+    with pytest.raises(pytest.skip.Exception, match='Missing JavaScript dependencies: .*' + missing):
+        node_environment()
+
+
+
+
+def test_nextgen_rejects_unknown_incompat_flags(tmp_path, streams):
+    generated = generate(tmp_path / 'mavlink.js', 'JavaScript_NextGen')
+    run([tool('node'), RESOURCES / 'reject-nextgen.js', generated, streams], env=node_environment())
+
+
+@pytest.mark.parametrize('protocol,mask', [('1.0', 0), ('2.0', 7)])
+def test_nextgen_protocol_mask(tmp_path, protocol, mask):
+    generated = generate(tmp_path / 'mavlink.js', 'JavaScript_NextGen', protocol)
+    version = '10' if protocol == '1.0' else '20'
+    script = ("const m = require(process.argv[1]).mavlink%s; "
+              "require('assert').strictEqual(m.MAVLINK_IFLAG_MASK, %u);" % (version, mask))
+    run([tool('node'), '-e', script, generated], env=node_environment())
+
+
+def test_nextgen_field_target(tmp_path):
+    generated = generate(tmp_path / 'mavlink.js', 'JavaScript_NextGen')
+    actual = run([tool('node'), RESOURCES / 'target.js', generated], env=node_environment()).splitlines()
+    expected = []
+    for source in [42, 0xABCDEF12]:
+        for target in [0, 7, 255, 256, 0xFFFFFFFF]:
+            for signed in [0, 1]:
+                flags = (4 if target > 255 else 0) | (2 if source > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, target if target <= 255 else 255, 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert actual == expected

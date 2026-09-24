@@ -344,6 +344,89 @@ describe('MAVLink 2.0 header', function() {
 
 });
 
+describe('MAVLink 2.1 32 bit system IDs', function() {
+
+    beforeEach(function() {
+        var {mavlink20, MAVLink20Processor} = require('../implementations/mavlink_ardupilotmega_v2.0/mavlink.js');
+        this.mavlink20 = mavlink20;
+        // sender with a 32 bit source system ID
+        this.mav = new MAVLink20Processor(null, 100000, 190);
+        this.rx = new MAVLink20Processor(null, 255, 190);
+    });
+
+    it('round trips a 32 bit source system via the SYSID32 header', function() {
+        var hb = new this.mavlink20.messages.heartbeat(
+            this.mavlink20.MAV_TYPE_GCS,
+            this.mavlink20.MAV_AUTOPILOT_INVALID,
+            0, 0, this.mavlink20.MAV_STATE_STANDBY);
+        var packed = hb.pack(this.mav);
+        packed[2].should.eql(this.mavlink20.MAVLINK_IFLAG_SYSID32); // incompat_flags
+        packed[3].should.eql(0); // compat_flags
+        var msgs = this.rx.parseBuffer(packed);
+        msgs.length.should.eql(1);
+        msgs[0]._name.should.eql('HEARTBEAT');
+        msgs[0]._header.srcSystem.should.eql(100000);
+    });
+
+    it('round trips TARGET32 without SYSID32 using a 32 bit target', function() {
+        this.mav.srcSystem = 42;
+        var command = new this.mavlink20.messages.command_long(
+            99, 100, 300, 1, 1, 2, 3, 4, 5, 6, 7);
+        var normal = command.pack(this.mav);
+        var payload = normal.slice(10, -2);
+        var header = new this.mavlink20.header(
+            this.mavlink20.MAVLINK_MSG_ID_COMMAND_LONG,
+            payload.length, 0, 42, 11,
+            this.mavlink20.MAVLINK_IFLAG_TARGET32,
+            0,
+            0x12345607);
+        var packed = header.pack();
+        packed.length.should.eql(14);
+        packed[2].should.eql(this.mavlink20.MAVLINK_IFLAG_TARGET32);
+        packed[10].should.eql(7);
+        packed[11].should.eql(0x56);
+        packed[12].should.eql(0x34);
+        packed[13].should.eql(0x12);
+        packed = packed.concat(payload);
+        var crc = this.mavlink20.x25Crc(packed.slice(1));
+        crc = this.mavlink20.x25Crc([command.crc_extra], crc);
+        packed = packed.concat([crc & 255, crc >> 8]);
+        for (var i = 0; i < packed.length - 1; i++) {
+            should.equal(this.rx.parseBuffer([packed[i]]), null);
+        }
+        var msgs = this.rx.parseBuffer(packed.slice(-1).concat(normal));
+        msgs.length.should.eql(2);
+        msgs[0]._header.srcSystem.should.eql(42);
+        msgs[0].target_system.should.eql(0x12345607);
+        msgs[0].target_component.should.eql(100);
+        msgs[1].target_system.should.eql(99);
+        msgs[1].target_component.should.eql(100);
+    });
+
+    it('round trips a 32 bit target via the TARGET32 header', function() {
+        // A wide target does not widen the source ID.
+        this.mav.srcSystem = 42;
+        var cl = new this.mavlink20.messages.command_long(
+            167772162, // target_system 10.0.0.2
+            250,       // target_component
+            300,       // command
+            1,         // confirmation
+            1, 2, 3, 4, 5, 6, 7);
+        var packed = cl.pack(this.mav);
+        ((packed[2] & this.mavlink20.MAVLINK_IFLAG_TARGET32) != 0).should.eql(true);
+        ((packed[2] & this.mavlink20.MAVLINK_IFLAG_SYSID32) != 0).should.eql(false);
+        var msgs = this.rx.parseBuffer(packed);
+        msgs.length.should.eql(1);
+        msgs[0]._name.should.eql('COMMAND_LONG');
+        // the extended header target is overlaid onto the decoded field
+        msgs[0].target_system.should.eql(167772162);
+        msgs[0].target_component.should.eql(250);
+        msgs[0]._header.target_system.should.eql(167772162);
+        msgs[0]._header.srcSystem.should.eql(42);
+    });
+
+});
+
 describe('MAVLink 2.0 message', function() {
 
     beforeEach(function() {
