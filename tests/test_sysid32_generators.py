@@ -138,6 +138,11 @@ def test_c_no_per_message_target_system_getters(tmp_path, protocol):
 
 
 
+def test_cs_rejects_extensions(tmp_path, streams):
+    cs = generate(tmp_path / 'cs', 'CS')
+    exe = tmp_path / 'reject.exe'
+    run([tool('mcs'), '-unsafe', '-out:' + str(exe), *cs.glob('*.cs'), RESOURCES / 'Reject.cs'])
+    run([tool('mono'), exe, streams])
 
 
 def node_environment():
