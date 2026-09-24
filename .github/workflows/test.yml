@@ -28,7 +28,7 @@ jobs:
           python3 -m pip install flake8 mypy numpy pytest pytest-mock
           pip install -r requirements.txt
           sudo apt update
-          sudo apt install -y libgtest-dev g++ tshark
+          sudo apt install -y libgtest-dev g++ tshark mono-mcs mono-runtime
 
       - uses: actions/setup-node@v6
         with:
