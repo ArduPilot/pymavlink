@@ -43,11 +43,11 @@ using msgid_t = uint32_t;
  * MAVLink Message base class.
  */
 struct Message {
-	static constexpr msgid_t MSG_ID = UINT32_MAX;
-	static constexpr uint8_t LENGTH = 0;
-	static constexpr uint8_t MIN_LENGTH = 0;
-	static constexpr uint8_t CRC_EXTRA = 0;
-	static constexpr auto NAME = "BASE";
+	static constexpr msgid_t MSG_ID{UINT32_MAX};
+	static constexpr uint8_t LENGTH{0};
+	static constexpr uint8_t MIN_LENGTH{0};
+	static constexpr uint8_t CRC_EXTRA{0};
+	static constexpr auto NAME{"BASE"};
 
 	struct Info {
 		msgid_t id;
