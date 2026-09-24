@@ -164,6 +164,10 @@ def test_node_environment_missing_dependencies(tmp_path, monkeypatch, missing):
         node_environment()
 
 
+@pytest.mark.parametrize('language', ['JavaScript', 'JavaScript_Stable'])
+def test_stable_javascript_rejects_extensions(tmp_path, streams, language):
+    generated = generate(tmp_path / 'mavlink.js', language)
+    run([tool('node'), RESOURCES / 'reject-stable.js', generated, streams], env=node_environment())
 
 
 def test_nextgen_rejects_unknown_incompat_flags(tmp_path, streams):
