@@ -195,3 +195,44 @@ def test_nextgen_field_target(tmp_path):
                 payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, target if target <= 255 else 255, 250, 1)
                 expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
     assert actual == expected
+
+
+
+
+def lua_run(script):
+    """Use the shared library where only a Lua 5.1 executable is installed."""
+    path = ctypes.util.find_library('lua5.4') or ctypes.util.find_library('lua5.3')
+    if not path:
+        pytest.skip('Lua 5.3 or newer is required')
+    lua = ctypes.CDLL(path)
+    lua.luaL_newstate.restype = ctypes.c_void_p
+    lua.luaL_openlibs.argtypes = [ctypes.c_void_p]
+    lua.luaL_loadstring.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lua.lua_pcallk.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ssize_t, ctypes.c_void_p]
+    lua.lua_tolstring.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    lua.lua_tolstring.restype = ctypes.c_char_p
+    lua.lua_close.argtypes = [ctypes.c_void_p]
+    state = lua.luaL_newstate()
+    try:
+        lua.luaL_openlibs(state)
+        result = lua.luaL_loadstring(state, script.encode())
+        if result == 0:
+            result = lua.lua_pcallk(state, 0, 0, 0, 0, None)
+        assert result == 0, lua.lua_tolstring(state, -1, None)
+    finally:
+        lua.lua_close(state)
+
+
+def test_lua_layout_and_flags(tmp_path):
+    modules = generate(tmp_path / 'modules', 'Lua')
+    for flags in range(8):
+        source = 0xABCDEF12 if flags & 2 else 42
+        target = 0xFEDCBA98 if flags & 2 else 7
+        wire = frame(flags, source=source, target=target)
+        header_len = 10 + (3 if flags & 2 else 0) + (4 if flags & 4 else 0)
+        crc = wire[header_len + 9:header_len + 11]
+        for storage in [16, 256, 264]:
+            data = crc + struct.pack('<BBBBBIB', 253, 9, flags, 0, 0, source, 11) + bytes(3)
+            data += wire[header_len:header_len + 9].ljust(storage, b'\0') + bytes(15) + struct.pack('<I', target)
+            (tmp_path / ('%d-%d.bin' % (flags, storage))).write_bytes(data)
+    lua_run("package.path = %r .. '/?.lua;' .. package.path\nROOT = %r\n" % (str(modules), str(tmp_path)) + (RESOURCES / 'layout.lua').read_text())
