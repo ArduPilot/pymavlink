@@ -298,6 +298,7 @@ private
       Income_Buffer : Data_Buffer (1 .. Maximum_Buffer_Len);
       Position      : Natural := 0;
       Last          : Natural := 0;
+      Discard_Remaining : Natural := 0;
    end record;
 
    -- Connection --

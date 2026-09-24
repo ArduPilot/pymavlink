@@ -258,6 +258,18 @@ def test_lua_layout_and_flags(tmp_path):
 
 
 
+@pytest.mark.parametrize('protocol', ['1.0', '2.0'])
+def test_ada_rejects_extensions(tmp_path, streams, protocol):
+    compiler = tool('gnatmake')
+    generated = generate(tmp_path / 'ada', 'Ada', protocol)
+    version = 'V1' if protocol == '1.0' else 'V2'
+    source = (RESOURCES / 'reject_ada.adb').read_text().replace('@VERSION@', version)
+    source = source.replace('@MESSAGE_ID@', 'Get_Msg_Id' if version == 'V1' else 'Get_Message_Id')
+    source = source.replace('@SYSTEM_ID@', 'Get_Target_System_Id' if version == 'V1' else 'Get_Message_System_Id')
+    (generated / 'reject_ada.adb').write_text(source)
+    run([compiler, '-gnat2022', '-gnata', '-q', 'reject_ada.adb'], cwd=generated)
+    for stream in sorted(streams.glob('*.' + version.lower())):
+        run([generated / 'reject_ada', stream])
 
 
 def test_typescript_rejects_extensions(tmp_path, streams):

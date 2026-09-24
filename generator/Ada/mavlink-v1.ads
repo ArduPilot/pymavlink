@@ -174,6 +174,8 @@ private
       Len          : Natural := 0;
       Checksum     : X25CRC.Checksum;
       Extras_Added : Boolean := False;
+      Unsupported_Header : Natural := 0;
+      Discard_Remaining : Natural := 0;
    end record;
 
    -- Connection --
