@@ -1542,16 +1542,31 @@ class mavmmaplog(mavlogfile):
             elif marker == MARKER_V2:
                 if ofs+8+10 > self.data_len:
                     break
-                mtype = u_ord(self.data_map[ofs+15]) | (u_ord(self.data_map[ofs+16])<<8) | (u_ord(self.data_map[ofs+17])<<16)
-                mlen += 12
-                data_ofs = 18
                 incompat_flags = u_ord(self.data_map[ofs+10])
+                if incompat_flags & ~mavlink.MAVLINK_IFLAG_MASK:
+                    ofs += 1
+                    continue
+                source_extra = (mavlink.MAVLINK_SYSID32_HEADER_EXTRA
+                                if incompat_flags & mavlink.MAVLINK_IFLAG_SYSID32 else 0)
+                target_extra = (mavlink.MAVLINK_TARGET32_HEADER_EXTRA
+                                if incompat_flags & mavlink.MAVLINK_IFLAG_TARGET32 else 0)
+                data_ofs = 18 + source_extra + target_extra
+                mlen += 12 + source_extra + target_extra
                 if incompat_flags & mavlink.MAVLINK_IFLAG_SIGNED:
                     mlen += mavlink.MAVLINK_SIGNATURE_BLOCK_LEN
+                if ofs + mlen > self.data_len:
+                    break
+                msgid_ofs = ofs + 15 + source_extra
+                mtype = (u_ord(self.data_map[msgid_ofs]) |
+                         (u_ord(self.data_map[msgid_ofs+1]) << 8) |
+                         (u_ord(self.data_map[msgid_ofs+2]) << 16))
             else:
                 # unrecognised marker; probably a malformed log
                 ofs += 1
                 continue
+
+            if ofs + mlen > self.data_len:
+                break
 
             if not mtype in self.offsets:
                 if not mtype in mavlink.mavlink_map:
