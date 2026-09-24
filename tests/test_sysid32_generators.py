@@ -284,6 +284,15 @@ def test_typescript_rejects_extensions(tmp_path, streams):
     run([tool('node'), RESOURCES / 'reject-typescript.js', generated / 'compiled/message-registry.js', streams])
 
 
+def test_swift_rejects_extensions(tmp_path, streams):
+    compiler = tool('swiftc')
+    generated = tmp_path / 'swift'
+    assert mavgen.mavgen(mavgen.Opts(output=str(generated), language='Swift', wire_protocol='1.0', validate=False),
+                         [str(XML.with_name('minimal.xml'))])
+    (generated / 'main.swift').write_text((RESOURCES / 'reject.swift').read_text())
+    exe = tmp_path / 'reject'
+    run([compiler, '-module-cache-path', tmp_path / 'swift-cache', *generated.glob('*.swift'), '-o', exe])
+    run([exe, streams])
 
 
 def objc_sources(tmp_path):

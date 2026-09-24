@@ -444,6 +444,9 @@ public class MAVLink {
         case gotPayload
         case gotCRC1
         case gotBadCRC1
+        case unsupportedLength
+        case unsupportedFlags
+        case discardUnsupported
     }
     
     enum Framing: UInt8 {
@@ -463,6 +466,7 @@ public class MAVLink {
         
         /// Parsing state machine
         var parseState: ParseState = .uninit
+        var discardRemaining = 0
         
         /// Sequence number of the last received packet
         var currentRxSeq: UInt8 = 0
@@ -524,6 +528,10 @@ public class MAVLink {
                 rxpack.magic = char
                 rxpack.checksum.start()
                 status.parseState = .gotStx
+            } else if char == 0xFD {
+                // This implementation supports MAVLink1 only. Consume MAVLink2
+                // frames whole so their payload cannot masquerade as MAVLink1.
+                status.parseState = .unsupportedLength
             }
         }
         
@@ -535,6 +543,20 @@ public class MAVLink {
         switch status.parseState {
         case .uninit, .idle:
             handleSTX(char: char, rxpack: rxpack, status: status)
+
+        case .unsupportedLength:
+            status.discardRemaining = Int(char) + 9
+            status.parseState = .unsupportedFlags
+
+        case .unsupportedFlags:
+            if char & 1 != 0 { status.discardRemaining += 13 }
+            if char & 2 != 0 { status.discardRemaining += 3 }
+            if char & 4 != 0 { status.discardRemaining += 4 }
+            status.parseState = .discardUnsupported
+
+        case .discardUnsupported:
+            status.discardRemaining -= 1
+            if status.discardRemaining == 0 { status.parseState = .idle }
             
         case .gotStx:
             rxpack.length = char
