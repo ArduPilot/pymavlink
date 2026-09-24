@@ -100,6 +100,10 @@ package body MAVLink.V2 is
       Header : V2_Header with Import,
         Address => Incoming.Income_Buffer'Address;
    begin
+      if Incoming.Discard_Remaining > 0 then
+         Incoming.Discard_Remaining := Incoming.Discard_Remaining - 1;
+         return False;
+      end if;
       if Incoming.Last > 0
         and then Incoming.Position >= Incoming.Last
       then
@@ -114,6 +118,27 @@ package body MAVLink.V2 is
 
       Incoming.Position := Incoming.Position + 1;
       Incoming.Income_Buffer (Incoming.Position) := Value;
+
+      if Incoming.Position = 3 and then (Value and 16#FE#) /= 0 then
+         --  Skip the entire unsupported frame, including any signature. Payload
+         --  bytes may contain valid-looking frames and must not be parsed again.
+         declare
+            Remaining : Natural := Natural (Header.Len) + 9;
+         begin
+            if (Value and 1) /= 0 then
+               Remaining := Remaining + 13;
+            end if;
+            if (Value and 2) /= 0 then
+               Remaining := Remaining + 3;
+            end if;
+            if (Value and 4) /= 0 then
+               Remaining := Remaining + 4;
+            end if;
+            Clear (Incoming);
+            Incoming.Discard_Remaining := Remaining;
+            return False;
+         end;
+      end if;
 
       if Incoming.Position < Packet_Payload_First then
          --  no header yet
@@ -620,6 +645,7 @@ package body MAVLink.V2 is
    begin
       Incoming.Position := 0;
       Incoming.Last     := 0;
+      Incoming.Discard_Remaining := 0;
    end Clear;
 
    -----------
