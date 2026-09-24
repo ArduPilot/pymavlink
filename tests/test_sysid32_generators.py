@@ -254,3 +254,42 @@ def test_lua_layout_and_flags(tmp_path):
             data += wire[header_len:header_len + 9].ljust(storage, b'\0') + bytes(15) + struct.pack('<I', target)
             (tmp_path / ('%d-%d.bin' % (flags, storage))).write_bytes(data)
     lua_run("package.path = %r .. '/?.lua;' .. package.path\nROOT = %r\n" % (str(modules), str(tmp_path)) + (RESOURCES / 'layout.lua').read_text())
+
+
+
+
+
+
+
+
+
+
+def objc_sources(tmp_path):
+    generated = generate(tmp_path / 'objc', 'ObjC', xml=XML.with_name('minimal.xml'))
+    headers = generate(tmp_path / 'c', 'C', xml=XML.with_name('minimal.xml'))
+    # The minimal dialect does not define the MAV_BOOL enum used by this API.
+    includes = ['-DMAV_BOOL=BOOL'] + ['-I' + str(p) for p in [generated, headers / 'minimal',
+                generated / 'minimal']]
+    return generated, includes
+
+
+def test_objc_rejects_extensions(tmp_path, streams):
+    import sys
+    if sys.platform != 'darwin':
+        pytest.skip('Objective-C runtime test requires Apple Foundation and ARC')
+    generated, includes = objc_sources(tmp_path)
+    exe = tmp_path / 'reject'
+    run([tool('clang'), '-fobjc-arc', '-framework', 'Foundation', '-include', 'Foundation/Foundation.h',
+         *includes, *generated.rglob('*.m'), RESOURCES / 'reject.m', '-o', exe])
+    run([exe, streams])
+
+
+def test_objc_compiles_with_gnustep(tmp_path):
+    root = os.environ.get('MAVLINK_GNUSTEP_ROOT')
+    objc_include = os.environ.get('MAVLINK_OBJC_INCLUDE')
+    if not root or not objc_include:
+        pytest.skip('Set MAVLINK_GNUSTEP_ROOT and MAVLINK_OBJC_INCLUDE for GNUstep syntax check')
+    generated, includes = objc_sources(tmp_path)
+    run([tool('clang'), '-fsyntax-only', '-fobjc-runtime=gnustep-2.0', '-fobjc-weak',
+         '-DGNUSTEP', '-DGNUSTEP_BASE_LIBRARY=1', '-I' + root, '-I' + objc_include,
+         '-include', 'Foundation/Foundation.h', *includes, *generated.rglob('*.m'), RESOURCES / 'reject.m'])

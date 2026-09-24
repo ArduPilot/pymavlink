@@ -98,7 +98,9 @@ ${{message_definition_files:#import "MV${name_camel_case}Messages.h"
     if (mavlink_parse_char(MAVLINK_COMM_0, bytes[i], &msg, &status)) {
       // Packet received
       id<MVMessage> message = [MVMessage messageWithCMessage:msg];
-      [_delegate mavlink:self didGetMessage:message];
+      if (message != nil) {
+        [_delegate mavlink:self didGetMessage:message];
+      }
     }
   }
 }
@@ -192,6 +194,13 @@ ${{message:      @${id} : [MVMessage${name_camel_case} class],
 }
 
 - (id)initWithCMessage:(mavlink_message_t)message {
+#ifdef MAVLINK_IFLAG_SYSID32
+  // The C parser supports extended headers, but Objective-C message properties
+  // still use the original 8 bit system and target types.
+  if (message.magic == MAVLINK_STX && (message.incompat_flags & ~MAVLINK_IFLAG_SIGNED)) {
+    return nil;
+  }
+#endif
   if ((self = [super init])) {
     self->_message = message;
   }
