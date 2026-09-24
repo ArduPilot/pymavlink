@@ -6,6 +6,7 @@ Based on original work Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 """
 import os
+import shutil
 from . import mavtemplate
 
 t = mavtemplate.MAVTemplate()
@@ -33,7 +34,7 @@ def generate_enums(dir, enums):
             f.write("export enum {} {{\n".format(camelcase(e.name)))
             for entry in e.entry:
                 f.write(
-                    "\t{} = {}, // {}\n".format(entry.name, entry.value, entry.description.rstrip("\r").rstrip("\n")))
+                    "\t{} = {}, // {}\n".format(entry.name, entry.value, ' '.join(entry.description.splitlines())))
             f.write("}")
 
 
@@ -73,7 +74,7 @@ def generate_classes(dir, registry, msgs, xml):
 
                 f.write("/*\n{}\n*/\n".format(m.description.strip()))
                 for field in m.fields:
-                    f.write("// {} {} {}\n".format(field.name, field.description.strip(), field.type))
+                    f.write("// {} {} {}\n".format(field.name, ' '.join(field.description.splitlines()), field.type))
 
                 f.write("export class {} extends MAVLinkMessage {{\n".format(camelcase(m.name)))
 
@@ -120,6 +121,7 @@ def generate_tsconfig(basename):
 
 
 def generate(basename, xml):
+    os.makedirs(basename, exist_ok=True)
     enums_dir = basename + '/enums'
     messages_dir = basename + '/messages'
     message_registry = basename + '/message-registry.ts'
@@ -135,3 +137,7 @@ def generate(basename, xml):
     generate_enums(enums_dir, enums)
     generate_classes(messages_dir, message_registry, msgs, xml[0])
     generate_tsconfig(basename)
+    shutil.copyfile(os.path.join(os.path.dirname(__file__), 'TypeScript', 'mavlink.ts'),
+                    os.path.join(basename, 'mavlink.ts'))
+    with open(message_registry, 'a', encoding='utf-8') as outf:
+        outf.write("\nexport {MAVLinkModule} from './mavlink';\n")

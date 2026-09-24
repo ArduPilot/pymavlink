@@ -260,6 +260,16 @@ def test_lua_layout_and_flags(tmp_path):
 
 
 
+def test_typescript_rejects_extensions(tmp_path, streams):
+    modules = Path(os.environ.get('MAVLINK_TYPESCRIPT_NODE_MODULES', RESOURCES / 'node_modules'))
+    compiler = modules / 'typescript/bin/tsc'
+    if not compiler.exists():
+        pytest.skip('npm install in tests/sysid32 to enable TypeScript runtime tests')
+    generated = generate(tmp_path / 'typescript', 'TypeScript')
+    (generated / 'node_modules').symlink_to(modules, target_is_directory=True)
+    run([tool('node'), compiler, '--skipLibCheck', '--target', 'es2017', '--module', 'commonjs',
+         '--strict', '--outDir', generated / 'compiled', generated / 'message-registry.ts'], cwd=tmp_path)
+    run([tool('node'), RESOURCES / 'reject-typescript.js', generated / 'compiled/message-registry.js', streams])
 
 
 
