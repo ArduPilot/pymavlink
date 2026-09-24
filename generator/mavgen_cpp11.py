@@ -129,11 +129,11 @@ namespace msg {
  * ${description}
  */
 struct ${name} : mavlink::Message {
-    static constexpr msgid_t MSG_ID = ${id};
-    static constexpr size_t LENGTH = ${wire_length};
-    static constexpr size_t MIN_LENGTH = ${wire_min_length};
-    static constexpr uint8_t CRC_EXTRA = ${crc_extra};
-    static constexpr auto NAME = "${name}";
+    static constexpr msgid_t MSG_ID{${id}};
+    static constexpr uint8_t LENGTH{${wire_length}};
+    static constexpr uint8_t MIN_LENGTH{${wire_min_length}};
+    static constexpr uint8_t CRC_EXTRA{${crc_extra}};
+    static constexpr auto NAME{"${name}"};
 
 
 ${{fields:    ${cxx_type} ${name}; /*< ${units} ${description} */
