@@ -41,6 +41,19 @@
 #define MAVLINK_WIP
 #endif
 
+#define MAVLINK_HAVE_GET_TARGET_SYSTEM
+#define MAVLINK_HAVE_GET_TARGET_SYSID
+
+/**
+ * @brief Map a full system target to its legacy uint8_t payload field.
+ * Wide targets use the non-broadcast sentinel; also pass the full target to
+ * the _target() send/finalize helper so it is retained in the header.
+ */
+static inline uint8_t mavlink_msg_target_field(uint32_t target_system)
+{
+    return target_system > UINT8_MAX ? MAVLINK_TARGET_SYSTEM_SENTINEL : (uint8_t)target_system;
+}
+
 /* option to provide alternative implementation of mavlink_helpers.h */
 #ifdef MAVLINK_SEPARATE_HELPERS
 
@@ -51,17 +64,37 @@
     MAVLINK_HELPER mavlink_status_t* mavlink_get_channel_status(uint8_t chan);
     #endif
     MAVLINK_HELPER void mavlink_reset_channel_status(uint8_t chan);
-    MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+    MAVLINK_HELPER uint8_t _mav_header_pack(uint8_t *buf, uint8_t magic, uint8_t len,
+                                            uint8_t incompat_flags, uint8_t compat_flags,
+                                            uint8_t seq, uint32_t sysid, uint8_t compid, uint32_t msgid,
+                                            uint32_t target_sysid);
+    MAVLINK_HELPER uint8_t mavlink_header_to_send_buffer(uint8_t *buf, const mavlink_message_t *msg);
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer_target(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
+                                                            mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra,
+                                                            uint32_t target_sysid);
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
                                                             mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra);
-    MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_chan_target(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
+                                                          uint8_t chan, uint8_t min_length, uint8_t length, uint8_t crc_extra,
+                                                          uint32_t target_sysid);
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_chan(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
                                                           uint8_t chan, uint8_t min_length, uint8_t length, uint8_t crc_extra);
-    MAVLINK_HELPER uint16_t mavlink_finalize_message(mavlink_message_t* msg, uint8_t system_id, uint8_t component_id,
+    MAVLINK_HELPER uint16_t mavlink_finalize_message_target(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
+                                                     uint8_t min_length, uint8_t length, uint8_t crc_extra,
+                                                     uint32_t target_sysid);
+    MAVLINK_HELPER uint16_t mavlink_finalize_message(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
                                                      uint8_t min_length, uint8_t length, uint8_t crc_extra);
     #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
+    MAVLINK_HELPER void _mav_finalize_message_chan_send_target(mavlink_channel_t chan, uint32_t msgid, const char *packet,
+                                                        uint8_t min_length, uint8_t length, uint8_t crc_extra,
+                                                        uint32_t target_sysid);
     MAVLINK_HELPER void _mav_finalize_message_chan_send(mavlink_channel_t chan, uint32_t msgid, const char *packet,
                                                         uint8_t min_length, uint8_t length, uint8_t crc_extra);
     #endif
     MAVLINK_HELPER uint16_t mavlink_msg_to_send_buffer(uint8_t *buffer, const mavlink_message_t *msg);
+    MAVLINK_HELPER bool mavlink_msg_get_target_system(const mavlink_message_t *msg, const uint8_t *target_system_ptr, uint32_t *target_system);
+    MAVLINK_HELPER uint32_t mavlink_msg_get_target_sysid(const mavlink_message_t *msg, const mavlink_msg_entry_t *entry);
+    MAVLINK_HELPER uint8_t mavlink_msg_get_target_compid(const mavlink_message_t *msg, const mavlink_msg_entry_t *entry);
     MAVLINK_HELPER void mavlink_start_checksum(mavlink_message_t* msg);
     MAVLINK_HELPER void mavlink_update_checksum(mavlink_message_t* msg, uint8_t c);
     MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg, 
@@ -94,7 +127,14 @@ static inline uint16_t mavlink_msg_get_send_buffer_length(const mavlink_message_
 		return msg->len + MAVLINK_CORE_HEADER_MAVLINK1_LEN+1 + 2;
 	}
     	uint16_t signature_len = (msg->incompat_flags & MAVLINK_IFLAG_SIGNED)?MAVLINK_SIGNATURE_BLOCK_LEN:0;
-	return msg->len + MAVLINK_NUM_NON_PAYLOAD_BYTES + signature_len;
+	uint16_t ext_header_len = 0;
+	if (msg->incompat_flags & MAVLINK_IFLAG_SYSID32) {
+		ext_header_len += MAVLINK_SYSID32_HEADER_EXTRA;
+	}
+	if (msg->incompat_flags & MAVLINK_IFLAG_TARGET32) {
+		ext_header_len += MAVLINK_TARGET32_HEADER_EXTRA;
+	}
+	return msg->len + MAVLINK_NUM_NON_PAYLOAD_BYTES + ext_header_len + signature_len;
 }
 
 #if MAVLINK_NEED_BYTE_SWAP
@@ -280,10 +320,10 @@ _MAV_MSG_RETURN_TYPE(uint64_t, 8)
 _MAV_MSG_RETURN_TYPE(int64_t,  8)
 _MAV_MSG_RETURN_TYPE(float,    4)
 _MAV_MSG_RETURN_TYPE(double,   8)
-#else // nicely aligned, no swap
+#else // native byte order; the packed message payload may still be unaligned
 #define _MAV_MSG_RETURN_TYPE(TYPE) \
 static inline TYPE _MAV_RETURN_## TYPE(const mavlink_message_t *msg, uint8_t ofs) \
-{ return *(const TYPE *)(&_MAV_PAYLOAD(msg)[ofs]);}
+{ TYPE r; memcpy(&r, &_MAV_PAYLOAD(msg)[ofs], sizeof(TYPE)); return r; }
 
 _MAV_MSG_RETURN_TYPE(uint16_t)
 _MAV_MSG_RETURN_TYPE(int16_t)
@@ -345,5 +385,3 @@ _MAV_RETURN_ARRAY(int32_t,  i32)
 _MAV_RETURN_ARRAY(int64_t,  i64)
 _MAV_RETURN_ARRAY(float,    f)
 _MAV_RETURN_ARRAY(double,   d)
-
-
