@@ -324,3 +324,33 @@ def test_objc_compiles_with_gnustep(tmp_path):
     run([tool('clang'), '-fsyntax-only', '-fobjc-runtime=gnustep-2.0', '-fobjc-weak',
          '-DGNUSTEP', '-DGNUSTEP_BASE_LIBRARY=1', '-I' + root, '-I' + objc_include,
          '-include', 'Foundation/Foundation.h', *includes, *generated.rglob('*.m'), RESOURCES / 'reject.m'])
+
+
+@pytest.fixture
+def spin2_harness(tmp_path, streams):
+    compiler = tool('flexspin')
+    assert mavgen.mavgen(mavgen.Opts(output=str(tmp_path / 'mavlink'), language='Spin2',
+                                  wire_protocol='2.0', validate=False), [str(XML.with_name('minimal.xml'))])
+    data = bytearray()
+    for stream in sorted(streams.glob('*.v2')):
+        packet = stream.read_bytes()
+        data += struct.pack('<H', len(packet)) + packet
+    (tmp_path / 'streams.bin').write_bytes(data)
+    (tmp_path / 'reject.spin2').write_text((RESOURCES / 'reject.spin2').read_text())
+    binary = tmp_path / 'reject.binary'
+    # Disable cached-code calls for simulator compatibility.
+    run([compiler, '-2', '--fcache=0', '-O1', '-o', binary, 'reject.spin2'], cwd=tmp_path)
+    return binary
+
+
+def test_spin2_compiles(spin2_harness):
+    assert spin2_harness.stat().st_size > 0
+
+
+def test_spin2_rejects_extensions(spin2_harness):
+    simulator = os.environ.get('MAVLINK_SPINSIM')
+    if not simulator:
+        pytest.skip('Set MAVLINK_SPINSIM to a simulator supporting FlexSpin 7.7 Spin2 structures')
+    binary = spin2_harness
+    output = run([simulator, '-t', '-b115200', '-q', '-10000000', binary], timeout=30)
+    assert output == 'OK'  # simulator instruction limit alone is not success
