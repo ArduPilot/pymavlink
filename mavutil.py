@@ -1004,9 +1004,10 @@ class mavudp(mavfile):
             if broadcast:
                 self.port.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 self.broadcast = True
-            # On Windows, be need to bind on 0.0.0.0 first, to avoid socket exceptions
+            # On Windows, bind before sending, but let the OS choose a local
+            # port so a loopback peer can bind the destination port.
             if platform.system() == "Windows":
-                self.port.bind(('0.0.0.0', int(a[1])))
+                self.port.bind(('0.0.0.0', 0))
         set_close_on_exec(self.port.fileno())
         self.port.setblocking(False)
         self.last_address = None

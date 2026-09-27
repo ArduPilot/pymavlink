@@ -224,6 +224,21 @@ class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
         self.master.mav.file_transfer_protocol_send(0, target_system, target_component, reply)
 
 
+class TestMAVUDPPortBinding(unittest.TestCase):
+    """Verify UDP clients bind a usable local port."""
+
+    def test_windows_udpout_uses_a_distinct_local_port(self):
+        with mavutil.mavlink_connection("udpin:127.0.0.1:0") as server:
+            server_port = server.port.getsockname()[1]
+            with patch("pymavlink.mavutil.platform.system", return_value="Windows"):
+                with mavutil.mavlink_connection(
+                    f"udpout:127.0.0.1:{server_port}"
+                ) as client:
+                    client_port = client.port.getsockname()[1]
+                    self.assertNotEqual(client_port, 0)
+                    self.assertNotEqual(client_port, server_port)
+
+
 class TestMAVFTPUDP(unittest.TestCase):
     """Feature: MAVFTP interoperates with a real MAVLink UDP transport."""
 
