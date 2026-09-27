@@ -152,6 +152,7 @@ class mavfile_state:
         self.mav_autopilot: int = mavlink.MAV_AUTOPILOT_GENERIC
         self.base_mode: int = 0
         self.armed: bool = False # canonical arm state for the vehicle as a whole
+        self.capabilities: int = 0 # MAV_PROTOCOL_CAPABILITY bits from AUTOPILOT_VERSION
 
         try:
             self.messages['HOME'] = mavlink.MAVLink_gps_raw_int_message(0,0,0,0,0,0,0,0,0,0)
@@ -168,6 +169,46 @@ class param_state:
     '''state for a particular system id/component id pair'''
     def __init__(self) -> None:
         self.params: dict[str, float] = {}
+
+def param_integer_value(value):
+    """Parse an integer parameter without a float intermediate or truncation."""
+    if isinstance(value, str):
+        from decimal import Decimal
+        text = value.strip()
+        if text.lower().lstrip('+-').startswith('0x'):
+            return int(text, 16)
+        value = Decimal(text)
+    result = int(value)
+    if result != value:
+        raise ValueError('parameter value must be integral')
+    return result
+
+
+def param_supported_types():
+    """Explicit encodings decoded by this library; only advertise with new bindings."""
+    if not hasattr(mavlink, 'MAV_PARAM_TYPE_BYTEWISE_INT32'):
+        return 0
+    return (mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_INT32 |
+            mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_UINT32 |
+            mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_INT64 |
+            mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_UINT64)
+
+
+def decode_param_value(m):
+    """Decode explicit parameter encodings without converting integer bits to float."""
+    ptype = getattr(m, 'param_type', None)
+    if ptype in (12, 13):  # MAV_PARAM_TYPE_BYTEWISE_INT32 / BYTEWISE_UINT32
+        raw = m.get_raw_field_bytes(0, 4)
+        return struct.unpack('<i' if ptype == 12 else '<I', raw)[0]
+    if ptype == 11:  # MAV_PARAM_TYPE_EXTENDED
+        formats = {1: '<q', 2: '<Q'}  # BYTEWISE_INT64 / BYTEWISE_UINT64
+        fmt = formats.get(getattr(m, 'extended_type', 0))
+        data = getattr(m, 'extended_data', None)
+        if fmt is not None and data is not None:
+            return struct.unpack(fmt, bytes(data[:8]))[0]
+        # Never mistake an unknown extended value for a decoded parameter.
+        return float('nan')
+    return m.param_value
 
 class mavfile:
     '''a generic mavlink port'''
@@ -442,7 +483,9 @@ class mavfile:
         elif m_type == 'PARAM_VALUE':
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
-            self.param_state[src_tuple].params[msg.param_id] = msg.param_value
+            self.param_state[src_tuple].params[msg.param_id] = decode_param_value(msg)
+        elif m_type == 'AUTOPILOT_VERSION':
+            self.sysid_state[src_system].capabilities = msg.capabilities
         elif m_type == 'GPS_RAW_INT':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 3:
                 self.sysid_state[src_system].messages['HOME'] = msg
@@ -555,23 +598,28 @@ class mavfile:
         '''wait for a heartbeat so we know the target system IDs'''
         return self.recv_match(type='HEARTBEAT', blocking=blocking, timeout=timeout)
 
-    def param_fetch_all(self):
-        '''initiate fetch of all parameters'''
+    def param_fetch_all(self, supported_types=None):
+        """Initiate parameter download, advertising the encodings we can decode."""
         if time.time() - self.param_fetch_start < 2.0:
-            # don't fetch too often
             return
         self.param_fetch_start = time.time()
-        self.mav.param_request_list_send(self.target_system, self.target_component)
+        args = [self.target_system, self.target_component]
+        if 'supported_types' in mavlink.MAVLink_param_request_list_message.fieldnames and self.mavlink20():
+            args.append(param_supported_types() if supported_types is None else supported_types)
+        self.mav.param_request_list_send(*args)
 
-    def param_fetch_one(self, name):
-        '''initiate fetch of one parameter'''
+    def param_fetch_one(self, name, supported_types=None):
+        """Initiate a parameter read, advertising the encodings we can decode."""
         try:
             idx = int(name)
-            self.mav.param_request_read_send(self.target_system, self.target_component, b"", idx)
-        except Exception:
-            if not isinstance(name, bytes):
-                name = bytes(name,'ascii')
-            self.mav.param_request_read_send(self.target_system, self.target_component, name, -1)
+            param_name = b""
+        except (ValueError, TypeError):
+            idx = -1
+            param_name = name if isinstance(name, bytes) else bytes(name, 'ascii')
+        args = [self.target_system, self.target_component, param_name, idx]
+        if 'supported_types' in mavlink.MAVLink_param_request_read_message.fieldnames and self.mavlink20():
+            args.append(param_supported_types() if supported_types is None else supported_types)
+        self.mav.param_request_read_send(*args)
 
     def time_since(self, mtype):
         '''return the time since the last message of type mtype was received'''
@@ -579,12 +627,34 @@ class mavfile:
             return time.time() - self.start_time
         return time.time() - self.messages[mtype]._timestamp
 
-    def param_set_send(self, parm_name, parm_value, parm_type=None):
-        '''wrapper for parameter set'''
+    def param_set_send(self, parm_name, parm_value, parm_type=None, extended_type=None, extended_data=None, parm_raw=None):
+        """Send a parameter; parm_raw preserves bytewise int32/uint32 bits.
+
+        Extended int64/uint64 values use extended_type and eight little-endian
+        bytes in extended_data. They require MAVLink2 and have no float fallback.
+        """
         if parm_type is None:
             parm_type = mavlink.MAVLINK_TYPE_FLOAT
-        self.mav.param_set_send(self.target_system, self.target_component,
-                                parm_name.encode('utf8'), parm_value, parm_type)
+        args = [self.target_system, self.target_component, parm_name.encode('utf8'), parm_value, parm_type]
+        if parm_raw is not None:
+            if parm_type not in (12, 13) or len(parm_raw) != 4 or extended_type is not None:
+                raise ValueError('raw parameter requires a bytewise 32-bit type and exactly four bytes')
+            args[3] = 0.0  # the raw override supplies the value, without float conversion
+        elif parm_type in (12, 13):
+            raise ValueError('bytewise 32-bit parameters require parm_raw')
+        if extended_type is not None:
+            if parm_type != 11 or extended_type not in (1, 2) or extended_data is None or len(extended_data) != 8:
+                raise ValueError('extended parameter requires a 64-bit type and exactly eight bytes')
+            if not self.mavlink20():
+                raise ValueError('64-bit parameters require MAVLink2')
+            args[3] = float('nan')
+            args.extend([extended_type, bytes(extended_data) + bytes(24)])
+        elif parm_type == 11:
+            raise ValueError('extended parameter requires extended_type and extended_data')
+        msg = self.mav.param_set_encode(*args)
+        if parm_raw is not None:
+            msg.set_raw_field_bytes(0, parm_raw)
+        self.mav.send(msg)
 
     def waypoint_request_list_send(self):
         '''wrapper for waypoint_request_list_send'''
