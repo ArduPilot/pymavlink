@@ -2390,8 +2390,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         terminate.assert_called_once()
 
-    def test_silent_initial_request_keeps_legacy_idle_failure_by_default(self):
-        """Default commands do not add retry latency or change the error code."""
+    def test_silent_initial_request_reports_reply_timeout_by_default(self):
+        """Default commands wait for the idle deadline without retransmitting."""
         ftp, _master = self.make_ftp([])
         clock = [0.0]
 
@@ -2402,7 +2402,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         with patch("pymavlink.mavftp.time.time", side_effect=fake_time):
             result = ftp.cmd_rm(["remote"])
 
-        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
 
     def test_no_sessions_nack_retries_a_mutation_by_default(self):
         """Explicit server backpressure is safe to retry without opt-in."""
@@ -2795,9 +2795,10 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         setattr(ftp, "_MAVFTP__send", send)
 
         with patch("pymavlink.mavftp.time.time", return_value=1.0):
-            self.assertTrue(ftp.idle_task())
+            self.assertFalse(ftp.idle_task())
 
-        send.assert_not_called()
+        self.assertTrue(all(call.args[0].opcode == OP_TerminateSession for call in send.call_args_list))
+        self.assertTrue(ftp.terminal_timeout)
 
     def test_unbounded_crc_wait_still_uses_idle_detection(self):
         """A direct zero-timeout CRC call cannot spin indefinitely."""
@@ -3103,7 +3104,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             umask.assert_not_called()
 
     def test_download_fsyncs_staging_file_and_destination_directory(self):
-        """Successful publication flushes file data and the rename to storage."""
+        """Publication flushes file data and, where supported, the directory."""
         with tempfile.TemporaryDirectory() as tempdir:
             destination = os.path.join(tempdir, "download.bin")
             ftp, _master = self.make_ftp(
@@ -3118,7 +3119,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 result = ftp.process_ftp_reply("get", timeout=1)
 
             self.assertEqual(result.error_code, FtpError.Success)
-            self.assertEqual(fsync.call_count, 2)
+            self.assertEqual(fsync.call_count, 1 if os.name == "nt" else 2)
 
     def test_download_directory_fsync_failure_does_not_fail_published_file(self):
         """A directory fsync failure is only a durability warning after publication."""
@@ -6454,7 +6455,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         result = ftp.cmd_rm(["remote"])
 
-        self.assertEqual(result.error_code, FtpError.Fail)
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
 
     def test_completed_put_skips_late_reply_after_termination_timeout(self):
         ftp, master = self.make_ftp(
@@ -6964,6 +6965,183 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertTrue(ftp._MAVFTP__check_read_finished())
 
         self.assertEqual(ftp.requested_size, 4)
+
+    def test_sysfs_placeholder_size_allows_short_download(self):
+        """Generated @SYS files publish at EOF despite the advertised size."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            destination = os.path.join(tempdir, "uarts.txt")
+            ftp, _master = self.make_ftp([])
+            with patch.object(ftp, "_MAVFTP__send"):
+                ftp.cmd_get(["/@SYS/uarts.txt", destination])
+                open_reply = FTP_OP(ftp.seq, ftp.session, OP_Ack, 4, 0, 0, 0,
+                                    bytearray(struct.pack("<I", 100000)))
+                ftp._MAVFTP__handle_open_ro_reply(open_reply, None)
+            ftp.fh.write(b"data")
+            ftp.read_total = 4
+            ftp.reached_eof = True
+            with patch.object(ftp, "process_ftp_reply", return_value=MAVFTPReturn(
+                "TerminateSession", FtpError.Success
+            )):
+                self.assertTrue(ftp._MAVFTP__check_read_finished())
+            with open(destination, "rb") as downloaded:
+                self.assertEqual(downloaded.read(), b"data")
+            self.assertIsNone(ftp.callback_failure)
+
+    def test_sysfs_storage_and_crash_dump_sizes_remain_exact(self):
+        """Short downloads cannot replace storage or crash dumps."""
+        for remote in ("/@SYS/storage.bin", "/@SYS/crash_dump.bin"):
+            with self.subTest(remote=remote), tempfile.TemporaryDirectory() as tempdir:
+                destination = os.path.join(tempdir, "original.bin")
+                with open(destination, "wb") as existing:
+                    existing.write(b"original")
+                ftp, _master = self.make_ftp([])
+                with patch.object(ftp, "_MAVFTP__send"):
+                    ftp.cmd_get([remote, destination])
+                    open_reply = FTP_OP(ftp.seq, ftp.session, OP_Ack, 4, 0, 0, 0,
+                                        bytearray(struct.pack("<I", 16384)))
+                    ftp._MAVFTP__handle_open_ro_reply(open_reply, None)
+                ftp.fh.write(b"data")
+                ftp.read_total = 4
+                ftp.reached_eof = True
+                with patch.object(ftp, "process_ftp_reply", return_value=MAVFTPReturn(
+                    "TerminateSession", FtpError.Success
+                )):
+                    self.assertTrue(ftp._MAVFTP__check_read_finished())
+                with open(destination, "rb") as existing:
+                    self.assertEqual(existing.read(), b"original")
+                self.assertEqual(ftp.callback_failure.error_code, FtpError.InvalidDataSize)
+
+    def test_unknown_size_download_reports_progress(self):
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        progress = MagicMock()
+        ftp.callback_progress = progress
+        ftp._MAVFTP__write_payload(FTP_OP(1, 0, OP_Ack, 4, OP_ReadFile, 0, 0, b"data"))
+        progress.assert_called_once_with(0.0)
+
+    def test_failed_download_progress_callback_does_not_abort_transfer(self):
+        ftp, _master = self.make_ftp([])
+        ftp.fh = BytesIO()
+        ftp.remote_file_size = 8
+        progress = MagicMock(side_effect=RuntimeError("UI closed"))
+        ftp.callback_progress = progress
+        with patch.object(ftp, "_MAVFTP__terminate_session") as terminate:
+            for offset in (0, 4):
+                self.assertTrue(ftp._MAVFTP__write_payload(
+                    FTP_OP(1, 0, OP_Ack, 4, OP_ReadFile, 0, offset, b"data")
+                ))
+        self.assertEqual(ftp.fh.getvalue(), b"datadata")
+        progress.assert_called_once()
+        terminate.assert_not_called()
+
+    def test_windows_directory_fsync_is_skipped(self):
+        ftp, _master = self.make_ftp([])
+        with patch("pymavlink.mavftp.os.name", "nt"), \
+                patch("pymavlink.mavftp.os.open") as open_directory, \
+                patch("pymavlink.mavftp.os.fsync") as fsync:
+            ftp._MAVFTP__fsync_directory("C:\\downloads")
+        open_directory.assert_not_called()
+        fsync.assert_not_called()
+
+    def test_zero_retry_request_waits_for_idle_deadline(self):
+        ftp, _master = self.make_ftp([])
+        ftp.last_op = FTP_OP(0, ftp.session, OP_ListDirectory, 0, 0, 0, 0, None)
+        ftp.last_op_time = 0.0
+        ftp.last_op_reply = False
+        ftp.request_cancelled = False
+        ftp.ftp_settings.initial_retries = 0
+        ftp.ftp_settings.idle_detection_time = 3.0
+        clock = [2.0]
+        with patch.object(mavftp_module.time, "time", side_effect=lambda: clock[0]), \
+                patch.object(ftp, "_MAVFTP__terminate_session") as terminate:
+            self.assertFalse(ftp._MAVFTP__idle_task())
+            self.assertFalse(ftp.terminal_timeout)
+            clock[0] = 3.8
+            self.assertFalse(ftp._MAVFTP__idle_task())
+        self.assertTrue(ftp.terminal_timeout)
+        terminate.assert_called_once()
+
+    def test_failed_termination_send_releases_staging_and_latches_cancel(self):
+        ftp, _master = self.make_ftp([])
+        with tempfile.TemporaryDirectory() as tempdir:
+            staging = os.path.join(tempdir, "staging.bin")
+            ftp.fh = open(staging, "wb+")
+            ftp.fh_owned = True
+            ftp.temp_filename = staging
+            ftp.last_op = FTP_OP(1, ftp.session, OP_OpenFileRO, 0, 0, 0, 0, None)
+            ftp.op_start = 1.0
+            old_session = ftp.session
+
+            def failed_send(_operation):
+                ftp.request_cancelled = False
+                raise OSError("disconnected")
+
+            with patch.object(ftp, "_MAVFTP__send", side_effect=failed_send):
+                result = ftp.cmd_cancel()
+            self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+            self.assertIsNone(ftp.fh)
+            self.assertFalse(os.path.exists(staging))
+            self.assertTrue(ftp.request_cancelled)
+            self.assertIsNone(ftp.op_start)
+            self.assertIsNone(ftp.pending_terminate_seq)
+            self.assertEqual(ftp.session, (old_session + 1) % FTP_SESSION_MODULUS)
+            with patch.object(ftp, "_MAVFTP__send") as send:
+                ftp._MAVFTP__idle_task()
+            send.assert_not_called()
+
+    def test_failed_termination_retry_still_advances_session(self):
+        ftp, _master = self.make_ftp([])
+        old_session = ftp.session
+        timeout = MAVFTPReturn("TerminateSession", FtpError.RemoteReplyTimeout)
+        with patch.object(ftp, "_MAVFTP__send", side_effect=[None, OSError("link lost")]), \
+                patch.object(ftp, "process_ftp_reply", return_value=timeout):
+            result = ftp.cmd_cancel()
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertIsNone(ftp.pending_terminate_seq)
+        self.assertEqual(ftp.session, (old_session + 1) % FTP_SESSION_MODULUS)
+
+    def test_published_download_survives_termination_retry_failure(self):
+        """A lost termination retry cannot fail a file already published."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            destination = os.path.join(tempdir, "download.bin")
+            ftp, _master = self.make_ftp([])
+            old_session = ftp.session
+            with patch.object(ftp, "_MAVFTP__send"):
+                ftp.cmd_get(["remote.bin", destination])
+                open_reply = FTP_OP(ftp.seq, ftp.session, OP_Ack, 4, 0, 0, 0,
+                                    bytearray(struct.pack("<I", 4)))
+                ftp._MAVFTP__handle_open_ro_reply(open_reply, None)
+            ftp.fh.write(b"data")
+            ftp.read_total = 4
+            ftp.reached_eof = True
+            timeout = MAVFTPReturn("TerminateSession", FtpError.RemoteReplyTimeout)
+            with patch.object(ftp, "_MAVFTP__send", side_effect=[None, OSError("link lost")]), \
+                    patch.object(ftp, "process_ftp_reply", return_value=timeout):
+                self.assertTrue(ftp._MAVFTP__check_read_finished())
+            with open(destination, "rb") as downloaded:
+                self.assertEqual(downloaded.read(), b"data")
+            self.assertTrue(ftp.read_complete)
+            self.assertEqual(ftp.session, (old_session + 1) % FTP_SESSION_MODULUS)
+
+    def test_delayed_termination_send_failure_clears_queue(self):
+        ftp, master = self.make_ftp([])
+        with tempfile.TemporaryDirectory() as tempdir:
+            staging = os.path.join(tempdir, "staging.bin")
+            ftp.fh = open(staging, "wb+")
+            ftp.fh_owned = True
+            ftp.temp_filename = staging
+            old_session = ftp.session
+            ftp.ftp_settings.pkt_lag_tx = 1.0
+            with patch.object(mavftp_module.time, "monotonic", side_effect=[0.0, 1.0]), \
+                    patch.object(master, "recv_match", return_value=None), \
+                    patch.object(ftp, "_MAVFTP__transmit_payload", side_effect=OSError("link lost")):
+                result = ftp.cmd_cancel()
+            self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+            self.assertIsNone(ftp.fh)
+            self.assertFalse(os.path.exists(staging))
+            self.assertIsNone(ftp.pending_terminate_seq)
+            self.assertFalse(ftp.tx_delay_queue)
+            self.assertEqual(ftp.session, (old_session + 1) % FTP_SESSION_MODULUS)
 
     def test_malformed_burst_nacks_are_decoded(self):
         for payload, expected_error in (

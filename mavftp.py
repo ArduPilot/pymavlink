@@ -560,6 +560,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.accepted_reply_generation = 0
         self.remote_file_size: int = 0
         self.remote_size_known = False
+        self.remote_size_is_upper_bound = False
         # Optional per-operation cap used by applications such as camera
         # definition downloaders.  It bounds both a size announced by the
         # vehicle and an unexpectedly sparse/oversized payload stream.
@@ -1282,6 +1283,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     @staticmethod
     def __fsync_directory(directory: str) -> None:
         """Flush a directory entry after atomically replacing a download."""
+        # Windows cannot open a directory for fsync. The staged file was
+        # already fsynced before publication.
+        if os.name == "nt":
+            return
         try:
             flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
             directory_fd = os.open(directory, flags)
@@ -1304,15 +1309,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # cancellation or completion. The termination packet is queued below
         # after this purge and is therefore the only packet retained.
         self.__discard_delayed_traffic()
-        self.pending_terminate_seq = self.seq
-        self.__send(
-            FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None)
-        )
+        self.op_start = None
+        self.no_sessions_retry_pending = False
+        self.request_cancelled = True
+        termination_send_failed = not self.__send_termination()
         self.__release_staging()
         self.fh = None
         self.filename = None
         self.read_to_memory = False
         self.remote_size_known = False
+        self.remote_size_is_upper_bound = False
         self.max_download_size = None
         self.transfer_active = False
         self._event_deadline = None
@@ -1392,33 +1398,44 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 )
             )
             return MAVFTPReturn("TerminateSession", FtpError.Success)
-        if self.master is None:
-            self.pending_terminate_seq = None
-            termination_result = MAVFTPReturn(
-                "TerminateSession", FtpError.RemoteReplyTimeout
-            )
-        else:
-            termination_timeout = min(1.0, self.retry_timeout())
-            termination_result = self.process_ftp_reply(
-                "TerminateSession", timeout=termination_timeout
-            )
-        for _attempt in range(1, TERMINATE_ATTEMPTS):
-            if termination_result.error_code == FtpError.Success:
-                break
-            if self.master is None:
-                break
-            self.pending_terminate_seq = self.seq
-            self.__send(
-                FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None)
-            )
-            termination_result = self.process_ftp_reply(
-                "TerminateSession", timeout=termination_timeout
-            )
-        if termination_result.error_code != FtpError.Success:
-            # Do not let an unanswered old handshake block a later operation.
-            self.pending_terminate_seq = None
-        self.session = (self.session + 1) % FTP_SESSION_MODULUS
+        termination_result = MAVFTPReturn("TerminateSession", FtpError.RemoteReplyTimeout)
+        try:
+            if self.master is not None and not termination_send_failed:
+                termination_timeout = min(1.0, self.retry_timeout())
+                termination_result = self.process_ftp_reply(
+                    "TerminateSession", timeout=termination_timeout
+                )
+                for _attempt in range(1, TERMINATE_ATTEMPTS):
+                    if termination_result.error_code == FtpError.Success:
+                        break
+                    if not self.__send_termination():
+                        break
+                    termination_result = self.process_ftp_reply(
+                        "TerminateSession", timeout=termination_timeout
+                    )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            # Delayed traffic may fail during the reply wait, after __send returns.
+            logging.warning("FTP: could not complete session termination: %s", exc)
+            self.__discard_delayed_traffic()
+            termination_result = MAVFTPReturn("TerminateSession", FtpError.RemoteReplyTimeout)
+        finally:
+            if termination_result.error_code != FtpError.Success:
+                # An unanswered handshake must not block a later operation.
+                self.pending_terminate_seq = None
+            self.session = (self.session + 1) % FTP_SESSION_MODULUS
         return termination_result
+
+    def __send_termination(self) -> bool:
+        """Send a termination request and keep cancellation latched on failure."""
+        self.pending_terminate_seq = self.seq
+        try:
+            self.__send(FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None))
+            return True
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logging.warning("FTP: could not send session termination: %s", exc)
+            return False
+        finally:
+            self.request_cancelled = True
 
     def terminate_session(
         self, success: bool = False, result: Optional[MAVFTPReturn] = None
@@ -1700,6 +1717,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.requested_size = size
         self.filename = path
         self.read_to_memory = True
+        self.remote_size_is_upper_bound = False
         self.max_download_size = None
         self.show_progress = False
         self.callback = None
@@ -1836,6 +1854,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         else:
             self.filename = os.path.basename(fname)
         self.get_result = None
+        # Generated @SYS files advertise a placeholder size. Storage and
+        # crash dumps have authoritative sizes.
+        sys_path = fname.lstrip("/")
+        self.remote_size_is_upper_bound = (
+            sys_path.startswith("@SYS/")
+            and sys_path[len("@SYS/") :] not in ("storage.bin", "crash_dump.bin")
+        )
         if callback is None or self.ftp_settings.debug > 1:
             logging.info("Getting %s to %s", fname, self.filename)
         self.op_start = time.time()
@@ -1904,7 +1929,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     logging.info("Remote file size: %u", self.remote_file_size)
                 if not self.read_to_memory:
                     self.requested_size = self.remote_file_size
-                self.remote_size_known = True
+                self.remote_size_known = not self.remote_size_is_upper_bound
             else:
                 self.remote_file_size = 0
                 self.remote_size_known = False
@@ -2186,15 +2211,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.__terminate_session()
             return False
         self.read_total += len(op.payload)
-        if self.callback_progress is not None and self.remote_file_size:
+        if self.callback_progress is not None:
             try:
-                self.callback_progress(self.read_total / self.remote_file_size)
+                completion = (
+                    self.read_total / self.remote_file_size
+                    if self.remote_file_size else 0.0
+                )
+                self.callback_progress(completion)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: download progress callback failed: %s", exc)
-                self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
                 self.callback_progress = None
-                self.__terminate_session()
-                return False
         return True
 
     def __read_position(self) -> int:
@@ -3966,9 +3992,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         retry_timeout = self.retry_timeout() * 2 ** min(
             self.request_retries, max(initial_retry_limit - 1, 0)
         )
+        request_timeout = (
+            max(retry_timeout, float(self.ftp_settings.idle_detection_time))
+            if initial_retry_limit == 0
+            else retry_timeout
+        )
         initial_request_pending = (
-            initial_retry_limit > 0
-            and self.last_op is not None
+            self.last_op is not None
+            and not (
+                self._managed_transport
+                and self._event_operation is not None
+                and self._event_deadline is None
+            )
             and not self.request_cancelled
             and not self.last_op_reply
             and self.last_op.opcode in initial_opcodes
@@ -3988,7 +4023,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if (
             initial_request_pending
             and (not crc_request_pending or self.no_sessions_retry_pending)
-            and now - self.last_op_time > retry_timeout
+            and now - self.last_op_time > request_timeout
         ):
             if self.request_retries >= initial_retry_limit:
                 logging.error("FTP: request timed out: %s", self.last_op)
