@@ -185,28 +185,67 @@ def param_integer_value(value):
 
 
 def param_supported_types():
-    """Explicit encodings decoded by this library; only advertise with new bindings."""
-    if not hasattr(mavlink, 'MAV_PARAM_TYPE_BYTEWISE_INT32'):
-        return 0
-    return (mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_INT32 |
-            mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_UINT32 |
-            mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_INT64 |
-            mavlink.MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_UINT64)
+    """Encodings decoded by this library and available in the active bindings."""
+    return sum(getattr(mavlink, 'MAV_PARAM_TYPES_SUPPORTED_' + name, 0) for name in (
+        'BYTEWISE_INT32', 'BYTEWISE_UINT32', 'BYTEWISE_INT64', 'BYTEWISE_UINT64',
+        'BYTEWISE_REAL64', 'CUSTOM', 'IN_PROGRESS'))
+
+
+def param_is_in_progress(m):
+    """True for a pending-write notification, which must not update caches."""
+    return getattr(m, 'param_type', None) == 14  # MAV_PARAM_TYPE_IN_PROGRESS
+
+
+def param_response_matches(m, connection, name):
+    """Match a parameter write response by component, system and parameter name."""
+    if str(getattr(m, 'param_id', '')).upper() != str(name).upper():
+        return False
+    for target, getter in (('target_system', 'get_srcSystem'), ('target_component', 'get_srcComponent')):
+        expected = getattr(connection, target, 0)
+        if expected and getattr(m, getter)() != expected:
+            return False
+    if m.get_type() == 'PARAM_ERROR':
+        for target, source in (('target_system', 'srcSystem'), ('target_component', 'srcComponent')):
+            destination = getattr(m, target, 0)
+            if destination and destination != getattr(connection.mav, source):
+                return False
+    return True
+
+
+def encode_param_extended(value, extended_type):
+    """Encode an extended numeric value or opaque CUSTOM bytes (zero padded)."""
+    if extended_type in (1, 2):
+        return struct.pack('<q' if extended_type == 1 else '<Q', param_integer_value(value))
+    if extended_type == 3:  # BYTEWISE_REAL64
+        return struct.pack('<d', float(value))
+    if extended_type == 4:  # CUSTOM is bytes, not an implicit text encoding
+        if not isinstance(value, (bytes, bytearray, memoryview)):
+            raise ValueError('CUSTOM requires bytes; encode text explicitly')
+        data = bytes(value)
+        if len(data) > 128:
+            raise ValueError('CUSTOM exceeds 128 bytes')
+        return data.ljust(128, b'\x00')
+    raise ValueError('unsupported extended parameter type')
 
 
 def decode_param_value(m):
-    """Decode explicit parameter encodings without converting integer bits to float."""
+    """Decode a value; return None for IN_PROGRESS without inventing a value."""
     ptype = getattr(m, 'param_type', None)
-    if ptype in (12, 13):  # MAV_PARAM_TYPE_BYTEWISE_INT32 / BYTEWISE_UINT32
+    if param_is_in_progress(m):
+        return None
+    if ptype in (12, 13):  # BYTEWISE_INT32 / BYTEWISE_UINT32
         raw = m.get_raw_field_bytes(0, 4)
         return struct.unpack('<i' if ptype == 12 else '<I', raw)[0]
-    if ptype == 11:  # MAV_PARAM_TYPE_EXTENDED
-        formats = {1: '<q', 2: '<Q'}  # BYTEWISE_INT64 / BYTEWISE_UINT64
-        fmt = formats.get(getattr(m, 'extended_type', 0))
+    if ptype == 11:  # EXTENDED
+        subtype = getattr(m, 'extended_type', 0)
+        fmt = {1: '<q', 2: '<Q', 3: '<d'}.get(subtype)
         data = getattr(m, 'extended_data', None)
         if fmt is not None and data is not None:
             return struct.unpack(fmt, bytes(data[:8]))[0]
-        # Never mistake an unknown extended value for a decoded parameter.
+        if subtype == 4 and data is not None:
+            if len(data) != 128:
+                raise ValueError('CUSTOM requires bindings with 128-byte extended_data')
+            return bytes(data)
         return float('nan')
     return m.param_value
 
@@ -480,7 +519,7 @@ class mavfile:
             self.sysid_state[src_system].mav_type = msg.type
             self.sysid_state[src_system].mav_autopilot = msg.autopilot
 
-        elif m_type == 'PARAM_VALUE':
+        elif m_type == 'PARAM_VALUE' and not param_is_in_progress(msg):
             if not src_tuple in self.param_state:
                 self.param_state[src_tuple] = param_state()
             self.param_state[src_tuple].params[msg.param_id] = decode_param_value(msg)
@@ -630,11 +669,13 @@ class mavfile:
     def param_set_send(self, parm_name, parm_value, parm_type=None, extended_type=None, extended_data=None, parm_raw=None):
         """Send a parameter; parm_raw preserves bytewise int32/uint32 bits.
 
-        Extended int64/uint64 values use extended_type and eight little-endian
-        bytes in extended_data. They require MAVLink2 and have no float fallback.
+        Extended numeric values use eight little-endian bytes; CUSTOM accepts
+        up to 128 bytes and zero-pads. All extended types require MAVLink2.
         """
         if parm_type is None:
             parm_type = mavlink.MAVLINK_TYPE_FLOAT
+        if parm_type == 14:
+            raise ValueError('IN_PROGRESS is only valid in PARAM_VALUE')
         args = [self.target_system, self.target_component, parm_name.encode('utf8'), parm_value, parm_type]
         if parm_raw is not None:
             if parm_type not in (12, 13) or len(parm_raw) != 4 or extended_type is not None:
@@ -643,15 +684,20 @@ class mavfile:
         elif parm_type in (12, 13):
             raise ValueError('bytewise 32-bit parameters require parm_raw')
         if extended_type is not None:
-            if parm_type != 11 or extended_type not in (1, 2) or extended_data is None or len(extended_data) != 8:
-                raise ValueError('extended parameter requires a 64-bit type and exactly eight bytes')
+            if parm_type != 11 or extended_type not in (1, 2, 3, 4) or extended_data is None:
+                raise ValueError('extended parameter requires a supported extended_type and data')
+            data = bytes(extended_data)
+            if (extended_type != 4 and len(data) != 8) or len(data) > 128:
+                raise ValueError('extended numeric values require eight bytes; CUSTOM allows up to 128')
             if not self.mavlink20():
-                raise ValueError('64-bit parameters require MAVLink2')
+                raise ValueError('extended parameters require MAVLink2')
             args[3] = float('nan')
-            args.extend([extended_type, bytes(extended_data) + bytes(24)])
+            args.extend([extended_type, data.ljust(128, b'\x00')])
         elif parm_type == 11:
             raise ValueError('extended parameter requires extended_type and extended_data')
         msg = self.mav.param_set_encode(*args)
+        if extended_type == 4 and msg.unpacker.size < 152:
+            raise ValueError('CUSTOM requires bindings with 128-byte extended_data')
         if parm_raw is not None:
             msg.set_raw_field_bytes(0, parm_raw)
         self.mav.send(msg)

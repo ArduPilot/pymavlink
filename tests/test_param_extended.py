@@ -46,14 +46,17 @@ TEST_XML = '''<mavlink>
       <entry value="10" name="MAV_PARAM_TYPE_REAL64">
         <description>64-bit floating-point</description>
       </entry>
+      <entry value="11" name="MAV_PARAM_TYPE_EXTENDED">
+        <description>Value carried in the extended_type and extended_data fields of PARAM_VALUE and PARAM_SET. Only for use with components that advertise MAV_PROTOCOL_CAPABILITY_PARAM_BYTEWISE.</description>
+      </entry>
       <entry value="12" name="MAV_PARAM_TYPE_BYTEWISE_INT32">
         <description>32-bit signed integer carried as four little-endian bytes in param_value, without floating-point conversion. The extension fields must be zero. Receivers must preserve the raw bytes, including NaN bit patterns.</description>
       </entry>
       <entry value="13" name="MAV_PARAM_TYPE_BYTEWISE_UINT32">
         <description>32-bit unsigned integer carried as four little-endian bytes in param_value, without floating-point conversion. The extension fields must be zero. Receivers must preserve the raw bytes, including NaN bit patterns.</description>
       </entry>
-      <entry value="11" name="MAV_PARAM_TYPE_EXTENDED">
-        <description>Value carried in the extended_type and extended_data fields of PARAM_VALUE and PARAM_SET. Only for use with components that advertise MAV_PROTOCOL_CAPABILITY_PARAM_BYTEWISE.</description>
+      <entry value="14" name="MAV_PARAM_TYPE_IN_PROGRESS">
+        <description>PARAM_VALUE write-in-progress notification, only after the requester advertises MAV_PARAM_TYPES_SUPPORTED_IN_PROGRESS. Not a stored type and invalid in PARAM_SET. param_id identifies the pending write; receivers extend its timeout without updating parameter caches, types, counts or indices. Send param_value as NaN and extension fields as zero. Repeated identical PARAM_SET requests must not restart the operation. Completion is reported by PARAM_VALUE with the actual type/value, or PARAM_ERROR on failure.</description>
       </entry>
     </enum>
     <enum name="MAV_PARAM_EXTENDED_TYPE">
@@ -66,6 +69,12 @@ TEST_XML = '''<mavlink>
       </entry>
       <entry value="2" name="MAV_PARAM_EXTENDED_TYPE_BYTEWISE_UINT64">
         <description>64-bit unsigned integer, little-endian in the first 8 bytes of extended_data. Remaining bytes must be zero. param_value must be NaN and is ignored by receivers.</description>
+      </entry>
+      <entry value="3" name="MAV_PARAM_EXTENDED_TYPE_BYTEWISE_REAL64">
+        <description>IEEE-754 binary64 floating-point value, little-endian in the first 8 bytes of extended_data. Remaining bytes must be zero. param_value must be NaN and is ignored by receivers.</description>
+      </entry>
+      <entry value="4" name="MAV_PARAM_EXTENDED_TYPE_CUSTOM">
+        <description>Opaque 128-byte value in extended_data, including any trailing zero bytes. Interpretation is defined by the parameter's metadata or component-specific schema, as for MAV_PARAM_EXT_TYPE_CUSTOM. Shorter application values must be zero-padded to 128 bytes; a variable-length format must encode its own length. param_value must be NaN and is ignored by receivers.</description>
       </entry>
     </enum>
     <enum name="MAV_PARAM_TYPES_SUPPORTED" bitmask="true">
@@ -82,8 +91,50 @@ TEST_XML = '''<mavlink>
       <entry value="8" name="MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_UINT64">
         <description>Understands MAV_PARAM_TYPE_EXTENDED with MAV_PARAM_EXTENDED_TYPE_BYTEWISE_UINT64.</description>
       </entry>
+      <entry value="16" name="MAV_PARAM_TYPES_SUPPORTED_BYTEWISE_REAL64">
+        <description>Understands MAV_PARAM_TYPE_EXTENDED with MAV_PARAM_EXTENDED_TYPE_BYTEWISE_REAL64.</description>
+      </entry>
+      <entry value="32" name="MAV_PARAM_TYPES_SUPPORTED_CUSTOM">
+        <description>Understands MAV_PARAM_TYPE_EXTENDED with MAV_PARAM_EXTENDED_TYPE_CUSTOM and preserves all 128 data bytes.</description>
+      </entry>
+      <entry value="64" name="MAV_PARAM_TYPES_SUPPORTED_IN_PROGRESS">
+        <description>Understands MAV_PARAM_TYPE_IN_PROGRESS notifications and the asynchronous parameter-write state machine.</description>
+      </entry>
     </enum>
-    </enums><messages><message id="20" name="PARAM_REQUEST_READ">
+    <enum name="MAV_PARAM_ERROR">
+      <wip/>
+      <!-- This enum is work-in-progress and it can therefore change. It should NOT be used in stable production environments. -->
+      <description>Parameter protocol error types (see PARAM_ERROR).</description>
+      <entry value="0" name="MAV_PARAM_ERROR_NO_ERROR">
+        <description>No error occurred (not expected in PARAM_ERROR but may be used in future implementations.</description>
+      </entry>
+      <entry value="1" name="MAV_PARAM_ERROR_DOES_NOT_EXIST">
+        <description>Parameter does not exist</description>
+      </entry>
+      <entry value="2" name="MAV_PARAM_ERROR_VALUE_OUT_OF_RANGE">
+        <description>Parameter value does not fit within accepted range</description>
+      </entry>
+      <entry value="3" name="MAV_PARAM_ERROR_PERMISSION_DENIED">
+        <description>Caller is not permitted to set the value of this parameter</description>
+      </entry>
+      <entry value="4" name="MAV_PARAM_ERROR_COMPONENT_NOT_FOUND">
+        <description>Unknown component specified</description>
+      </entry>
+      <entry value="5" name="MAV_PARAM_ERROR_READ_ONLY">
+        <description>Parameter is read-only</description>
+      </entry>
+      <entry value="6" name="MAV_PARAM_ERROR_TYPE_UNSUPPORTED">
+        <description>Parameter data type (MAV_PARAM_TYPE) is not supported by flight stack (at all)</description>
+      </entry>
+      <entry value="7" name="MAV_PARAM_ERROR_TYPE_MISMATCH">
+        <description>Parameter type does not match expected type</description>
+      </entry>
+      <entry value="9" name="MAV_PARAM_ERROR_WRITE_FAIL">
+        <description>Parameter exists and its type/value are supported, but the write operation failed. Terminal result, including after MAV_PARAM_TYPE_IN_PROGRESS. The client may read the parameter again to obtain the current value.</description>
+      </entry>
+    </enum>
+    </enums>
+  <messages><message id="20" name="PARAM_REQUEST_READ">
       <description>Request to read the onboard parameter with the param_id string id. Onboard parameters are stored as key[const char*] -&gt; value[float]. This allows to send a parameter to any other component (such as the GCS) without the need of previous knowledge of possible parameter names. Thus the same GCS can store different parameters for different autopilots. See also https://mavlink.io/en/services/parameter.html for a full documentation of QGroundControl and IMU code.</description>
       <field type="uint8_t" name="target_system">System ID</field>
       <field type="uint8_t" name="target_component">Component ID</field>
@@ -108,7 +159,7 @@ TEST_XML = '''<mavlink>
       <field type="uint16_t" name="param_index">Index of this onboard parameter</field>
       <extensions/>
       <field type="uint8_t" name="extended_type" enum="MAV_PARAM_EXTENDED_TYPE">Datatype of extended_data. Set (non-zero) only when param_type is MAV_PARAM_TYPE_EXTENDED, in which case param_value should be set to NaN.</field>
-      <field type="uint8_t[32]" name="extended_data">Extended parameter value, encoded according to extended_type.</field>
+      <field type="uint8_t[128]" name="extended_data">Extended parameter value, encoded according to extended_type. Unused bytes must be zero; MAVLink2-truncated bytes are restored as zero. All 128 bytes are significant for CUSTOM.</field>
     </message>
     <message id="23" name="PARAM_SET">
       <description>Set a parameter value (write new value to permanent storage).
@@ -121,9 +172,21 @@ TEST_XML = '''<mavlink>
       <field type="uint8_t" name="param_type" enum="MAV_PARAM_TYPE">Onboard parameter type.</field>
       <extensions/>
       <field type="uint8_t" name="extended_type" enum="MAV_PARAM_EXTENDED_TYPE">Datatype of extended_data. Set (non-zero) only when param_type is MAV_PARAM_TYPE_EXTENDED, in which case param_value should be set to NaN.</field>
-      <field type="uint8_t[32]" name="extended_data">Extended parameter value, encoded according to extended_type.</field>
+      <field type="uint8_t[128]" name="extended_data">Extended parameter value, encoded according to extended_type. Unused bytes must be zero; MAVLink2-truncated bytes are restored as zero. All 128 bytes are significant for CUSTOM.</field>
     </message>
-    </messages></mavlink>
+    <message id="345" name="PARAM_ERROR">
+      <wip/>
+      <!-- This enum is work-in-progress and it can therefore change. It should NOT be used in stable production environments. -->
+      <description>Parameter set/get error. Returned from a MAVLink node in response to an error in the parameter protocol, for example failing to set a parameter because it does not exist.
+      </description>
+      <field type="uint8_t" name="target_system">System ID</field>
+      <field type="uint8_t" name="target_component">Component ID</field>
+      <field type="char[16]" name="param_id">Parameter id. Terminated by NULL if the length is less than 16 human-readable chars and WITHOUT null termination (NULL) byte if the length is exactly 16 chars - applications have to provide 16+1 bytes storage if the ID is stored as string</field>
+      <field type="int16_t" name="param_index">Parameter index. Will be -1 if the param ID field should be used as an identifier (else the param id will be ignored)</field>
+      <field type="uint8_t" name="error" enum="MAV_PARAM_ERROR">Error being returned to client.</field>
+    </message>
+    </messages>
+</mavlink>
 '''
 
 def generate_dialect():
@@ -170,7 +233,7 @@ class ParamBytewiseTest(unittest.TestCase):
         else:
             msg.param_value = float('nan')
             msg.extended_type = subtype
-            msg.extended_data = struct.pack('<q' if subtype == 1 else '<Q', value) + bytes(24)
+            msg.extended_data = mavutil.encode_param_extended(value, subtype).ljust(128, b'\x00')
         return msg
 
     def test_exact_roundtrips(self):
@@ -233,7 +296,7 @@ class ParamBytewiseTest(unittest.TestCase):
             mavutil.mavfile.param_fetch_all(conn)
             mavutil.mavfile.param_fetch_one(conn, 'TEST', supported_types=0)
         msgs = rx.parse_buffer(conn.mav.file.getvalue())
-        self.assertEqual([m.supported_types for m in msgs], [15, 15, 0])
+        self.assertEqual([m.supported_types for m in msgs], [127, 127, 0])
         self.assertLessEqual(msgs[-1].get_msgbuf()[1], 20)
 
     def test_set_wrapper(self):
@@ -263,7 +326,7 @@ class ParamBytewiseTest(unittest.TestCase):
             msg = rx.parse_char(conn.mav.file.getvalue())
             decoded = mavutil.decode_param_value(msg)
             conn.ack = self.message(decoded, msg.param_type, msg.extended_type)
-            conn.ack.param_id = name
+            conn.ack = rx.parse_char(conn.ack.pack(conn.mav))
         conn.param_set_send = send
         def receive(**kwargs):
             ack, conn.ack = conn.ack, None
@@ -288,6 +351,125 @@ class ParamBytewiseTest(unittest.TestCase):
                 restored.diff(f.name)
             self.assertIn(str(2**64-1), output.getvalue())
             self.assertIn(str(2**64-2), output.getvalue())
+
+    def test_real64_and_custom_wire(self):
+        values = [(3, v) for v in (0.0, -0.0, 1.0000000000000002, 5e-324,
+                                   sys.float_info.max, float('inf'), float('-inf'), float('nan'))]
+        values += [(4, v) for v in (b'', b'hello\x00world', bytes(range(128)), bytes([255])*128)]
+        for subtype, value in values:
+            expected = mavutil.encode_param_extended(value, subtype).ljust(128, b'\x00')
+            for is_set in (False, True):
+                with self.subTest(subtype=subtype, value=value, is_set=is_set):
+                    tx, rx = self.pair(signed=True, wide=True)
+                    msg = self.message(value, 11, subtype, is_set)
+                    decoded = rx.parse_char(msg.pack(tx))
+                    self.assertTrue(decoded.get_signed())
+                    self.assertEqual(bytes(decoded.extended_data), expected)
+                    actual = mavutil.decode_param_value(decoded)
+                    self.assertEqual(mavutil.encode_param_extended(actual, subtype).ljust(128, b'\x00'), expected)
+                    if subtype == 4 and expected[-1]:
+                        self.assertEqual(decoded.get_msgbuf()[1], 152 if is_set else 154)
+        for value in (bytes(129), 'text requires explicit encoding'):
+            with self.assertRaises(ValueError):
+                mavutil.encode_param_extended(value, 4)
+        conn, _ = self.connection()
+        with self.assertRaises(ValueError):
+            mavutil.mavfile.param_set_send(conn, 'TEST', 0, parm_type=14)
+        conn, rx = self.connection()
+        for subtype, value in ((3, 1.0000000000000002), (4, bytes(range(128)))):
+            mavutil.mavfile.param_set_send(conn, 'TEST', 0, parm_type=11, extended_type=subtype,
+                                         extended_data=mavutil.encode_param_extended(value, subtype))
+        self.assertEqual([mavutil.decode_param_value(m) for m in rx.parse_buffer(conn.mav.file.getvalue())],
+                         [1.0000000000000002, bytes(range(128))])
+
+    def response(self, msg, system=1, component=1):
+        tx = self.dialect.MAVLink(io.BytesIO(), srcSystem=system, srcComponent=component)
+        rx = self.dialect.MAVLink(io.BytesIO())
+        return rx.parse_char(msg.pack(tx))
+
+    def test_progress_lifecycle(self):
+        # A deterministic clock exercises a write longer than the normal timeout.
+        for fail in (False, True):
+            conn, _ = self.connection()
+            conn.param_fetch_one = lambda name: None
+            sends = []
+            conn.param_set_send = lambda *args, **kw: sends.append((args, kw))
+            clock = [10.0]
+            progress = self.dialect.MAVLink_param_value_message(b'TEST', float('nan'), 14, 999, 999)
+            final = (self.dialect.MAVLink_param_error_message(1, 1, b'TEST', -1, 9) if fail else
+                     self.message(1.0000000000000002, 11, 3))
+            replies = [self.response(progress) for _ in range(5)] + [self.response(final)]
+            def receive(**kwargs):
+                clock[0] += 0.7
+                return replies.pop(0)
+            conn.recv_match = receive
+            params = mavparm.MAVParmDict()
+            params['TEST'] = 42
+            with patch.object(mavparm.time, 'time', side_effect=lambda: clock[0]):
+                self.assertEqual(params.mavset(conn, 'TEST', 1.0000000000000002,
+                                               parm_type=11, extended_type=3), not fail)
+            self.assertEqual(len(sends), 1)
+            self.assertEqual(params['TEST'], 42 if fail else 1.0000000000000002)
+
+    def test_response_identity_and_cache(self):
+        conn, _ = self.connection()
+        msg = self.message(42, 12)
+        self.assertTrue(mavutil.param_response_matches(self.response(msg), conn, 'TEST'))
+        self.assertFalse(mavutil.param_response_matches(self.response(msg, system=2), conn, 'TEST'))
+        self.assertFalse(mavutil.param_response_matches(self.response(msg, component=2), conn, 'TEST'))
+        error = self.dialect.MAVLink_param_error_message(2, 1, b'TEST', -1, 9)
+        self.assertFalse(mavutil.param_response_matches(self.response(error), conn, 'TEST'))
+        connection = mavutil.mavfile(None, 'test', input=False)
+        connection.target_system, connection.target_component = 1, 1
+        connection.post_message(self.response(msg))
+        progress = self.dialect.MAVLink_param_value_message(b'TEST', float('nan'), 14, 999, 999)
+        connection.post_message(self.response(progress))
+        self.assertEqual(connection.params['TEST'], 42)
+        self.assertIsNone(mavutil.decode_param_value(progress))
+
+    def test_progress_stops_then_times_out(self):
+        conn, _ = self.connection()
+        conn.param_fetch_one = lambda name: None
+        sends = []
+        conn.param_set_send = lambda *args, **kw: sends.append(kw)
+        clock = [0.0]
+        progress = self.response(self.dialect.MAVLink_param_value_message(b'TEST', float('nan'), 14, 0, 0))
+        replies = [progress]
+        conn.recv_match = lambda **kw: replies.pop() if replies else None
+        def sleep(delay):
+            clock[0] += delay
+        with patch.object(mavparm.time, 'time', side_effect=lambda: clock[0]), patch.object(mavparm.time, 'sleep', sleep):
+            self.assertFalse(mavparm.MAVParmDict().mavset(conn, 'TEST', 42, retries=2))
+        self.assertEqual(len(sends), 2)
+        self.assertLess(clock[0], 3)
+
+    def test_custom_ack_and_files(self):
+        conn, _ = self.connection()
+        conn.param_fetch_one = lambda name: None
+        value = bytes(range(128))
+        conn.param_set_send = lambda *args, **kw: None
+        # Wrong padding must not complete the write.
+        replies = [self.response(self.message(value[:-1], 11, 4)), self.response(self.message(value, 11, 4))]
+        conn.recv_match = lambda **kw: replies.pop(0)
+        params = mavparm.MAVParmDict()
+        self.assertTrue(params.mavset(conn, 'TEST', value, parm_type=11, extended_type=4))
+        self.assertEqual(params['TEST'], value)
+        params['DOUBLE'] = 1.0000000000000002
+        params['ZERO'] = -0.0
+        params.param_types['DOUBLE'] = 10
+        with tempfile.NamedTemporaryFile() as f:
+            params.save(f.name)
+            restored = mavparm.MAVParmDict()
+            self.assertTrue(restored.load(f.name))
+            self.assertEqual(restored, params)
+            self.assertEqual(struct.pack('<d', restored['ZERO']), struct.pack('<d', -0.0))
+            restored.save(f.name)
+            again = mavparm.MAVParmDict()
+            again.load(f.name)
+            self.assertEqual(again, params)
+            restored['TEST'] = bytes(128)
+            with redirect_stdout(io.StringIO()):
+                restored.diff(f.name)
 
 if __name__ == '__main__':
     unittest.main()

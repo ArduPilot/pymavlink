@@ -24,6 +24,7 @@ class MAVParmDict(dict):
         self.mindelta = 0.000001
         # Logical storage types, independent of the selected wire encoding.
         self.param_types = {}
+        self.param_extended_types = {}
         self.target_supports_bytewise = False
 
     def mavset(self, mav, name, value, retries=3, parm_type=None, extended_type=None):
@@ -33,6 +34,10 @@ class MAVParmDict(dict):
         integer_value = None
         link_is_mavlink2 = getattr(mav, 'mavlink20', lambda: True)()
         logical_type = self.param_types.get(str(name).upper())
+        if parm_type is None and logical_type in (7, 8, 10, 11) and not (
+                self.target_supports_bytewise and link_is_mavlink2):
+            print("can't send %s: extended storage requires negotiated MAVLink2 encoding" % name)
+            return False
         if parm_type is None and self.target_supports_bytewise and link_is_mavlink2:
             if logical_type == mavutil.mavlink.MAV_PARAM_TYPE_INT32:
                 parm_type = 12  # MAV_PARAM_TYPE_BYTEWISE_INT32
@@ -41,16 +46,21 @@ class MAVParmDict(dict):
             elif logical_type in (mavutil.mavlink.MAV_PARAM_TYPE_INT64, mavutil.mavlink.MAV_PARAM_TYPE_UINT64):
                 parm_type = 11  # MAV_PARAM_TYPE_EXTENDED
                 extended_type = 1 if logical_type == mavutil.mavlink.MAV_PARAM_TYPE_INT64 else 2
+            elif logical_type == mavutil.mavlink.MAV_PARAM_TYPE_REAL64:
+                parm_type, extended_type = 11, 3
+            elif logical_type == 11:
+                parm_type = 11
+                extended_type = self.param_extended_types.get(str(name).upper())
 
         if parm_type in (11, 12, 13):
             try:
-                integer_value = mavutil.param_integer_value(value)
                 if parm_type == 11:
-                    if extended_type not in (1, 2) or not link_is_mavlink2:
-                        raise ValueError('64-bit parameter requires an extended type and MAVLink2')
-                    extended_data = struct.pack('<q' if extended_type == 1 else '<Q', integer_value)
+                    if not link_is_mavlink2:
+                        raise ValueError('extended parameters require MAVLink2')
+                    extended_data = mavutil.encode_param_extended(value, extended_type)
                     numeric_value = float('nan')
                 else:
+                    integer_value = mavutil.param_integer_value(value)
                     raw_value = struct.pack('<i' if parm_type == 12 else '<I', integer_value)
                     numeric_value = 0.0
             except (TypeError, ValueError, OverflowError, ArithmeticError, struct.error) as e:
@@ -76,7 +86,7 @@ class MAVParmDict(dict):
             else:
                 numeric_value = float(value)
 
-        if integer_value is not None:
+        if raw_value is not None or extended_data is not None:
             # Negotiate even when the parameter dictionary came from a file/FTP.
             mav.param_fetch_one(name.upper())
         while retries > 0:
@@ -89,16 +99,27 @@ class MAVParmDict(dict):
             mav.param_set_send(name.upper(), numeric_value, **kwargs)
             tstart = time.time()
             while time.time() - tstart < 1:
-                ack = mav.recv_match(type='PARAM_VALUE', blocking=False)
+                ack = mav.recv_match(type=['PARAM_VALUE', 'PARAM_ERROR'], blocking=False)
                 if ack is None:
                     time.sleep(0.1)
                     continue
-                if str(name).upper() != str(ack.param_id).upper():
+                if not mavutil.param_response_matches(ack, mav, name):
                     continue
-                if integer_value is not None:
-                    decoded = mavutil.decode_param_value(ack)
-                    if decoded != integer_value:
-                        print("%s: ack value %s does not match %d" % (name, decoded, integer_value))
+                if ack.get_type() == 'PARAM_ERROR':
+                    print("%s: parameter write failed (%s)" % (name, ack.error))
+                    return False
+                if mavutil.param_is_in_progress(ack):
+                    tstart = time.time()
+                    continue
+                decoded = mavutil.decode_param_value(ack)
+                if raw_value is not None or extended_data is not None:
+                    if extended_data is not None:
+                        if ack.param_type != 11 or ack.extended_type != extended_type:
+                            continue
+                        # Byte comparison preserves REAL64 NaNs, signed zero and CUSTOM padding.
+                        if bytes(ack.extended_data) != extended_data.ljust(128, b'\x00'):
+                            continue
+                    elif decoded != integer_value:
                         continue
                     self[name] = decoded
                 else:
@@ -117,8 +138,10 @@ class MAVParmDict(dict):
         for p in k:
             if p and fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 value = self.__getitem__(p)
-                if isinstance(value, float):
-                    f.write("%-16.16s %f\n" % (p, value))
+                if isinstance(value, bytes):
+                    f.write("%-16.16s hex:%s\n" % (p, value.hex()))
+                elif isinstance(value, float):
+                    f.write("%-16.16s %s\n" % (p, repr(value)))
                 else:
                     f.write("%-16.16s %s\n" % (p, str(value)))
                 count += 1
@@ -152,11 +175,23 @@ class MAVParmDict(dict):
             if not fnmatch.fnmatch(a[0].upper(), wildcard.upper()):
                 continue
             value = a[1].strip()
-            if isinstance(value, str) and value.lower().startswith('0x'):
+            if value.startswith('hex:'):
+                try:
+                    numeric_value = mavutil.encode_param_extended(bytes.fromhex(value[4:]), 4)
+                except ValueError:
+                    print("Invalid CUSTOM value: %s" % a[0])
+                    continue
+                value = numeric_value
+                if mav is None:
+                    self.param_types[a[0]] = 11
+                    self.param_extended_types[a[0]] = 4
+            elif value.lower().startswith('0x'):
                 numeric_value = int(value[2:], 16)
             else:
                 try:
                     numeric_value = mavutil.param_integer_value(value)
+                    if numeric_value == 0 and value.startswith('-'):
+                        numeric_value = -0.0
                 except (ValueError, OverflowError, ArithmeticError):
                     numeric_value = float(value)
 
@@ -166,7 +201,7 @@ class MAVParmDict(dict):
                         print("Unknown parameter %s" % a[0])
                         continue
                     old_value = self.__getitem__(a[0])
-                    if math.fabs(old_value - numeric_value) <= self.mindelta:
+                    if self.values_equal(a[0], old_value, numeric_value):
                         count += 1
                         continue
                     if self.mavset(mav, a[0], value):
@@ -187,6 +222,13 @@ class MAVParmDict(dict):
 
     def show_param_value(self, name, value):
         print("%-16.16s %s" % (name, value))
+
+    def values_equal(self, name, first, second):
+        if isinstance(first, bytes) or isinstance(second, bytes):
+            return first == second
+        if self.param_types.get(name) == 10:
+            return struct.pack('<d', first) == struct.pack('<d', second)
+        return abs(first - second) <= self.mindelta
 
     def show(self, wildcard='*'):
         '''show parameters'''
@@ -222,7 +264,9 @@ class MAVParmDict(dict):
             return " # %s" % " ".join(parts)
 
         def display(value):
-            return str(value) if isinstance(value, int) else "%.4f" % value
+            if isinstance(value, bytes):
+                return 'hex:' + value.hex()
+            return str(value)
 
         if header:
             if use_tabs:
@@ -241,7 +285,7 @@ class MAVParmDict(dict):
                 if show_only1:
                     value = other[k]
                     print("%-16.16s %12s%s" % (k, display(value), comment(info(k, "FILE1", value))))
-            elif abs(self[k] - other[k]) > self.mindelta:
+            elif not self.values_equal(k, self[k], other[k]):
                 value = self[k]
                 c = comment(info(k, "FILE1", other[k]), info(k, "FILE2", value))
                 if use_tabs:
