@@ -4796,6 +4796,94 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             [],
         )
 
+    def test_late_no_sessions_nack_does_not_restart_timed_out_remove(self):
+        """A late backpressure NACK must not restart a completed command."""
+        ftp, master = self.make_ftp([])
+
+        result = ftp.cmd_rm(["remote"], timeout=0.01)
+        request = self.sent_requests(master)[-1]
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertTrue(ftp.request_cancelled)
+
+        ftp.mavlink_packet(
+            ftp_reply(
+                request.seq + 1,
+                OP_Nack,
+                OP_RemoveFile,
+                payload=[FtpError.NoSessionsAvailable],
+            )
+        )
+        with patch(
+            "pymavlink.mavftp.time.time",
+            return_value=ftp.last_op_time + ftp.retry_timeout() + 0.1,
+        ):
+            ftp.idle_task()
+
+        self.assertEqual(
+            [
+                request.opcode
+                for request in self.sent_requests(master)
+                if request.opcode == OP_RemoveFile
+            ],
+            [OP_RemoveFile],
+        )
+
+    def test_timed_out_timestamp_list_does_not_send_more_requests(self):
+        """A completed listing must not continue its timestamp probe ladder."""
+        ftp, master = self.make_ftp([], list_time=1)
+        ftp.ftp_settings.list_time_timeout = 0.01
+        ftp.ftp_settings.list_retries = 3
+
+        result = ftp.cmd_list(["remote"], timeout=0.01)
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertTrue(ftp.request_cancelled)
+        requests_before_idle = [
+            request.opcode
+            for request in self.sent_requests(master)
+            if request.opcode in {OP_ListDirectory, OP_ListDirectoryWithTime}
+        ]
+
+        for elapsed in range(1, 6):
+            with patch(
+                "pymavlink.mavftp.time.time",
+                return_value=ftp.last_op_time + elapsed,
+            ):
+                ftp.idle_task()
+
+        requests_after_idle = [
+            request.opcode
+            for request in self.sent_requests(master)
+            if request.opcode in {OP_ListDirectory, OP_ListDirectoryWithTime}
+        ]
+        self.assertEqual(requests_after_idle, requests_before_idle)
+
+    def test_late_list_ack_does_not_request_next_page_after_timeout(self):
+        """A late listing page must not continue a completed command."""
+        ftp, master = self.make_ftp([], list_time=0)
+
+        result = ftp.cmd_list(["remote"], timeout=0.01)
+        request = self.sent_requests(master)[-1]
+        self.assertEqual(result.error_code, FtpError.RemoteReplyTimeout)
+        self.assertTrue(ftp.request_cancelled)
+
+        ftp.mavlink_packet(
+            ftp_reply(
+                request.seq + 1,
+                OP_Ack,
+                OP_ListDirectory,
+                payload=b"Flate.bin\t1\x00",
+            )
+        )
+
+        self.assertEqual(
+            [
+                sent.opcode
+                for sent in self.sent_requests(master)
+                if sent.opcode == OP_ListDirectory
+            ],
+            [OP_ListDirectory],
+        )
+
     def test_tx_loss_does_not_discard_received_burst_reply(self):
         """Transmit loss applies only to outgoing requests, never incoming data."""
         ftp, _master = self.make_ftp([])

@@ -1600,6 +1600,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self, op: FTP_OP, _m
     ) -> MAVFTPReturn:
         """Handle OP_ListDirectory reply."""
+        if self.request_cancelled:
+            return self.__decode_ftp_ack_and_nack(op)
         with_time = op.req_opcode == OP_ListDirectoryWithTime
         if with_time != self.list_with_time:
             # A reply to the capability probe may arrive after fallback to
@@ -3762,6 +3764,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 # retry it once. A second explicit NACK must complete the
                 # operation rather than being converted into the normal
                 # packet-loss retry ladder.
+                if self.request_cancelled:
+                    return self.__decode_ftp_ack_and_nack(op)
                 if self.no_sessions_retries >= 1:
                     self.no_sessions_retry_pending = False
                     self.request_cancelled = True
