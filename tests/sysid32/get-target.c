@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include "common/mavlink.h"
 
 #if !defined(MAVLINK_HAVE_GET_TARGET_SYSTEM) || !defined(MAVLINK_HAVE_GET_TARGET_SYSID)
@@ -38,6 +39,9 @@ int main(void)
                 msg.incompat_flags |= MAVLINK_IFLAG_SIGNED;
             }
             msg.target_sysid = targets[i];
+            mavlink_msg_command_long_decode(&msg, &packet);
+            assert(packet.target_system == mavlink_msg_target_field(targets[i]));
+            assert(packet.param1 == 1.0f && packet.param7 == 7.0f);
             packet.target_system = 99;
             assert(mavlink_msg_get_target_system(&msg, &packet.target_system, &target));
             assert(target == targets[i]);
@@ -45,6 +49,33 @@ int main(void)
             assert(target == targets[i]);
         }
     }
+
+#if !MAVLINK_NEED_BYTE_SWAP && MAVLINK_ALIGNED_FIELDS
+    // Aligned decoding bounds the copy, zero-fills missing bytes, and only
+    // overwrites the target field when the extended header supplies a target.
+    for (unsigned length = 0; length <= UINT8_MAX; length++) {
+        for (unsigned wide = 0; wide < 2; wide++) {
+            mavlink_message_t msg = {0};
+            memset(_MAV_PAYLOAD_NON_CONST(&msg), 0x42, MAVLINK_MAX_PAYLOAD_LEN);
+            msg.len = length;
+            msg.incompat_flags = wide ? MAVLINK_IFLAG_TARGET32 : 0;
+            msg.target_sysid = UINT32_MAX;
+            struct {
+                mavlink_command_long_t packet;
+                uint8_t guard;
+            } decoded;
+            memset(&decoded, 0xa5, sizeof(decoded));
+            mavlink_msg_command_long_decode(&msg, &decoded.packet);
+            const uint8_t *bytes = (const uint8_t *)&decoded.packet;
+            for (unsigned offset = 0; offset < MAVLINK_MSG_ID_COMMAND_LONG_LEN; offset++) {
+                const uint8_t expected = wide && offset == offsetof(mavlink_command_long_t, target_system) ?
+                    MAVLINK_TARGET_SYSTEM_SENTINEL : (offset < length ? 0x42 : 0);
+                assert(bytes[offset] == expected);
+            }
+            assert(decoded.guard == 0xa5);
+        }
+    }
+#endif
 
     for (unsigned flags = 0; flags < MAVLINK_IFLAG_TARGET32; flags++) {
         mavlink_message_t msg = {0};

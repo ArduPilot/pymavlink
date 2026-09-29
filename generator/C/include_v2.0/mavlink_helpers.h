@@ -638,6 +638,20 @@ MAVLINK_HELPER uint8_t mavlink_max_message_length(const mavlink_message_t *msg)
 }
 
 /**
+ * Decode an aligned payload with a target-system field without repeating
+ * the copy, zero-fill and extended-target handling in every message decoder.
+ */
+MAVLINK_HELPER void mavlink_msg_decode_target(const mavlink_message_t *msg, void *payload, uint8_t length, uint8_t target_system_ofs)
+{
+    const uint8_t len = msg->len < length ? msg->len : length;
+    memset(payload, 0, length);
+    memcpy(payload, _MAV_PAYLOAD(msg), len);
+    if (msg->incompat_flags & MAVLINK_IFLAG_TARGET32) {
+        ((uint8_t *)payload)[target_system_ofs] = msg->target_sysid > UINT8_MAX ? MAVLINK_TARGET_SYSTEM_SENTINEL : (uint8_t)msg->target_sysid;
+    }
+}
+
+/**
  * Get the effective target system, preferring an explicit header target.
  * target_system_ptr points to a decoded payload target field, or is NULL if
  * there is no payload target. target_system must point to writable storage.
