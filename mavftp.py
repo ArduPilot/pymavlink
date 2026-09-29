@@ -3992,6 +3992,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # retry policy, rather than becoming another backpressure retry without
         # a NACK.
         if self.no_sessions_retry_pending:
+            # Let the outer managed deadline handler complete the operation
+            # before a backpressure retry can escape after the caller's
+            # explicit timeout. Default deadlines may still be extended by
+            # idle_task() after this state-machine pass.
+            if (
+                self._managed_transport
+                and self._event_deadline is not None
+                and now >= self._event_deadline
+            ):
+                return False
             if now - self.last_op_time > self.retry_timeout():
                 self.no_sessions_retry_pending = False
                 self.no_sessions_retries += 1

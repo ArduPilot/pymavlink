@@ -1214,6 +1214,52 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.idle_task()
         self.assertEqual(ftp._event_deadline, deadline)
 
+    def test_managed_no_sessions_retry_is_not_sent_after_deadline(self):
+        """Backpressure recovery must not outlive the caller's deadline."""
+        ftp, master, sent, completed = self.managed_ftp()
+        with patch("pymavlink.mavftp.time.time", return_value=100.0):
+            ftp.cmd_rm(["remote"], wait=False, timeout=2)
+        request = master._decode_payload(sent[-1])
+        with patch("pymavlink.mavftp.time.time", return_value=100.5):
+            ftp.mavlink_packet(ftp_reply(
+                request.seq + 1,
+                OP_Nack,
+                OP_RemoveFile,
+                [FtpError.NoSessionsAvailable],
+                session=37,
+            ))
+
+        with patch("pymavlink.mavftp.time.time", return_value=101.99):
+            ftp.idle_task()
+        self.assertEqual(len(sent), 1)
+
+        with patch("pymavlink.mavftp.time.time", return_value=102.01):
+            ftp.idle_task()
+
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.RemoteReplyTimeout)
+
+    def test_managed_timed_out_timestamp_list_does_not_send_more_requests(self):
+        """A timed-out managed listing must stop its timestamp probe ladder."""
+        ftp, _master, sent, completed = self.managed_ftp()
+        ftp.ftp_settings.list_time = 1
+        ftp.cmd_list(["remote"], wait=False, timeout=2)
+        sent_before = len(sent)
+        with patch(
+            "pymavlink.mavftp.time.time", return_value=ftp._event_deadline + 0.1
+        ):
+            ftp.idle_task()
+        start = ftp.last_op_time
+        for elapsed in range(1, 40):
+            with patch(
+                "pymavlink.mavftp.time.time", return_value=start + elapsed
+            ):
+                ftp.idle_task()
+
+        self.assertEqual(len(sent), sent_before)
+        self.assertEqual(len(completed), 1)
+
     def test_managed_prior_download_failure_does_not_poison_remove(self):
         ftp, master, sent, completed = self.managed_ftp()
         ftp.cmd_get(["remote", "-"], max_size=1)
