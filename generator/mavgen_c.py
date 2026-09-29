@@ -453,12 +453,10 @@ ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_decode(const mavlin
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
 ${{ordered_fields:    ${decode_left}${decode_call};
 }}
-#else
-        uint8_t len = msg->len < MAVLINK_MSG_ID_${name}_LEN? msg->len : MAVLINK_MSG_ID_${name}_LEN;
-        memset(${name_lower}, 0, MAVLINK_MSG_ID_${name}_LEN);
-    memcpy(${name_lower}, _MAV_PAYLOAD(msg), len);
-#endif
 ${decode_post}
+#else
+${decode_aligned}
+#endif
 }
 ''', m)
     f.close()
@@ -696,6 +694,14 @@ def generate_one(basename, xml):
             m.target_suffix = ''
             m.target_args = ''
             m.decode_post = ''
+        if sysid32_capable and m.target_system_fieldname is not None:
+            m.decode_aligned = ('    mavlink_msg_decode_target(msg, %s, MAVLINK_MSG_ID_%s_LEN, %u);'
+                                % (m.name_lower, m.name, m.target_system_ofs))
+        else:
+            m.decode_aligned = ('    uint8_t len = msg->len < MAVLINK_MSG_ID_%s_LEN ? msg->len : MAVLINK_MSG_ID_%s_LEN;\n'
+                                '    memset(%s, 0, MAVLINK_MSG_ID_%s_LEN);\n'
+                                '    memcpy(%s, _MAV_PAYLOAD(msg), len);'
+                                % (m.name, m.name, m.name_lower, m.name, m.name_lower))
         # Target-system access must use the generic header-aware helper.
         m.getter_fields = [f for f in m.fields if not f.is_target_system]
         for f in m.fields:
