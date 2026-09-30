@@ -605,6 +605,39 @@ PUB check_crc(crc_extra): valid | value, i
     value := metabolize(value, crc_extra)
     return value == inPacket.checksum
 
+' Validate a supplied packet independently of this object's receive state.
+' The MAVLink struct is not the wire layout; reconstruct the CRC byte order.
+PUB check_packet_crc(crc_extra, ^MAVLink packet): valid | value, flags, i, source_bytes
+    if packet.magic <> PROTOCOL_MARKER_V1 && packet.magic <> PROTOCOL_MARKER_V2
+        return FALSE
+    flags := 0
+    value := metabolize($FFFF, packet.len)
+    if packet.magic == PROTOCOL_MARKER_V2
+        flags := packet.incompat_flags
+        if flags & $F9
+            return FALSE
+        value := metabolize(value, flags)
+        value := metabolize(value, packet.compat_flags)
+    value := metabolize(value, packet.seq)
+    source_bytes := 1
+    if flags & MAVLINK_IFLAG_SYSID32
+        source_bytes := 4
+    repeat i from 0 to source_bytes - 1
+        value := metabolize(value, (packet.sysid >> (8 * i)) & $FF)
+    value := metabolize(value, packet.compid)
+    value := metabolize(value, packet.msgid)
+    if packet.magic == PROTOCOL_MARKER_V2
+        value := metabolize(value, packet.msgid_m)
+        value := metabolize(value, packet.msgid_h)
+    if flags & MAVLINK_IFLAG_TARGET32
+        repeat i from 0 to 3
+            value := metabolize(value, (packet.target_system >> (8 * i)) & $FF)
+    if packet.len
+        repeat i from 0 to packet.len - 1
+            value := metabolize(value, packet.payload[i])
+    value := metabolize(value, crc_extra)
+    return value == packet.checksum
+
 PUB receive() : hasPacket | b
     if parse_state == PARSE_STATE_UNINIT || parse_state == PARSE_STATE_GOT_CRC2
         newPacket()
@@ -697,8 +730,8 @@ OBJ
     Handles an incoming MAVLink message.
 }}
 
-PUB checkCrc(crcextra, ^mavlink.MAVLink msg): result | newcrc
-    return mavlink.check_crc(crcextra)
+PUB checkCrc(crcextra, ^mavlink.MAVLink msg): result
+    return mavlink.check_packet_crc(crcextra, @msg)
 
 PUB crcError()
     ' TODO: Handle CRC errors for your solution
@@ -713,7 +746,10 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
     ' maybe use a compare and two CASE statements in a flight controller implementation but that is beyond the scope of pymavgen
     CASE msgid
         mavlink.MSG_ID_MANUAL_CONTROL: ' highest priority is manual control and mode messages
-            hdl_manual_control(@packet)
+            if(checkCrc(mavlink.MANUAL_CONTROL_crcx, @packet))
+                hdl_manual_control(@packet)
+            else
+                crcError()
 ''',{"DIALECT": dialect}, )
     for m in msgs:
         if (m.name == "MANUAL_CONTROL" or m.name == "HEARTBEAT"): # skip manual control and heartbeat; manual control should be first and heartbeat last.
@@ -742,7 +778,10 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
         outf,
         '''
         mavlink.MSG_ID_HEARTBEAT:
-            hdl_heartbeat(@packet)
+            if(checkCrc(mavlink.HEARTBEAT_crcx, @packet))
+                hdl_heartbeat(@packet)
+            else
+                crcError()
         
 ''') 
 def generate_handler(outf, msgs):
@@ -811,8 +850,7 @@ def generate(basename, xml):
 
     print("Generating %s" % filename)
     outf = open(filename, "w", encoding='utf-8')
-    dialect = xml[0].filename
-    dialect = dialect[dialect.rindex("/")+1:-4]  # remove .xml; we don't use os.sep here it's jank
+    dialect = os.path.splitext(os.path.basename(filename))[0]
     xml = xml[0].__dict__
     generate_preamble(outf, msgs, basename, filelist, xml)
     generate_message_ids(outf, msgs)
