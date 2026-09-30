@@ -527,7 +527,10 @@ def spin2_harness(tmp_path, streams):
     assert mavgen.mavgen(mavgen.Opts(output=str(tmp_path / 'mavlink'), language='Spin2',
                                   wire_protocol='2.0', validate=False), [str(XML.with_name('minimal.xml'))])
     data = bytearray()
-    for stream in sorted(streams.glob('*.v2')):
+    rejected = [stream for stream in sorted(streams.glob('*.v2'))
+                if int(stream.name.split('-')[0]) not in (2, 4, 6)]
+    data += struct.pack('<H', len(rejected))
+    for stream in rejected:
         packet = stream.read_bytes()
         data += struct.pack('<H', len(packet)) + packet
     (tmp_path / 'streams.bin').write_bytes(data)
@@ -549,3 +552,10 @@ def test_spin2_rejects_extensions(spin2_harness):
     binary = spin2_harness
     output = run([simulator, '-t', '-b115200', '-q', '-10000000', binary], timeout=30)
     assert output == 'OK'  # simulator instruction limit alone is not success
+
+
+def test_spin2_target_compiles(tmp_path):
+    generate(tmp_path / 'mavlink', 'Spin2')
+    shutil.copyfile(RESOURCES / 'target.spin2', tmp_path / 'target.spin2')
+    run([tool('flexspin'), '-2', '--fcache=0', '-O1', '-o', tmp_path / 'target.binary',
+         'target.spin2'], cwd=tmp_path)
