@@ -155,6 +155,12 @@ def test_java_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams)
     run([tool('java'), '-cp', tmp_path / 'classes', 'Reject', java_streams])
 
 
+def test_java_stats_bounded(tmp_path):
+    java = generate(tmp_path / 'java', 'Java')
+    run([tool('javac'), '-d', tmp_path / 'classes', *java.rglob('*.java'), RESOURCES / 'Stats.java'])
+    run([tool('java'), '-Xmx32m', '-cp', tmp_path / 'classes', 'Stats'])
+
+
 def test_java_field_target(tmp_path):
     java = generate(tmp_path / 'java', 'Java')
     run([tool('javac'), '-d', tmp_path / 'classes', *java.rglob('*.java'), RESOURCES / 'Target.java'])
