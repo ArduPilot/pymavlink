@@ -448,7 +448,7 @@ def test_typescript_field_target(tmp_path, target):
     assert [line for line in actual.splitlines() if line.startswith('fd')] == [p.hex() for p in command_frames()]
 
 
-def test_swift_rejects_extensions(tmp_path, streams):
+def test_swift_discards_unknown_messages_and_unverified_signatures(tmp_path, streams):
     compiler = tool('swiftc')
     generated = tmp_path / 'swift'
     assert mavgen.mavgen(mavgen.Opts(output=str(generated), language='Swift', wire_protocol='1.0', validate=False),
@@ -457,6 +457,14 @@ def test_swift_rejects_extensions(tmp_path, streams):
     exe = tmp_path / 'reject'
     run([compiler, '-module-cache-path', tmp_path / 'swift-cache', *generated.glob('*.swift'), '-o', exe])
     run([exe, streams])
+
+
+def test_swift_field_target(tmp_path):
+    generated = generate(tmp_path / 'swift', 'Swift')
+    (generated / 'main.swift').write_text((RESOURCES / 'target.swift').read_text())
+    exe = tmp_path / 'target'
+    run([tool('swiftc'), '-module-cache-path', tmp_path / 'swift-cache', *generated.glob('*.swift'), '-o', exe])
+    assert run([exe]).splitlines() == [p.hex() for p in command_frames()]
 
 
 def objc_sources(tmp_path):
