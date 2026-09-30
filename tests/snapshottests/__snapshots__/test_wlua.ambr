@@ -357,7 +357,23 @@
               [Unknown message type]
               [Severity level: Error]
               [Group: Malformed]
-          Unparsable payload: b000040000000000fafa9276fd300000db0101fd0000044d
+          Unparsable payload: b000040000000000fafa
+          Message CRC: 0x7692
+      MAVLink Protocol (82)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 48
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 219
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: Unknown (253)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: 044d6f6465206368616e676520746f204c4f495445522066
           Message CRC: 0x647a
       
       Frame 3: 101 bytes on wire (808 bits), 101 bytes captured (808 bits) on interface lo0, id 0
@@ -399,7 +415,39 @@
               [Unknown message type]
               [Severity level: Error]
               [Group: Malformed]
-          Unparsable payload: 9001000000000000fafa7818fd110000480101fd00000644
+          Unparsable payload: 9001000000000000fafa
+          Message CRC: 0x1878
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 17
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 72
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: Unknown (253)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: 0644697361726d696e67206d6f746f7273
+          Message CRC: 0x570a
+      MAVLink Protocol (88)
+          Header
+              Magic value / version: MAVLink 2.0 (0xfd)
+              Payload length: 25
+              Incompatibility flag: 0x00 (0)
+              Compatibility flag: 0x00 (0)
+              Packet sequence: 73
+              System id: 1
+              Component id: MAV_COMP_ID_AUTOPILOT1 (1)
+              Message id: Unknown (22)
+          [Expert Info (Error/Malformed): Unknown message type]
+              [Unknown message type]
+              [Severity level: Error]
+              [Group: Malformed]
+          Unparsable payload: 14aec73e1905ffff4d4f545f544853545f484f564552000009
           Message CRC: 0xf478
       
   

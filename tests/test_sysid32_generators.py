@@ -256,19 +256,87 @@ def test_lua_layout_and_flags(tmp_path):
     lua_run("package.path = %r .. '/?.lua;' .. package.path\nROOT = %r\n" % (str(modules), str(tmp_path)) + (RESOURCES / 'layout.lua').read_text())
 
 
-def test_wlua_rejects_extensions(tmp_path, streams):
+def wlua_capture(tmp_path, packets, *options):
     lua = generate(tmp_path / 'mavlink.lua', 'WLua')
     # PCAP DLT_USER0 is registered by the generated dissector.
-    packets = [p.read_bytes() for p in sorted(streams.glob('*.v2'))]
     pcap = struct.pack('<IHHIIII', 0xa1b2c3d4, 2, 4, 0, 0, 65535, 147)
     for data in packets:
         pcap += struct.pack('<IIII', 0, 0, len(data), len(data)) + data
     capture = tmp_path / 'frames.pcap'
     capture.write_bytes(pcap)
-    output = run([tool('tshark'), '-n', '-r', capture, '-X', 'lua_script:' + str(lua), '-V'])
+    return run([tool('tshark'), '-n', '-r', capture, '-X', 'lua_script:' + str(lua), *options])
+
+
+def test_wlua_rejects_unknown_flags(tmp_path):
+    legacy = frame()
+    legacy1 = frame(v1=True)
+    packets = []
+    for flags in range(128, 136):
+        for length in (0, 80, 255):
+            payload = (legacy + legacy1).ljust(length, b'\xfd')[:length]
+            packets.append(frame(flags, payload, source=0xFEDCBA98 if flags & 2 else 42,
+                                 target=0xABCDEF12, msgid=76, extra=152) + legacy)
+    output = wlua_capture(tmp_path, packets, '-V')
     assert 'Lua Error' not in output
     assert output.count('[Expert Info (Warning/Undecoded): Unsupported MAVLink incompatibility flags]') == len(packets)
     assert output.count('Message id: HEARTBEAT') == len(packets)
+
+
+def test_wlua_extended_headers(tmp_path):
+    packets = []
+    expected = []
+    for source in (42, 255, 256, 70000, 0x80000000, 0xFFFFFFFF):
+        for target in (0, 7, 255, 256, 100000, 0x80000000, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload_target = min(target, 255)
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, payload_target, 250, 1)
+                packet = frame(flags, payload, source=source, target=target, msgid=76, extra=152)
+                crc = int.from_bytes(packet[-15:-13] if signed else packet[-2:], 'little')
+                legacy_crc = int.from_bytes(frame(v1=True)[-2:], 'little')
+                packets.append(packet + frame(v1=True))
+                expected.append([f'{source},42', '11,11', '76,0', str(target) if target > 255 else '',
+                                 str(payload_target), '300', f'0x{crc:04x},0x{legacy_crc:04x}',
+                                 '3' if signed else '', packet[-6:].hex() if signed else '', ''])
+    fields = ('sysid', 'compid', 'msgid', 'target_system', 'COMMAND_LONG_target_system',
+              'COMMAND_LONG_command', 'crc', 'signature_link', 'signature_signature')
+    options = ['-T', 'fields', '-E', 'separator=|']
+    for field in fields:
+        options.extend(['-e', 'mavlink_proto.' + field])
+    options.extend(['-e', '_ws.expert.message'])
+    output = wlua_capture(tmp_path, packets, *options)
+    assert [line.split('|') for line in output.splitlines()] == expected
+
+
+def test_wlua_empty_payload(tmp_path):
+    packets = [frame(flags, payload=b'', source=0xFFFFFFFF if flags & 2 else 255, target=0)
+               + frame(v1=True) for flags in range(8)]
+    output = wlua_capture(tmp_path, packets, '-T', 'fields', '-E', 'separator=|',
+                          '-e', 'mavlink_proto.sysid', '-e', 'mavlink_proto.msgid',
+                          '-e', 'mavlink_proto.target_system', '-e', '_ws.expert.message')
+    assert output.splitlines() == [
+        '%u,42|0,0|%s|' % (0xFFFFFFFF if flags & 2 else 255, '0' if flags & 4 else '')
+        for flags in range(8)]
+
+
+def test_wlua_truncated_frames(tmp_path):
+    packets = []
+    frames = [frame(v1=True)]
+    frames.extend(frame(flags, source=0xFEDCBA98 if flags & 2 else 42, target=0xABCDEF12)
+                  for flags in (*range(8), *range(128, 136)))
+    for packet in frames:
+        packets.extend(packet[:length] for length in range(1, len(packet)))
+    output = wlua_capture(tmp_path, packets, '-V')
+    assert 'Lua Error' not in output
+    assert output.count('[Expert Info (Warning/Malformed): Truncated MAVLink') == len(packets)
+
+
+def test_wlua_unknown_message_boundary(tmp_path):
+    packet = frame(7, payload=b'\xfd' * 8, source=0xFFFFFFFF, target=0x80000000, msgid=0xFFFFFF, extra=0)
+    output = wlua_capture(tmp_path, [packet + frame()], '-V')
+    assert 'Lua Error' not in output
+    assert output.count('[Expert Info (Error/Malformed): Unknown message type]') == 1
+    assert output.count('Message id: HEARTBEAT') == 1
 
 
 @pytest.mark.parametrize('protocol', ['1.0', '2.0'])
