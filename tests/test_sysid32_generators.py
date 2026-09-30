@@ -401,7 +401,7 @@ def objc_sources(tmp_path):
     return generated, includes
 
 
-def test_objc_rejects_extensions(tmp_path, streams):
+def test_objc_header_flags(tmp_path, streams):
     import sys
     if sys.platform != 'darwin':
         pytest.skip('Objective-C runtime test requires Apple Foundation and ARC')
@@ -421,6 +421,29 @@ def test_objc_compiles_with_gnustep(tmp_path):
     run([tool('clang'), '-fsyntax-only', '-fobjc-runtime=gnustep-2.0', '-fobjc-weak',
          '-DGNUSTEP', '-DGNUSTEP_BASE_LIBRARY=1', '-I' + root, '-I' + objc_include,
          '-include', 'Foundation/Foundation.h', *includes, *generated.rglob('*.m'), RESOURCES / 'reject.m'])
+
+
+@pytest.mark.parametrize('protocol', ['1.0', '2.0'])
+def test_objc_common_target(tmp_path, protocol):
+    import sys
+    root = os.environ.get('MAVLINK_GNUSTEP_ROOT')
+    objc_include = os.environ.get('MAVLINK_OBJC_INCLUDE')
+    native = sys.platform == 'darwin'
+    if not native and (not root or not objc_include):
+        pytest.skip('Apple Foundation or GNUstep headers required')
+    generated = generate(tmp_path / 'objc', 'ObjC', protocol)
+    headers = generate(tmp_path / 'c', 'C', protocol)
+    includes = ['-I' + str(p) for p in [generated, headers / 'common',
+                generated / 'common', generated / 'minimal', generated / 'standard']]
+    if native:
+        flags = ['-fobjc-arc', '-framework', 'Foundation', '-o', tmp_path / 'target']
+    else:
+        flags = ['-fsyntax-only', '-fobjc-runtime=gnustep-2.0', '-fobjc-weak',
+                 '-DGNUSTEP', '-DGNUSTEP_BASE_LIBRARY=1', '-I' + root, '-I' + objc_include]
+    run([tool('clang'), *flags, '-include', 'Foundation/Foundation.h',
+         *includes, *generated.rglob('*.m'), RESOURCES / 'target.m'])
+    if native:
+        run([tmp_path / 'target'])
 
 
 @pytest.fixture
