@@ -111,7 +111,8 @@ f.length = ProtoField.uint8("mavlink_proto.length", "Payload length")
 f.incompatibility_flag = ProtoField.uint8("mavlink_proto.incompatibility_flag", "Incompatibility flag", base.HEX_DEC)
 f.compatibility_flag = ProtoField.uint8("mavlink_proto.compatibility_flag", "Compatibility flag", base.HEX_DEC)
 f.sequence = ProtoField.uint8("mavlink_proto.sequence", "Packet sequence")
-f.sysid = ProtoField.uint8("mavlink_proto.sysid", "System id", base.DEC)
+f.sysid = ProtoField.uint32("mavlink_proto.sysid", "System id", base.DEC)
+f.target_system = ProtoField.uint32("mavlink_proto.target_system", "Target system id", base.DEC)
 f.compid = ProtoField.uint8("mavlink_proto.compid", "Component id", base.DEC, enumEntryName.MAV_COMPONENT)
 f.msgid = ProtoField.uint24("mavlink_proto.msgid", "Message id", base.DEC, messageName)
 f.payload = ProtoField.uint8("mavlink_proto.payload", "Payload", base.DEC, messageName)
@@ -550,32 +551,43 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         -- some Wireshark decoration
         pinfo.cols.protocol = protocolString
 
-        -- Unsupported headers must not be decoded at MAVLink2.0 offsets.
+        -- Source and target widths are independent in MAVLink2. Check the
+        -- complete frame before accessing variable headers, payload or signature.
+        local remaining = buffer:len() - offset
+        if remaining < (version == 0xfd and 3 or 2) then
+            subtree:add(f.rawheader, buffer(offset, remaining))
+            subtree:add_expert_info(PI_MALFORMED, PI_WARN, "Truncated MAVLink header")
+            return
+        end
+        local flags = version == 0xfd and buffer(offset + 2, 1):uint() or 0
+        local sysid_size = bit.band(flags, 2) ~= 0 and 4 or 1
+        local header_size = version == 0xfd and 9 + sysid_size or 6
+        if bit.band(flags, 4) ~= 0 then header_size = header_size + 4 end
+        local frame_size = header_size + buffer(offset + 1, 1):uint() + 2
+        if bit.band(flags, 1) ~= 0 then frame_size = frame_size + 13 end
+        if remaining < frame_size then
+            subtree:add(f.rawpayload, buffer(offset, remaining))
+            subtree:add_expert_info(PI_MALFORMED, PI_WARN, "Truncated MAVLink frame")
+            return
+        end
+
+        -- Unknown incompatibility flags must not be decoded at known offsets.
         -- Skip the complete frame, including its signature, before continuing.
-        local unsupported = version == 0xfd and buffer:len() - offset >= 3
-            and bit.band(buffer(offset + 2, 1):uint(), 0xfe) ~= 0
-        if unsupported then
-            local flags = buffer(offset + 2, 1):uint()
-            local frame_size = 12 + buffer(offset + 1, 1):uint()
-            if bit.band(flags, 1) ~= 0 then frame_size = frame_size + 13 end
-            if bit.band(flags, 2) ~= 0 then frame_size = frame_size + 3 end
-            if bit.band(flags, 4) ~= 0 then
-                frame_size = frame_size + 4
-            end
-            local available = math.min(frame_size, buffer:len() - offset)
-            subtree:add(f.rawpayload, buffer(offset, available))
+        if bit.band(flags, 0xf8) ~= 0 then
+            subtree:add(f.rawpayload, buffer(offset, frame_size))
             subtree:add_expert_info(PI_UNDECODED, PI_WARN, "Unsupported MAVLink incompatibility flags")
             pinfo.cols.info:append(" Unsupported MAVLink frame")
-            offset = offset + available
+            offset = offset + frame_size
         else
         -- HEADER ----------------------------------------
     
         local msgid
         local length
         local incompatibility_flag
+        local target_system
 
         if (version == 0xfe) then
-            if (buffer:len() - 2 - offset > 6) then
+            if (buffer:len() - 2 - offset >= 6) then
                 -- normal header
                 local header = subtree:add(buffer(offset, 6), "Header")
                 header:add(f.magic, buffer(offset,1), version)
@@ -609,9 +621,9 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 offset = offset + hsize
             end
         elseif (version == 0xfd) then
-            if (buffer:len() - 2 - offset > 10) then
+            if (buffer:len() - 2 - offset >= header_size) then
                 -- normal header
-                local header = subtree:add(buffer(offset, 10), "Header")
+                local header = subtree:add(buffer(offset, header_size), "Header")
                 header:add(f.magic, buffer(offset,1), version)
                 offset = offset + 1
                 length = buffer(offset,1)
@@ -626,16 +638,21 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
                 local sequence = buffer(offset,1)
                 header:add(f.sequence, sequence)
                 offset = offset + 1
-                local sysid = buffer(offset,1)
-                header:add(f.sysid, sysid)
-                offset = offset + 1
+                local sysid = buffer(offset, sysid_size)
+                header:add_le(f.sysid, sysid)
+                offset = offset + sysid_size
                 local compid = buffer(offset,1)
                 header:add(f.compid, compid)
                 offset = offset + 1
-                pinfo.cols.src = "System: "..tostring(sysid:uint())..', Component: '..tostring(compid:uint())
+                pinfo.cols.src = "System: "..tostring(sysid:le_uint())..', Component: '..tostring(compid:uint())
                 msgid = buffer(offset,3):le_uint()
                 header:add(f.msgid, buffer(offset,3), msgid)
                 offset = offset + 3
+                if bit.band(flags, 4) ~= 0 then
+                    target_system = buffer(offset, 4):le_uint()
+                    header:add_le(f.target_system, buffer(offset, 4))
+                    offset = offset + 4
+                end
             else 
                 -- handle truncated header
                 local hsize = buffer:len() - 2 - offset
@@ -666,12 +683,16 @@ function mavlink_proto.dissector(buffer,pinfo,tree)
         if (fn == nil) then
             pinfo.cols.info:append ("Unknown message type   ")
             subtree:add_expert_info(PI_MALFORMED, PI_ERROR, "Unknown message type")
-            size = buffer:len() - 2 - offset
+            size = length
             subtree:add(f.rawpayload, buffer(offset,size))
             offset = offset + size
         else
             local payload = subtree:add(f.payload, buffer(offset, limit - offset), msgid)
-            pinfo.cols.dst:set(messageName[msgid])
+            if target_system ~= nil then
+                pinfo.cols.dst:set("System: " .. tostring(target_system))
+            else
+                pinfo.cols.dst:set(messageName[msgid])
+            end
             if (msgCount == 1) then
             -- first message should over write the TCP/UDP info
                 pinfo.cols.info = messageName[msgid]

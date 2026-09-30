@@ -28,7 +28,13 @@ signatures. Optional compilers/runtimes are detected and reported as skips.
 | Ada 1/2 | Reject and consume unsupported frames within existing protocol scope | GNAT |
 | Swift | Retain MAVLink 1; consume and reject MAVLink 2 frames | Swift |
 | Spin2 | Reject and consume unsupported frames, retaining state across receive timeouts | FlexSpin (compile); compatible SpinSim or hardware (runtime) |
-| WLua | Mark unsupported frames and advance to next frame | tshark |
+| WLua | Decode independent 32-bit source and target headers; skip unknown flags | tshark |
+
+The WLua dissector exposes the full source as `mavlink_proto.sysid` and the
+extended header target as `mavlink_proto.target_system`. Message payload target
+fields continue to show their on-wire byte, including the 255 marker for wide
+targets. Its tests cover signed frames, independent source/target widths,
+truncated frames and recovery after unknown flags or message types.
 
 Install the JavaScript dependencies in `generator/javascript`. For TypeScript,
 run `npm install` in this directory or point `MAVLINK_TYPESCRIPT_NODE_MODULES` at
