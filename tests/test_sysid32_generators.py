@@ -168,11 +168,28 @@ def test_java_field_target(tmp_path):
     assert run([tool('java'), '-cp', tmp_path / 'classes', 'Target']).splitlines() == expected
 
 
-def test_cs_rejects_extensions(tmp_path, streams):
+def test_cs_rejects_unknown_flags(tmp_path, streams):
     cs = generate(tmp_path / 'cs', 'CS')
     exe = tmp_path / 'reject.exe'
     run([tool('mcs'), '-unsafe', '-out:' + str(exe), *cs.glob('*.cs'), RESOURCES / 'Reject.cs'])
     run([tool('mono'), exe, streams])
+
+
+@pytest.mark.parametrize('protocol', ['1.0', '2.0'])
+def test_cs_field_target(tmp_path, protocol):
+    cs = generate(tmp_path / 'cs', 'CS', protocol)
+    exe = tmp_path / 'target.exe'
+    run([tool('mcs'), '-unsafe', '-out:' + str(exe), *cs.glob('*.cs'), RESOURCES / 'Target.cs'])
+    actual = [bytes.fromhex(line) for line in run([tool('mono'), exe]).splitlines()]
+    expected = list(command_frames())
+    assert len(actual) == len(expected)
+    for packet, reference in zip(actual, expected):
+        if packet[2] & 1:
+            # C# signing supplies its own wall-clock timestamp and link ID.
+            assert packet[:-13] == reference[:-13]
+            assert packet[-6:] == hashlib.sha256(bytes([42] * 32) + packet[:-6]).digest()[:6]
+        else:
+            assert packet == reference
 
 
 def node_environment():
