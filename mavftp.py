@@ -1380,6 +1380,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             and self._event_operation is not None
             and not self._event_complete
         )
+        # Claim completion before the transport can re-enter cancellation.
+        # Deliver the captured result only after the old operation is cleaned up.
+        if report_result:
+            self._event_complete = True
+            self.event_result = terminal_result
         self.__discard_delayed_traffic()
         self.op_start = None
         self.no_sessions_retry_pending = False
@@ -1440,9 +1445,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self._managed_transport:
             self.done = True
             self.pending_terminate_seq = None
-            if report_result:
-                self._event_complete = True
-                self.event_result = terminal_result
         # Finish clearing the old operation before callbacks can start another.
         # Capture all callbacks and the result so reentrancy cannot lose either.
         for callback, description in callbacks:

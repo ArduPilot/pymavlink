@@ -1702,6 +1702,49 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                          ["Put", "CreateDirectory"])
         self.assertEqual(completed[-1].error_code, FtpError.Success)
 
+    def test_managed_nested_cancel_during_termination_send_reports_once(self):
+        """Transport reentry during termination cannot report an operation twice."""
+        for success in (False, True):
+            with self.subTest(success=success):
+                ftp, master, sent, completed = self.managed_ftp()
+                nested_cancel = []
+
+                def send_payloads(packets):
+                    sent.extend(packets)
+                    if (
+                        master._decode_payload(packets[0]).opcode == OP_TerminateSession
+                        and not nested_cancel
+                    ):
+                        nested_cancel.append(True)
+                        ftp.cmd_cancel()
+
+                ftp._send_payloads = send_payloads
+                ftp.cmd_rm(["remote"], wait=False)
+                expected = FtpError.Success if success else FtpError.Fail
+                result = ftp.terminate_session(success=success)
+
+                self.assertEqual(result.error_code, FtpError.Success)
+                self.assertEqual(nested_cancel, [True])
+                self.assertEqual(
+                    [(r.operation_name, r.error_code) for r in completed],
+                    [("RemoveFile", expected)],
+                )
+                self.assertTrue(ftp.event_complete)
+                self.assertIs(ftp.event_result, completed[0])
+                self.assertIsNone(ftp.pending_terminate_seq)
+                ftp.idle_task()
+                self.assertEqual(len(completed), 1)
+
+                ftp.cmd_mkdir(["after-cancel"], wait=False)
+                mkdir = master._decode_payload(sent[-1])
+                ftp.mavlink_packet(ftp_reply(
+                    mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                ))
+                self.assertEqual(
+                    [(r.operation_name, r.error_code) for r in completed],
+                    [("RemoveFile", expected), ("CreateDirectory", FtpError.Success)],
+                )
+
     def test_managed_nested_cancel_preserves_next_command(self):
         ftp, master, sent, completed = self.managed_ftp()
         progress_values = []
