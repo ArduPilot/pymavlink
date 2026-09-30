@@ -2109,14 +2109,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.__finish_session(success=True)
         result = MAVFTPReturn("Get", FtpError.Success)
         try:
-            assert stream is not None and callback is not None  # noqa: S101
-            stream.seek(0)
-            callback_result = callback(stream)
-            if (
-                isinstance(callback_result, MAVFTPReturn)
-                and callback_result.error_code != FtpError.Success
-            ):
-                result = callback_result
+            # Termination transport callbacks may already have started another
+            # command. Do not let the old data callback cancel or overwrite it.
+            if self._event_generation == generation:
+                assert stream is not None and callback is not None  # noqa: S101
+                stream.seek(0)
+                callback_result = callback(stream)
+                if (
+                    isinstance(callback_result, MAVFTPReturn)
+                    and callback_result.error_code != FtpError.Success
+                ):
+                    result = callback_result
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("FTP: download callback failed: %s", exc)
             result = MAVFTPReturn("Get", FtpError.Fail)

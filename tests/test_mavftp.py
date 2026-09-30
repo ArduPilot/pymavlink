@@ -1408,6 +1408,68 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 self.assertEqual([(r.operation_name, r.error_code) for r in completed],
                                  [("Get", expected), ("CreateDirectory", FtpError.Success)])
 
+    def test_managed_get_skips_callback_after_termination_send_starts_command(self):
+        """A stale download callback must not cancel the transport's new command."""
+        for stream_owned in (False, True):
+            with self.subTest(stream_owned=stream_owned):
+                ftp, master, sent, completed = self.managed_ftp()
+                nested_cancel = []
+                download_callback = MagicMock(side_effect=lambda _stream: ftp.cmd_cancel())
+
+                def send_payloads(packets):
+                    sent.extend(packets)
+                    if (
+                        master._decode_payload(packets[0]).opcode == OP_TerminateSession
+                        and not nested_cancel
+                    ):
+                        nested_cancel.append(True)
+                        ftp.cmd_cancel()
+                        ftp.cmd_mkdir(["after-get"], wait=False)
+
+                ftp._send_payloads = send_payloads
+                ftp.cmd_get(["remote", "-"], callback=download_callback)
+                request = master._decode_payload(sent[-1])
+                ftp.mavlink_packet(ftp_reply(
+                    request.seq + 1, OP_Ack, OP_OpenFileRO,
+                    struct.pack("<I", 4), session=37,
+                ))
+                stream = ftp.fh
+                ftp.fh_owned = stream_owned
+                burst = master._decode_payload(sent[-1])
+                try:
+                    ftp.mavlink_packet(ftp_reply(
+                        burst.seq + 1, OP_Ack, OP_BurstReadFile,
+                        b"data", burst_complete=1, session=37,
+                    ))
+
+                    download_callback.assert_not_called()
+                    self.assertEqual(nested_cancel, [True])
+                    self.assertEqual(
+                        [(r.operation_name, r.error_code) for r in completed],
+                        [("Get", FtpError.Success)],
+                    )
+                    self.assertEqual(stream.closed, stream_owned)
+                    if not stream_owned:
+                        self.assertEqual(stream.getvalue(), b"data")
+                    self.assertFalse(ftp.event_complete)
+                    self.assertIsNone(ftp.event_result)
+                    self.assertIsNone(ftp.callback_failure)
+                    mkdir = master._decode_payload(sent[-1])
+                    self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+                    ftp.mavlink_packet(ftp_reply(
+                        mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                    ))
+                    self.assertEqual(
+                        [(r.operation_name, r.error_code) for r in completed],
+                        [("Get", FtpError.Success), ("CreateDirectory", FtpError.Success)],
+                    )
+                    self.assertTrue(ftp.event_complete)
+                    self.assertIs(ftp.event_result, completed[-1])
+                    ftp.idle_task()
+                    self.assertEqual(len(completed), 2)
+                finally:
+                    stream.close()
+
     def test_managed_get_callback_preserves_short_read_accounting(self):
         """Account for EOF before callbacks can replace the download state."""
         for known_size in (False, True):
