@@ -116,6 +116,11 @@ BURST_REPLY_SEQUENCE_WINDOW = 4096
 MAX_READ_GAPS = 4096
 MAX_READ_RETRIES = 10
 MAX_INITIAL_RETRIES = 3
+# An unsigned MAVLink 2 frame has 12 bytes of framing; FTP also has three
+# MAVLink target fields before its 12-byte protocol header.
+MAVLINK2_FRAME_OVERHEAD = 12
+MAVLINK_FTP_TARGET_FIELDS = 3
+USB_FULL_SPEED_PACKET_SIZE = 64
 LIST_TIME_FAIL_LIMIT = 2
 READ_DEADLINE_SECONDS = 5.0
 CRC_TIMEOUT_SECONDS = 5.0
@@ -877,6 +882,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         plen = len(payload)
         if plen < MAX_Payload + HDR_Len:
             payload.extend(bytearray([0] * ((HDR_Len + MAX_Payload) - plen)))
+        self.__avoid_usb_packet_boundary(op, payload)
         expected_reply_seq = (op.seq + 1) % FTP_SEQ_MODULUS
         if op.opcode == OP_BurstReadFile:
             self.pending_burst_offset = op.offset
@@ -927,6 +933,27 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.tx_delay_queue,
                     (deadline, self.delay_sequence, bytes(payload)),
                 )
+
+    def __avoid_usb_packet_boundary(self, op: FTP_OP, payload: bytearray) -> None:
+        """Keep unsigned MAVLink 2 FTP requests off exact 64-byte USB boundaries.
+
+        MAVLink 2 trims trailing zeroes from its fixed-size FTP field. Some
+        USB CDC links appear to hold a full 64-byte request until a subsequent
+        short packet arrives. Only unused bytes beyond the FTP `size` field
+        are changed; the declared data and its zero terminator remain intact.
+        """
+        if self._managed_transport or getattr(self.master, "WIRE_PROTOCOL_VERSION", None) != "2.0":
+            return
+        meaningful_length = len(payload.rstrip(b"\0"))
+        frame_length = MAVLINK2_FRAME_OVERHEAD + MAVLINK_FTP_TARGET_FIELDS + meaningful_length
+        if frame_length % USB_FULL_SPEED_PACKET_SIZE != 0:
+            return
+        # Preserve a zero byte after the declared FTP data for servers that
+        # also interpret path operands as NUL-terminated strings.
+        marker_offset = max(meaningful_length + 1, HDR_Len + op.size + 1)
+        if marker_offset >= len(payload):
+            return
+        payload[marker_offset] = 1
 
     def __transmit_payload(self, payload: bytes, writer: Optional[Any] = None) -> None:
         """Transmit an already encoded MAVLink FTP payload."""

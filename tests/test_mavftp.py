@@ -7737,6 +7737,70 @@ class TestMAVFTPPayloadDecoding(unittest.TestCase):
         self.log_stream.seek(0)
         self.log_stream.truncate(0)
 
+    def test_mavlink2_ftp_request_avoids_exact_usb_packet_boundary(self):
+        """A 37-byte upload/download path must not produce a 64-byte MAVLink 2 frame."""
+        path = "/APM/Scripts/copter-magfit-helper.lua"
+        self.mock_master.WIRE_PROTOCOL_VERSION = "2.0"
+        captured = []
+
+        with patch.object(
+            self.mav_ftp,
+            "_MAVFTP__transmit_payload",
+            side_effect=lambda payload, _writer=None: captured.append(bytes(payload)),
+        ):
+            for opcode in (OP_CreateFile, OP_OpenFileRO):
+                self.mav_ftp._MAVFTP__send(
+                    FTP_OP(1, 0, opcode, len(path), 0, 0, 0, bytearray(path, "ascii"))
+                )
+
+        self.assertEqual(len(captured), 2)
+        for payload in captured:
+            # MAVLink 2 truncates trailing zeroes: 12 framing bytes and
+            # three target fields precede the meaningful FTP bytes.
+            self.assertEqual(12 + 3 + len(payload.rstrip(b"\0")), 66)
+            self.assertEqual(payload[4], len(path))
+            self.assertEqual(payload[12:12 + len(path)], path.encode("ascii"))
+            self.assertEqual(payload[12 + len(path)], 0)
+            self.assertEqual(payload[12 + len(path) + 1], 1)
+
+    def test_other_lengths_and_mavlink1_keep_zero_padding(self):
+        """Adjacent path lengths and MAVLink 1 do not gain a padding marker."""
+        captured = []
+        paths = (
+            ("2.0", "/APM/Scripts/copter-magfit-helpe.txt"),
+            ("2.0", "/APM/Scripts/copter-magfit-helperx.txt"),
+            ("1.0", "/APM/Scripts/copter-magfit-helper.txt"),
+        )
+        with patch.object(
+            self.mav_ftp,
+            "_MAVFTP__transmit_payload",
+            side_effect=lambda payload, _writer=None: captured.append(bytes(payload)),
+        ):
+            for version, path in paths:
+                self.mock_master.WIRE_PROTOCOL_VERSION = version
+                self.mav_ftp._MAVFTP__send(
+                    FTP_OP(1, 0, OP_CreateFile, len(path), 0, 0, 0, bytearray(path, "ascii"))
+                )
+
+        for payload, (_, path) in zip(captured, paths):
+            self.assertEqual(payload[12 + len(path):], bytes(251 - 12 - len(path)))
+
+    def test_managed_transport_keeps_zero_padding(self):
+        """A manager controls its own framing and receives the original FTP payload."""
+        captured = []
+        ftp = MAVFTP(
+            self.mock_master, target_system=1, target_component=1,
+            send_payloads=captured.extend,
+        )
+        captured.clear()  # Initialization may send a session reset.
+        self.mock_master.WIRE_PROTOCOL_VERSION = "2.0"
+        path = "/APM/Scripts/copter-magfit-helper.lua"
+        ftp._MAVFTP__send(
+            FTP_OP(1, 0, OP_CreateFile, len(path), 0, 0, 0, bytearray(path, "ascii"))
+        )
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0][12 + len(path):], bytes(251 - 12 - len(path)))
+
     def test_logging(self):
         # Code that triggers logging
         logging.info("This is a test log message")
