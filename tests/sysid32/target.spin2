@@ -1,0 +1,36 @@
+OBJ
+    parser : "mavlink"
+VAR
+    parser.MAVLink_command_long_message command
+    ^parser.MAVLink packet
+PUB main() | source, target, i, j, k, size, bytes
+    parser.init_session(42, 11, 115200, @tx, @rx)
+    repeat i from 0 to 1
+        source := long[@sources][i]
+        repeat j from 0 to 4
+            target := long[@targets][j]
+            parser.reset_session()
+            size := parser.command_long_pack($3F800000, $40000000, $40400000, $40800000, $40A00000, $40C00000, $40E00000, 300, target, 250, 1, @command)
+            if size <> 33
+                abort 1
+            size := parser.pack_frame(76, source, 11, 152, size, FALSE)
+            bytes := parser.get_send_buffer()
+            parser.newPacket()
+            repeat k from 0 to size - 1
+                parser.parse_char(byte[bytes + k])
+            [packet] := parser.getPacket()
+            if packet.sysid <> source || parser.get_target_system(command.target_system) <> target || !parser.check_crc(152)
+                abort 2
+            ' Repack to broadcast; TARGET32 must clear and the payload be zero.
+            size := parser.command_long_pack(0,0,0,0,0,0,0,300,0,250,1,@command)
+            size := parser.pack_frame(76, source, 11, 152, size, FALSE)
+            if byte[bytes + 2] & 4
+                abort 3
+    return
+PRI tx(value)
+    return
+PRI rx(timeout): value
+    return -1
+DAT
+sources long 42, $ABCDEF12
+targets long 0, 7, 255, 256, $FFFFFFFF
