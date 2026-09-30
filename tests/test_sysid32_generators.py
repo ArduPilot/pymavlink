@@ -400,7 +400,7 @@ def test_wlua_unknown_message_boundary(tmp_path):
 
 
 @pytest.mark.parametrize('protocol', ['1.0', '2.0'])
-def test_ada_rejects_extensions(tmp_path, streams, protocol):
+def test_ada_rejects_unknown_flags(tmp_path, streams, protocol):
     compiler = tool('gnatmake')
     generated = generate(tmp_path / 'ada', 'Ada', protocol)
     version = 'V1' if protocol == '1.0' else 'V2'
@@ -410,7 +410,16 @@ def test_ada_rejects_extensions(tmp_path, streams, protocol):
     (generated / 'reject_ada.adb').write_text(source)
     run([compiler, '-gnat2022', '-gnata', '-q', 'reject_ada.adb'], cwd=generated)
     for stream in sorted(streams.glob('*.' + version.lower())):
+        if version == 'V2' and int(stream.name.split('-')[0]) < 128:
+            continue
         run([generated / 'reject_ada', stream])
+
+
+def test_ada_field_target(tmp_path):
+    generated = generate(tmp_path / 'ada', 'Ada')
+    shutil.copyfile(RESOURCES / 'target_ada.adb', generated / 'target_ada.adb')
+    run([tool('gnatmake'), '-gnat2022', '-gnata', '-q', 'target_ada.adb'], cwd=generated)
+    assert run([generated / 'target_ada']).splitlines() == [p.hex() for p in command_frames()]
 
 
 def test_typescript_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams):
