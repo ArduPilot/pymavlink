@@ -413,7 +413,7 @@ def test_ada_rejects_extensions(tmp_path, streams, protocol):
         run([generated / 'reject_ada', stream])
 
 
-def test_typescript_rejects_extensions(tmp_path, streams):
+def test_typescript_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams):
     modules = Path(os.environ.get('MAVLINK_TYPESCRIPT_NODE_MODULES', RESOURCES / 'node_modules'))
     compiler = modules / 'typescript/bin/tsc'
     if not compiler.exists():
@@ -423,6 +423,20 @@ def test_typescript_rejects_extensions(tmp_path, streams):
     run([tool('node'), compiler, '--skipLibCheck', '--target', 'es2017', '--module', 'commonjs',
          '--strict', '--outDir', generated / 'compiled', generated / 'message-registry.ts'], cwd=tmp_path)
     run([tool('node'), RESOURCES / 'reject-typescript.js', generated / 'compiled/message-registry.js', streams])
+
+
+@pytest.mark.parametrize('target', ['es2017', 'es2022'])
+def test_typescript_field_target(tmp_path, target):
+    modules = Path(os.environ.get('MAVLINK_TYPESCRIPT_NODE_MODULES', RESOURCES / 'node_modules'))
+    compiler = modules / 'typescript/bin/tsc'
+    if not compiler.exists():
+        pytest.skip('npm install in tests/sysid32 to enable TypeScript runtime tests')
+    generated = generate(tmp_path / 'typescript', 'TypeScript')
+    (generated / 'node_modules').symlink_to(modules, target_is_directory=True)
+    run([tool('node'), compiler, '--skipLibCheck', '--target', target, '--module', 'commonjs',
+         '--strict', '--outDir', generated / 'compiled', generated / 'message-registry.ts'], cwd=tmp_path)
+    actual = run([tool('node'), RESOURCES / 'target-typescript.js', generated / 'compiled/message-registry.js'])
+    assert [line for line in actual.splitlines() if line.startswith('fd')] == [p.hex() for p in command_frames()]
 
 
 def test_swift_rejects_extensions(tmp_path, streams):
