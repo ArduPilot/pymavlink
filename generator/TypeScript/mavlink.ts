@@ -60,7 +60,7 @@ export class MAVLinkModule extends BaseModule {
             const values: number[] = [];
             for (let i = 0; i < count; i++) {
                 const size = message.sizeof(type);
-                let value = (arrays[name] ? (message[name] || [])[i] : message[name]) || 0;
+                let value = (arrays[name] ? (message[name] ?? [])[i] : message[name]) ?? 0;
                 if (name === message._target_system_field && value > 255) value = 255;
                 if (input) {
                     if (type === 'float') value = bytes.readFloatLE(offset);
@@ -88,7 +88,7 @@ export class MAVLinkModule extends BaseModule {
         return this.join(messages.map(message => {
             const v2 = this.protocol_version === 2;
             const source = message._system_id;
-            const target = message._target_system_field ? (message[message._target_system_field] || 0) : 0;
+            const target = message._target_system_field ? (message[message._target_system_field] ?? 0) : 0;
             for (const id of [source, target]) {
                 if (!Number.isInteger(id) || id < 0 || id > 0xffffffff) throw new RangeError('System ID must be uint32');
             }
