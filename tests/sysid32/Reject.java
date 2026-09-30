@@ -5,6 +5,8 @@ public class Reject {
     public static void main(String[] args) throws Exception {
         try (DirectoryStream<Path> files = Files.newDirectoryStream(Paths.get(args[0]), "*.v2")) {
             for (Path file : files) {
+                int flags = Integer.parseInt(file.getFileName().toString().split("-")[0]);
+                if (flags < 128 && (flags & 1) == 0) continue;
                 byte[] original = Files.readAllBytes(file);
                 String frameName = file.getFileName().toString().replaceFirst("\\.v2$", ".frame");
                 int rejectedLength = Files.readAllBytes(file.resolveSibling(frameName)).length;

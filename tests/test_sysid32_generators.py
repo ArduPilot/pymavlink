@@ -145,7 +145,7 @@ def test_c_no_per_message_target_system_getters(tmp_path, protocol):
         assert 'implicit declaration' in result.stderr
 
 
-def test_java_rejects_extensions(tmp_path, streams):
+def test_java_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams):
     java = generate(tmp_path / 'java', 'Java')
     sources = list(java.rglob('*.java'))
     run([tool('javac'), '-d', tmp_path / 'classes', *sources, RESOURCES / 'Reject.java'])
@@ -153,6 +153,19 @@ def test_java_rejects_extensions(tmp_path, streams):
     java_streams = tmp_path / 'parent.v2' / 'frames'
     shutil.copytree(streams, java_streams)
     run([tool('java'), '-cp', tmp_path / 'classes', 'Reject', java_streams])
+
+
+def test_java_field_target(tmp_path):
+    java = generate(tmp_path / 'java', 'Java')
+    run([tool('javac'), '-d', tmp_path / 'classes', *java.rglob('*.java'), RESOURCES / 'Target.java'])
+    expected = []
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert run([tool('java'), '-cp', tmp_path / 'classes', 'Target']).splitlines() == expected
 
 
 def test_cs_rejects_extensions(tmp_path, streams):
