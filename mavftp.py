@@ -1391,6 +1391,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.request_cancelled = True
         termination_send_failed = not self.__send_termination()
         if self._event_generation != generation:
+            # Transport reentry replaced the operation after completion was
+            # claimed. Report its captured result without cleaning up new state.
+            if report_result:
+                self.__deliver_managed_result(generation, operation_callback, terminal_result)
             return MAVFTPReturn("TerminateSession", FtpError.Success)
         self.__release_staging()
         self.fh = None

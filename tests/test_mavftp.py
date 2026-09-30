@@ -1745,6 +1745,51 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                     [("RemoveFile", expected), ("CreateDirectory", FtpError.Success)],
                 )
 
+    def test_managed_termination_send_reentry_reports_old_result_and_preserves_next_command(self):
+        """Starting a command during termination must not lose the captured result."""
+        for success in (False, True):
+            with self.subTest(success=success):
+                ftp, master, sent, completed = self.managed_ftp()
+                nested_cancel = []
+
+                def send_payloads(packets):
+                    sent.extend(packets)
+                    if (
+                        master._decode_payload(packets[0]).opcode == OP_TerminateSession
+                        and not nested_cancel
+                    ):
+                        nested_cancel.append(True)
+                        ftp.cmd_cancel()
+                        ftp.cmd_mkdir(["after-cancel"], wait=False)
+
+                ftp._send_payloads = send_payloads
+                ftp.cmd_rm(["remote"], wait=False)
+                result = ftp.terminate_session(success=success)
+                expected = FtpError.Success if success else FtpError.Fail
+
+                self.assertEqual(result.error_code, FtpError.Success)
+                self.assertEqual(nested_cancel, [True])
+                self.assertEqual(
+                    [(r.operation_name, r.error_code) for r in completed],
+                    [("RemoveFile", expected)],
+                )
+                self.assertFalse(ftp.event_complete)
+                self.assertIsNone(ftp.event_result)
+                self.assertIsNone(ftp.callback_failure)
+                mkdir = master._decode_payload(sent[-1])
+                self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+                ftp.mavlink_packet(ftp_reply(
+                    mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                ))
+                self.assertEqual(
+                    [(r.operation_name, r.error_code) for r in completed],
+                    [("RemoveFile", expected), ("CreateDirectory", FtpError.Success)],
+                )
+                self.assertTrue(ftp.event_complete)
+                self.assertIs(ftp.event_result, completed[-1])
+                ftp.idle_task()
+                self.assertEqual(len(completed), 2)
+
     def test_managed_nested_cancel_preserves_next_command(self):
         ftp, master, sent, completed = self.managed_ftp()
         progress_values = []
