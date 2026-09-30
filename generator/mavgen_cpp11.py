@@ -161,17 +161,18 @@ ${{fields:        ${to_yaml_code}
         return ss.str();
     }
 
+${target_system_method}
     inline void serialize(mavlink::MsgMap &map) const override
     {
         map.reset(MSG_ID, LENGTH);
 
-${{ordered_fields:        map << ${ser_name};${ser_whitespace}// offset: ${wire_offset}
+${{ordered_fields:        ${serialize_code};${ser_whitespace}// offset: ${wire_offset}
 }}
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
     {
-${{ordered_fields:        map >> ${name};${ser_whitespace}// offset: ${wire_offset}
+${{ordered_fields:        ${deserialize_code};${ser_whitespace}// offset: ${wire_offset}
 }}
     }
 };
@@ -356,6 +357,10 @@ def generate_one(basename, xml):
     for m in xml.message:
         m.dialect_name = xml.basename
         m.msg_name = m.name
+        target = next((f for f in m.fields if f.is_target_system), None)
+        m.target_system_method = (
+            '    uint32_t get_target_system() const override { return %s; }\n' % target.name
+            if target else '')
 
         for f in m.fields:
             spaces = 30 - len(f.name)
@@ -412,9 +417,17 @@ def generate_one(basename, xml):
                 f.c_test_value = f.cxx_test_value
 
 
+            f.deserialize_code = 'map >> %s' % f.name
+            if f.is_target_system:
+                f.cxx_type = 'uint32_t'
+                f.serialize_code = 'map.write_target(%s)' % f.name
+                f.deserialize_code = 'map.read_target(%s)' % f.name
+
             # cope with uint8_t_mavlink_version
             if f.omit_arg:
                 f.ser_name = "%s(%s)" % (f.type, f.const_value)
+            if not f.is_target_system:
+                f.serialize_code = 'map << %s' % f.ser_name
 
     # add trimmed filed name to enums
     for e in xml.enum:
