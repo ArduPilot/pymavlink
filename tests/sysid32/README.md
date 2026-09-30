@@ -159,6 +159,10 @@ throws rather than silently dropping authentication.
 Java uses `long` for unsigned 32-bit source and target IDs. Configure the packet's
 `signingKey`, `signingLinkId` and `signingTimestamp` for outgoing signatures and
 the parser's `signingKey`/`signingTimestamp` for incoming authentication.
+`MAVLinkStats` retains sequence history for the 256 most recently used wide
+system IDs by default. Use `new MAVLinkStats(ignoreRadioPackets, maxWideSystems)`
+to change this positive limit for larger fleets. Eviction drops that source's
+sequence history and per-source counters; aggregate receive/loss counters remain.
 JavaScript Stable uses the same `signing` options as NextGen. C# continues its
 existing signing behavior: it generates signatures and exposes received
 signature bytes, but does not authenticate incoming signatures itself.
