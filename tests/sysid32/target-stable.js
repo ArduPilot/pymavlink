@@ -8,6 +8,15 @@ for (const source of [42, 0xABCDEF12]) for (const target of [0, 7, 255, 256, 0xF
     tx.signing.timestamp = 1000;
     const message = new mav.messages.command_long(target, 250, 300, 1, 1, 2, 3, 4, 5, 6, 7);
     const bytes = message.pack(tx);
+    assert(Array.isArray(bytes));
+    // decode() must accept pack()'s Array directly, including signed/wide frames.
+    const direct = new Link(null, 255, 1);
+    direct.signing.secret_key = Buffer.alloc(32, 42);
+    direct.signing.timestamp = 999;
+    const roundtrip = direct.decode(bytes);
+    assert.strictEqual(roundtrip.header.srcSystem, source);
+    assert.strictEqual(roundtrip.target_system, target);
+    assert.strictEqual(roundtrip.param7, 7);
     console.log(Buffer.from(bytes).toString('hex'));
     const rx = new Link(null, 255, 1);
     if (signed) {
@@ -42,3 +51,6 @@ for (const target of [0, 7, 256, 0xFFFFFFFF]) {
     assert.strictEqual(Boolean(forwarded.header.incompat_flags & 4), target > 255);
 }
 assert.strictEqual(typeof new mav.messages.heartbeat(2, 3, 81, 0, 4, 3).set_target, 'undefined');
+const badPrefix = new mav.messages.heartbeat(2, 3, 81, 0, 4, 3).pack(tx);
+badPrefix[0] = 0;
+assert.throws(() => tx.decode(badPrefix), /Invalid MAVLink prefix \(0\)/);
