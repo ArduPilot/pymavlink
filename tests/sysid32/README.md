@@ -19,15 +19,15 @@ signatures. Optional compilers/runtimes are detected and reported as skips.
 | Python/Python3 | Encode/decode, wide targets derived from payload target fields | Python |
 | JavaScript_NextGen | Encode/decode, wide targets derived from payload target fields | Node |
 | Lua | Decode C message structures; explicit layout selection for reduced payload buffers | Lua 5.3/5.4 shared library |
-| C++11 | C framing consumes extensions; typed message deserialization rejects them | G++ |
-| ObjC | C framing consumes extensions; message construction/dispatch rejects them | Apple Foundation/ARC; optional GNUstep syntax check |
-| Java | Reject and consume unsupported frames | JDK |
-| CS | Reject and consume unsupported frames | Mono |
-| JavaScript/JavaScript_Stable | Reject and consume unsupported frames | Node |
-| TypeScript | Generated framing adapter rejects unsupported frames before external runtime | TypeScript/Node |
-| Ada 1/2 | Reject and consume unsupported frames within existing protocol scope | GNAT |
-| Swift | Retain MAVLink 1; consume and reject MAVLink 2 frames | Swift |
-| Spin2 | Reject and consume unsupported frames, retaining state across receive timeouts | FlexSpin (compile); compatible SpinSim or hardware (runtime) |
+| C++11 | Full-width typed targets; `Message::pack()` uses the C extended-header finalizer | G++ |
+| ObjC | Full-width source and target properties using the C framing implementation | Apple Foundation/ARC; GNUstep syntax check |
+| Java | Encode/decode full-width IDs, including signatures and replay checks | JDK |
+| CS | Extended framing; byte payload structs with explicit full target override/getter | Mono |
+| JavaScript/JavaScript_Stable | Encode/decode full-width IDs, including signatures and replay checks | Node |
+| TypeScript | Generated module handles framing, payload extensions/arrays and signatures | TypeScript/Node |
+| Ada 1/2 | V2 extended framing and signatures; V1 remains a separate legacy runtime | GNAT |
+| Swift | MAVLink 1/2, full-width targets, signatures and replay checks | Swift |
+| Spin2 | Extended framing, explicit target accessor, CRC over wire bytes; signed frames rejected | FlexSpin (compile); compatible SpinSim or hardware (runtime) |
 | WLua | Decode independent 32-bit source and target headers; skip unknown flags | tshark |
 
 The WLua dissector exposes the full source as `mavlink_proto.sysid` and the
@@ -107,15 +107,61 @@ A conforming sender only sets TARGET32 on messages with a target field. Handling
 TARGET32 on a targetless message is outside this protocol contract; callers must
 not rely on consistent interpretation across bindings.
 
-The TypeScript generator still uses `@ifrunistuttgart/node-mavlink` for ordinary
-MAVLink framing. Import `MAVLinkModule` from the generated `message-registry`
-alongside `messageRegistry` to enable the framing guard. Importing the external
-class directly bypasses the guard. The adapter buffers fragmented input, rejects
-unsupported headers (including signatures, unsupported by the external runtime),
-and exposes an `unsupportedFrames` count. Unsupported frames are discarded as
-whole frames so embedded payload bytes cannot be dispatched as messages. If a
-corrupted length/flag describes a larger frame, recovery waits for that declared
-frame boundary; this deliberately favors avoiding false message dispatch.
+Use the generated TypeScript `MAVLinkModule` exported by `message-registry`
+with `messageRegistry`. The message classes remain compatible with
+`@ifrunistuttgart/node-mavlink`; importing that package's module directly bypasses
+extended framing. The generated module handles both wire versions, extension
+fields, numeric arrays and signatures. `upgradeLink()` selects MAVLink 2 for
+transmission; parsing accepts both versions. Configure `signing.secretKey`,
+`signing.signOutgoing`, `signing.linkId` and `signing.timestamp` to sign packets.
+Signed input requires a key and passes replay checks. Unsigned input remains
+accepted. Unknown flags increment `unsupportedFrames`; failed authentication
+increments `badSignatures`.
+
+Newly supported runtimes consume the entire declared frame before rejecting
+unsupported flags or signatures, including fragmented input. A corrupt length
+can delay recovery until that frame boundary; embedded payload magic is not
+redispatched as a message.
+
+### Typed and raw target APIs
+
+C++11, Objective-C, Java, Swift and JavaScript expose full-width target fields.
+Their wire payload still contains one byte, with the wide target in the header.
+For C++11, use `message.pack(system_id, component_id, channel)`; plain
+`serialize(map)` produces only the payload, so manually finalizing it requires
+passing `message.get_target_system()` to the C `_target` finalizer.
+
+C#, Ada and Spin2 retain byte fields in raw payload records:
+
+- C#: pass `targetSystem` and `targetComponent` to `GenerateMAVLinkPacket20()`;
+  read the destination with `MAVLinkMessage.GetTargetSystem()`.
+- Ada V2: pass the final `Target_System` argument to the generated `Encode`
+  overload and read with `Get_Target_System(Message, Connect)`. The overload
+  without a target argument retains the record's payload byte. Explicit zero
+  overrides that byte with broadcast. `System_Id_Type` is now 32 bits and
+  `Maximum_Buffer_Len` is 287. Signature verification retains the existing API;
+  applications remain responsible for timestamp/replay policy.
+- Spin2: generated `_pack`/`_send` arguments accept full-width targets. Use
+  `get_target_system(payload_target)` for the last received packet. `MAVLink`
+  is a logical decoded struct, not a wire-header overlay. Use `check_crc()` to
+  check the retained wire bytes. `pack_frame()` returns zero for wide IDs in
+  MAVLink 1. Signatures remain unsupported and are discarded as complete frames.
+
+Swift source/message IDs and target properties are `UInt32`; callers passing
+`UInt8` variables should convert them explicitly. The generator's wire version
+selects the default outgoing protocol; `MAVLink.mavlink2` or
+`Packet.finalize(..., mavlink2:)` can override it. Configure `Signing` with a
+32-byte key, link ID and 48-bit timestamp, then pass it to `finalize()` or set
+`MAVLink.signing`. Signed input without a key is rejected. Set `requireSigned`
+when unsigned input must also be rejected. Attempting signed MAVLink 1 output
+throws rather than silently dropping authentication.
+
+Java uses `long` for unsigned 32-bit source and target IDs. Configure the packet's
+`signingKey`, `signingLinkId` and `signingTimestamp` for outgoing signatures and
+the parser's `signingKey`/`signingTimestamp` for incoming authentication.
+JavaScript Stable uses the same `signing` options as NextGen. C# continues its
+existing signing behavior: it generates signatures and exposes received
+signature bytes, but does not authenticate incoming signatures itself.
 
 Lua's `decode(message, message_map, wide_sysid)` and
 `decode_header(message, wide_sysid)` accept the C structure layout explicitly:
