@@ -541,6 +541,7 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
 
 /* decode a buffer as a MAVLink message */
 ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
+    if (!Buffer.isBuffer(msgbuf)) msgbuf = Buffer.from(msgbuf);
 
     var magic, incompat_flags=0, compat_flags=0, mlen, seq, srcSystem, srcComponent, unpacked, msgId;
     var headerLength = ${MAVHEAD}.HEADER_LEN, target_system = null;
