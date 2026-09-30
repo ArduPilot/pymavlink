@@ -877,29 +877,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         plen = len(payload)
         if plen < MAX_Payload + HDR_Len:
             payload.extend(bytearray([0] * ((HDR_Len + MAX_Payload) - plen)))
-        if self._managed_transport:
-            if writer is None:
-                assert self._send_payloads is not None  # noqa: S101
-                self._send_payloads([bytes(payload)])
-            else:
-                writer.append(bytes(payload))
-        elif self.master is None or not hasattr(self.master, "mav"):
-            logging.error("FTP: Can't send request, no master")
-        elif self.__packet_lost("TX"):
-            if self.ftp_settings.debug > 1:
-                logging.info("FTP: dropping packet TX")
-        else:
-            lag = self.__packet_delay("TX")
-            if lag == 0:
-                self.__transmit_payload(payload, writer)
-            else:
-                self.delay_sequence += 1
-                deadline = max(time.monotonic() + lag, self.last_tx_deadline)
-                self.last_tx_deadline = deadline
-                heapq.heappush(
-                    self.tx_delay_queue,
-                    (deadline, self.delay_sequence, bytes(payload)),
-                )
         expected_reply_seq = (op.seq + 1) % FTP_SEQ_MODULUS
         if op.opcode == OP_BurstReadFile:
             self.pending_burst_offset = op.offset
@@ -925,6 +902,31 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             logging.info("FTP: > %s dt=%.2f", op, now - self.last_op_time)
         self.last_op_time = time.time()
         self.last_send_time = now
+
+        # Publish request state before a transport callback can re-enter MAVFTP.
+        if self._managed_transport:
+            if writer is None:
+                assert self._send_payloads is not None  # noqa: S101
+                self._send_payloads([bytes(payload)])
+            else:
+                writer.append(bytes(payload))
+        elif self.master is None or not hasattr(self.master, "mav"):
+            logging.error("FTP: Can't send request, no master")
+        elif self.__packet_lost("TX"):
+            if self.ftp_settings.debug > 1:
+                logging.info("FTP: dropping packet TX")
+        else:
+            lag = self.__packet_delay("TX")
+            if lag == 0:
+                self.__transmit_payload(payload, writer)
+            else:
+                self.delay_sequence += 1
+                deadline = max(time.monotonic() + lag, self.last_tx_deadline)
+                self.last_tx_deadline = deadline
+                heapq.heappush(
+                    self.tx_delay_queue,
+                    (deadline, self.delay_sequence, bytes(payload)),
+                )
 
     def __transmit_payload(self, payload: bytes, writer: Optional[Any] = None) -> None:
         """Transmit an already encoded MAVLink FTP payload."""
@@ -4018,6 +4020,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.crccmp_expect = (self.session, self.seq)
             return False
 
+        # Keep retries inside the caller's managed deadline. The outer
+        # idle_task() pass completes an expired operation after this returns.
+        managed_deadline_expired = (
+            self._managed_transport
+            and self._event_deadline is not None
+            and now >= self._event_deadline
+        )
+
         # see if we lost an open reply
         if (
             not self.request_cancelled
@@ -4027,6 +4037,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             )
             and self.last_op.opcode == OP_OpenFileRO
         ):
+            if managed_deadline_expired:
+                return False
             self.op_start = now
             self.open_retries += 1
             if self.open_retries > MAX_READ_RETRIES:
@@ -4110,6 +4122,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.__finish_request_timeout(MAVFTPReturn(
                     self._event_operation or "FTP", FtpError.RemoteReplyTimeout
                 ))
+                return False
+            if managed_deadline_expired:
                 return False
             if self.ftp_settings.debug > 0:
                 logging.info("FTP: retry request %s", self.last_op)

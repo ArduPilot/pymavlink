@@ -56,7 +56,7 @@ from pymavlink.mavftp import (
     create_argument_parser,
     local_file_crc,
 )
-from pymavlink.tools.test_mavftp_hardware import _check_crc_result
+from pymavlink.tools.test_mavftp_hardware import _check_crc_result, run as run_hardware_mavftp_test
 
 # pylint: disable=protected-access,too-many-lines,duplicate-code
 
@@ -1141,6 +1141,40 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(len(completed), 1)
         self.assertEqual(completed[0].error_code, FtpError.RemoteReplyTimeout)
 
+    def test_managed_deadline_prevents_initial_retry(self):
+        """An expired remove request must not send on the first idle pass."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.ftp_settings.initial_retries = 1
+        ftp.cmd_rm(["remote"], wait=False, timeout=0.5)
+
+        with patch("pymavlink.mavftp.time.time",
+                   return_value=ftp.last_op_time + 1.1):
+            ftp.idle_task()
+
+        self.assertEqual(
+            [master._decode_payload(payload).opcode for payload in sent]
+            .count(OP_RemoveFile), 1
+        )
+        self.assertEqual([result.error_code for result in completed],
+                         [FtpError.RemoteReplyTimeout])
+
+    def test_managed_deadline_prevents_open_retry(self):
+        """An expired open request must not send on the first idle pass."""
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.cmd_get(["remote", "-"])
+        ftp._event_deadline = ftp.last_op_time + 0.5
+
+        with patch("pymavlink.mavftp.time.time",
+                   return_value=ftp.last_op_time + 1.1):
+            ftp.idle_task()
+
+        self.assertEqual(
+            [master._decode_payload(payload).opcode for payload in sent]
+            .count(OP_OpenFileRO), 1
+        )
+        self.assertEqual([result.error_code for result in completed],
+                         [FtpError.RemoteReplyTimeout])
+
     def test_managed_timestamp_probe_keeps_its_full_retry_budget(self):
         """The overall deadline must leave room for the listing fallback."""
         ftp, _master, _sent, completed = self.managed_ftp()
@@ -1355,6 +1389,38 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 ftp.idle_task()
             self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_CalcFileCRC32)
             self.assertNotEqual(master._decode_payload(sent[-1]).seq, second.seq)
+
+    def test_managed_cancel_during_send_can_start_next_operation(self):
+        """A send callback must not restore the cancelled request over mkdir."""
+        master = FakeMaster([])
+        sent = []
+        completed = []
+
+        def send_payloads(packets):
+            sent.extend(packets)
+            if master._decode_payload(packets[0]).opcode == OP_RemoveFile:
+                ftp.cmd_cancel()
+
+        def operation_callback(result):
+            completed.append(result)
+            if result.operation_name == "RemoveFile":
+                ftp.cmd_mkdir(["new-directory"], wait=False, timeout=2)
+
+        ftp = MAVFTP(master, 1, 1, session=37, reset_sessions=False,
+                     send_payloads=send_payloads,
+                     operation_callback=operation_callback)
+        ftp.cmd_rm(["old-file"], wait=False, timeout=2)
+        mkdir_request = next(
+            master._decode_payload(payload) for payload in sent
+            if master._decode_payload(payload).opcode == OP_CreateDirectory
+        )
+        self.assertEqual(ftp.last_op.opcode, OP_CreateDirectory)
+        ftp.mavlink_packet(ftp_reply(mkdir_request.seq + 1, OP_Ack,
+                                    OP_CreateDirectory, session=37))
+
+        self.assertEqual([result.operation_name for result in completed],
+                         ["RemoveFile", "CreateDirectory"])
+        self.assertEqual(completed[-1].error_code, FtpError.Success)
 
     def test_managed_crccmp_cancel_during_send_does_not_use_cleared_deadline(self):
         master = FakeMaster([])
@@ -1857,6 +1923,38 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         with self.assertRaises(RuntimeError):
             _check_crc_result(result, None, 0x12345678)
+
+    def test_hardware_timestamp_listing_enables_extension(self):
+        """The hardware script must request mtime on its second listing."""
+        class StopAfterTimestampListing(Exception):
+            """Stop the mocked hardware run after observing both listings."""
+
+        master = MagicMock()
+        master.target_system = 1
+        master.wait_heartbeat.return_value = object()
+        ftp = MagicMock()
+        ftp.ftp_settings = Namespace(list_time=0)
+        for command in ("cmd_status", "cmd_set", "cmd_cancel"):
+            getattr(ftp, command).return_value = MAVFTPReturn(
+                command, FtpError.Success
+            )
+        listing_modes = []
+
+        def list_directory(_args):
+            listing_modes.append(ftp.ftp_settings.list_time)
+            if len(listing_modes) == 2:
+                raise StopAfterTimestampListing()
+            return MAVFTPReturn("ListDirectory", FtpError.Success)
+
+        ftp.cmd_list.side_effect = list_directory
+        with patch("pymavlink.tools.test_mavftp_hardware.mavutil.mavlink_connection",
+                   return_value=master), \
+             patch("pymavlink.tools.test_mavftp_hardware.MAVFTP", return_value=ftp):
+            with self.assertRaises(StopAfterTimestampListing):
+                run_hardware_mavftp_test("mock-device", 115200, 1)
+
+        self.assertEqual(listing_modes, [0, 1])
+        master.close.assert_called_once()
 
     def test_malformed_ftp_header_returns_invalid_data_size(self):
         """Given a FILE_TRANSFER_PROTOCOL payload shorter than its header, when parsed, then it fails without raising."""
