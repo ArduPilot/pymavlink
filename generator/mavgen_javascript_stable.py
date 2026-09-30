@@ -73,10 +73,12 @@ ${MAVHEAD}.MAVLINK_TYPE_FLOAT    = 9
 ${MAVHEAD}.MAVLINK_TYPE_DOUBLE   = 10
 
 ${MAVHEAD}.MAVLINK_IFLAG_SIGNED = 0x01
-${MAVHEAD}.MAVLINK_IFLAG_MASK = 0x00 // signatures and extended headers are unsupported
+${MAVHEAD}.MAVLINK_IFLAG_SYSID32 = 0x02
+${MAVHEAD}.MAVLINK_IFLAG_TARGET32 = 0x04
+${MAVHEAD}.MAVLINK_IFLAG_MASK = 0x07
 
 // Mavlink headers incorporate sequence, source system (platform) and source component. 
-${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0,) {
+${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags=0, compat_flags=0, target_system=0) {
 
     this.mlen = ( typeof mlen === 'undefined' ) ? 0 : mlen;
     this.seq = ( typeof seq === 'undefined' ) ? 0 : seq;
@@ -85,6 +87,7 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
     this.msgId = msgId
     this.incompat_flags = incompat_flags
     this.compat_flags = compat_flags
+    this.target_system = target_system;
 
 }
 """, {'FILELIST' : ",".join(args),
@@ -97,7 +100,11 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
     if (xml.protocol_marker == 253):
         t.write(outf, """
 ${MAVHEAD}.header.prototype.pack = function() {
-    return jspack.Pack('BBBBBBBHB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq, this.srcSystem, this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]);
+    var buf = jspack.Pack('BBBBB', [${PROTOCOL_MARKER}, this.mlen, this.incompat_flags, this.compat_flags, this.seq]);
+    buf = buf.concat(jspack.Pack(this.incompat_flags & 2 ? '<I' : 'B', [this.srcSystem]));
+    buf = buf.concat([this.srcComponent, this.msgId & 255, (this.msgId >>> 8) & 255, (this.msgId >>> 16) & 255]);
+    if (this.incompat_flags & 4) buf = buf.concat(jspack.Pack('<I', [this.target_system]));
+    return buf;
 }
         """, {'PROTOCOL_MARKER' : xml.protocol_marker,
               'MAVHEAD': get_mavhead(xml)})
@@ -144,14 +151,31 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
     """)
 
     t.write(outf, """
-    var incompat_flags = 0;
-    this.header = new ${MAVHEAD}.header(this.id, this.payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0,);    
+    var target = this.target_system_field == null || this[this.target_system_field] === undefined ? 0 : this[this.target_system_field];
+    if (!Number.isInteger(mav.srcSystem) || mav.srcSystem < 0 || mav.srcSystem > 0xffffffff ||
+        !Number.isInteger(target) || target < 0 || target > 0xffffffff) throw new Error("System IDs must be uint32");
+    if (mav.protocol_marker == 0xfe && (mav.srcSystem > 255 || target > 255 || this.id > 255))
+        throw new Error("Wide IDs require MAVLink2");
+    var signed = mav.protocol_marker == 0xfd && mav.signing.sign_outgoing;
+    var incompat_flags = (mav.srcSystem > 255 ? 2 : 0) | (target > 255 ? 4 : 0) | (signed ? 1 : 0);
+    this.header = new ${MAVHEAD}.header(this.id, this.payload.length, mav.seq, mav.srcSystem, mav.srcComponent, incompat_flags, 0, target);
     this.msgbuf = this.header.pack().concat(this.payload);
     var crc = ${MAVHEAD}.x25Crc(this.msgbuf.slice(1));
 
     // For now, assume always using crc_extra = True.  TODO: check/fix this.
     crc = ${MAVHEAD}.x25Crc([crc_extra], crc);
     this.msgbuf = this.msgbuf.concat(jspack.Pack('<H', [crc] ) );
+    if (signed) {
+        if (!mav.signing.secret_key || mav.signing.secret_key.length != 32) throw new Error("Signing key must have 32 bytes");
+        var stamp = Buffer.alloc(7);
+        stamp[0] = mav.signing.link_id;
+        stamp.writeUIntLE(mav.signing.timestamp, 1, 6);
+        this.msgbuf = this.msgbuf.concat(Array.from(stamp));
+        var tag = require('crypto').createHash('sha256').update(Buffer.from(mav.signing.secret_key))
+            .update(Buffer.from(this.msgbuf)).digest().slice(0, 6);
+        this.msgbuf = this.msgbuf.concat(Array.from(tag));
+        mav.signing.timestamp++;
+    }
     return this.msgbuf;
 
 }
@@ -238,6 +262,9 @@ ${COMMENT}
 
 """ % (m.fmtstr, get_mavhead(xml), m.name.upper(), m.order_map, m.crc_extra, m.name.upper()))
         
+        target = next((f.name for f in m.fields if f.is_target_system), None)
+        outf.write("    this.target_system_field = %s;\n" % (repr(target) if target else 'null'))
+
         # body: set own properties
         if len(m.fieldnames) != 0:
                 outf.write("    this.fieldnames = ['%s'];\n" % "', '".join(m.fieldnames))
@@ -258,7 +285,9 @@ ${MAVHEAD}.messages.${MNAME}.prototype = new ${MAVHEAD}.message;
 ${MAVHEAD}.messages.${MNAME}.prototype.pack = function(mav) {
     return ${MAVHEAD}.message.prototype.pack.call(this, mav, this.crc_extra, jspack.Pack(this.format""", {'MAVHEAD': get_mavhead(xml), 'MNAME': m.name.lower()})
         if len(m.fields) != 0:
-                outf.write(", [ this." + ", this.".join(m.ordered_fieldnames) + ']')
+                outf.write(", [" + ", ".join(
+                    '(this.%s > 255 ? 255 : this.%s)' % (f.name, f.name) if f.is_target_system else 'this.' + f.name
+                    for f in m.ordered_fields) + ']')
         outf.write("));\n}\n\n")
 
 def mavfmt(field):
@@ -317,6 +346,7 @@ ${MAVPROCESSOR} = function(logger, srcSystem, srcComponent) {
     this.srcComponent =  (typeof srcComponent === 'undefined') ? 0 : srcComponent;
 
     this.have_prefix_error = false;
+    this.signing = {secret_key:null, sign_outgoing:false, timestamp:0, link_id:0, stream_timestamps:{}};
 
     // The first packet we expect is a valid header, 6 bytes.
     this.protocol_marker = ${PROTOCOL_MARKER};   
@@ -407,7 +437,7 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
     }
     if( this.buf.length >= 3 && this.buf[0] == 253 ) {
         // MAVLink2.1 extended headers: account for their length so the
-        // stream stays in sync, the frame is rejected in decode()
+        // stream stays in sync, including when decode() rejects the flags.
         var incompat_flags = this.buf[2];
         if (incompat_flags & 0x01) {
             this.expected_length += 13;
@@ -512,7 +542,8 @@ ${MAVPROCESSOR}.prototype.parseBuffer = function(s) {
 /* decode a buffer as a MAVLink message */
 ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
 
-    var magic, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, unpacked, msgId;
+    var magic, incompat_flags=0, compat_flags=0, mlen, seq, srcSystem, srcComponent, unpacked, msgId;
+    var headerLength = ${MAVHEAD}.HEADER_LEN, target_system = null;
 
     // decode the header
     try {
@@ -522,17 +553,15 @@ ${MAVPROCESSOR}.prototype.decode = function(msgbuf) {
     # Mavlink2 only
     if (xml.protocol_marker == 253):
         t.write(outf, """
-unpacked = jspack.Unpack('cBBBBBBHB', msgbuf.slice(0, 10));
-        magic = unpacked[0];
-        mlen = unpacked[1];
-        incompat_flags = unpacked[2];
-        compat_flags = unpacked[3];
-        seq = unpacked[4];
-        srcSystem = unpacked[5];
-        srcComponent = unpacked[6];
-        var msgIDlow = ((unpacked[7] & 0xFF) << 8) | ((unpacked[7] >> 8) & 0xFF);
-        var msgIDhigh = unpacked[8];
-        msgId = msgIDlow | (msgIDhigh<<16);
+        magic = String.fromCharCode(msgbuf[0]);
+        mlen = msgbuf[1]; incompat_flags = msgbuf[2]; compat_flags = msgbuf[3]; seq = msgbuf[4];
+        var sourceLength = incompat_flags & 2 ? 4 : 1;
+        srcSystem = msgbuf.readUIntLE(5, sourceLength);
+        var offset = 5 + sourceLength;
+        srcComponent = msgbuf[offset++];
+        msgId = msgbuf.readUIntLE(offset, 3); offset += 3;
+        if (incompat_flags & 4) { target_system = msgbuf.readUInt32LE(offset); offset += 4; }
+        headerLength = offset;
         """, {'MAVHEAD': get_mavhead(xml)})
     # Mavlink1
     else:
@@ -561,8 +590,9 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         throw new Error("Unsupported incompat_flags ("+incompat_flags+")");
     }
 
-    if( mlen != msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) {
-        throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (${MAVHEAD}.HEADER_LEN + 2)) + " expected " + mlen + ", msgId=" + msgId);
+    var signatureLength = incompat_flags & 1 ? 13 : 0;
+    if( mlen != msgbuf.length - (headerLength + 2 + signatureLength)) {
+        throw new Error("Invalid MAVLink message length.  Got " + (msgbuf.length - (headerLength + 2 + signatureLength)) + " expected " + mlen + ", msgId=" + msgId);
     }
 
     if( false === _.has(${MAVHEAD}.map, msgId) ) {
@@ -575,12 +605,12 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
 
     // decode the checksum
     try {
-        var receivedChecksum = jspack.Unpack('<H', msgbuf.slice(msgbuf.length - 2));
+        var receivedChecksum = jspack.Unpack('<H', msgbuf.slice(headerLength + mlen, headerLength + mlen + 2));
     } catch (e) {
         throw new Error("Unable to unpack MAVLink CRC: " + e.message);
     }
 
-    var messageChecksum = ${MAVHEAD}.x25Crc(msgbuf.slice(1, msgbuf.length - 2));
+    var messageChecksum = ${MAVHEAD}.x25Crc(msgbuf.slice(1, headerLength + mlen));
 
     // Assuming using crc_extra = True.  See the message.prototype.pack() function.
     messageChecksum = ${MAVHEAD}.x25Crc([decoder.crc_extra], messageChecksum);
@@ -589,8 +619,22 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
         throw new Error('invalid MAVLink CRC in msgID ' +msgId+ ', got ' + receivedChecksum + ' checksum, calculated payload checksum as '+messageChecksum );
     }
 
+    if (signatureLength) {
+        if (!this.signing.secret_key || this.signing.secret_key.length != 32) throw new Error("Signed frame requires a key");
+        var sigOffset = headerLength + mlen + 2;
+        var tag = require('crypto').createHash('sha256').update(Buffer.from(this.signing.secret_key))
+            .update(msgbuf.slice(0, sigOffset + 7)).digest().slice(0, 6);
+        var timestamp = msgbuf.readUIntLE(sigOffset + 1, 6);
+        var stream = srcSystem + ':' + srcComponent + ':' + msgbuf[sigOffset];
+        var previous = this.signing.stream_timestamps[stream];
+        if (!require('crypto').timingSafeEqual(tag, msgbuf.slice(sigOffset + 7)) ||
+            (previous !== undefined && timestamp <= previous) ||
+            (previous === undefined && timestamp + 6000000 < this.signing.timestamp)) throw new Error("Invalid signature or replay");
+        this.signing.stream_timestamps[stream] = timestamp;
+        this.signing.timestamp = Math.max(this.signing.timestamp, timestamp);
+    }
     var paylen = jspack.CalcLength(decoder.format);
-    var payload = msgbuf.slice(${MAVHEAD}.HEADER_LEN, msgbuf.length - 2);
+    var payload = msgbuf.slice(headerLength, headerLength + mlen);
 
     """, {'MAVPROCESSOR': get_mavprocessor(xml),
           'MAVHEAD': get_mavhead(xml)})
@@ -680,7 +724,8 @@ unpacked = jspack.Unpack('cBBBBB', msgbuf.slice(0, 6));
     m.msgbuf = msgbuf;
     m.payload = payload
     m.crc = receivedChecksum;
-    m.header = new ${MAVHEAD}.header(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags, compat_flags);
+    m.header = new ${MAVHEAD}.header(msgId, mlen, seq, srcSystem, srcComponent, incompat_flags, compat_flags, target_system);
+    if (target_system !== null && m.target_system_field !== null) m[m.target_system_field] = target_system;
     this.log(m);
     return m;
 }

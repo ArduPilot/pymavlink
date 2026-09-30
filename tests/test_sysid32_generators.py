@@ -217,9 +217,23 @@ def test_node_environment_missing_dependencies(tmp_path, monkeypatch, missing):
 
 
 @pytest.mark.parametrize('language', ['JavaScript', 'JavaScript_Stable'])
-def test_stable_javascript_rejects_extensions(tmp_path, streams, language):
+def test_stable_javascript_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams, language):
     generated = generate(tmp_path / 'mavlink.js', language)
     run([tool('node'), RESOURCES / 'reject-stable.js', generated, streams], env=node_environment())
+
+
+@pytest.mark.parametrize('language', ['JavaScript', 'JavaScript_Stable'])
+def test_stable_field_target(tmp_path, language):
+    generated = generate(tmp_path / 'mavlink.js', language)
+    actual = run([tool('node'), RESOURCES / 'target-stable.js', generated], env=node_environment()).splitlines()
+    expected = []
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert actual == expected
 
 
 def test_nextgen_rejects_unknown_incompat_flags(tmp_path, streams):
