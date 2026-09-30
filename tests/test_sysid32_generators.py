@@ -62,6 +62,15 @@ def frame(flags=0, payload=None, source=42, target=7, msgid=0, extra=50, v1=Fals
     return packet
 
 
+def command_frames(signed_values=(0, 1)):
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in signed_values:
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                yield frame(flags, payload, source=source, target=target, msgid=76, extra=152)
+
+
 @pytest.fixture(scope='module')
 def streams(tmp_path_factory):
     directory = tmp_path_factory.mktemp('sysid32-streams')
@@ -210,11 +219,18 @@ def test_nextgen_field_target(tmp_path):
     assert actual == expected
 
 
-def test_cpp_rejects_extensions(tmp_path, streams):
+def test_cpp_field_target(tmp_path):
     headers = generate(tmp_path / 'cpp', 'C++11')
-    exe = tmp_path / 'reject'
-    run([tool('g++'), '-std=c++11', '-I' + str(headers), RESOURCES / 'reject.cpp', '-o', exe])
-    run([exe, streams])
+    exe = tmp_path / 'target'
+    run([tool('g++'), '-std=c++11', '-I' + str(headers), RESOURCES / 'target.cpp', '-o', exe])
+    expected = []
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert run([exe]).splitlines() == expected
 
 
 def lua_run(script):
