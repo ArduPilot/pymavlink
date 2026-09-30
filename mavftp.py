@@ -2811,6 +2811,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # Keep direct-use compatibility for callers that initialize the write
         # state themselves without a CreateFile handshake. Normal puts have
         # last_op == CreateFile until this flag is raised.
+        write_list = self.write_list
         if (
             not self.write_open
             and self.last_op is not None
@@ -2820,6 +2821,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.write_list is None or len(self.write_list) == 0:
             # all done
             self.__put_finished(self.write_file_size)
+            if self.write_list is not write_list:
+                return
             if completed_reply is not None and self._managed_transport:
                 self.completed_reply = (
                     completed_reply.req_opcode,
@@ -2895,17 +2898,22 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 writes.append(write)
             else:
                 self.__send(write, retry=True)
+                if self.write_list is not write_list:
+                    return
             self.write_inflight.add(idx)
             self.write_idx = (idx + 1) % self.write_total
             self.write_pending += 1
             self.write_last_send = now
         if writes:
             self.__send_batch(writes)
+            if self.write_list is not write_list:
+                return
 
     def __handle_write_reply(  # pylint: disable=too-many-branches,too-many-return-statements
         self, op: FTP_OP, _m
     ) -> MAVFTPReturn:
         """Handle OP_WriteFile reply."""
+        write_list = self.write_list
         expected_offset = self.pending_write_replies.get(op.seq)
         if (
             op.opcode == OP_Ack
@@ -2985,6 +2993,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             progress = self.write_acks / float(self.write_total)
             try:
                 self.put_callback_progress(progress)
+                if self.write_list is not write_list:
+                    return MAVFTPReturn("WriteFile", FtpError.Fail)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload progress callback failed: %s", exc)
                 self.put_callback_progress = None
@@ -3930,6 +3940,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def __idle_task(self) -> bool:  # pylint: disable=too-many-branches,too-many-return-statements,too-many-statements
         """Check for file gaps and lost requests."""
         now = time.time()
+        managed_deadline_expired = (
+            self._managed_transport
+            and self._event_deadline is not None
+            and now >= self._event_deadline
+        )
         if self.ftp_settings.idle_detection_time <= self.ftp_settings.read_retry_time:
             logging.error("idle_detection_time must be greater than read_retry_time")
             return True
@@ -3986,6 +4001,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             and self.last_op is not None
             and self.last_op.opcode == OP_ListDirectoryWithTime
         )
+        if timestamp_probe_eligible and managed_deadline_expired:
+            return False
         if (
             timestamp_probe_eligible
             and now - self.last_op_time
@@ -4011,6 +4028,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # let the generic idle detector abandon it before that deadline.
         if timestamp_probe_eligible:
             return False
+        if managed_deadline_expired:
+            return False
 
         # NoSessionsAvailable is an unambiguous server backpressure reply, so
         # permit exactly one retry independently of the optional packet-loss
@@ -4025,11 +4044,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             # before a backpressure retry can escape after the caller's
             # explicit timeout. Default deadlines may still be extended by
             # idle_task() after this state-machine pass.
-            if (
-                self._managed_transport
-                and self._event_deadline is not None
-                and now >= self._event_deadline
-            ):
+            if managed_deadline_expired:
                 return False
             if now - self.last_op_time > self.retry_timeout():
                 self.no_sessions_retry_pending = False
@@ -4049,12 +4064,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         # Keep retries inside the caller's managed deadline. The outer
         # idle_task() pass completes an expired operation after this returns.
-        managed_deadline_expired = (
-            self._managed_transport
-            and self._event_deadline is not None
-            and now >= self._event_deadline
-        )
-
         # see if we lost an open reply
         if (
             not self.request_cancelled

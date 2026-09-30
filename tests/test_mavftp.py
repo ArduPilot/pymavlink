@@ -1274,6 +1274,45 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(len(completed), 1)
         self.assertEqual(completed[0].error_code, FtpError.RemoteReplyTimeout)
 
+    def test_managed_expired_deadline_suppresses_timestamp_probe_retry(self):
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.ftp_settings.list_time = 1
+        ftp.cmd_list(["/"], wait=False, timeout=2)
+        request = master._decode_payload(sent[-1])
+        self.assertEqual(request.opcode, OP_ListDirectoryWithTime)
+        sent_before = len(sent)
+        ftp.last_op_time = time.time() - max(
+            ftp.retry_timeout(), ftp.ftp_settings.list_time_timeout
+        )
+        with patch("pymavlink.mavftp.time.time", return_value=ftp._event_deadline + 0.1):
+            ftp.idle_task()
+
+        self.assertEqual(len(sent), sent_before)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.RemoteReplyTimeout)
+
+    def test_managed_expired_deadline_suppresses_upload_write_retry(self):
+        ftp, master, sent, completed = self.managed_ftp()
+        ftp.ftp_settings.write_qsize = 1
+        ftp.cmd_put(["new"], fh=BytesIO(b"x" * ftp.ftp_settings.write_size))
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile,
+                                     session=37))
+        writes_before = sum(
+            master._decode_payload(payload).opcode == OP_WriteFile for payload in sent
+        )
+        ftp.write_last_send = 0
+        ftp.last_op_time = ftp._event_deadline + 1.0
+        with patch("pymavlink.mavftp.time.time", return_value=ftp._event_deadline + 0.1):
+            ftp.idle_task()
+
+        writes_after = sum(
+            master._decode_payload(payload).opcode == OP_WriteFile for payload in sent
+        )
+        self.assertEqual(writes_after, writes_before)
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].error_code, FtpError.RemoteReplyTimeout)
+
     def test_managed_timed_out_timestamp_list_does_not_send_more_requests(self):
         """A timed-out managed listing must stop its timestamp probe ladder."""
         ftp, _master, sent, completed = self.managed_ftp()
@@ -1331,6 +1370,81 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                                     session=37))
         self.assertEqual([(r.operation_name, r.error_code) for r in completed],
                          [("Put", FtpError.Success), ("RemoveFile", FtpError.Success)])
+
+    def test_managed_upload_progress_cancel_does_not_complete_next_command(self):
+        ftp, master, sent, completed = self.managed_ftp()
+
+        def on_complete(result):
+            completed.append(result)
+            if result.operation_name == "Put":
+                ftp.cmd_mkdir(["new-directory"], wait=False)
+
+        def on_progress(progress):
+            if progress is not None:
+                ftp.cmd_cancel()
+
+        ftp._operation_callback = on_complete
+        ftp.cmd_put(["new"], fh=BytesIO(b"abc"), progress_callback=on_progress)
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile,
+                                     session=37))
+        write = next(master._decode_payload(payload) for payload in sent
+                     if master._decode_payload(payload).opcode == OP_WriteFile)
+        ftp.mavlink_packet(ftp_reply(write.seq + 1, OP_Ack, OP_WriteFile,
+                                     offset=write.offset, session=37))
+
+        self.assertEqual([result.operation_name for result in completed], ["Put"])
+        self.assertEqual(completed[0].error_code, FtpError.Fail)
+        mkdir = master._decode_payload(sent[-1])
+        self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+        ftp.mavlink_packet(ftp_reply(mkdir.seq + 1, OP_Ack, OP_CreateDirectory,
+                                     session=37))
+        self.assertEqual([result.operation_name for result in completed],
+                         ["Put", "CreateDirectory"])
+        self.assertEqual(completed[-1].error_code, FtpError.Success)
+
+    def test_managed_upload_retry_cancel_during_send_stops_write_loop(self):
+        master = FakeMaster([])
+        sent = []
+        completed = []
+        write_counts = {}
+
+        def send_payloads(packets):
+            sent.extend(packets)
+            for payload in packets:
+                request = master._decode_payload(payload)
+                if request.opcode != OP_WriteFile:
+                    continue
+                write_counts[request.offset] = write_counts.get(request.offset, 0) + 1
+                if write_counts[request.offset] == 2:
+                    ftp.cmd_cancel()
+
+        def on_complete(result):
+            completed.append(result)
+            if result.operation_name == "Put":
+                ftp.cmd_mkdir(["new-directory"], wait=False)
+
+        ftp = MAVFTP(master, 1, 1, session=37, reset_sessions=False,
+                     send_payloads=send_payloads,
+                     operation_callback=on_complete)
+        ftp.ftp_settings.write_qsize = 2
+        ftp.cmd_put(["new"], fh=BytesIO(b"x" * (2 * ftp.ftp_settings.write_size)))
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile,
+                                     session=37))
+        self.assertEqual(sum(write_counts.values()), 2)
+
+        ftp.write_last_send = time.time() - 2 * ftp.retry_timeout()
+        ftp.last_op_time = time.time()
+        ftp.last_op = None
+        ftp.idle_task()
+
+        self.assertGreater(sum(write_counts.values()), 2)
+        self.assertEqual([result.operation_name for result in completed], ["Put"])
+        self.assertEqual(completed[0].error_code, FtpError.Fail)
+        mkdir = master._decode_payload(sent[-1])
+        self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+        self.assertFalse(ftp.event_complete)
 
     def test_managed_write_wrong_offset_preserves_specific_error(self):
         ftp, master, sent, completed = self.managed_ftp()
