@@ -119,6 +119,7 @@ MAX_INITIAL_RETRIES = 3
 # An unsigned MAVLink 2 frame has 12 bytes of framing; FTP also has three
 # MAVLink target fields before its 12-byte protocol header.
 MAVLINK2_FRAME_OVERHEAD = 12
+MAVLINK2_SIGNATURE_LENGTH = 13
 MAVLINK_FTP_TARGET_FIELDS = 3
 USB_FULL_SPEED_PACKET_SIZE = 64
 LIST_TIME_FAIL_LIMIT = 2
@@ -937,7 +938,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 )
 
     def __avoid_usb_packet_boundary(self, op: FTP_OP, payload: bytearray) -> None:
-        """Keep unsigned MAVLink 2 FTP requests off exact 64-byte USB boundaries.
+        """Keep MAVLink 2 FTP requests off exact 64-byte USB boundaries.
 
         MAVLink 2 trims trailing zeroes from its fixed-size FTP field. Some
         USB CDC links appear to hold a full 64-byte request until a subsequent
@@ -947,12 +948,21 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self._managed_transport or getattr(self.master, "WIRE_PROTOCOL_VERSION", None) != "2.0":
             return
         meaningful_length = len(payload.rstrip(b"\0"))
-        frame_length = MAVLINK2_FRAME_OVERHEAD + MAVLINK_FTP_TARGET_FIELDS + meaningful_length
+        signing = getattr(getattr(self.master, "mav", None), "signing", None)
+        overhead = MAVLINK2_FRAME_OVERHEAD + MAVLINK_FTP_TARGET_FIELDS
+        if getattr(signing, "sign_outgoing", False):
+            overhead += MAVLINK2_SIGNATURE_LENGTH
+        frame_length = overhead + meaningful_length
         if frame_length % USB_FULL_SPEED_PACKET_SIZE != 0:
             return
         # Preserve a zero byte after the declared FTP data for servers that
         # also interpret path operands as NUL-terminated strings.
         marker_offset = max(meaningful_length + 1, HDR_Len + op.size + 1)
+        # Zero-tailed data may move the marker far beyond the trimmed payload.
+        # Ensure the padded frame does not land on a later USB boundary either.
+        padded_frame_length = overhead + marker_offset + 1
+        if padded_frame_length % USB_FULL_SPEED_PACKET_SIZE == 0:
+            marker_offset += 1
         if marker_offset >= len(payload):
             return
         payload[marker_offset] = 1
@@ -1360,6 +1370,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # cancellation or completion. The termination packet is queued below
         # after this purge and is therefore the only packet retained.
         generation = self._event_generation
+        operation_callback = self._operation_callback
+        terminal_result = self.callback_failure or result or MAVFTPReturn(
+            self._event_operation or "TerminateSession",
+            FtpError.Success if success else FtpError.Fail,
+        )
+        report_result = (
+            self._managed_transport
+            and self._event_operation is not None
+            and not self._event_complete
+        )
         self.__discard_delayed_traffic()
         self.op_start = None
         self.no_sessions_retry_pending = False
@@ -1388,44 +1408,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.write_list = None
         self.write_open = False
         self.show_progress = False
-        callback = self.callback
+        callbacks = (
+            (self.callback, "download"),
+            (self.callback_progress, "download progress"),
+            (self.put_callback, "upload"),
+            (self.put_callback_progress, "upload progress"),
+        )
         self.callback = None
-        if callback is not None:
-            # tell caller that the transfer failed
-            try:
-                callback(None)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                logging.error("FTP: download callback failed during cleanup: %s", exc)
-            if self._event_generation != generation:
-                return MAVFTPReturn("TerminateSession", FtpError.Success)
-        callback_progress = self.callback_progress
         self.callback_progress = None
-        if callback_progress is not None:
-            try:
-                callback_progress(None)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                logging.error("FTP: download progress callback failed during cleanup: %s", exc)
-            if self._event_generation != generation:
-                return MAVFTPReturn("TerminateSession", FtpError.Success)
-        put_callback = self.put_callback
         self.put_callback = None
-        if put_callback is not None:
-            # tell caller that the transfer failed
-            try:
-                put_callback(None)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                logging.error("FTP: upload callback failed during cleanup: %s", exc)
-            if self._event_generation != generation:
-                return MAVFTPReturn("TerminateSession", FtpError.Success)
-        put_callback_progress = self.put_callback_progress
         self.put_callback_progress = None
-        if put_callback_progress is not None:
-            try:
-                put_callback_progress(None)
-            except Exception as exc:  # pylint: disable=broad-exception-caught
-                logging.error("FTP: upload progress callback failed during cleanup: %s", exc)
-            if self._event_generation != generation:
-                return MAVFTPReturn("TerminateSession", FtpError.Success)
         self.read_gaps = []
         self.read_total = 0
         self.read_gap_times = {}
@@ -1446,19 +1438,31 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.ftp_settings.debug > 0:
             logging.info("FTP: Terminated session")
         if self._managed_transport:
+            self.done = True
+            self.pending_terminate_seq = None
+            if report_result:
+                self._event_complete = True
+                self.event_result = terminal_result
+        # Finish clearing the old operation before callbacks can start another.
+        # Capture all callbacks and the result so reentrancy cannot lose either.
+        for callback, description in callbacks:
+            # Remaining cleanup callbacks belong to the old operation and may
+            # otherwise cancel or overwrite the command started by a callback.
+            if self._event_generation != generation:
+                break
+            if callback is not None:
+                try:
+                    callback(None)
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    logging.error("FTP: %s callback failed during cleanup: %s", description, exc)
+        if self._managed_transport:
             # The manager owns the session-ID lifetime and delivers the
             # terminal packet.  Waiting here would block MAVProxy's main
             # event loop and would also consume replies for other workers.
-            self.done = True
-            self.pending_terminate_seq = None
-            self.__complete_event_operation(
-                self.callback_failure
-                or result
-                or MAVFTPReturn(
-                    self._event_operation or "TerminateSession",
-                    FtpError.Success if success else FtpError.Fail,
-                )
-            )
+            if report_result:
+                self.__deliver_managed_result(generation, operation_callback, terminal_result)
+            return MAVFTPReturn("TerminateSession", FtpError.Success)
+        if self._event_generation != generation:
             return MAVFTPReturn("TerminateSession", FtpError.Success)
         termination_result = MAVFTPReturn("TerminateSession", FtpError.RemoteReplyTimeout)
         try:
@@ -2076,6 +2080,48 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.__terminate_session(result=failure)
         return failure
 
+    def __finish_managed_get(self, size: int) -> None:
+        """Release the download session before handing its data to user code."""
+        generation = self._event_generation
+        operation_callback = self._operation_callback
+        callback = self.callback
+        stream = self.fh
+        stream_owned = self.fh_owned
+        # Finalize the old download's accounting before cleanup clears its
+        # size flags or a user callback starts an operation with new state.
+        if not self.remote_size_known:
+            self.requested_size = max(0, size - self.requested_offset)
+        if size < self.requested_size:
+            logging.warning("expected %u, got %u", self.requested_size, size)
+        self.callback = None
+        self.callback_progress = None
+        self.fh = None
+        self.fh_owned = False
+        self.read_complete = True
+        self.__finished_status("downloading", self.filename, size)
+        self._event_complete = True
+        self.__finish_session(success=True)
+        result = MAVFTPReturn("Get", FtpError.Success)
+        try:
+            assert stream is not None and callback is not None  # noqa: S101
+            stream.seek(0)
+            callback_result = callback(stream)
+            if (
+                isinstance(callback_result, MAVFTPReturn)
+                and callback_result.error_code != FtpError.Success
+            ):
+                result = callback_result
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logging.error("FTP: download callback failed: %s", exc)
+            result = MAVFTPReturn("Get", FtpError.Fail)
+        finally:
+            if stream_owned and stream is not None:
+                try:
+                    stream.close()
+                except (OSError, ValueError):
+                    pass
+        self.__deliver_managed_result(generation, operation_callback, result)
+
     def __check_read_finished(  # pylint: disable=too-many-branches,too-many-statements
         self,
     ) -> bool:
@@ -2092,6 +2138,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             rate = (ofs / dt) / 1024.0
             publish_result = True
             callback_consumed = self.callback is not None
+            if callback_consumed and self._managed_transport:
+                self.__finish_managed_get(ofs)
+                return True
             if self.callback is not None:
                 # The callback owns the downloaded data.  This is also used
                 # for virtual MAVFTP paths such as param.pck?withdefaults=1,
@@ -2609,7 +2658,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return MAVFTPReturn("ReadFile", FtpError.RemoteReplyTimeout)
         return MAVFTPReturn("ReadFile", FtpError.Success)
 
-    def cmd_put(  # pylint: disable=too-many-return-statements,too-many-statements
+    def cmd_put(  # pylint: disable=too-many-return-statements,too-many-statements,too-many-branches
         self, args: List[str], fh=None, callback=None, progress_callback=None
     ) -> MAVFTPReturn:
         """Put file."""
@@ -2719,22 +2768,31 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload progress callback failed: %s", exc)
                 failed = True
-        if put_callback is not None:
+        # A final progress callback may replace the operation even if it raises.
+        # Do not let the old upload callback cancel or overwrite its new command.
+        if put_callback is not None and self._event_generation == generation:
             try:
                 put_callback(flen)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload callback failed: %s", exc)
                 failed = True
-        elif started:
+        elif put_callback is None and started:
             dt = max(time.time() - started, 1.0e-6)
             logging.info(
                 "Put %u bytes to %s file in %.2fs %.1fkByte/s",
                 flen, filename, dt, (flen / dt) / 1024.0,
             )
         result = MAVFTPReturn("Put", FtpError.Fail if failed else FtpError.Success)
+        self.__deliver_managed_result(generation, operation_callback, result)
+
+    def __deliver_managed_result(
+        self, generation: int, operation_callback: Optional[OperationCallback],
+        result: MAVFTPReturn,
+    ) -> None:
+        """Deliver an old operation's result without changing a callback's new command."""
         if self._event_generation == generation:
             self.event_result = result
-            if failed:
+            if result.error_code != FtpError.Success:
                 self.callback_failure = result
         if operation_callback is not None:
             try:
@@ -2872,7 +2930,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         offset = idx * self.write_block_size
         return max(0, min(self.write_block_size, self.write_file_size - offset))
 
-    def __send_more_writes(  # pylint: disable=too-many-branches
+    def __send_more_writes(  # pylint: disable=too-many-branches,too-many-return-statements
         self, completed_reply: Optional[FTP_OP] = None
     ) -> None:
         """Send some more writes."""
@@ -3063,6 +3121,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     return MAVFTPReturn("WriteFile", FtpError.Fail)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload progress callback failed: %s", exc)
+                if self.write_list is not write_list:
+                    return MAVFTPReturn("WriteFile", FtpError.Fail)
                 self.put_callback_progress = None
                 self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
                 self.__terminate_session()

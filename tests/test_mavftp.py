@@ -8,6 +8,7 @@ SPDX-FileCopyrightText: 2024 Amilcar Lucas
 SPDX-License-Identifier: GPL-3.0-or-later
 '''
 
+import importlib
 import logging
 import os
 import socket
@@ -1370,6 +1371,252 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                                     session=37))
         self.assertEqual([(r.operation_name, r.error_code) for r in completed],
                          [("Put", FtpError.Success), ("RemoveFile", FtpError.Success)])
+
+    def test_managed_get_callback_can_start_next_command(self):
+        """Download callbacks must not complete or terminate their next command."""
+        for raises in (False, True):
+            with self.subTest(raises=raises):
+                ftp, master, sent, completed = self.managed_ftp()
+
+                def on_get(stream, ftp=ftp, raises=raises):
+                    self.assertEqual(stream.read(), b"data")
+                    ftp.cmd_mkdir(["after-get"], wait=False)
+                    if raises:
+                        raise RuntimeError("callback failed")
+
+                ftp.cmd_get(["remote", "-"], callback=on_get)
+                request = master._decode_payload(sent[-1])
+                ftp.mavlink_packet(ftp_reply(
+                    request.seq + 1, OP_Ack, OP_OpenFileRO,
+                    struct.pack("<I", 4), session=37,
+                ))
+                burst = master._decode_payload(sent[-1])
+                ftp.mavlink_packet(ftp_reply(
+                    burst.seq + 1, OP_Ack, OP_BurstReadFile,
+                    b"data", burst_complete=1, session=37,
+                ))
+                expected = FtpError.Fail if raises else FtpError.Success
+                self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                                 [("Get", expected)])
+                self.assertFalse(ftp.event_complete)
+                self.assertIsNone(ftp.event_result)
+                mkdir = master._decode_payload(sent[-1])
+                self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+                ftp.mavlink_packet(ftp_reply(
+                    mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                ))
+                self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                                 [("Get", expected), ("CreateDirectory", FtpError.Success)])
+
+    def test_managed_get_callback_preserves_short_read_accounting(self):
+        """Account for EOF before callbacks can replace the download state."""
+        for known_size in (False, True):
+            for start_next in (False, True):
+                with self.subTest(known_size=known_size, start_next=start_next):
+                    ftp, master, sent, completed = self.managed_ftp()
+                    callback_sizes = []
+                    expected_size = 100 if known_size else 4
+
+                    def on_get(stream, ftp=ftp, record_size=callback_sizes.append, start_next=start_next):
+                        self.assertEqual(stream.read(), b"data")
+                        record_size(ftp.requested_size)
+                        if start_next:
+                            ftp.cmd_get(["next", "-"], callback=lambda _stream: None)
+
+                    path = "remote" if known_size else "@SYS/tasks.txt"
+                    ftp.cmd_get([path, "-"], callback=on_get)
+                    request = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(
+                        request.seq + 1, OP_Ack, OP_OpenFileRO,
+                        struct.pack("<I", 100), session=37,
+                    ))
+                    burst = master._decode_payload(sent[-1])
+                    with patch("pymavlink.mavftp.logging.warning") as warning:
+                        ftp.mavlink_packet(ftp_reply(
+                            burst.seq + 1, OP_Ack, OP_BurstReadFile,
+                            b"data", burst_complete=1, session=37,
+                        ))
+                    if known_size:
+                        warning.assert_called_once_with("expected %u, got %u", 100, 4)
+                    else:
+                        warning.assert_not_called()
+                    self.assertEqual(callback_sizes, [expected_size])
+                    self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                                     [("Get", FtpError.Success)])
+                    if start_next:
+                        self.assertFalse(ftp.event_complete)
+                        self.assertIsNone(ftp.event_result)
+                        self.assertEqual(ftp.requested_size, 0)
+                        self.assertEqual(master._decode_payload(sent[-1]).opcode, OP_OpenFileRO)
+                    else:
+                        self.assertTrue(ftp.event_complete)
+                        self.assertEqual(ftp.requested_size, expected_size)
+
+    def test_managed_failed_transfer_cleanup_can_start_next_command(self):
+        """Cleanup callbacks cannot swallow the failed transfer's terminal result."""
+        for command in ("get", "put"):
+            for progress in (False, True):
+                with self.subTest(command=command, progress=progress):
+                    ftp, master, sent, completed = self.managed_ftp()
+
+                    def on_cleanup(value, ftp=ftp):
+                        self.assertIsNone(value)
+                        ftp.cmd_mkdir(["after-failure"], wait=False)
+
+                    callbacks = {"progress_callback" if progress else "callback": on_cleanup}
+                    if command == "get":
+                        ftp.cmd_get(["remote", "-"], **callbacks)
+                        opcode = OP_OpenFileRO
+                    else:
+                        ftp.cmd_put(["remote"], fh=BytesIO(b"data"), **callbacks)
+                        opcode = OP_CreateFile
+                    request = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(
+                        request.seq + 1, OP_Nack, opcode,
+                        [FtpError.FileNotFound], session=37,
+                    ))
+                    self.assertEqual(len(completed), 1)
+                    self.assertEqual(completed[0].error_code, FtpError.FileNotFound)
+                    self.assertFalse(ftp.event_complete)
+                    self.assertIsNone(ftp.event_result)
+                    mkdir = master._decode_payload(sent[-1])
+                    self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+                    ftp.mavlink_packet(ftp_reply(
+                        mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                    ))
+                    self.assertEqual(len(completed), 2)
+                    self.assertEqual(completed[-1].operation_name, "CreateDirectory")
+                    self.assertEqual(completed[-1].error_code, FtpError.Success)
+
+    def test_managed_cleanup_skips_remaining_callbacks_after_new_command(self):
+        """Old progress cleanup must not cancel a data callback's new command."""
+        for command in ("get", "put"):
+            for raises in (False, True):
+                with self.subTest(command=command, raises=raises):
+                    ftp, master, sent, completed = self.managed_ftp()
+
+                    def on_cleanup(value, ftp=ftp, raises=raises):
+                        self.assertIsNone(value)
+                        ftp.cmd_mkdir(["after-failure"], wait=False)
+                        if raises:
+                            raise RuntimeError("cleanup callback failed")
+
+                    def on_progress(_value, ftp=ftp):
+                        ftp.cmd_cancel()
+
+                    progress_callback = MagicMock(side_effect=on_progress)
+                    callbacks = {
+                        "callback": on_cleanup,
+                        "progress_callback": progress_callback,
+                    }
+                    if command == "get":
+                        ftp.cmd_get(["remote", "-"], **callbacks)
+                        opcode = OP_OpenFileRO
+                    else:
+                        ftp.cmd_put(["remote"], fh=BytesIO(b"data"), **callbacks)
+                        opcode = OP_CreateFile
+                    request = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(
+                        request.seq + 1, OP_Nack, opcode,
+                        [FtpError.FileNotFound], session=37,
+                    ))
+
+                    progress_callback.assert_not_called()
+                    self.assertEqual(len(completed), 1)
+                    self.assertEqual(completed[0].error_code, FtpError.FileNotFound)
+                    self.assertFalse(ftp.event_complete)
+                    self.assertIsNone(ftp.event_result)
+                    mkdir = master._decode_payload(sent[-1])
+                    self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+                    ftp.mavlink_packet(ftp_reply(
+                        mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                    ))
+                    self.assertEqual(len(completed), 2)
+                    self.assertEqual(completed[-1].operation_name, "CreateDirectory")
+                    self.assertEqual(completed[-1].error_code, FtpError.Success)
+
+    def test_managed_upload_progress_cancel_start_and_raise(self):
+        """An exception after cancellation must not finish the callback's new command."""
+        ftp, master, sent, completed = self.managed_ftp()
+
+        def on_progress(progress):
+            if progress is not None:
+                ftp.cmd_cancel()
+                ftp.cmd_mkdir(["after-cancel"], wait=False)
+                raise RuntimeError("callback failed")
+
+        ftp.cmd_put(["remote"], fh=BytesIO(b"data"), progress_callback=on_progress)
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile, session=37))
+        write = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(
+            write.seq + 1, OP_Ack, OP_WriteFile, offset=write.offset, session=37,
+        ))
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Fail)])
+        self.assertFalse(ftp.event_complete)
+        mkdir = master._decode_payload(sent[-1])
+        self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+        ftp.mavlink_packet(ftp_reply(
+            mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+        ))
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Fail), ("CreateDirectory", FtpError.Success)])
+
+    def test_managed_put_completion_progress_skips_callback_after_new_command(self):
+        """Final progress cannot leave an old upload callback to cancel its new command."""
+        for data in (b"", b"data"):
+            for raises in (False, True):
+                with self.subTest(size=len(data), raises=raises):
+                    ftp, master, sent, completed = self.managed_ftp()
+                    final_progress = []
+
+                    def on_progress(value, ftp=ftp, raises=raises):
+                        # Nonempty uploads also report 1.0 from the last Write ACK,
+                        # before session cleanup and the final completion callback.
+                        if not ftp.event_complete:
+                            return
+                        final_progress.append(value)
+                        ftp.cmd_mkdir(["after-put-progress"], wait=False)
+                        if raises:
+                            raise RuntimeError("completion progress failed")
+
+                    put_callback = MagicMock(side_effect=lambda _size: ftp.cmd_cancel())
+                    ftp.cmd_put(
+                        ["remote"], fh=BytesIO(data),
+                        callback=put_callback, progress_callback=on_progress,
+                    )
+                    create = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(
+                        create.seq + 1, OP_Ack, OP_CreateFile, session=37,
+                    ))
+                    if data:
+                        write = master._decode_payload(sent[-1])
+                        self.assertEqual(write.opcode, OP_WriteFile)
+                        ftp.mavlink_packet(ftp_reply(
+                            write.seq + 1, OP_Ack, OP_WriteFile,
+                            offset=write.offset, session=37,
+                        ))
+
+                    self.assertEqual(final_progress, [1.0])
+                    put_callback.assert_not_called()
+                    expected = FtpError.Fail if raises else FtpError.Success
+                    self.assertEqual(
+                        [(r.operation_name, r.error_code) for r in completed],
+                        [("Put", expected)],
+                    )
+                    self.assertFalse(ftp.event_complete)
+                    self.assertIsNone(ftp.event_result)
+                    self.assertIsNone(ftp.callback_failure)
+                    mkdir = master._decode_payload(sent[-1])
+                    self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+                    ftp.mavlink_packet(ftp_reply(
+                        mkdir.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                    ))
+                    self.assertEqual(
+                        [(r.operation_name, r.error_code) for r in completed],
+                        [("Put", expected), ("CreateDirectory", FtpError.Success)],
+                    )
 
     def test_managed_put_callback_can_start_next_command(self):
         ftp, master, sent, completed = self.managed_ftp()
@@ -8013,6 +8260,54 @@ class TestMAVFTPPayloadDecoding(unittest.TestCase):
 
         for payload, (_, path) in zip(captured, paths):
             self.assertEqual(payload[12 + len(path):], bytes(251 - 12 - len(path)))
+
+    def test_mavlink2_padding_does_not_land_on_another_usb_boundary(self):
+        """Zero-tailed file data must not push padding onto a later USB boundary."""
+        # Dialects are generated during installation, not in clean pylint checkouts.
+        mavlink_v2 = importlib.import_module("pymavlink.dialects.v20.all")
+        self.mock_master.WIRE_PROTOCOL_VERSION = "2.0"
+        mav = mavlink_v2.MAVLink(None, srcSystem=250)
+        for size in (99, 163, 227):
+            with self.subTest(size=size):
+                data = b"x" * 37 + bytes(size - 37)
+                with patch.object(self.mav_ftp, "_MAVFTP__transmit_payload") as transmit:
+                    self.mav_ftp._MAVFTP__send(
+                        FTP_OP(1, 0, OP_WriteFile, size, 0, 0, 0, bytearray(data))
+                    )
+
+                payload = bytes(transmit.call_args.args[0])
+                frame = mav.file_transfer_protocol_encode(0, 1, 1, payload).pack(mav)
+                self.assertNotEqual(len(frame) % 64, 0)
+                self.assertEqual(payload[4], size)
+                self.assertEqual(payload[12:12 + size], data)
+                self.assertEqual(payload[12 + size], 0)
+
+    def test_signed_mavlink2_requests_avoid_usb_boundaries(self):
+        """Signed paths and zero-tailed writes include the 13-byte signature."""
+        mavlink_v2 = importlib.import_module("pymavlink.dialects.v20.all")
+        self.mock_master.WIRE_PROTOCOL_VERSION = "2.0"
+        self.mock_master.mav.signing.sign_outgoing = True
+        mav = mavlink_v2.MAVLink(None, srcSystem=250)
+        mav.signing.sign_outgoing = True
+        mav.signing.secret_key = bytes(32)
+        cases = (
+            (OP_CreateFile, b"x" * 24),
+            (OP_OpenFileRO, b"x" * 24),
+            (OP_WriteFile, b"x" * 24),
+            (OP_WriteFile, b"x" * 24 + bytes(62)),
+        )
+        for opcode, data in cases:
+            with self.subTest(opcode=opcode, size=len(data)):
+                with patch.object(self.mav_ftp, "_MAVFTP__transmit_payload") as transmit:
+                    self.mav_ftp._MAVFTP__send(
+                        FTP_OP(1, 0, opcode, len(data), 0, 0, 0, bytearray(data))
+                    )
+                payload = bytes(transmit.call_args.args[0])
+                frame = mav.file_transfer_protocol_encode(0, 1, 1, payload).pack(mav)
+                self.assertNotEqual(len(frame) % 64, 0)
+                self.assertEqual(payload[4], len(data))
+                self.assertEqual(payload[12:12 + len(data)], data)
+                self.assertEqual(payload[12 + len(data)], 0)
 
     def test_managed_transport_keeps_zero_padding(self):
         """A manager controls its own framing and receives the original FTP payload."""
