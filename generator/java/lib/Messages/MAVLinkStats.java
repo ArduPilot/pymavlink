@@ -23,7 +23,8 @@ public class MAVLinkStats /* implements Serializable */{
     public boolean ignoreRadioPackets;
 
     // stats are nil for a system id until a packet has been received from a system
-    public SystemStat[] systemStats; // stats for each system that is known
+    public SystemStat[] systemStats;
+    public java.util.Map<Long, SystemStat> wideSystemStats; // stats for each system that is known
 
     public MAVLinkStats() {
         this(false);
@@ -45,11 +46,19 @@ public class MAVLinkStats /* implements Serializable */{
             return;
         }
 
-        if (systemStats[packet.sysid] == null) {
-            // only allocate stats for systems that exist on the network
-            systemStats[packet.sysid] = new SystemStat();
+        SystemStat stat;
+        if (packet.sysid <= 255) {
+            int id = (int)packet.sysid;
+            if (systemStats[id] == null) systemStats[id] = new SystemStat();
+            stat = systemStats[id];
+        } else {
+            stat = wideSystemStats.get(packet.sysid);
+            if (stat == null) {
+                stat = new SystemStat();
+                wideSystemStats.put(packet.sysid, stat);
+            }
         }
-        lostPacketCount += systemStats[packet.sysid].newPacket(packet);
+        lostPacketCount += stat.newPacket(packet);
         receivedPacketCount++;
     }
 
@@ -65,6 +74,7 @@ public class MAVLinkStats /* implements Serializable */{
         lostPacketCount = 0;
         receivedPacketCount = 0;
         systemStats = new SystemStat[256];
+        wideSystemStats = new java.util.HashMap<Long, SystemStat>();
     }
 
     /**
