@@ -530,6 +530,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._managed_transport = send_payloads is not None
         self._operation_callback = operation_callback
         self._event_operation: Optional[str] = None
+        self._event_generation = 0
         self._event_complete = False
         self.event_result: Optional[MAVFTPReturn] = None
         self._event_deadline: Optional[float] = None
@@ -773,6 +774,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Mark a non-blocking operation as owned by an external event loop."""
         if not self._managed_transport:
             return
+        self._event_generation += 1
         self._event_operation = operation_name
         self._event_complete = False
         self.event_result = None
@@ -1357,11 +1359,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # Delayed requests from the old operation must not be delivered after
         # cancellation or completion. The termination packet is queued below
         # after this purge and is therefore the only packet retained.
+        generation = self._event_generation
         self.__discard_delayed_traffic()
         self.op_start = None
         self.no_sessions_retry_pending = False
         self.request_cancelled = True
         termination_send_failed = not self.__send_termination()
+        if self._event_generation != generation:
+            return MAVFTPReturn("TerminateSession", FtpError.Success)
         self.__release_staging()
         self.fh = None
         self.filename = None
@@ -1391,6 +1396,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 callback(None)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: download callback failed during cleanup: %s", exc)
+            if self._event_generation != generation:
+                return MAVFTPReturn("TerminateSession", FtpError.Success)
         callback_progress = self.callback_progress
         self.callback_progress = None
         if callback_progress is not None:
@@ -1398,6 +1405,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 callback_progress(None)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: download progress callback failed during cleanup: %s", exc)
+            if self._event_generation != generation:
+                return MAVFTPReturn("TerminateSession", FtpError.Success)
         put_callback = self.put_callback
         self.put_callback = None
         if put_callback is not None:
@@ -1406,6 +1415,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 put_callback(None)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload callback failed during cleanup: %s", exc)
+            if self._event_generation != generation:
+                return MAVFTPReturn("TerminateSession", FtpError.Success)
         put_callback_progress = self.put_callback_progress
         self.put_callback_progress = None
         if put_callback_progress is not None:
@@ -1413,6 +1424,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 put_callback_progress(None)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload progress callback failed during cleanup: %s", exc)
+            if self._event_generation != generation:
+                return MAVFTPReturn("TerminateSession", FtpError.Success)
         self.read_gaps = []
         self.read_total = 0
         self.read_gap_times = {}
@@ -2610,6 +2623,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if not 1 <= self.write_block_size <= MAX_Payload:
             logging.error("FTP: write_size must be between 1 and %u", MAX_Payload)
             return MAVFTPReturn("CreateFile", FtpError.InvalidArguments)
+        if (
+            not self._managed_transport
+            and getattr(self.master, "WIRE_PROTOCOL_VERSION", None) == "2.0"
+        ):
+            # Leave room for the zero terminator and nonzero marker when a
+            # trailing-zero WriteFile block would otherwise make a 64-byte frame.
+            self.write_block_size = min(self.write_block_size, MAX_Payload - 2)
         self.write_qsize = int(self.ftp_settings.write_qsize)
         if self.write_qsize < 1:
             logging.error("FTP: write_qsize must be at least 1")
@@ -2673,6 +2693,54 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         self.__send(op)
         return MAVFTPReturn("CreateFile", FtpError.Success)
+
+    def __finish_managed_put(self, completed_reply: Optional[FTP_OP]) -> None:
+        """Release the old session before invoking callbacks that may start a new command."""
+        generation = self._event_generation
+        operation_callback = self._operation_callback
+        progress_callback = self.put_callback_progress
+        put_callback = self.put_callback
+        self.put_callback_progress = None
+        self.put_callback = None
+        flen = self.write_file_size
+        filename = self.filename
+        started = self.op_start
+        if completed_reply is not None:
+            self.completed_reply = (completed_reply.req_opcode, completed_reply.seq)
+        self.__finished_status("uploading", filename, flen)
+        # Session cleanup must precede user callbacks. Defer reporting the Put
+        # until they have run so their exceptions still determine its result.
+        self._event_complete = True
+        self.__finish_session(success=True)
+        failed = False
+        if progress_callback is not None:
+            try:
+                progress_callback(1.0)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: upload progress callback failed: %s", exc)
+                failed = True
+        if put_callback is not None:
+            try:
+                put_callback(flen)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: upload callback failed: %s", exc)
+                failed = True
+        elif started:
+            dt = max(time.time() - started, 1.0e-6)
+            logging.info(
+                "Put %u bytes to %s file in %.2fs %.1fkByte/s",
+                flen, filename, dt, (flen / dt) / 1024.0,
+            )
+        result = MAVFTPReturn("Put", FtpError.Fail if failed else FtpError.Success)
+        if self._event_generation == generation:
+            self.event_result = result
+            if failed:
+                self.callback_failure = result
+        if operation_callback is not None:
+            try:
+                operation_callback(result)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error("FTP: operation callback failed: %s", exc)
 
     def __put_finished(self, flen: int) -> None:
         """Finish a put."""
@@ -2820,14 +2888,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return
         if self.write_list is None or len(self.write_list) == 0:
             # all done
+            if self._managed_transport:
+                self.__finish_managed_put(completed_reply)
+                return
             self.__put_finished(self.write_file_size)
             if self.write_list is not write_list:
                 return
-            if completed_reply is not None and self._managed_transport:
-                self.completed_reply = (
-                    completed_reply.req_opcode,
-                    completed_reply.seq,
-                )
             self.__finish_session(success=self.callback_failure is None)
             if completed_reply is not None and not self._managed_transport:
                 self.completed_reply = (

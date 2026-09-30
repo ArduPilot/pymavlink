@@ -1371,6 +1371,58 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual([(r.operation_name, r.error_code) for r in completed],
                          [("Put", FtpError.Success), ("RemoveFile", FtpError.Success)])
 
+    def test_managed_put_callback_can_start_next_command(self):
+        ftp, master, sent, completed = self.managed_ftp()
+
+        def on_put(size):
+            self.assertEqual(size, 3)
+            ftp.cmd_mkdir(["after-put"], wait=False)
+
+        ftp.cmd_put(["new"], fh=BytesIO(b"abc"), callback=on_put)
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile,
+                                     session=37))
+        write = next(master._decode_payload(payload) for payload in sent
+                     if master._decode_payload(payload).opcode == OP_WriteFile)
+        ftp.mavlink_packet(ftp_reply(write.seq + 1, OP_Ack, OP_WriteFile,
+                                     offset=write.offset, session=37))
+
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Success)])
+        mkdir = master._decode_payload(sent[-1])
+        self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+        ftp.mavlink_packet(ftp_reply(mkdir.seq + 1, OP_Ack, OP_CreateDirectory,
+                                     session=37))
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Success),
+                          ("CreateDirectory", FtpError.Success)])
+
+    def test_managed_put_callback_error_does_not_fail_next_command(self):
+        ftp, master, sent, completed = self.managed_ftp()
+
+        def on_put(_size):
+            ftp.cmd_mkdir(["after-put-error"], wait=False)
+            raise RuntimeError("callback failed")
+
+        ftp.cmd_put(["new"], fh=BytesIO(b"abc"), callback=on_put)
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile,
+                                     session=37))
+        write = next(master._decode_payload(payload) for payload in sent
+                     if master._decode_payload(payload).opcode == OP_WriteFile)
+        ftp.mavlink_packet(ftp_reply(write.seq + 1, OP_Ack, OP_WriteFile,
+                                     offset=write.offset, session=37))
+
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Fail)])
+        mkdir = master._decode_payload(sent[-1])
+        self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+        ftp.mavlink_packet(ftp_reply(mkdir.seq + 1, OP_Ack, OP_CreateDirectory,
+                                     session=37))
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Fail),
+                          ("CreateDirectory", FtpError.Success)])
+
     def test_managed_upload_progress_cancel_does_not_complete_next_command(self):
         ftp, master, sent, completed = self.managed_ftp()
 
@@ -1402,6 +1454,40 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual([result.operation_name for result in completed],
                          ["Put", "CreateDirectory"])
         self.assertEqual(completed[-1].error_code, FtpError.Success)
+
+    def test_managed_nested_cancel_preserves_next_command(self):
+        ftp, master, sent, completed = self.managed_ftp()
+        progress_values = []
+
+        def on_complete(result):
+            completed.append(result)
+            if result.operation_name == "Put":
+                ftp.cmd_mkdir(["after-cancel"], wait=False)
+
+        def on_progress(value):
+            progress_values.append(value)
+            ftp.cmd_cancel()
+
+        ftp._operation_callback = on_complete
+        ftp.cmd_put(["new"], fh=BytesIO(b"abc"), progress_callback=on_progress)
+        create = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile,
+                                     session=37))
+        write = next(master._decode_payload(payload) for payload in sent
+                     if master._decode_payload(payload).opcode == OP_WriteFile)
+        ftp.mavlink_packet(ftp_reply(write.seq + 1, OP_Ack, OP_WriteFile,
+                                     offset=write.offset, session=37))
+
+        self.assertIn(None, progress_values)
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Fail)])
+        mkdir = master._decode_payload(sent[-1])
+        self.assertEqual(mkdir.opcode, OP_CreateDirectory)
+        ftp.mavlink_packet(ftp_reply(mkdir.seq + 1, OP_Ack, OP_CreateDirectory,
+                                     session=37))
+        self.assertEqual([(r.operation_name, r.error_code) for r in completed],
+                         [("Put", FtpError.Fail),
+                          ("CreateDirectory", FtpError.Success)])
 
     def test_managed_upload_retry_cancel_during_send_stops_write_loop(self):
         master = FakeMaster([])
@@ -7876,6 +7962,35 @@ class TestMAVFTPPayloadDecoding(unittest.TestCase):
             self.assertEqual(payload[12:12 + len(path)], path.encode("ascii"))
             self.assertEqual(payload[12 + len(path)], 0)
             self.assertEqual(payload[12 + len(path) + 1], 1)
+
+    def test_mavlink2_full_size_zero_tail_upload_avoids_usb_boundary(self):
+        """A 239-byte block with trailing zeros must avoid a 64-byte frame."""
+        self.mock_master.WIRE_PROTOCOL_VERSION = "2.0"
+        self.mav_ftp.ftp_settings.write_size = 239
+        data = b"A" * 37 + bytes(202)
+        captured = []
+        with patch.object(
+            self.mav_ftp,
+            "_MAVFTP__transmit_payload",
+            side_effect=lambda payload, _writer=None: captured.append(bytes(payload)),
+        ):
+            self.mav_ftp.cmd_put(["local", "remote"], fh=BytesIO(data))
+            create_seq = struct.unpack_from("<H", captured[-1])[0]
+            reply = ftp_reply(create_seq + 1, OP_Ack, OP_CreateFile, session=1)
+            reply.target_system = self.mock_master.source_system
+            reply.target_component = self.mock_master.source_component
+            self.mav_ftp.mavlink_packet(reply)
+
+        writes = [payload for payload in captured if payload[3] == OP_WriteFile]
+        self.assertTrue(writes)
+        self.assertTrue(all((15 + len(payload.rstrip(b"\0"))) % 64
+                            for payload in writes))
+        chunks = []
+        for payload in writes:
+            size = payload[4]
+            offset = struct.unpack_from("<I", payload, 8)[0]
+            chunks.append((offset, payload[12:12 + size]))
+        self.assertEqual(b"".join(chunk for _, chunk in sorted(chunks)), data)
 
     def test_other_lengths_and_mavlink1_keep_zero_padding(self):
         """Adjacent path lengths and MAVLink 1 do not gain a padding marker."""
