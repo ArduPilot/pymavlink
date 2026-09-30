@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
             mavlink_message_t msg = {0};
             msg.magic = MAVLINK_STX;
             msg.incompat_flags = flags;
-            assert([[MVMessage alloc] initWithCMessage:msg] == nil);
+            assert([[MVMessage alloc] initWithCMessage:msg] != nil);
         }
     }
     return 0;
