@@ -898,6 +898,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         elif op.opcode == OP_WriteFile:
             self.pending_write_replies[expected_reply_seq] = op.offset
             self.pending_write_requests[expected_reply_seq] = op
+        elif op.opcode == OP_CalcFileCRC32 and self.crccmp_destination is not None:
+            # CRC batch matching must be armed before inline transport replies,
+            # including fresh-sequence NoSessionsAvailable retransmissions.
+            self.crccmp_expect = (op.session, expected_reply_seq)
         if not retry:
             self.seq = (self.seq + 1) % FTP_SEQ_MODULUS
             self.send_times[op.seq] = time.time()
@@ -1497,24 +1501,35 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 termination_result = self.process_ftp_reply(
                     "TerminateSession", timeout=termination_timeout
                 )
+                if self._event_generation != generation:
+                    return termination_result
                 for _attempt in range(1, TERMINATE_ATTEMPTS):
                     if termination_result.error_code == FtpError.Success:
                         break
                     if not self.__send_termination():
                         break
+                    if self._event_generation != generation:
+                        return termination_result
                     termination_result = self.process_ftp_reply(
                         "TerminateSession", timeout=termination_timeout
                     )
+                    if self._event_generation != generation:
+                        return termination_result
         except Exception as exc:  # pylint: disable=broad-exception-caught
             # Delayed traffic may fail during the reply wait, after __send returns.
             logging.warning("FTP: could not complete session termination: %s", exc)
-            self.__discard_delayed_traffic()
+            if self._event_generation == generation:
+                self.__discard_delayed_traffic()
             termination_result = MAVFTPReturn("TerminateSession", FtpError.RemoteReplyTimeout)
         finally:
-            if termination_result.error_code != FtpError.Success:
+            if (
+                self._event_generation == generation
+                and termination_result.error_code != FtpError.Success
+            ):
                 # An unanswered handshake must not block a later operation.
                 self.pending_terminate_seq = None
-            self.session = (self.session + 1) % FTP_SESSION_MODULUS
+            if self._event_generation == generation:
+                self.session = (self.session + 1) % FTP_SESSION_MODULUS
         return termination_result
 
     def __send_termination(self) -> bool:
@@ -1851,10 +1866,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.burst_size < 1 or self.burst_size > 239:
             self.burst_size = 239
         self.open_retries = 0
+        self._event_generation += 1
+        generation = self._event_generation
         op = FTP_OP(
             self.seq, self.session, OP_OpenFileRO, len(enc_fname), 0, 0, 0, enc_fname
         )
         self.__send(op)
+        if self._event_generation != generation:
+            return None
         timeout = time.time() + READ_DEADLINE_SECONDS
         accepted_reply_generation = self.accepted_reply_generation
         if self.master is None:
@@ -1866,14 +1885,20 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     blocking=True,
                     timeout=1.0,
                 )
+                if self._event_generation != generation:
+                    return None
                 if m is None:
                     accepted_before_idle = self.accepted_reply_generation
                     self.idle_task()
+                    if self._event_generation != generation:
+                        return None
                     if accepted_before_idle != self.accepted_reply_generation:
                         timeout = time.time() + READ_DEADLINE_SECONDS
                         accepted_reply_generation = self.accepted_reply_generation
                     continue
                 self.__receive_packet(m)
+                if self._event_generation != generation:
+                    return None
                 # A busy MAVLink link can carry FTP replies for other GCSes
                 # (or stale replies for an earlier request).  They must not
                 # turn this into an unbounded wait: only a reply accepted by
@@ -1885,6 +1910,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 logging.error(e)
             accepted_before_idle = self.accepted_reply_generation
             self.idle_task()
+            if self._event_generation != generation:
+                return None
             if accepted_before_idle != self.accepted_reply_generation:
                 timeout = time.time() + READ_DEADLINE_SECONDS
                 accepted_reply_generation = self.accepted_reply_generation
@@ -3681,6 +3708,21 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.filename = remote_name
             self.op_start = time.time()
             self.last_crc = None
+            batch_deadline = self.crccmp_deadline
+            if batch_deadline is None:
+                return
+            self.crccmp_sent = time.time()
+            file_budget = max(
+                2.0 * self.retry_timeout(),
+                min(
+                    CRC_TIMEOUT_SECONDS,
+                    max(0.0, batch_deadline - self.crccmp_sent)
+                    / (len(self.crccmp_pending) + 1),
+                ),
+            )
+            self.crccmp_file_deadline = self.crccmp_sent + file_budget
+            # Publish timers before sending; the reply can recursively advance
+            # or finish the batch, or a callback can start a replacement.
             self.__send(
                 FTP_OP(
                     self.seq,
@@ -3693,21 +3735,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     encoded_name,
                 )
             )
-            # A send callback may cancel this batch before __send returns.
-            batch_deadline = self.crccmp_deadline
-            if batch_deadline is None:
-                return
-            self.crccmp_sent = time.time()
-            self.crccmp_expect = (self.session, self.seq)
-            file_budget = max(
-                2.0 * self.retry_timeout(),
-                min(
-                    CRC_TIMEOUT_SECONDS,
-                    max(0.0, batch_deadline - self.crccmp_sent)
-                    / (len(self.crccmp_pending) + 1),
-                ),
-            )
-            self.crccmp_file_deadline = self.crccmp_sent + file_budget
             return
         self.__crccmp_finish()
 
@@ -4285,8 +4312,6 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     # second OpenFileRO before this retry can be answered.
                     self.op_start = now
                 self.__send(self.last_op, retain_no_sessions_retry=True)
-                if self.crccmp_sent is not None:
-                    self.crccmp_expect = (self.session, self.seq)
             return False
 
         # Keep retries inside the caller's managed deadline. The outer
@@ -4507,6 +4532,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         direct callers default to extending an omitted timeout.
         """
         start_time = time.time()
+        generation = self._event_generation
         ret = MAVFTPReturn(operation_name, FtpError.Fail)
         default_timeout = timeout is None
         extend_timeout_on_no_sessions = self._next_no_sessions_timeout_extension
@@ -4575,6 +4601,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 m = self.master.recv_match(
                     type=["FILE_TRANSFER_PROTOCOL"], timeout=recv_timeout
                 )
+                if self._event_generation != generation:
+                    return MAVFTPReturn(operation_name, FtpError.Fail)
                 if m is not None:
                     # A recipient check does not require decoding the FTP
                     # payload.  Do it first so malformed traffic for another
@@ -4645,6 +4673,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                             or reply_matches_active_request
                         ):
                             ret = packet_ret
+                    if self._event_generation != generation:
+                        # The reply belongs to the suspended operation. Do not
+                        # consume callbacks or drive/clean up its replacement.
+                        return ret
                     if (
                         self.callback_failure is not None
                         and operation_name != "TerminateSession"
@@ -4695,6 +4727,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     ret = MAVFTPReturn(operation_name, FtpError.RemoteReplyTimeout)
                     break
                 idle_expired = self.idle_task()
+                if self._event_generation != generation:
+                    return ret
                 delayed_reply_accepted = False
                 delayed_reply_matches_last_op = False
                 malformed_result = False
