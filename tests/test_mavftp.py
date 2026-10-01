@@ -1884,6 +1884,145 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                          ["Put", "CreateDirectory"])
         self.assertEqual(completed[-1].error_code, FtpError.Success)
 
+    def test_managed_put_termination_idle_reentry_reports_once(self):
+        """Idle service during termination cannot finish an upload a second time."""
+        for data in (b"", b"data"):
+            for raises in (False, True):
+                with self.subTest(size=len(data), raises=raises):
+                    ftp, master, sent, completed = self.managed_ftp()
+                    reentered = []
+                    put_callback = MagicMock()
+
+                    def on_progress(_value, ftp=ftp, raises=raises):
+                        if ftp.event_complete and raises:
+                            raise RuntimeError("final progress failed")
+
+                    def send_payloads(packets, ftp=ftp, master=master,
+                                      sent=sent, reentered=reentered):
+                        sent.extend(packets)
+                        if (
+                            master._decode_payload(packets[0]).opcode == OP_TerminateSession
+                            and not reentered
+                        ):
+                            reentered.append(True)
+                            ftp.idle_task()
+
+                    ftp._send_payloads = send_payloads
+                    ftp.cmd_put(
+                        ["remote"], fh=BytesIO(data), callback=put_callback,
+                        progress_callback=on_progress,
+                    )
+                    request = master._decode_payload(sent[-1])
+                    ftp.mavlink_packet(ftp_reply(
+                        request.seq + 1, OP_Ack, OP_CreateFile, session=37,
+                    ))
+                    if data:
+                        request = master._decode_payload(sent[-1])
+                        ftp.mavlink_packet(ftp_reply(
+                            request.seq + 1, OP_Ack, OP_WriteFile,
+                            offset=request.offset, session=37,
+                        ))
+
+                    expected = FtpError.Fail if raises else FtpError.Success
+                    self.assertEqual(
+                        [(r.operation_name, r.error_code) for r in completed],
+                        [("Put", expected)],
+                    )
+                    put_callback.assert_called_once_with(len(data))
+                    self.assertIs(ftp.event_result, completed[0])
+                    self.assertTrue(ftp.event_complete)
+                    self.assertEqual(
+                        sum(master._decode_payload(packet).opcode == OP_TerminateSession
+                            for packet in sent),
+                        1,
+                    )
+                    ftp.idle_task()
+                    self.assertEqual(len(completed), 1)
+
+    def test_managed_termination_replacement_retries_dropped_request(self):
+        """The old termination must not latch cancellation on its replacement."""
+        for send_raises in (False, True):
+            with self.subTest(send_raises=send_raises):
+                ftp, master, sent, completed = self.managed_ftp()
+                reentered = []
+                ftp.ftp_settings.initial_retries = 3
+
+                def send_payloads(packets, ftp=ftp, master=master, sent=sent,
+                                  reentered=reentered, send_raises=send_raises):
+                    sent.extend(packets)
+                    if (
+                        master._decode_payload(packets[0]).opcode == OP_TerminateSession
+                        and not reentered
+                    ):
+                        reentered.append(True)
+                        ftp.cmd_cancel()
+                        ftp.cmd_mkdir(["replacement"], wait=False)
+                        if send_raises:
+                            raise RuntimeError("old termination send failed")
+
+                ftp._send_payloads = send_payloads
+                ftp.cmd_rm(["remote"], wait=False)
+                ftp.terminate_session(success=True)
+                request = master._decode_payload(sent[-1])
+                sent_count = len(sent)
+                # Drop the replacement's first reply and service its retry
+                # before the managed operation deadline expires.
+                with patch("pymavlink.mavftp.time.time",
+                           return_value=ftp.last_op_time + ftp.retry_timeout() + 0.01):
+                    ftp.idle_task()
+                self.assertEqual(len(sent), sent_count + 1)
+                retry = master._decode_payload(sent[-1])
+                self.assertEqual((retry.opcode, retry.seq),
+                                 (OP_CreateDirectory, request.seq))
+                self.assertFalse(ftp.request_cancelled)
+                ftp.mavlink_packet(ftp_reply(
+                    retry.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+                ))
+                self.assertEqual(
+                    [(r.operation_name, r.error_code) for r in completed],
+                    [("RemoveFile", FtpError.Success),
+                     ("CreateDirectory", FtpError.Success)],
+                )
+
+    def test_managed_termination_replacement_retries_no_sessions(self):
+        """A replacement must retain its NoSessionsAvailable recovery path."""
+        ftp, master, sent, completed = self.managed_ftp()
+        reentered = []
+
+        def send_payloads(packets):
+            sent.extend(packets)
+            if (
+                master._decode_payload(packets[0]).opcode == OP_TerminateSession
+                and not reentered
+            ):
+                reentered.append(True)
+                ftp.cmd_cancel()
+                ftp.cmd_mkdir(["replacement"], wait=False)
+
+        ftp._send_payloads = send_payloads
+        ftp.cmd_rm(["remote"], wait=False)
+        ftp.terminate_session(success=True)
+        request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(
+            request.seq + 1, OP_Nack, OP_CreateDirectory,
+            [FtpError.NoSessionsAvailable], session=37,
+        ))
+        self.assertTrue(ftp.no_sessions_retry_pending)
+        with patch("pymavlink.mavftp.time.time",
+                   return_value=ftp.last_op_time + ftp.retry_timeout() + 0.01):
+            ftp.idle_task()
+        retry = master._decode_payload(sent[-1])
+        self.assertEqual(retry.opcode, OP_CreateDirectory)
+        self.assertNotEqual(retry.seq, request.seq)
+        ftp.mavlink_packet(ftp_reply(
+            retry.seq + 1, OP_Ack, OP_CreateDirectory, session=37,
+        ))
+        self.assertEqual(
+            [(r.operation_name, r.error_code) for r in completed],
+            [("RemoveFile", FtpError.Success),
+             ("CreateDirectory", FtpError.Success)],
+        )
+
     def test_managed_nested_cancel_during_termination_send_reports_once(self):
         """Transport reentry during termination cannot report an operation twice."""
         for success in (False, True):

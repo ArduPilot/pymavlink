@@ -1499,6 +1499,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __send_termination(self) -> bool:
         """Send a termination request and keep cancellation latched on failure."""
+        generation = self._event_generation
         self.pending_terminate_seq = self.seq
         try:
             self.__send(FTP_OP(self.seq, self.session, OP_TerminateSession, 0, 0, 0, 0, None))
@@ -1507,7 +1508,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             logging.warning("FTP: could not send session termination: %s", exc)
             return False
         finally:
-            self.request_cancelled = True
+            # Sending may start a replacement operation through transport
+            # reentry. Its request must retain its own cancellation/retry state.
+            if self._event_generation == generation:
+                self.request_cancelled = True
 
     def terminate_session(
         self, success: bool = False, result: Optional[MAVFTPReturn] = None
@@ -2758,6 +2762,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __finish_managed_put(self, completed_reply: Optional[FTP_OP]) -> None:
         """Release the old session before invoking callbacks that may start a new command."""
+        # Termination transmission can re-enter idle service while the old
+        # empty write_list is still present. Completion has already been
+        # claimed in that case; only the outer invocation may deliver it.
+        if self._event_complete:
+            return
         generation = self._event_generation
         operation_callback = self._operation_callback
         progress_callback = self.put_callback_progress
