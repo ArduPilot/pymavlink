@@ -1168,6 +1168,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __write_link_data(self, link: Any, data: bytes, is_stream: bool) -> None:
         """Write encoded data, handling partial stream writes."""
+        generation = self._event_generation
+        write_list = self.write_list
+        stream = self.fh
         if is_stream:
             port = getattr(link, "port", None)
             if port is not None and hasattr(port, "sendall"):
@@ -1186,6 +1189,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         offset = 0
         while offset < len(data):
             written = link.write(data[offset:])
+            if (
+                self._event_generation != generation
+                or self.write_list is not write_list
+                or self.fh is not stream
+            ):
+                return
             # Datagram and several pymavlink wrappers return None after a
             # complete write. Integer-returning writers may accept a prefix.
             if written is None or written <= 0:
@@ -1323,18 +1332,23 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def __release_staging(self) -> None:
         """Close and remove this instance's own staging resources.
         Caller-owned handles (cmd_put's fh argument) are left alone."""
-        if self.fh is not None and self.fh_owned:
+        stream = self.fh
+        owned = self.fh_owned
+        temp_filename = self.temp_filename
+        # Detach ownership before close/unlink can reenter and install new
+        # resources. Cleanup must use only the captured old resources.
+        self.fh_owned = False
+        self.temp_filename = None
+        if stream is not None and owned:
             try:
-                self.fh.close()
+                stream.close()
             except (OSError, ValueError):
                 pass
-        self.fh_owned = False
-        if self.temp_filename is not None:
+        if temp_filename is not None:
             try:
-                os.unlink(self.temp_filename)
+                os.unlink(temp_filename)
             except OSError:
                 pass
-            self.temp_filename = None
 
     @staticmethod
     def __create_staging_file(destination_dir: str) -> Tuple[int, str]:
@@ -1424,6 +1438,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.__deliver_managed_result(generation, operation_callback, terminal_result)
             return MAVFTPReturn("TerminateSession", FtpError.Success)
         self.__release_staging()
+        if self._event_generation != generation:
+            if report_result:
+                self.__deliver_managed_result(generation, operation_callback, terminal_result)
+            return MAVFTPReturn("TerminateSession", FtpError.Success)
         self.fh = None
         self.filename = None
         self.read_to_memory = False
@@ -2397,6 +2415,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __write_payload(self, op: FTP_OP) -> bool:
         """Write payload from a read op, returning whether processing may continue."""
+        generation = self._event_generation
+        stream = self.fh
         write_offset = op.offset
         if self.read_to_memory:
             write_offset -= self.requested_offset
@@ -2423,18 +2443,26 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         maximum_offset = max(
             self.__read_position(), self.requested_size, self.read_total
         ) + (MAX_READ_GAPS + 1) * max(1, self.burst_size)
+        if self._event_generation != generation or self.fh is not stream:
+            return False
         if write_offset < 0 or write_offset + payload_size > maximum_offset:
             logging.error("FTP: invalid downloaded payload offset %u", op.offset)
             self.callback_failure = MAVFTPReturn("Get", FtpError.InvalidDataSize)
             self.__terminate_session()
             return False
         try:
-            self.fh.seek(write_offset)
-            self.fh.write(op.payload)
+            stream.seek(write_offset)
+            if self._event_generation != generation or self.fh is not stream:
+                return False
+            stream.write(op.payload)
         except (OSError, ValueError) as exc:
             logging.error("FTP: failed to stage downloaded data: %s", exc)
+            if self._event_generation != generation or self.fh is not stream:
+                return False
             self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
             self.__terminate_session()
+            return False
+        if self._event_generation != generation or self.fh is not stream:
             return False
         self.read_total += len(op.payload)
         if self.callback_progress is not None:

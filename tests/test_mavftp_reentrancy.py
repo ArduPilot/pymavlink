@@ -658,3 +658,114 @@ def test_upload_source_read_guard_allows_replacement_upload_to_send_inline():
     assert ftp.write_pending == 1
     assert [r.operation_name for r in completed] == ["Put"]
     assert not ftp._upload_read_generations
+
+
+@pytest.mark.parametrize("replacement", [False, True])
+def test_partial_link_write_reentry_stops_old_packet_tail(replacement):
+    ftp, _master, _sent, _completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_put(["old"], fh=BytesIO(b"data"), callback=lambda _size: None)
+    writes = []
+
+    class PartialLink:
+        def write(self, data):
+            writes.append(data)
+            if len(writes) == 1:
+                ftp.cmd_cancel()
+                if replacement:
+                    ftp.cmd_mkdir(["next"], wait=False)
+            return 2
+
+    ftp._MAVFTP__write_link_data(PartialLink(), b"old-packet", False)
+    assert writes == [b"old-packet"]
+    if replacement:
+        assert ftp.last_op.opcode == OP_CreateDirectory
+        assert not ftp.request_cancelled
+
+
+@pytest.mark.parametrize("phase", ["seek", "write", "write_error"])
+def test_download_destination_io_replacement_preserves_new_operation(phase):
+    ftp, _master, _sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "-"], callback=lambda _stream: None)
+    entered = []
+    new_stream = BytesIO(b"new")
+    old_writes = []
+
+    def replace():
+        if not entered:
+            entered.append(True)
+            ftp.cmd_cancel()
+            ftp.cmd_get(["next", "-"], callback=lambda _stream: None)
+            ftp.fh = new_stream
+
+    class Destination(BytesIO):
+        def seek(self, offset, whence=0):
+            result = super().seek(offset, whence)
+            if phase == "seek":
+                replace()
+            return result
+
+        def write(self, data):
+            old_writes.append(bytes(data))
+            replace()
+            if phase == "write_error":
+                raise OSError("old staging write failed")
+            return super().write(data)
+
+    ftp.fh = Destination()
+    op = helpers.FTP_OP(0, 37, OP_Ack, 4, OP_BurstReadFile, 0, 0, bytearray(b"old!"))
+    assert not ftp._MAVFTP__write_payload(op)
+    assert ftp.fh is new_stream
+    assert new_stream.getvalue() == b"new"
+    assert ftp.read_total == 0
+    assert ftp.callback_failure is None
+    assert not ftp.request_cancelled
+    assert [r.operation_name for r in completed] == ["Get"]
+    if phase == "seek":
+        assert old_writes == []
+
+
+def test_release_staging_close_reentry_preserves_replacement_resources():
+    ftp, _master, _sent, _completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    replacement = BytesIO(b"new")
+
+    class ClosingStream(BytesIO):
+        def close(self):
+            ftp.fh = replacement
+            ftp.fh_owned = True
+            ftp.temp_filename = "replacement-stage"
+            super().close()
+
+    ftp.fh = ClosingStream(b"old")
+    ftp.fh_owned = True
+    ftp.temp_filename = "old-stage"
+    with patch("pymavlink.mavftp.os.unlink") as unlink:
+        ftp._MAVFTP__release_staging()
+    assert ftp.fh is replacement
+    assert ftp.fh_owned
+    assert ftp.temp_filename == "replacement-stage"
+    unlink.assert_called_once_with("old-stage")
+
+
+def test_termination_close_reentry_preserves_new_command_and_reports_old_result():
+    ftp, _master, _sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "-"], callback=lambda _stream: None)
+    replacement = BytesIO(b"new")
+    next_callback = MagicMock()
+
+    class ClosingStream(BytesIO):
+        def close(self):
+            ftp.cmd_get(["next", "-"], callback=next_callback)
+            ftp.fh = replacement
+            ftp.fh_owned = True
+            super().close()
+
+    ftp.fh = ClosingStream(b"old")
+    ftp.fh_owned = True
+    ftp.cmd_cancel()
+    assert ftp.fh is replacement
+    assert ftp.fh_owned
+    assert ftp.callback is next_callback
+    assert not ftp.event_complete
+    assert not ftp.request_cancelled
+    assert [r.operation_name for r in completed] == ["Get"]
+    next_callback.assert_not_called()
