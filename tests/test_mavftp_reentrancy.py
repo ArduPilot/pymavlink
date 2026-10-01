@@ -213,7 +213,7 @@ def start_fake_crccmp(ftp, names):
         return ftp.cmd_crccmp(["*.bin", "/remote"], wait=False)
 
 
-@pytest.mark.parametrize("files", [1, 3])
+@pytest.mark.parametrize("files", [1, 3, 200])
 def test_crccmp_accepts_inline_crc_replies(files):
     ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
 
@@ -234,6 +234,51 @@ def test_crccmp_accepts_inline_crc_replies(files):
     assert ftp.crccmp_sent is None
     assert ftp.crccmp_expect is None
     assert ftp.crccmp_file_deadline is None
+
+
+@pytest.mark.parametrize("managed", [False, True])
+@pytest.mark.parametrize("files", [1, 3])
+def test_crccmp_cancel_during_send_terminates_once(managed, files):
+    if managed:
+        ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    else:
+        ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+        sent = []
+        completed = []
+    initial_session = ftp.session
+
+    def send(packets):
+        sent.extend(packets)
+        request = master._decode_payload(packets[0])
+        if request.opcode == OP_CalcFileCRC32:
+            ftp.cmd_cancel()
+
+    if managed:
+        ftp._send_payloads = send
+    else:
+        master.mav.file_transfer_protocol_send = lambda *args: send([args[-1]])
+
+    with patch.object(ftp, "process_ftp_reply", return_value=helpers.MAVFTPReturn(
+        "TerminateSession", FtpError.Success,
+    )) as reply_loop:
+        start_fake_crccmp(ftp, [f"{i}.bin" for i in range(files)])
+
+    requests = [master._decode_payload(packet) for packet in sent]
+    assert [request.opcode for request in requests] == [
+        OP_CalcFileCRC32, OP_TerminateSession,
+    ]
+    assert [request.session for request in requests] == [initial_session] * 2
+    assert ftp.session == (initial_session if managed else (initial_session + 1) % 256)
+    assert reply_loop.call_count == (0 if managed else 1)
+    if managed:
+        assert [(result.operation_name, result.error_code) for result in completed] == [
+            ("CRCCompare", FtpError.Fail),
+        ]
+    assert ftp.crccmp_destination is None
+    assert ftp.crccmp_pending == []
+    assert ftp.crccmp_expect is None
+    assert ftp.request_cancelled
+    assert ftp._crccmp_advancing_generation is None
 
 
 @pytest.mark.parametrize("command,args", [
@@ -468,6 +513,48 @@ def test_termination_reply_wait_cannot_retry_or_rotate_replacement_session():
     assert not ftp.request_cancelled
     assert ftp.callback is new_callback
     new_callback.assert_not_called()
+
+
+def test_termination_send_replacement_download_does_not_keep_old_staging_stream():
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    old_stream = BytesIO(b"old")
+    ftp.cmd_get(["old", "-"])
+    ftp.fh = old_stream
+    ftp.fh_owned = True
+    ftp.temp_filename = "old-stage"
+    next_callback = MagicMock()
+    original_send = master.mav.file_transfer_protocol_send
+    replaced = []
+
+    def send(*args):
+        original_send(*args)
+        request = master._decode_payload(args[-1])
+        if request.opcode == OP_TerminateSession and not replaced:
+            replaced.append(True)
+            ftp.cmd_get(["next", "-"], callback=next_callback)
+
+    master.mav.file_transfer_protocol_send = send
+    with patch("pymavlink.mavftp.os.unlink") as unlink:
+        ftp.cmd_cancel()
+
+        request = ftp.last_op
+        assert request.opcode == OP_OpenFileRO
+        ftp.mavlink_packet(ftp_reply(
+            request.seq + 1,
+            OP_Ack,
+            OP_OpenFileRO,
+            struct.pack("<I", 4),
+            session=request.session,
+        ))
+
+    assert replaced == [True]
+    assert ftp.last_op.opcode == OP_BurstReadFile
+    assert ftp.fh is not old_stream
+    assert old_stream.closed
+    assert ftp.temp_filename is None
+    assert ftp.callback is next_callback
+    next_callback.assert_not_called()
+    unlink.assert_called_once_with("old-stage")
 
 
 def test_crccmp_inline_first_reply_preserves_next_pending_request():

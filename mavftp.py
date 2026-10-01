@@ -713,6 +713,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.crccmp_deadline: Optional[float] = None
         self.crccmp_file_deadline: Optional[float] = None
         self.crccmp_failed = False
+        self._crccmp_advancing_generation: Optional[int] = None
         self.done = False
         self.transfer_active = False
         # Interactive transfers expose periodic status through cmd_status and
@@ -1339,6 +1340,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # resources. Cleanup must use only the captured old resources.
         self.fh_owned = False
         self.temp_filename = None
+        self.__release_staging_resources(stream, owned, temp_filename)
+
+    @staticmethod
+    def __release_staging_resources(
+        stream, owned: bool, temp_filename: Optional[str]
+    ) -> None:
+        """Close and remove captured resources without changing instance state."""
         if stream is not None and owned:
             try:
                 stream.close()
@@ -1426,23 +1434,29 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if report_result:
             self._event_complete = True
             self.event_result = terminal_result
+        # A termination send may synchronously start a replacement download.
+        # Detach the old stream now so its OpenFileRO ACK is not mistaken for
+        # a duplicate; release these captured resources after the send.
+        staging_stream = self.fh
+        staging_owned = self.fh_owned
+        staging_filename = self.temp_filename
+        self.fh = None
+        self.fh_owned = False
+        self.temp_filename = None
         self.__discard_delayed_traffic()
         self.op_start = None
         self.no_sessions_retry_pending = False
         self.request_cancelled = True
         termination_send_failed = not self.__send_termination()
+        self.__release_staging_resources(
+            staging_stream, staging_owned, staging_filename
+        )
         if self._event_generation != generation:
             # Transport reentry replaced the operation after completion was
             # claimed. Report its captured result without cleaning up new state.
             if report_result:
                 self.__deliver_managed_result(generation, operation_callback, terminal_result)
             return MAVFTPReturn("TerminateSession", FtpError.Success)
-        self.__release_staging()
-        if self._event_generation != generation:
-            if report_result:
-                self.__deliver_managed_result(generation, operation_callback, terminal_result)
-            return MAVFTPReturn("TerminateSession", FtpError.Success)
-        self.fh = None
         self.filename = None
         self.read_to_memory = False
         self.remote_size_known = False
@@ -3834,65 +3848,88 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __crccmp_next(self) -> None:
         """Send the next remote CRC request or finish the event-driven batch."""
-        while self.crccmp_pending:
-            if (
-                self.crccmp_deadline is not None
-                and time.time() >= self.crccmp_deadline
-            ):
-                for path in self.crccmp_pending:
-                    self.__crccmp_record(
-                        "SKIPPED",
-                        os.path.basename(path),
-                        " (CRC comparison deadline exceeded)",
-                    )
-                self.crccmp_pending = []
-                break
-            local_name = self.crccmp_pending.pop(0)
-            basename = os.path.basename(local_name)
-            remote_name = f"{self.crccmp_destination}/{basename}"
-            encoded_name = self.__encode_path(remote_name)
-            if encoded_name is None:
-                self.__crccmp_record("ERROR", basename, " (invalid remote path)")
-                continue
-            try:
-                local_crc = self.local_file_crc(local_name)
-            except (OSError, ValueError) as exc:
-                self.__crccmp_record("ERROR", basename, f" ({exc})")
-                continue
-            self.crccmp_local = local_name
-            self.crccmp_local_crc = local_crc
-            self.filename = remote_name
-            self.op_start = time.time()
-            self.last_crc = None
-            batch_deadline = self.crccmp_deadline
-            if batch_deadline is None:
-                return
-            self.crccmp_sent = time.time()
-            file_budget = max(
-                2.0 * self.retry_timeout(),
-                min(
-                    CRC_TIMEOUT_SECONDS,
-                    max(0.0, batch_deadline - self.crccmp_sent)
-                    / (len(self.crccmp_pending) + 1),
-                ),
-            )
-            self.crccmp_file_deadline = self.crccmp_sent + file_budget
-            # Publish timers before sending; the reply can recursively advance
-            # or finish the batch, or a callback can start a replacement.
-            self.__send(
-                FTP_OP(
-                    self.seq,
-                    self.session,
-                    OP_CalcFileCRC32,
-                    len(encoded_name),
-                    0,
-                    0,
-                    0,
-                    encoded_name,
-                )
-            )
+        generation = self._event_generation
+        previous_generation = self._crccmp_advancing_generation
+        if previous_generation == generation:
+            # The active sender continues its loop after this inline reply
+            # unwinds from the transport callback.
             return
-        self.__crccmp_finish()
+        self._crccmp_advancing_generation = generation
+        try:
+            while generation == self._event_generation and self.crccmp_pending:
+                if (
+                    self.crccmp_deadline is not None
+                    and time.time() >= self.crccmp_deadline
+                ):
+                    for path in self.crccmp_pending:
+                        self.__crccmp_record(
+                            "SKIPPED",
+                            os.path.basename(path),
+                            " (CRC comparison deadline exceeded)",
+                        )
+                    self.crccmp_pending = []
+                    break
+                local_name = self.crccmp_pending.pop(0)
+                basename = os.path.basename(local_name)
+                remote_name = f"{self.crccmp_destination}/{basename}"
+                encoded_name = self.__encode_path(remote_name)
+                if encoded_name is None:
+                    self.__crccmp_record("ERROR", basename, " (invalid remote path)")
+                    continue
+                try:
+                    local_crc = self.local_file_crc(local_name)
+                except (OSError, ValueError) as exc:
+                    self.__crccmp_record("ERROR", basename, f" ({exc})")
+                    continue
+                self.crccmp_local = local_name
+                self.crccmp_local_crc = local_crc
+                self.filename = remote_name
+                self.op_start = time.time()
+                self.last_crc = None
+                batch_deadline = self.crccmp_deadline
+                if batch_deadline is None:
+                    return
+                self.crccmp_sent = time.time()
+                file_budget = max(
+                    2.0 * self.retry_timeout(),
+                    min(
+                        CRC_TIMEOUT_SECONDS,
+                        max(0.0, batch_deadline - self.crccmp_sent)
+                        / (len(self.crccmp_pending) + 1),
+                    ),
+                )
+                self.crccmp_file_deadline = self.crccmp_sent + file_budget
+                # Arm reply state before transport callbacks can answer inline.
+                self.__send(
+                    FTP_OP(
+                        self.seq,
+                        self.session,
+                        OP_CalcFileCRC32,
+                        len(encoded_name),
+                        0,
+                        0,
+                        0,
+                        encoded_name,
+                    )
+                )
+                # Cancellation clears the batch without advancing generation.
+                if (
+                    generation != self._event_generation
+                    or self.crccmp_destination is None
+                ):
+                    return
+                if self.crccmp_expect is not None:
+                    return
+                # An inline reply cleared the expectation. Continue here so
+                # each file does not add another Python stack frame.
+            if (
+                generation == self._event_generation
+                and self.crccmp_destination is not None
+            ):
+                self.__crccmp_finish()
+        finally:
+            if self._crccmp_advancing_generation == generation:
+                self._crccmp_advancing_generation = previous_generation
 
     def __crccmp_reply(self, op: FTP_OP) -> MAVFTPReturn:
         """Consume one event-driven remote CRC reply."""
