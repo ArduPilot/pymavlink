@@ -2258,6 +2258,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 # completion. Never clear a replacement command's callback.
                 self.callback = None
                 self.fh.seek(0)
+                if self._event_generation != generation or self.op_start != started:
+                    return True
                 try:
                     callback_result = callback(stream)
                     if (
@@ -2278,6 +2280,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 self.done = True
             elif self.filename == "-":
                 self.fh.seek(0)
+                if self._event_generation != completion_generation:
+                    return True
 
             # The callback owns the in-memory result.  In particular, it may
             # close its BytesIO handle, so there is no local publication work
@@ -2299,15 +2303,24 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             assert self.fh is not None  # noqa: S101
             # Final local-file I/O and publication share this cleanup boundary
             # so a delayed buffered-write failure still releases the session.
+            publication_stream = self.fh
             try:
-                self.fh.flush()
+                publication_stream.flush()
+                if self._event_generation != completion_generation:
+                    return True
                 actual_size = ofs
                 if self.read_to_memory or self.filename == "-":
-                    self.fh.seek(0)
-                    result = self.fh.read()
+                    publication_stream.seek(0)
+                    if self._event_generation != completion_generation:
+                        return True
+                    result = publication_stream.read()
+                    if self._event_generation != completion_generation:
+                        return True
                     actual_size = len(result)
                 elif self.temp_filename is not None:
-                    actual_size = os.fstat(self.fh.fileno()).st_size
+                    actual_size = os.fstat(publication_stream.fileno()).st_size
+                    if self._event_generation != completion_generation:
+                        return True
                 else:
                     result = b""
                 if self.read_to_memory:
@@ -2355,14 +2368,22 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     else:
                         encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
                         sys.stdout.write(result.decode(encoding, errors="surrogateescape"))
+                    if self._event_generation != completion_generation:
+                        return True
                     sys.stdout.flush()
+                    if self._event_generation != completion_generation:
+                        return True
                 elif publish_result and self.filename and self.temp_filename:
                     # The staging file is created beside its destination, so
                     # replacement is atomic and does not copy the complete
                     # download back into RAM.
                     if self.fh_owned:
-                        os.fsync(self.fh.fileno())
-                        self.fh.close()
+                        os.fsync(publication_stream.fileno())
+                        if self._event_generation != completion_generation:
+                            return True
+                        publication_stream.close()
+                        if self._event_generation != completion_generation:
+                            return True
                         self.fh_owned = False
                     logging.info(
                         "Publishing staged download %s to %s",
@@ -2374,10 +2395,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     # the old destination's mode when it existed, otherwise
                     # the caller's current umask.
                     os.replace(self.temp_filename, self.filename)
+                    if self._event_generation != completion_generation:
+                        return True
                     self.temp_filename = None
                     self.__fsync_directory(
                         os.path.dirname(os.path.abspath(self.filename))
                     )
+                    if self._event_generation != completion_generation:
+                        return True
                 if publish_result and self.filename not in (None, "-"):
                     self.done = True
                     logging.info(
@@ -2402,14 +2427,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.filename,
                     exc,
                 )
-                if self.callback_failure is None:
+                if (
+                    self._event_generation == completion_generation
+                    and self.callback_failure is None
+                ):
                     self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
             finally:
                 # terminate the remote session and release the staging
                 # file even when the destination cannot be written
-                self.__finish_session(success=self.callback_failure is None)
                 if self._event_generation == completion_generation:
-                    self.read_complete = True
+                    self.__finish_session(success=self.callback_failure is None)
+                    if self._event_generation == completion_generation:
+                        self.read_complete = True
             return True
         return False
 

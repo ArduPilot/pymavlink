@@ -769,3 +769,168 @@ def test_termination_close_reentry_preserves_new_command_and_reports_old_result(
     assert not ftp.request_cancelled
     assert [r.operation_name for r in completed] == ["Get"]
     next_callback.assert_not_called()
+
+
+@pytest.mark.parametrize("phase", ["flush", "seek", "read", "read_error"])
+def test_download_publication_io_replacement_preserves_new_download(phase):
+    ftp, _master, _sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "-"])
+    replacement = BytesIO(b"new")
+    next_callback = MagicMock()
+    entered = []
+
+    def replace():
+        if not entered:
+            entered.append(True)
+            ftp.cmd_cancel()
+            ftp.cmd_get(["next", "-"], callback=next_callback)
+            ftp.fh = replacement
+
+    class PublicationStream(BytesIO):
+        def flush(self):
+            super().flush()
+            if phase == "flush":
+                replace()
+
+        def seek(self, offset, whence=0):
+            result = super().seek(offset, whence)
+            if phase == "seek":
+                replace()
+            return result
+
+        def read(self, size=-1):
+            result = super().read(size)
+            if phase in {"read", "read_error"}:
+                replace()
+                if phase == "read_error":
+                    raise OSError("old publication failed after replacement")
+            return result
+
+    stream = PublicationStream(b"old")
+    BytesIO.seek(stream, 3)
+    ftp.fh = stream
+    ftp.reached_eof = True
+    ftp.requested_size = 3
+    with patch("pymavlink.mavftp.sys.stdout", helpers.BinaryStdout()) as stdout:
+        ftp._MAVFTP__check_read_finished()
+    assert entered == [True]
+    assert ftp.fh is replacement
+    assert replacement.getvalue() == b"new"
+    assert ftp.callback is next_callback
+    assert ftp.get_result is None
+    assert ftp.callback_failure is None
+    assert not ftp.read_complete
+    assert not ftp.event_complete
+    assert not ftp.request_cancelled
+    assert stdout.buffer.getvalue() == b""
+    assert [r.operation_name for r in completed] == ["Get"]
+    next_callback.assert_not_called()
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_stdout_publication_replacement_cannot_fail_or_terminate_new_command(raises):
+    ftp, _master, _sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "-"])
+    ftp.fh = BytesIO(b"old")
+    ftp.fh.seek(3)
+    ftp.reached_eof = True
+    ftp.requested_size = 3
+
+    class Output:
+        def write(self, data):
+            ftp.cmd_cancel()
+            ftp.cmd_mkdir(["next"], wait=False)
+            if raises:
+                raise OSError("old output failed after replacement")
+            return len(data)
+
+    stdout = MagicMock()
+    stdout.buffer = Output()
+    with patch("pymavlink.mavftp.sys.stdout", stdout):
+        ftp._MAVFTP__check_read_finished()
+    assert ftp.last_op.opcode == OP_CreateDirectory
+    assert not ftp.event_complete
+    assert not ftp.request_cancelled
+    assert ftp.callback_failure is None
+    assert not ftp.read_complete
+    assert [r.operation_name for r in completed] == ["Get"]
+    stdout.flush.assert_not_called()
+
+
+def test_standalone_consumer_seek_replacement_skips_old_data_callback():
+    ftp, _master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    old_callback = MagicMock()
+    next_callback = MagicMock()
+
+    class SeekingStream(BytesIO):
+        def seek(self, offset, whence=0):
+            result = super().seek(offset, whence)
+            ftp.cmd_get(["next", "-"], callback=next_callback)
+            return result
+
+    stream = SeekingStream(b"old")
+    BytesIO.seek(stream, 3)
+    ftp.cmd_get(["old", "-"], callback=old_callback)
+    ftp.fh = stream
+    ftp.reached_eof = True
+    ftp.requested_size = 3
+    ftp._MAVFTP__check_read_finished()
+    old_callback.assert_not_called()
+    assert ftp.callback is next_callback
+    assert not ftp.request_cancelled
+
+
+@pytest.mark.parametrize("phase", ["fsync", "close", "replace"])
+def test_staged_publication_replacement_preserves_new_staging_ownership(phase):
+    ftp, _master, _sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "old-destination"])
+    new_stream = BytesIO(b"new")
+    entered = []
+
+    def replace_operation(*_args):
+        if not entered:
+            entered.append(True)
+            ftp.cmd_get(["next", "new-destination"])
+            ftp.fh = new_stream
+            ftp.fh_owned = True
+            ftp.temp_filename = "new-stage"
+
+    class StagingStream(BytesIO):
+        def fileno(self):
+            return 123
+
+        def close(self):
+            if phase == "close":
+                replace_operation()
+            super().close()
+
+    stream = StagingStream(b"old")
+    stream.seek(3)
+    ftp.fh = stream
+    ftp.fh_owned = True
+    ftp.temp_filename = "old-stage"
+    ftp.reached_eof = True
+    ftp.requested_size = 3
+    with (
+        patch("pymavlink.mavftp.os.fstat", return_value=MagicMock(st_size=3)),
+        patch("pymavlink.mavftp.os.fsync",
+              side_effect=replace_operation if phase == "fsync" else None),
+        patch("pymavlink.mavftp.os.replace",
+              side_effect=replace_operation if phase == "replace" else None) as publish,
+        patch("pymavlink.mavftp.os.unlink") as unlink,
+        patch.object(ftp, "_MAVFTP__fsync_directory"),
+    ):
+        ftp._MAVFTP__check_read_finished()
+    assert entered == [True]
+    assert ftp.fh is new_stream
+    assert ftp.fh_owned
+    assert ftp.temp_filename == "new-stage"
+    assert ftp.filename == "new-destination"
+    assert not ftp.read_complete
+    assert not ftp.request_cancelled
+    assert completed == []
+    unlink.assert_not_called()
+    if phase != "replace":
+        publish.assert_not_called()
+    else:
+        publish.assert_called_once_with("old-stage", "old-destination")
