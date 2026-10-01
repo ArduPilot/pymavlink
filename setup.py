@@ -10,17 +10,19 @@ except LookupError:
     codecs.register(func)
 
 from setuptools import setup, Extension
-from Cython.Build import cythonize
-import glob, os, shutil, fnmatch, sys, platform, warnings
+import glob, os, shutil, fnmatch, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from __init__ import __version__
 
-# Option for building the fast indexer Cython module
-build_fast_index = True
-# Disable by default on Windows and macOS
-if platform.system() in ("Windows", "Darwin"):
+# Build the fast indexer if Cython is available; env var and flags can override
+try:
+    from Cython.Build import cythonize
+    build_fast_index = True
+except ImportError:
+    cythonize = None
     build_fast_index = False
+
 # Allow an environment variable to override the default
 if os.getenv("PYMAVLINK_FAST_INDEX", None) == "0":
     build_fast_index = False
@@ -113,34 +115,8 @@ with open("README.md", "r", encoding = "utf-8") as fh:
 
 ext_modules = []
 
-def test_python_h_available():
-    import tempfile
-    import distutils.ccompiler
-    import distutils.sysconfig
-    import sysconfig
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_file = os.path.join(tmpdir, "test_python_h.c")
-        with open(test_file, "w") as f:
-            f.write("#include <Python.h>\nint main() { return 0; }")
-
-        try:
-            compiler = distutils.ccompiler.new_compiler()
-            distutils.sysconfig.customize_compiler(compiler)
-
-            # Add Python include dir (e.g. /usr/include/python3.11 or C:\... on Windows)
-            python_inc = sysconfig.get_path("include")
-            compiler.add_include_dir(python_inc)
-
-            # Compile only (no linking)
-            compiler.compile([test_file], output_dir=tmpdir)
-            return True
-        except Exception as e:
-            warnings.warn(f"Disabling fast index: missing Python.h ({e})")
-            return False
-
-if build_fast_index and not test_python_h_available():
-    build_fast_index = False
+if build_fast_index and cythonize is None:
+    raise RuntimeError("--fast-index requested but Cython is not installed")
 
 if build_fast_index:
     extra_compile_args = ["-g", "-Og"] if debug_build else ["-O2"]
