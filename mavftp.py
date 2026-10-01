@@ -2469,8 +2469,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # A burst may arrive out of order, but never needs to be more than the
         # bounded repair window ahead of the transferred range.  This prevents
         # a peer-supplied offset from creating an unbounded sparse local file.
+        position_before_write = self.__read_position()
         maximum_offset = max(
-            self.__read_position(), self.requested_size, self.read_total
+            position_before_write, self.requested_size, self.read_total
         ) + (MAX_READ_GAPS + 1) * max(1, self.burst_size)
         if self._event_generation != generation or self.fh is not stream:
             return False
@@ -2494,6 +2495,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self._event_generation != generation or self.fh is not stream:
             return False
         self.read_total += len(op.payload)
+        # Gap writes must not expose their temporary seek position to a
+        # progress callback that synchronously delivers the next burst.
+        self.__seek_read_position(max(position_before_write, op.offset + payload_size))
+        if self._event_generation != generation or self.fh is not stream:
+            return False
         if self.callback_progress is not None:
             generation = self._event_generation
             stream = self.fh
@@ -2597,7 +2603,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     )
                 if size > 0:
                     self.last_burst_read = time.time()
-                self.__seek_read_position(ofs)
+                self.__seek_read_position(max(ofs, self.__read_position()))
                 if self.__check_read_finished():
                     return self.callback_failure or MAVFTPReturn(
                         "BurstReadFile", FtpError.Success
@@ -2685,6 +2691,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 more = self.pending_burst_request
                 if more is None:
                     return MAVFTPReturn("BurstReadFile", FtpError.Fail)
+                if more.offset > op.offset:
+                    # A nested reply already sent a continuation beyond this
+                    # older burst-complete packet. Do not rewind its request.
+                    return MAVFTPReturn("BurstReadFile", FtpError.Success)
                 more.offset = op.offset + op.size
                 if self.ftp_settings.debug > 0:
                     logging.info(
@@ -2781,7 +2791,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     return self.callback_failure or MAVFTPReturn(
                         "ReadFile", FtpError.Fail
                     )
-                self.__seek_read_position(ofs)
+                self.__seek_read_position(max(ofs, self.__read_position()))
                 if self.ftp_settings.debug > 0:
                     logging.info(
                         "FTP: removed gap %s, %u, %u",

@@ -934,3 +934,75 @@ def test_staged_publication_replacement_preserves_new_staging_ownership(phase):
         publish.assert_not_called()
     else:
         publish.assert_called_once_with("old-stage", "old-destination")
+
+
+@pytest.mark.parametrize("repair_opcode", [OP_BurstReadFile, helpers.OP_ReadFile])
+def test_gap_progress_nested_burst_preserves_receive_high_water_mark(repair_opcode):
+    ftp, master, sent, _completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "-"], callback=lambda _stream: None)
+    request = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        request.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", 1000), session=37,
+    ))
+    burst = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        burst.seq + 1, OP_Ack, OP_BurstReadFile,
+        b"x" * 80, offset=80, session=37,
+    ))
+    entered = []
+
+    def progress(_value):
+        if not entered:
+            entered.append(True)
+            ftp.mavlink_packet(ftp_reply(
+                burst.seq + 2, OP_Ack, OP_BurstReadFile,
+                b"y" * 80, offset=160, session=37,
+            ))
+
+    ftp.callback_progress = progress
+    if repair_opcode == helpers.OP_ReadFile:
+        ftp.check_read_send()
+        repair = master._decode_payload(sent[-1])
+    else:
+        repair = burst
+    ftp.mavlink_packet(ftp_reply(
+        repair.seq + 1, OP_Ack, repair_opcode,
+        b"z" * 80, offset=0, session=37,
+    ))
+    assert ftp.fh.tell() == 240
+    assert ftp.read_gaps == []
+    ftp.mavlink_packet(ftp_reply(
+        burst.seq + 3, OP_Ack, OP_BurstReadFile,
+        b"w" * 80, offset=240, session=37,
+    ))
+    assert ftp.read_gaps == []
+    assert ftp.fh.tell() == 320
+
+
+def test_progress_nested_burst_continuation_cannot_rewind_pending_request():
+    ftp, master, sent, _completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get(["old", "-"], callback=lambda _stream: None)
+    request = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        request.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", 1000), session=37,
+    ))
+    burst = master._decode_payload(sent[-1])
+    entered = []
+
+    def progress(_value):
+        if not entered:
+            entered.append(True)
+            ftp.mavlink_packet(ftp_reply(
+                burst.seq + 2, OP_Ack, OP_BurstReadFile,
+                b"y" * 80, offset=80, burst_complete=1, session=37,
+            ))
+
+    ftp.callback_progress = progress
+    ftp.mavlink_packet(ftp_reply(
+        burst.seq + 1, OP_Ack, OP_BurstReadFile,
+        b"x" * 80, burst_complete=1, session=37,
+    ))
+    assert ftp.pending_burst_offset == 160
+    assert master._decode_payload(sent[-1]).offset == 160
