@@ -772,10 +772,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self, operation_name: str, timeout: Optional[float] = None,
         extend_timeout_on_no_sessions: Optional[bool] = None,
     ) -> None:
-        """Mark a non-blocking operation as owned by an external event loop."""
+        """Advance operation ownership, configuring managed event state if needed."""
+        self._event_generation += 1
         if not self._managed_transport:
             return
-        self._event_generation += 1
         self._event_operation = operation_name
         self._event_complete = False
         self.event_result = None
@@ -1095,11 +1095,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __dispatch_received_packet(self, message) -> MAVFTPReturn:
         """Dispatch a reply after the transport simulator has handled loss."""
+        previous_rx_loss_applied = self._rx_loss_applied
         self._rx_loss_applied = True
         try:
             return self.__mavlink_packet(message)
         finally:
-            self._rx_loss_applied = False
+            self._rx_loss_applied = previous_rx_loss_applied
 
     def mavlink_packet(self, message) -> Optional[MAVFTPReturn]:
         """Accept an incoming FTP reply from an event-driven MAVLink loop."""
@@ -1188,6 +1189,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self, operations: List[FTP_OP]
     ) -> None:
         """Send several requests in one underlying link write when possible."""
+        generation = self._event_generation
+        write_list = self.write_list
+
+        def still_current() -> bool:
+            return self._event_generation == generation and self.write_list is write_list
+
         if self._managed_transport:
             payloads: List[bytes] = []
             for operation in operations:
@@ -1205,6 +1212,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ):
             for operation in operations:
                 self.__send(operation)
+                if not still_current():
+                    return
             return
 
         mav = self.master.mav
@@ -1219,12 +1228,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ) is not None:
             for operation in operations:
                 self.__send(operation)
+                if not still_current():
+                    return
             return
 
         link = mav.file
         collector = MAVLinkBatchWriter()
         for operation in operations:
             self.__send(operation, writer=collector)
+            if not still_current():
+                return
 
         if not collector.packets:
             return
@@ -1247,6 +1260,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         for packet in collector.packets:
             if batch and len(batch) + len(packet) > MAX_NETWORK_BATCH:
                 self.__write_link_data(link, bytes(batch), is_stream)
+                if not still_current():
+                    return
                 batch = bytearray()
             batch.extend(packet)
         if batch:
@@ -2168,19 +2183,29 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 # for virtual MAVFTP paths such as param.pck?withdefaults=1,
                 # which must never be treated as local filenames.
                 publish_result = False
+                generation = self._event_generation
+                stream = self.fh
+                started = self.op_start
+                callback = self.callback
+                # Claim this callback before it can re-enter cancellation or
+                # completion. Never clear a replacement command's callback.
+                self.callback = None
                 self.fh.seek(0)
                 try:
-                    callback_result = self.callback(self.fh)
+                    callback_result = callback(stream)
                     if (
-                        isinstance(callback_result, MAVFTPReturn)
+                        self._event_generation == generation
+                        and self.op_start == started
+                        and isinstance(callback_result, MAVFTPReturn)
                         and callback_result.error_code != FtpError.Success
                     ):
                         self.callback_failure = callback_result
                 except Exception as exc:  # pylint: disable=broad-exception-caught
                     logging.error("FTP: download callback failed: %s", exc)
-                    self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
-                finally:
-                    self.callback = None
+                    if self._event_generation == generation and self.op_start == started:
+                        self.callback_failure = MAVFTPReturn("Get", FtpError.Fail)
+                if self._event_generation != generation or self.op_start != started:
+                    return True
             elif self.read_to_memory:
                 publish_result = False
                 self.done = True
@@ -2839,6 +2864,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
     def __put_finished(self, flen: int) -> None:
         """Finish a put."""
+        generation = self._event_generation
+        write_list = self.write_list
         progress_callback = self.put_callback_progress
         self.put_callback_progress = None
         put_callback = self.put_callback
@@ -2848,13 +2875,19 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 progress_callback(1.0)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload progress callback failed: %s", exc)
-                self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
+                if self._event_generation == generation and self.write_list is write_list:
+                    self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
+            if self._event_generation != generation or self.write_list is not write_list:
+                return
         if put_callback is not None:
             try:
                 put_callback(flen)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: upload callback failed: %s", exc)
-                self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
+                if self._event_generation == generation and self.write_list is write_list:
+                    self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
+            if self._event_generation != generation or self.write_list is not write_list:
+                return
         elif self.op_start:
             dt = max(time.time() - self.op_start, 1.0e-6)
             rate = (flen / dt) / 1024.0
@@ -3024,6 +3057,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 ),
                 None,
             )
+            retry_write = write is not None
             if write is None:
                 expected_length = self.__write_block_len(idx)
                 try:
@@ -3057,14 +3091,22 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     bytearray(data),
                 )
                 writes.append(write)
-            else:
-                self.__send(write, retry=True)
-                if self.write_list is not write_list:
-                    return
+            # Reserve the slot before the transport can ACK it inline.
             self.write_inflight.add(idx)
             self.write_idx = (idx + 1) % self.write_total
             self.write_pending += 1
             self.write_last_send = now
+            if retry_write:
+                acks_before_send = self.write_acks
+                self.__send(write, retry=True)
+                # Inline ACKs may recursively refill the window. Its state
+                # and the precomputed loop count are no longer ours to use.
+                if self.write_list is not write_list:
+                    return
+                if self.write_acks != acks_before_send:
+                    if writes:
+                        self.__send_batch(writes)
+                    return
         if writes:
             self.__send_batch(writes)
             if self.write_list is not write_list:
@@ -4403,8 +4445,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 # Resume at the current high-water mark while preserving the
                 # client's reply gate and re-arming the server's burst offset.
                 self.pending_burst_request.offset = self.__read_position()
+                generation = self._event_generation
+                stream = self.fh
+                # An inline reply may reset this counter on progress.
+                self.read_retries += 1
                 self.__send(self.pending_burst_request, retry=True)
-            self.read_retries += 1
+                if self._event_generation != generation or self.fh is not stream:
+                    return False
+            else:
+                self.read_retries += 1
 
         # see if we can fill gaps
         if not self.__check_read_send():
