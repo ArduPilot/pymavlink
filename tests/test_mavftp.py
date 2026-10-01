@@ -8,6 +8,10 @@ SPDX-FileCopyrightText: 2024 Amilcar Lucas
 SPDX-License-Identifier: GPL-3.0-or-later
 '''
 
+# These callbacks are intentionally nested in parameter loops to exercise
+# synchronous reentry; default-bound mutable values snapshot each test case.
+# pylint: disable=cell-var-from-loop,dangerous-default-value,too-many-arguments
+
 import importlib
 import logging
 import os

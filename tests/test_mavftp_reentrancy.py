@@ -1,5 +1,9 @@
 """Adversarial synchronous transport and callback reentry regressions."""
 
+# These tests intentionally inspect internal protocol state and define small
+# fixture classes without public APIs; both are part of the regression setup.
+# pylint: disable=protected-access,missing-class-docstring,too-few-public-methods,too-many-lines
+
 import struct
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -48,7 +52,7 @@ def test_retry_ack_does_not_resurrect_upload_inflight():
     assert ftp.pending_write_replies == {
         master._decode_payload(sent[-1]).seq + 1: 80,
     }
-    assert completed == []
+    assert not completed
 
 
 @pytest.mark.parametrize("cancel_only", [False, True])
@@ -599,7 +603,7 @@ def test_upload_source_read_idle_reentry_cannot_reserve_block_twice():
     assert len(writes) == 1
     assert ftp.write_pending == 1
     assert ftp.write_inflight == {0}
-    assert completed == []
+    assert not completed
 
 
 def test_standalone_upload_termination_idle_reentry_reports_completion_once():
@@ -721,7 +725,7 @@ def test_download_destination_io_replacement_preserves_new_operation(phase):
     assert not ftp.request_cancelled
     assert [r.operation_name for r in completed] == ["Get"]
     if phase == "seek":
-        assert old_writes == []
+        assert not old_writes
 
 
 def test_release_staging_close_reentry_preserves_replacement_resources():
@@ -928,7 +932,7 @@ def test_staged_publication_replacement_preserves_new_staging_ownership(phase):
     assert ftp.filename == "new-destination"
     assert not ftp.read_complete
     assert not ftp.request_cancelled
-    assert completed == []
+    assert not completed
     unlink.assert_not_called()
     if phase != "replace":
         publish.assert_not_called()
@@ -971,12 +975,12 @@ def test_gap_progress_nested_burst_preserves_receive_high_water_mark(repair_opco
         b"z" * 80, offset=0, session=37,
     ))
     assert ftp.fh.tell() == 240
-    assert ftp.read_gaps == []
+    assert not ftp.read_gaps
     ftp.mavlink_packet(ftp_reply(
         burst.seq + 3, OP_Ack, OP_BurstReadFile,
         b"w" * 80, offset=240, session=37,
     ))
-    assert ftp.read_gaps == []
+    assert not ftp.read_gaps
     assert ftp.fh.tell() == 320
 
 

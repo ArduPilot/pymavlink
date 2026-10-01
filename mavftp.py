@@ -1201,7 +1201,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 return
             offset += written
 
-    def __send_batch(  # pylint: disable=too-many-branches
+    def __send_batch(  # pylint: disable=too-many-branches,too-many-locals,too-many-return-statements
         self, operations: List[FTP_OP]
     ) -> None:
         """Send several requests in one underlying link write when possible."""
@@ -1401,7 +1401,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 "FTP: failed to fsync destination directory %s: %s", directory, exc
             )
 
-    def __terminate_session(  # pylint: disable=too-many-branches,too-many-statements
+    def __terminate_session(  # pylint: disable=too-many-branches,too-many-statements,too-many-return-statements
         self,
         success: bool = False,
         result: Optional[MAVFTPReturn] = None,
@@ -1856,7 +1856,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         logging.info("reading sector %s, offset=%u, size=%u", path, offset, size)
         return self.read(path, size, offset)
 
-    def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:  # pylint: disable=too-many-statements
+    def read(self, path: str, size: int, offset: int = 0) -> Optional[bytes]:  # pylint: disable=too-many-statements,too-many-return-statements,too-many-branches
         """Get file."""
         if size < 0 or offset < 0:
             logging.error("Invalid read range: offset=%u size=%u", offset, size)
@@ -2212,7 +2212,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     pass
         self.__deliver_managed_result(generation, operation_callback, result)
 
-    def __check_read_finished(  # pylint: disable=too-many-branches,too-many-statements
+    def __check_read_finished(
         self,
     ) -> bool:
         """Claim finalization so nested callbacks cannot consume the same stream."""
@@ -2225,7 +2225,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         finally:
             self._read_finalizing_generations.discard(generation)
 
-    def __check_read_finished_owned(  # pylint: disable=too-many-branches,too-many-statements
+    def __check_read_finished_owned(  # pylint: disable=too-many-branches,too-many-statements,too-many-return-statements,too-many-locals
         self,
     ) -> bool:
         """Check if download has completed."""
@@ -2442,7 +2442,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return True
         return False
 
-    def __write_payload(self, op: FTP_OP) -> bool:
+    def __write_payload(  # pylint: disable=too-many-branches,too-many-return-statements
+        self, op: FTP_OP
+    ) -> bool:
         """Write payload from a read op, returning whether processing may continue."""
         generation = self._event_generation
         stream = self.fh
@@ -2980,7 +2982,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: operation callback failed: %s", exc)
 
-    def __put_finished(self, flen: int) -> None:
+    def __put_finished(self, flen: int) -> None:  # pylint: disable=unused-private-member
         """Claim standalone completion before invoking final user callbacks."""
         generation = self._event_generation
         if generation in self._put_finalizing_generations:
@@ -3129,7 +3131,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         offset = idx * self.write_block_size
         return max(0, min(self.write_block_size, self.write_file_size - offset))
 
-    def __send_more_writes(  # pylint: disable=too-many-branches,too-many-return-statements
+    def __send_more_writes(  # pylint: disable=too-many-branches,too-many-return-statements,too-many-locals,too-many-statements
         self, completed_reply: Optional[FTP_OP] = None
     ) -> None:
         """Send some more writes."""
@@ -3455,7 +3457,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.completed_reply = (op.req_opcode, op.seq)
         return self.__decode_ftp_ack_and_nack(op)
 
-    def cmd_rename(
+    def cmd_rename(  # pylint: disable=too-many-return-statements
         self, args: List[str], timeout: Optional[float] = None, wait: bool = True
     ) -> MAVFTPReturn:
         """Rename file or directory."""
@@ -3545,7 +3547,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.completed_reply = (op.req_opcode, op.seq)
         return self.__decode_ftp_ack_and_nack(op)
 
-    def cmd_crc(
+    def cmd_crc(  # pylint: disable=too-many-return-statements
         self, args: List[str], timeout: Optional[float] = None, wait: bool = True
     ) -> MAVFTPReturn:
         """Get file crc."""
@@ -4675,7 +4677,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         finally:
             self._next_no_sessions_timeout_extension = previous_extension
 
-    def process_ftp_reply(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements,too-many-nested-blocks
+    def process_ftp_reply(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements,too-many-nested-blocks,too-many-return-statements
         self, operation_name: str, timeout: Optional[float] = None
     ) -> MAVFTPReturn:
         """Execute an FTP operation that requires processing a MAVLink response.
