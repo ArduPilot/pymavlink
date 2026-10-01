@@ -492,3 +492,169 @@ def test_crccmp_inline_first_reply_preserves_next_pending_request():
     ))
     assert ftp.crccmp_results == ["MATCH", "MATCH"]
     assert [r.error_code for r in completed] == [FtpError.Success]
+
+
+def test_standalone_download_callback_idle_reentry_cannot_finalize_twice():
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    ftp.fh = BytesIO(b"data")
+    ftp.fh.seek(4)
+    ftp.filename = "-"
+    ftp.op_start = 1
+    ftp.reached_eof = True
+    ftp.requested_size = 4
+    observations = []
+
+    def consume(stream):
+        ftp._MAVFTP__check_read_finished()
+        observations.append((ftp.fh is stream, ftp.read_complete))
+        assert stream.read() == b"data"
+
+    ftp.callback = consume
+    with (
+        patch.object(ftp, "process_ftp_reply", return_value=helpers.MAVFTPReturn(
+            "TerminateSession", FtpError.Success,
+        )),
+        patch("pymavlink.mavftp.sys.stdout", helpers.BinaryStdout()) as stdout,
+    ):
+        ftp._MAVFTP__check_read_finished()
+    assert observations == [(True, False)]
+    assert stdout.buffer.getvalue() == b""
+    requests = [master._decode_payload(args[-1]) for args in master.mav.sent]
+    assert sum(r.opcode == OP_TerminateSession for r in requests) == 1
+
+
+def test_standalone_upload_final_progress_idle_reentry_cannot_finalize_twice():
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    completed = []
+    progress = []
+
+    def on_progress(value):
+        progress.append(value)
+        if value == 1:
+            ftp.idle_task()
+
+    ftp.cmd_put(["old"], fh=BytesIO(b""), callback=completed.append,
+                progress_callback=on_progress)
+    create = ftp.last_op
+    with patch.object(ftp, "process_ftp_reply", return_value=helpers.MAVFTPReturn(
+        "TerminateSession", FtpError.Success,
+    )):
+        ftp.mavlink_packet(ftp_reply(
+            create.seq + 1, OP_Ack, OP_CreateFile, session=ftp.session,
+        ))
+    assert progress == [1.0]
+    assert completed == [0]
+    requests = [master._decode_payload(args[-1]) for args in master.mav.sent]
+    assert sum(r.opcode == OP_TerminateSession for r in requests) == 1
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_upload_source_read_replacement_cannot_send_or_fail_new_operation(raises):
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    entered = []
+
+    class ReentrantSource(BytesIO):
+        def read(self, size=-1):
+            data = super().read(size)
+            if not entered:
+                entered.append(True)
+                ftp.cmd_cancel()
+                ftp.cmd_mkdir(["next"], wait=False)
+                if raises:
+                    raise OSError("old source failed after replacement")
+            return data
+
+    ftp.cmd_put(["old"], fh=ReentrantSource(b"data"), callback=lambda _size: None)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        create.seq + 1, OP_Ack, OP_CreateFile, session=37,
+    ))
+    assert ftp.last_op.opcode == OP_CreateDirectory
+    assert not ftp.request_cancelled
+    assert ftp.callback_failure is None
+    assert ftp.write_inflight == set()
+    assert [r.operation_name for r in completed] == ["Put"]
+    assert all(master._decode_payload(packet).opcode != OP_WriteFile for packet in sent)
+
+
+def test_upload_source_read_idle_reentry_cannot_reserve_block_twice():
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    entered = []
+
+    class ReentrantSource(BytesIO):
+        def read(self, size=-1):
+            data = super().read(size)
+            if not entered:
+                entered.append(True)
+                ftp.idle_task()
+            return data
+
+    ftp.cmd_put(["old"], fh=ReentrantSource(b"data"), callback=lambda _size: None)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        create.seq + 1, OP_Ack, OP_CreateFile, session=37,
+    ))
+    writes = [master._decode_payload(packet) for packet in sent
+              if master._decode_payload(packet).opcode == OP_WriteFile]
+    assert len(writes) == 1
+    assert ftp.write_pending == 1
+    assert ftp.write_inflight == {0}
+    assert completed == []
+
+
+def test_standalone_upload_termination_idle_reentry_reports_completion_once():
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    completed = []
+    entered = []
+    original_send = master.mav.file_transfer_protocol_send
+
+    def send(*args):
+        original_send(*args)
+        request = master._decode_payload(args[-1])
+        if request.opcode == OP_TerminateSession and not entered:
+            entered.append(True)
+            ftp.idle_task()
+
+    master.mav.file_transfer_protocol_send = send
+    ftp.cmd_put(["old"], fh=BytesIO(b""), callback=completed.append)
+    create = ftp.last_op
+    with patch.object(ftp, "process_ftp_reply", return_value=helpers.MAVFTPReturn(
+        "TerminateSession", FtpError.Success,
+    )):
+        ftp.mavlink_packet(ftp_reply(
+            create.seq + 1, OP_Ack, OP_CreateFile, session=ftp.session,
+        ))
+    assert completed == [0]
+    requests = [master._decode_payload(args[-1]) for args in master.mav.sent]
+    assert sum(r.opcode == OP_TerminateSession for r in requests) == 1
+    assert not ftp._put_finalizing_generations
+
+
+def test_upload_source_read_guard_allows_replacement_upload_to_send_inline():
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    entered = []
+
+    class ReentrantSource(BytesIO):
+        def read(self, size=-1):
+            data = super().read(size)
+            if not entered:
+                entered.append(True)
+                ftp.cmd_cancel()
+                ftp.cmd_put(["next"], fh=BytesIO(b"new"), callback=lambda _size: None)
+                create = master._decode_payload(sent[-1])
+                ftp.mavlink_packet(ftp_reply(
+                    create.seq + 1, OP_Ack, OP_CreateFile, session=37,
+                ))
+            return data
+
+    ftp.cmd_put(["old"], fh=ReentrantSource(b"old"), callback=lambda _size: None)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        create.seq + 1, OP_Ack, OP_CreateFile, session=37,
+    ))
+    writes = [master._decode_payload(packet) for packet in sent
+              if master._decode_payload(packet).opcode == OP_WriteFile]
+    assert [bytes(write.payload) for write in writes] == [b"new"]
+    assert ftp.write_pending == 1
+    assert [r.operation_name for r in completed] == ["Put"]
+    assert not ftp._upload_read_generations

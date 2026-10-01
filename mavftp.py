@@ -532,6 +532,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._operation_callback = operation_callback
         self._event_operation: Optional[str] = None
         self._event_generation = 0
+        self._read_finalizing_generations: Set[int] = set()
+        self._put_finalizing_generations: Set[int] = set()
+        self._upload_read_generations: Set[int] = set()
         self._event_complete = False
         self.event_result: Optional[MAVFTPReturn] = None
         self._event_deadline: Optional[float] = None
@@ -2194,6 +2197,19 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def __check_read_finished(  # pylint: disable=too-many-branches,too-many-statements
         self,
     ) -> bool:
+        """Claim finalization so nested callbacks cannot consume the same stream."""
+        generation = self._event_generation
+        if generation in self._read_finalizing_generations:
+            return True
+        self._read_finalizing_generations.add(generation)
+        try:
+            return self.__check_read_finished_owned()
+        finally:
+            self._read_finalizing_generations.discard(generation)
+
+    def __check_read_finished_owned(  # pylint: disable=too-many-branches,too-many-statements
+        self,
+    ) -> bool:
         """Check if download has completed."""
         if self.fh is None:
             return True
@@ -2898,6 +2914,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 logging.error("FTP: operation callback failed: %s", exc)
 
     def __put_finished(self, flen: int) -> None:
+        """Claim standalone completion before invoking final user callbacks."""
+        generation = self._event_generation
+        if generation in self._put_finalizing_generations:
+            return
+        self._put_finalizing_generations.add(generation)
+        try:
+            self.__put_finished_owned(flen)
+        finally:
+            self._put_finalizing_generations.discard(generation)
+
+    def __put_finished_owned(self, flen: int) -> None:
         """Finish a put."""
         generation = self._event_generation
         write_list = self.write_list
@@ -3045,6 +3072,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         write_list = self.write_list
         generation = self._event_generation
         if (
+            generation in self._put_finalizing_generations
+            or generation in self._upload_read_generations
+        ):
+            return
+        if (
             not self.write_open
             and self.last_op is not None
             and self.last_op.opcode == OP_CreateFile
@@ -3055,10 +3087,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if self._managed_transport:
                 self.__finish_managed_put(completed_reply)
                 return
-            self.__put_finished(self.write_file_size)
-            if self.write_list is not write_list:
-                return
-            self.__finish_session(success=self.callback_failure is None)
+            # Own both callbacks and the termination send. Reentrant idle
+            # service during either phase must not finish this upload again.
+            self._put_finalizing_generations.add(generation)
+            try:
+                self.__put_finished_owned(self.write_file_size)
+                if self.write_list is not write_list:
+                    return
+                self.__finish_session(success=self.callback_failure is None)
+            finally:
+                self._put_finalizing_generations.discard(generation)
             if (
                 self._event_generation == generation
                 and completed_reply is not None
@@ -3100,15 +3138,26 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             retry_write = write is not None
             if write is None:
                 expected_length = self.__write_block_len(idx)
+                stream = self.fh
                 try:
-                    if self.fh is None:
+                    if stream is None:
                         raise ValueError("local upload file is not open")
-                    self.fh.seek(ofs)
-                    data = self.fh.read(expected_length)
+                    self._upload_read_generations.add(generation)
+                    try:
+                        stream.seek(ofs)
+                        if self._event_generation != generation or self.write_list is not write_list:
+                            return
+                        data = stream.read(expected_length)
+                    finally:
+                        self._upload_read_generations.discard(generation)
                 except (OSError, ValueError) as exc:
                     logging.error("FTP: failed to read local upload file: %s", exc)
+                    if self._event_generation != generation or self.write_list is not write_list:
+                        return
                     self.callback_failure = MAVFTPReturn("Put", FtpError.Fail)
                     self.__terminate_session()
+                    return
+                if self._event_generation != generation or self.write_list is not write_list:
                     return
                 if len(data) != expected_length:
                     logging.error(
