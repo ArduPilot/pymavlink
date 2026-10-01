@@ -1109,10 +1109,15 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return MAVFTPReturn("mavlink_packet", FtpError.Fail)
         result: Optional[MAVFTPReturn]
         generation = self.accepted_reply_generation
+        operation_generation = self._event_generation
         if self._managed_transport:
             result = self.__dispatch_received_packet(message)
         else:
             result = self.__receive_packet(message)
+        # The returned reply and progress accounting belong to the old
+        # operation, not a command started from one of its callbacks.
+        if self._event_generation != operation_generation:
+            return result
         if (
             self._managed_transport
             and self._event_operation in {"Get", "Put", "ListDirectory"}
@@ -2357,15 +2362,23 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return False
         self.read_total += len(op.payload)
         if self.callback_progress is not None:
+            generation = self._event_generation
+            stream = self.fh
+            progress_callback = self.callback_progress
             try:
                 completion = (
                     self.read_total / self.remote_file_size
                     if self.remote_file_size else 0.0
                 )
-                self.callback_progress(completion)
+                progress_callback(completion)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error("FTP: download progress callback failed: %s", exc)
-                self.callback_progress = None
+                if self._event_generation == generation and self.fh is stream:
+                    self.callback_progress = None
+            # Cancellation or replacement invalidates the surrounding read
+            # handler's seek, sequence, EOF, and completion work as well.
+            if self._event_generation != generation or self.fh is not stream:
+                return False
         return True
 
     def __read_position(self) -> int:
@@ -3924,6 +3937,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         read_total_before_reply = self.read_total
         reached_eof_before_reply = self.reached_eof
         read_gaps_before_reply = len(self.read_gaps)
+        operation_generation = self._event_generation
         try:
             no_sessions_reply = (
                 op.opcode == OP_Nack
@@ -4010,9 +4024,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             # The retry limit protects a continuous burst stall, not an
             # entire download. An accepted payload, EOF, or gap repair proves
             # that the link made forward progress and starts a fresh window.
-            if op.req_opcode in {OP_BurstReadFile, OP_ReadFile} and read_progressed:
+            if (
+                self._event_generation == operation_generation
+                and op.req_opcode in {OP_BurstReadFile, OP_ReadFile}
+                and read_progressed
+            ):
                 self.read_retries = 0
-            if op.req_opcode not in {OP_BurstReadFile, OP_ReadFile} or read_progressed:
+            if (
+                self._event_generation == operation_generation
+                and (op.req_opcode not in {OP_BurstReadFile, OP_ReadFile} or read_progressed)
+            ):
                 self.accepted_reply_generation += 1
 
     def __send_gap_read(self, g) -> None:
@@ -4034,25 +4055,28 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             ),
             None,
         )
+        retry = read is not None
         if read is None:
             read = FTP_OP(
                 self.seq, self.session, OP_ReadFile, length, 0, 0, offset, None
             )
-            self.__send(read)
-        else:
-            self.__send(read, retry=True)
         # Keep gap order stable.  Timing already prevents immediate resend,
         # while preserving order lets an expired parallel window be refilled
-        # deterministically from its oldest outstanding gaps.
+        # deterministically from its oldest outstanding gaps. Publish before
+        # sending: an inline reply can consume the gap or finish the transfer.
         self.last_gap_send = time.time()
         self.read_gap_times[g] = self.last_gap_send
         self.read_gap_retries.setdefault(g, 0)
         self.backlog += 1
+        self.__send(read, retry=retry)
 
     def __check_read_send(self) -> bool:
         """Keep a bounded window of gap reads in flight."""
         if not self.read_gaps:
             return True
+        generation = self._event_generation
+        read_gaps = self.read_gaps
+        stream = self.fh
         now = time.time()
         timeout = self.retry_timeout()
         for gap in list(self.read_gaps):
@@ -4077,10 +4101,21 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         limit = max(1, int(self.ftp_settings.max_backlog))
         for gap in list(self.read_gaps):
+            # An inline reply may have repaired another gap in this snapshot.
+            if gap not in self.read_gaps:
+                continue
             if self.backlog >= limit:
                 break
             if self.read_gap_times.get(gap, 0) == 0:
                 self.__send_gap_read(gap)
+                # Do not schedule old gaps against a replacement operation or
+                # restore accounting after inline completion/cancellation.
+                if (
+                    self._event_generation != generation
+                    or self.read_gaps is not read_gaps
+                    or self.fh is not stream
+                ):
+                    return True
         return True
 
     def check_read_send(self) -> None:
