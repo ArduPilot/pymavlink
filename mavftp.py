@@ -1645,9 +1645,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         if not wait:
             self.__start_event_operation("ListDirectory", timeout)
+        else:
+            self._event_generation += 1
+        generation = self._event_generation
         self.__send(op)
         if not wait:
             return MAVFTPReturn("ListDirectory", FtpError.Success)
+        if self._event_generation != generation:
+            return MAVFTPReturn("ListDirectory", FtpError.Fail)
         if timeout is None:
             timeout = max(5.0, self.__initial_request_retry_budget())
             if self.list_with_time:
@@ -2197,6 +2202,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if len(self.read_gaps) == 0 and (
             self.reached_eof or (self.read_to_memory and self.read_total >= self.requested_size)
         ):
+            completion_generation = self._event_generation
             ofs = self.__read_position()
             dt = max(time.time() - self.op_start, 1.0e-6)
             rate = (ofs / dt) / 1024.0
@@ -2252,7 +2258,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 if self.callback_failure is None:
                     self.__finished_status("downloading", self.filename, ofs)
                 self.__finish_session(success=self.callback_failure is None)
-                self.read_complete = True
+                if self._event_generation == completion_generation:
+                    self.read_complete = True
                 return True
 
             assert self.fh is not None  # noqa: S101
@@ -2367,7 +2374,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 # terminate the remote session and release the staging
                 # file even when the destination cannot be written
                 self.__finish_session(success=self.callback_failure is None)
-                self.read_complete = True
+                if self._event_generation == completion_generation:
+                    self.read_complete = True
             return True
         return False
 
@@ -3035,6 +3043,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # state themselves without a CreateFile handshake. Normal puts have
         # last_op == CreateFile until this flag is raised.
         write_list = self.write_list
+        generation = self._event_generation
         if (
             not self.write_open
             and self.last_op is not None
@@ -3050,7 +3059,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             if self.write_list is not write_list:
                 return
             self.__finish_session(success=self.callback_failure is None)
-            if completed_reply is not None and not self._managed_transport:
+            if (
+                self._event_generation == generation
+                and completed_reply is not None
+                and not self._managed_transport
+            ):
                 self.completed_reply = (
                     completed_reply.req_opcode,
                     completed_reply.seq,
@@ -3260,9 +3273,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         if not wait:
             self.__start_event_operation("RemoveFile", timeout)
+        else:
+            self._event_generation += 1
+        generation = self._event_generation
         self.__send(op)
         if not wait:
             return MAVFTPReturn("RemoveFile", FtpError.Success)
+        if self._event_generation != generation:
+            return MAVFTPReturn("RemoveFile", FtpError.Fail)
         if timeout is None:
             timeout = max(5.0, self.__initial_request_retry_budget())
         return self.__process_command_reply(
@@ -3300,9 +3318,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         if not wait:
             self.__start_event_operation("RemoveDirectory", timeout)
+        else:
+            self._event_generation += 1
+        generation = self._event_generation
         self.__send(op)
         if not wait:
             return MAVFTPReturn("RemoveDirectory", FtpError.Success)
+        if self._event_generation != generation:
+            return MAVFTPReturn("RemoveDirectory", FtpError.Fail)
         if timeout is None:
             timeout = max(5.0, self.__initial_request_retry_budget())
         return self.__process_command_reply(
@@ -3342,9 +3365,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         op = FTP_OP(self.seq, self.session, OP_Rename, len(enc_both), 0, 0, 0, enc_both)
         if not wait:
             self.__start_event_operation("Rename", timeout)
+        else:
+            self._event_generation += 1
+        generation = self._event_generation
         self.__send(op)
         if not wait:
             return MAVFTPReturn("Rename", FtpError.Success)
+        if self._event_generation != generation:
+            return MAVFTPReturn("Rename", FtpError.Fail)
         if timeout is None:
             timeout = max(5.0, self.__initial_request_retry_budget())
         return self.__process_command_reply(
@@ -3380,9 +3408,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         )
         if not wait:
             self.__start_event_operation("CreateDirectory", timeout)
+        else:
+            self._event_generation += 1
+        generation = self._event_generation
         self.__send(op)
         if not wait:
             return MAVFTPReturn("CreateDirectory", FtpError.Success)
+        if self._event_generation != generation:
+            return MAVFTPReturn("CreateDirectory", FtpError.Fail)
         if timeout is None:
             timeout = max(5.0, self.__initial_request_retry_budget())
         return self.__process_command_reply(
@@ -3447,9 +3480,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 "CalcFileCRC32", timeout,
                 extend_timeout_on_no_sessions=extend_timeout_on_no_sessions,
             )
+        else:
+            self._event_generation += 1
+        generation = self._event_generation
         self.__send(op)
         if not wait:
             return MAVFTPReturn("CalcFileCRC32", FtpError.Success)
+        if self._event_generation != generation:
+            return MAVFTPReturn("CalcFileCRC32", FtpError.Fail)
         return self.__process_command_reply(
             "CalcFileCRC32",
             timeout=timeout,

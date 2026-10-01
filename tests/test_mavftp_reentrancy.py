@@ -232,6 +232,123 @@ def test_crccmp_accepts_inline_crc_replies(files):
     assert ftp.crccmp_file_deadline is None
 
 
+@pytest.mark.parametrize("command,args", [
+    ("cmd_list", ["/old"]),
+    ("cmd_rm", ["old"]),
+    ("cmd_rmdir", ["old"]),
+    ("cmd_rename", ["old", "renamed"]),
+    ("cmd_mkdir", ["old"]),
+    ("cmd_crc", ["old"]),
+])
+def test_blocking_command_send_replacement_never_waits_on_new_operation(command, args):
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    original_send = master.mav.file_transfer_protocol_send
+    entered = []
+    new_callback = MagicMock()
+
+    def send(*send_args):
+        original_send(*send_args)
+        if not entered:
+            entered.append(True)
+            ftp.cmd_get(["next", "-"], callback=new_callback)
+
+    master.mav.file_transfer_protocol_send = send
+    with patch.object(ftp, "process_ftp_reply") as reply_loop:
+        result = getattr(ftp, command)(args, timeout=0.01)
+    reply_loop.assert_not_called()
+    assert result.error_code == FtpError.Fail
+    assert ftp.last_op.opcode == OP_OpenFileRO
+    assert ftp.callback is new_callback
+    assert not ftp.request_cancelled
+
+
+def test_nested_blocking_command_invalidates_outer_reply_loop():
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    ftp.cmd_get(["old", "-"], callback=lambda _stream: None)
+    received = []
+
+    def receive(**_kwargs):
+        received.append(True)
+        # Avoid running a real nested receive loop; the command itself must
+        # publish ownership independently of its reply-loop implementation.
+        with patch.object(ftp, "process_ftp_reply"):
+            ftp.cmd_mkdir(["next"])
+
+    master.recv_match = receive
+    ftp.process_ftp_reply("get", timeout=0.01)
+    assert received == [True]
+    assert ftp.last_op.opcode == OP_CreateDirectory
+    assert not ftp.request_cancelled
+
+
+@pytest.mark.parametrize("managed,consumer", [
+    (True, False), (False, False), (False, True),
+])
+def test_download_cleanup_transport_replacement_does_not_set_read_complete(managed, consumer):
+    if managed:
+        ftp, master, sent, _completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    else:
+        ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+        sent = []
+    ftp.fh = BytesIO(b"data")
+    ftp.fh.seek(4)
+    ftp.filename = "-"
+    ftp.op_start = 1
+    ftp.reached_eof = True
+    ftp.requested_size = 4
+    if consumer:
+        ftp.callback = lambda _stream: None
+    replaced = []
+
+    def replace_on_termination(payload):
+        request = master._decode_payload(payload)
+        if request.opcode == OP_TerminateSession and not replaced:
+            replaced.append(True)
+            ftp.cmd_mkdir(["next"], wait=False)
+
+    if managed:
+        def send(packets):
+            sent.extend(packets)
+            replace_on_termination(packets[0])
+        ftp._send_payloads = send
+    else:
+        original_send = master.mav.file_transfer_protocol_send
+
+        def send(*args):
+            original_send(*args)
+            replace_on_termination(args[-1])
+        master.mav.file_transfer_protocol_send = send
+    with patch("pymavlink.mavftp.sys.stdout", helpers.BinaryStdout()):
+        ftp._MAVFTP__check_read_finished()
+    assert replaced == [True]
+    assert ftp.last_op.opcode == OP_CreateDirectory
+    assert not ftp.read_complete
+    assert not ftp.request_cancelled
+
+
+def test_upload_cleanup_transport_replacement_does_not_publish_old_completed_reply():
+    ftp, master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
+    ftp.cmd_put(["old"], fh=BytesIO(b""), callback=lambda _size: None)
+    original_send = master.mav.file_transfer_protocol_send
+    entered = []
+
+    def send(*args):
+        original_send(*args)
+        request = master._decode_payload(args[-1])
+        if request.opcode == OP_TerminateSession and not entered:
+            entered.append(True)
+            ftp.cmd_mkdir(["next"], wait=False)
+
+    master.mav.file_transfer_protocol_send = send
+    create = ftp.last_op
+    ftp.mavlink_packet(ftp_reply(
+        create.seq + 1, OP_Ack, OP_CreateFile, session=ftp.session,
+    ))
+    assert ftp.last_op.opcode == OP_CreateDirectory
+    assert ftp.completed_reply is None
+    assert not ftp.request_cancelled
+
+
 def test_crccmp_inline_backpressure_retry_reply_matches_fresh_sequence():
     ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
     start_fake_crccmp(ftp, ["old.bin"])
