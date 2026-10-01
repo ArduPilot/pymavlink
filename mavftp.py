@@ -2120,6 +2120,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     and callback_result.error_code != FtpError.Success
                 ):
                     result = callback_result
+            else:
+                # Receiving all bytes is not successful delivery when the
+                # required consumer (including getparams publication) is skipped.
+                result = MAVFTPReturn("Get", FtpError.Fail)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("FTP: download callback failed: %s", exc)
             result = MAVFTPReturn("Get", FtpError.Fail)
@@ -2771,7 +2775,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._event_complete = True
         self.__finish_session(success=True)
         failed = False
-        if progress_callback is not None:
+        # Transport reentry can replace the operation during termination.
+        # Guard final progress as well as the upload completion callback below.
+        if progress_callback is not None and self._event_generation == generation:
             try:
                 progress_callback(1.0)
             except Exception as exc:  # pylint: disable=broad-exception-caught
