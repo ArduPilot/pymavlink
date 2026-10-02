@@ -26,6 +26,74 @@ from pymavlink.tests import test_mavftp as helpers
 from pymavlink.tests.test_mavftp import ftp_reply
 
 
+@pytest.mark.parametrize("inline", [False, True])
+def test_large_upload_drains_inline_acknowledgements_without_recursion(inline):
+    """Inline and queued transports both complete the same 200-block upload."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    pending = []
+    uploaded = {}
+    sizes = []
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode == OP_WriteFile:
+                uploaded[request.offset] = bytes(request.payload)
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_WriteFile,
+                    offset=request.offset, session=37,
+                )
+                if inline:
+                    ftp.mavlink_packet(reply)
+                else:
+                    pending.append(reply)
+
+    ftp._send_payloads = send
+    data = bytes(range(80)) * 200
+    ftp.cmd_put(["large.bin"], fh=BytesIO(data), callback=sizes.append)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile, session=37))
+    while pending:
+        ftp.mavlink_packet(pending.pop(0))
+    assert b"".join(uploaded[offset] for offset in sorted(uploaded)) == data
+    assert sizes == [len(data)]
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert sum(master._decode_payload(p).opcode == OP_TerminateSession for p in sent) == 1
+
+
+def test_cancel_upload_inline_write_ack_sends_only_one_termination():
+    """An ACK arriving during cancellation cannot terminate detached state again."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    sizes = []
+    ftp.cmd_put(["old"], fh=BytesIO(b"x" * 160), callback=sizes.append)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile, session=37))
+    write = master._decode_payload(sent[-1])
+    answered = []
+
+    def send(packets):
+        sent.extend(packets)
+        if master._decode_payload(packets[0]).opcode == OP_TerminateSession and not answered:
+            answered.append(True)
+            ftp.mavlink_packet(ftp_reply(
+                write.seq + 1, OP_Ack, OP_WriteFile, offset=write.offset, session=37,
+            ))
+
+    ftp._send_payloads = send
+    ftp.cmd_cancel()
+    assert answered == [True]
+    assert sum(master._decode_payload(p).opcode == OP_TerminateSession for p in sent) == 1
+    assert sizes == [None]
+    assert len(completed) == 1
+    assert ftp.write_list is None
+    assert not ftp.write_open
+    assert not ftp.pending_write_requests
+    assert not ftp.pending_write_replies
+    assert not ftp.write_inflight
+    assert ftp.write_pending == 0
+
+
 def test_retry_ack_does_not_resurrect_upload_inflight():
     ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
     ftp.ftp_settings.write_qsize = 1
@@ -115,7 +183,7 @@ def test_standalone_download_callback_preserves_replacement(raises):
 def test_standalone_final_progress_skips_old_completion_after_replacement():
     ftp, _master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
     old_completion = MagicMock(side_effect=lambda _size: ftp.cmd_cancel())
-    ftp.cmd_put(["old"], fh=BytesIO(b"data"), callback=old_completion)
+    ftp.cmd_put(["old"], fh=BytesIO(b""), callback=old_completion)
 
     def progress(value):
         if value == 1:
@@ -124,7 +192,10 @@ def test_standalone_final_progress_skips_old_completion_after_replacement():
 
     ftp.put_callback_progress = progress
     with patch.object(ftp, "process_ftp_reply"):
-        ftp._MAVFTP__put_finished(4)
+        create = ftp.last_op
+        ftp.mavlink_packet(ftp_reply(
+            create.seq + 1, OP_Ack, OP_CreateFile, session=ftp.session,
+        ))
     old_completion.assert_not_called()
     assert ftp.last_op.opcode == OP_CreateDirectory
     assert not ftp.request_cancelled
