@@ -379,8 +379,16 @@ class MAVXML(object):
                     continue
                 params_dict=dict()
                 for param_index in range (1,8):
-                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='', 
-                                                        minValue='', maxValue='', default='0', reserved='True')
+                    if param_index in (5, 6):
+                        # param5/param6 double as int32 lat/lon when sent via COMMAND_INT or
+                        # MISSION_ITEM_INT, so an unused param5/param6 has a different default
+                        # depending on which message it is carried in.
+                        params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
+                                                            minValue='', maxValue='', default='NaN', reserved='True',
+                                                            description='Reserved (default:NaN, or INT32_MAX if sent as part of a COMMAND_INT or MISSION_ITEM_INT message)')
+                    else:
+                        params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
+                                                            minValue='', maxValue='', default='NaN', reserved='True')
 
                 for a_param in enum_entry.param:
                     params_dict[int(a_param.index)] = a_param
