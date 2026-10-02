@@ -84,6 +84,22 @@ struct Message {
 	 * @param[in] map
 	 */
 	virtual void deserialize(MsgMap &msp) = 0;
+
+    virtual uint32_t get_target_system() const { return 0; }
+
+    /** Serialize and finalize without narrowing the target to its payload byte. */
+    mavlink_message_t pack(uint32_t system_id, uint8_t component_id, uint8_t channel = 0) const
+    {
+        mavlink_message_t packet {};
+        MsgMap map(packet);
+        serialize(map);
+        const auto info = get_message_info();
+        if (mavlink_finalize_message_chan_target(&packet, system_id, component_id, channel,
+                info.min_length, info.length, info.crc_extra, get_target_system()) == 0) {
+            throw std::runtime_error("Wide system IDs require MAVLink2");
+        }
+        return packet;
+    }
 };
 
 /**

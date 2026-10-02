@@ -51,10 +51,12 @@ CON
     MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
     MAVLINK_IFLAG_SIGNED = $01
+    MAVLINK_IFLAG_SYSID32 = $02
+    MAVLINK_IFLAG_TARGET32 = $04
     LITTLE_ENDIAN = True
     PROTOCOL_MARKER = ${protocol_marker}
     MAVLINK_PAYLOAD_SIZE = 255
-    MAVLINK_BUF_LEN = 280
+    MAVLINK_BUF_LEN = 287
     MAVLINK_IGNORE_CRC = True ' fix this later
     STRUCT int64(msb, lsb)
     STRUCT double(msb, lsb)
@@ -64,7 +66,8 @@ VAR
     BYTE sequence ' sequence number for the CURRENT SESSION
     LONG total_bytes_sent
     LONG total_packets_sent
-    BYTE srcSystemId
+    LONG payloadTarget
+    LONG srcSystemId
     BYTE srcComponentId
     WORD expected_length
     ' long startup_time
@@ -251,11 +254,14 @@ def generate_message_defs(outf, msgs, enums):
                 if(field.type == "double"):
                     m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s*sizeof(double))" % (field.name, field.name, field.array_length))
                 elif(field.type == "uint64_t" or field.type == "int64_t"):
-                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s*sizeof(int64)" % (field.name, field.name, field.array_length))
+                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s*sizeof(int64))" % (field.name, field.name, field.array_length))
                 else:
-                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s)" % (field.name, field.name, field.array_length))
+                    m.init_fields.append("BYTEMOVE(@msg.%s, %s, %s)" % (field.name, field.name, field.array_length * field.type_length))
             else:
-                m.init_fields.append("msg.%s := %s" % (field.name, field.name))
+                if field.is_target_system:
+                    m.init_fields.append("if %s & $FFFFFF00\n        msg.%s := 255\n    else\n        msg.%s := %s" % (field.name, field.name, field.name, field.name))
+                else:
+                    m.init_fields.append("msg.%s := %s" % (field.name, field.name))
         t.write(
             outf,
             '''
@@ -270,22 +276,27 @@ CON
 
 PUB ${cleanname}_pack(${field_names}, ^${classname} msg): siz
     BYTEFILL(@payload_buf, 0, MAVLINK_PAYLOAD_SIZE)
+    payloadTarget := ${target_system}
     ${init_fields}
     ' build payload
-    siz := sizeof(msg)
-    BYTEMOVE(@payload_buf, @msg, siz)
+    siz := ${wire_length}
+    ${copy_payload}
     
 
 PUB ${cleanname}_send(${field_names}): siz | ${classname} msg
     BYTEFILL(@payload_buf, 0, MAVLINK_PAYLOAD_SIZE)
+    payloadTarget := ${target_system}
     ${init_fields}
     ' build payload
-    siz := sizeof(msg)
-    BYTEMOVE(@payload_buf, @msg, siz)
+    siz := ${wire_length}
+    ${copy_payload}
     send_mavlink(${cleanname}_id, srcSystemId, srcComponentId, ${cleanname}_crcx, siz, False)
 
 ''',
                 {
+                    "target_system": next((f.name for f in m.fields if f.is_target_system), "0"),
+                    "wire_length": m.wire_length,
+                    "copy_payload": "\n    ".join("BYTEMOVE(@payload_buf + %u, @msg.%s, %u)" % (f.wire_offset, f.name, (f.array_length or 1) * f.type_length) for f in m.ordered_fields),
                     "classname": m.classname,
                     "field_names": ", ".join(m.spin_names),
                     "docstring": wrapper.fill(m.description.strip()),
@@ -293,7 +304,7 @@ PUB ${cleanname}_send(${field_names}): siz | ${classname} msg
                     "crc_extra": m.crc_extra,
                     "msgid": m.id,
                     "spin_fields": ", ".join(m.spin_fields),
-                    "init_fields": "\n\t".join(m.init_fields),
+                    "init_fields": "\n    ".join(m.init_fields),
                 },
         )
 
@@ -398,61 +409,70 @@ def generate_mavlink_parser(outf, msgs, xml):
         '''
         
         
-CON struct MAVLink(BYTE magic, BYTE len, BYTE incompat_flags, BYTE compat_flags, BYTE seq, BYTE sysid, BYTE compid, BYTE msgid, BYTE msgid_m, BYTE msgid_h, BYTE payload[MAVLINK_PAYLOAD_SIZE], WORD checksum)
+CON struct MAVLink(BYTE magic, BYTE len, BYTE incompat_flags, BYTE compat_flags, BYTE seq, LONG sysid, BYTE compid, BYTE msgid, BYTE msgid_m, BYTE msgid_h, BYTE payload[MAVLINK_PAYLOAD_SIZE], WORD checksum, LONG target_system)
 
 CON struct MAVLink_Signed(BYTE magic, BYTE len, BYTE incompat_flags, BYTE compat_flags, BYTE seq, BYTE sysid, BYTE compid, BYTE msgid, BYTE msgid_m, BYTE msgid_h, BYTE payload[MAVLINK_PAYLOAD_SIZE], WORD checksum, BYTE signature[13])
 
 CON struct MAVLink_1(BYTE magic, BYTE len, BYTE seq, BYTE sysid, BYTE compid, BYTE msgid, BYTE payload[MAVLINK_PAYLOAD_SIZE], WORD checksum)
 
-' TODO: audit compatibility flags on send
-PUB send_mavlink(msg_id, sys_id, comp_id, crc_extra, length, force_mavlink1) | MAVLink msg, b ' we could do full message instead of storing BUF and do one less BYTEMOVE at the cost of possibly confusing
-    if(force_mavlink1)
-        send_mavlink1(msg_id, sys_id, comp_id, length, crc_extra)
+
+' Build wire bytes separately from the decoded packet struct. Returns 0 when
+' MAVLink1 cannot represent an ID. get_send_buffer() exposes the packed bytes.
+PUB pack_frame(msg_id, sys_id, comp_id, crc_extra, length, force_mavlink1): size | offset, flags, i
+    flags := 0
+    if force_mavlink1 && ((sys_id & $FFFFFF00) || (payloadTarget & $FFFFFF00) || (msg_id & $FFFFFF00))
+        return 0
+    if force_mavlink1
+        length := payload_length_v1(msg_id, length)
+        buf[0] := PROTOCOL_MARKER_V1
+        offset := 2
+    else
+        buf[0] := PROTOCOL_MARKER_V2
+        flags := 0
+        if sys_id & $FFFFFF00
+            flags |= MAVLINK_IFLAG_SYSID32
+        if payloadTarget & $FFFFFF00
+            flags |= MAVLINK_IFLAG_TARGET32
+        buf[2] := flags
+        buf[3] := 0
+        offset := 4
+        repeat while length > 1 && payload_buf[length - 1] == 0
+            length--
+    buf[1] := length
+    buf[offset++] := sequence++
+    buf[offset++] := sys_id
+    if flags & MAVLINK_IFLAG_SYSID32
+        repeat i from 1 to 3
+            buf[offset++] := sys_id >> (8 * i)
+    buf[offset++] := comp_id
+    buf[offset++] := msg_id
+    if !force_mavlink1
+        buf[offset++] := msg_id >> 8
+        buf[offset++] := msg_id >> 16
+    if flags & MAVLINK_IFLAG_TARGET32
+        repeat i from 0 to 3
+            buf[offset++] := payloadTarget >> (8 * i)
+    BYTEMOVE(@buf + offset, @payload_buf, length)
+    size := offset + length + 2
+    make_crc(@buf, size, crc_extra)
+    buf[size - 2] := crc
+    buf[size - 1] := crc >> 8
+
+PUB get_send_buffer(): address
+    return @buf
+
+PUB send_mavlink(msg_id, sys_id, comp_id, crc_extra, length, force_mavlink1) | size, i
+    size := pack_frame(msg_id, sys_id, comp_id, crc_extra, length, force_mavlink1)
+    if size == 0
         return
-    sequence := (sequence + 1) // 256
-    msg.magic := PROTOCOL_MARKER_V2
-    msg.seq := sequence
-    msg.sysid := sys_id
-    msg.compid := comp_id
-    msg.len := length
-    ' convert long to 3 bytes
-    msg.msgid := 0 | msg_id
-    msg.msgid_m := 0 | msg_id >> 8
-    msg.msgid_h :=  0 | msg_id >> 16
-        
-    BYTEFILL(@msg.payload, 0, MAVLINK_PAYLOAD_SIZE)
-    BYTEMOVE(@msg.payload, @payload_buf, msg.len) ' put the payload into the message struct, we don't need 2 send buffers    
-    
-    make_crc(@msg, msg.len+12, crc_extra)
-    msg.checksum := crc
-    total_packets_sent += 1
-    total_bytes_sent += sizeof(msg) - MAVLINK_PAYLOAD_SIZE + msg.len
+    repeat i from 0 to size - 1
+        sendSerial(buf[i])
+    total_packets_sent++
+    total_bytes_sent += size
 
-    REPEAT b FROM 0 to 9
-        sendSerial(byte[@msg+b])
-    REPEAT b FROM 10 to (msg.len+9)
-        sendSerial(byte[@msg+b])    
-    REPEAT b FROM 265 to (sizeof(msg)-1)
-        sendSerial(byte[@msg+b])
+PUB send_mavlink1(msg_id, sys_id, comp_id, length, crc_extra)
+    send_mavlink(msg_id, sys_id, comp_id, crc_extra, length, TRUE)
 
-PUB send_mavlink1(msg_id, sys_id, comp_id, length, crc_extra) | MavLink_1 msg, b
-    sequence := (sequence + 1) // 256
-    msg.magic := PROTOCOL_MARKER_V1
-    msg.seq := sequence
-    msg.sysid := sys_id
-    msg.compid := comp_id
-    msg.len := length
-    BYTEFILL(@msg.payload, 0, MAVLINK_PAYLOAD_SIZE)
-    BYTEMOVE(@msg.payload, @payload_buf, msg.len) ' put the payload into the message struct, we don't need 2 send buffers
-    total_packets_sent += 1
-    total_bytes_sent += sizeof(msg) - MAVLINK_PAYLOAD_SIZE + msg.len
-    REPEAT b FROM 0 to 5
-        sendSerial(byte[@msg+b])
-    REPEAT b FROM 6 to (msg.len+5)
-        sendSerial(byte[@msg+b])    
-    REPEAT b FROM 260 to (sizeof(msg)-1)
-        sendSerial(byte[@msg+b])
-    
 VAR
     LONG isMavlink2
     LONG sendSerial
@@ -497,6 +517,8 @@ VAR
     MAVLink inPacket
     BYTE payloadIndex
     WORD discardRemaining
+    WORD receiveIndex, receiveExpected
+    BYTE receiveBuffer[MAVLINK_BUF_LEN]
     
 PRI crcError()
     ' Do nothing for now. TODO: implement error handling
@@ -507,80 +529,114 @@ PUB newPacket()
     BYTEFILL(@inPacket, 0, sizeof(inPacket))
     payloadIndex~
     discardRemaining~
+    receiveIndex~
+    receiveExpected~
 
 PUB getPacket(): packetAddr
     packetAddr := @inPacket
     return packetAddr
 
-PUB parse_char(c)
-    if discardRemaining > 0
-        discardRemaining--
+PUB parse_char(c) | flags, offset, i, headerlen
+    if receiveIndex == 0 && c <> PROTOCOL_MARKER_V1 && c <> PROTOCOL_MARKER_V2
         return
-    CASE_FAST parse_state
-        PARSE_STATE_UNINIT..PARSE_STATE_IDLE:
-            IF (c == PROTOCOL_MARKER_V2)
-                inPacket.magic := c
-                if (isMavlink2 <> TRUE)                    
-                    isMavlink2 := TRUE
-                parse_state := PARSE_STATE_GOT_STX
-            ELSEIF (c == PROTOCOL_MARKER_V1)
-                inPacket.magic := c
-                if (isMavlink2)
-                    isMavlink2 := False
-                parse_state := PARSE_STATE_GOT_STX
-        PARSE_STATE_GOT_STX: ' mavlink 1 and 2
-            inPacket.len := c
-            if (isMavlink2 == TRUE)
-                parse_state := PARSE_STATE_GOT_LENGTH                
-            else
-                parse_state := PARSE_STATE_GOT_COMPAT_FLAGS ' skip to seq, mavlink 1
-        PARSE_STATE_GOT_LENGTH:
-            inPacket.incompat_flags := c
-            if c <> 0 ' signatures and extended headers are unsupported
-                discardRemaining := inPacket.len + 9
-                if c & 1
-                    discardRemaining += 13
-                if c & 2
-                    discardRemaining += 3
-                if c & 4
-                    discardRemaining += 4
-                parse_state := PARSE_STATE_IDLE
-            else
-                parse_state := PARSE_STATE_GOT_INCOMPAT_FLAGS
-        PARSE_STATE_GOT_INCOMPAT_FLAGS: inPacket.compat_flags := c
-            parse_state := PARSE_STATE_GOT_COMPAT_FLAGS
-        PARSE_STATE_GOT_COMPAT_FLAGS: inPacket.seq := c
-            parse_state := PARSE_STATE_GOT_SEQ
-        PARSE_STATE_GOT_SEQ: inPacket.sysid := c                
-            parse_state := PARSE_STATE_GOT_SYSID
-        PARSE_STATE_GOT_SYSID: inPacket.compid := c
-            parse_state := PARSE_STATE_GOT_COMPID
-        PARSE_STATE_GOT_COMPID: inPacket.msgid := c
-            IF (isMavlink2 == TRUE)
-                parse_state := PARSE_STATE_GOT_MSGID1 ' three byte id
-            ELSE
-                parse_state := PARSE_STATE_GOT_MSGID3 ' one byte id
-        PARSE_STATE_GOT_MSGID1: inPacket.msgid_m := c
-            parse_state := PARSE_STATE_GOT_MSGID2
-        PARSE_STATE_GOT_MSGID2: inPacket.msgid_h := c
-            if inPacket.len > 0
-                parse_state := PARSE_STATE_GOT_MSGID3
-            else
-                parse_state := PARSE_STATE_GOT_PAYLOAD ' no payload
-        PARSE_STATE_GOT_MSGID3: inPacket.payload[payloadIndex++] := c
-            if (payloadIndex == inPacket.len)
-                parse_state := PARSE_STATE_GOT_PAYLOAD
-        PARSE_STATE_GOT_PAYLOAD: 
-            ' don't handle the CRC just read it, verify it in handling steps
-            byte[@inPacket.checksum] := c
-            parse_state := PARSE_STATE_GOT_CRC1
-        PARSE_STATE_GOT_CRC1:
-            byte[@inPacket.checksum + 1] := c
-            parse_state := PARSE_STATE_GOT_CRC2 ' done; this is our terminator state
-            total_packets_sent++            
-        PARSE_STATE_GOT_CRC2:
-            parse_state := PARSE_STATE_IDLE
-            crcError()        
+    if parse_state == PARSE_STATE_GOT_CRC2
+        newPacket()
+    receiveBuffer[receiveIndex++] := c
+    parse_state := PARSE_STATE_GOT_STX
+    if receiveIndex < 3
+        return
+    isMavlink2 := receiveBuffer[0] == PROTOCOL_MARKER_V2
+    flags := 0
+    headerlen := HEADER_LEN_V1
+    if isMavlink2
+        flags := receiveBuffer[2]
+        headerlen := HEADER_LEN_V2
+        if flags & MAVLINK_IFLAG_SYSID32
+            headerlen += 3
+        if flags & MAVLINK_IFLAG_TARGET32
+            headerlen += 4
+    receiveExpected := headerlen + receiveBuffer[1] + 2
+    if flags & MAVLINK_IFLAG_SIGNED
+        receiveExpected += MAVLINK_SIGNATURE_BLOCK_LEN
+    if receiveIndex < receiveExpected
+        return
+    receiveIndex := 0
+    ' No signing implementation: reject signed and unknown frames whole.
+    if flags & $F9
+        parse_state := PARSE_STATE_IDLE
+        return
+    BYTEFILL(@inPacket, 0, sizeof(inPacket))
+    inPacket.magic := receiveBuffer[0]
+    inPacket.len := receiveBuffer[1]
+    inPacket.incompat_flags := flags
+    offset := 2
+    if isMavlink2
+        inPacket.compat_flags := receiveBuffer[3]
+        offset := 4
+    inPacket.seq := receiveBuffer[offset++]
+    inPacket.sysid := receiveBuffer[offset++]
+    if flags & MAVLINK_IFLAG_SYSID32
+        repeat i from 1 to 3
+            inPacket.sysid |= receiveBuffer[offset++] << (i * 8)
+    inPacket.compid := receiveBuffer[offset++]
+    inPacket.msgid := receiveBuffer[offset++]
+    if isMavlink2
+        inPacket.msgid_m := receiveBuffer[offset++]
+        inPacket.msgid_h := receiveBuffer[offset++]
+    if flags & MAVLINK_IFLAG_TARGET32
+        repeat i from 0 to 3
+            inPacket.target_system |= receiveBuffer[offset++] << (i * 8)
+    BYTEMOVE(@inPacket.payload, @receiveBuffer + offset, inPacket.len)
+    offset += inPacket.len
+    inPacket.checksum := receiveBuffer[offset] | (receiveBuffer[offset + 1] << 8)
+    parse_state := PARSE_STATE_GOT_CRC2
+
+' Full-width target accessor; pass the decoded payload target for legacy frames.
+PUB get_target_system(payload_target): target
+    if inPacket.incompat_flags & MAVLINK_IFLAG_TARGET32
+        return inPacket.target_system
+    return payload_target
+
+' CRC must cover the actual variable-length wire header, not the packet struct.
+PUB check_crc(crc_extra): valid | value, i
+    value := $FFFF
+    repeat i from 1 to receiveExpected - 3
+        value := metabolize(value, receiveBuffer[i])
+    value := metabolize(value, crc_extra)
+    return value == inPacket.checksum
+
+' Validate a supplied packet independently of this object's receive state.
+' The MAVLink struct is not the wire layout; reconstruct the CRC byte order.
+PUB check_packet_crc(crc_extra, ^MAVLink packet): valid | value, flags, i, source_bytes
+    if packet.magic <> PROTOCOL_MARKER_V1 && packet.magic <> PROTOCOL_MARKER_V2
+        return FALSE
+    flags := 0
+    value := metabolize($FFFF, packet.len)
+    if packet.magic == PROTOCOL_MARKER_V2
+        flags := packet.incompat_flags
+        if flags & $F9
+            return FALSE
+        value := metabolize(value, flags)
+        value := metabolize(value, packet.compat_flags)
+    value := metabolize(value, packet.seq)
+    source_bytes := 1
+    if flags & MAVLINK_IFLAG_SYSID32
+        source_bytes := 4
+    repeat i from 0 to source_bytes - 1
+        value := metabolize(value, (packet.sysid >> (8 * i)) & $FF)
+    value := metabolize(value, packet.compid)
+    value := metabolize(value, packet.msgid)
+    if packet.magic == PROTOCOL_MARKER_V2
+        value := metabolize(value, packet.msgid_m)
+        value := metabolize(value, packet.msgid_h)
+    if flags & MAVLINK_IFLAG_TARGET32
+        repeat i from 0 to 3
+            value := metabolize(value, (packet.target_system >> (8 * i)) & $FF)
+    if packet.len
+        repeat i from 0 to packet.len - 1
+            value := metabolize(value, packet.payload[i])
+    value := metabolize(value, crc_extra)
+    return value == packet.checksum
 
 PUB receive() : hasPacket | b
     if parse_state == PARSE_STATE_UNINIT || parse_state == PARSE_STATE_GOT_CRC2
@@ -598,6 +654,13 @@ PUB receive() : hasPacket | b
 ''',
         xml,
     )
+
+    outf.write("\nPRI payload_length_v1(msg_id, length): size\n    case msg_id\n")
+    for msg in msgs:
+        if msg.wire_length != msg.wire_min_length:
+            outf.write("        %u: return length <# %u\n" % (msg.id, msg.wire_min_length))
+    # A default arm is also needed for dialects without extension fields.
+    outf.write("        other: return length\n")
 
 
 def generate_methods(outf, msgs):
@@ -667,13 +730,8 @@ OBJ
     Handles an incoming MAVLink message.
 }}
 
-PUB checkCrc(crcextra, ^mavlink.MAVLink msg): result | newcrc
-    mavlink.make_crc([msg], msg.len+12, crcextra)
-    newcrc := mavlink.get_crc()
-    if (msg.checksum <> newcrc)
-        return FALSE
-    else
-        return TRUE
+PUB checkCrc(crcextra, ^mavlink.MAVLink msg): result
+    return mavlink.check_packet_crc(crcextra, @msg)
 
 PUB crcError()
     ' TODO: Handle CRC errors for your solution
@@ -688,7 +746,10 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
     ' maybe use a compare and two CASE statements in a flight controller implementation but that is beyond the scope of pymavgen
     CASE msgid
         mavlink.MSG_ID_MANUAL_CONTROL: ' highest priority is manual control and mode messages
-            hdl_manual_control(@packet)
+            if(checkCrc(mavlink.MANUAL_CONTROL_crcx, @packet))
+                hdl_manual_control(@packet)
+            else
+                crcError()
 ''',{"DIALECT": dialect}, )
     for m in msgs:
         if (m.name == "MANUAL_CONTROL" or m.name == "HEARTBEAT"): # skip manual control and heartbeat; manual control should be first and heartbeat last.
@@ -710,14 +771,17 @@ PUB handleMessage(^mavlink.MAVLink packet) | msgid
                     "crc_extra": m.crc_extra,
                     "msgid": m.id,
                     "spin_fields": ", ".join(m.spin_fields),
-                    "init_fields": "\n\t".join(m.init_fields),
+                    "init_fields": "\n    ".join(m.init_fields),
                 },
         )
     t.write(
         outf,
         '''
         mavlink.MSG_ID_HEARTBEAT:
-            hdl_heartbeat(@packet)
+            if(checkCrc(mavlink.HEARTBEAT_crcx, @packet))
+                hdl_heartbeat(@packet)
+            else
+                crcError()
         
 ''') 
 def generate_handler(outf, msgs):
@@ -742,7 +806,7 @@ PUB hdl_${cleanname}(^mavlink.MAVLink packet) | mavlink.${classname} msg
                     "crc_extra": m.crc_extra,
                     "msgid": m.id,
                     "spin_fields": ", ".join(m.spin_fields),
-                    "init_fields": "\n\t".join(m.init_fields),
+                    "init_fields": "\n    ".join(m.init_fields),
                 },
         )
 
@@ -786,8 +850,7 @@ def generate(basename, xml):
 
     print("Generating %s" % filename)
     outf = open(filename, "w", encoding='utf-8')
-    dialect = xml[0].filename
-    dialect = dialect[dialect.rindex("/")+1:-4]  # remove .xml; we don't use os.sep here it's jank
+    dialect = os.path.splitext(os.path.basename(filename))[0]
     xml = xml[0].__dict__
     generate_preamble(outf, msgs, basename, filelist, xml)
     generate_message_ids(outf, msgs)
