@@ -17,13 +17,354 @@ from pymavlink.mavftp import (
     OP_CalcFileCRC32,
     OP_CreateDirectory,
     OP_CreateFile,
+    OP_ListDirectory,
     OP_Nack,
     OP_OpenFileRO,
+    OP_ReadFile,
     OP_TerminateSession,
     OP_WriteFile,
 )
 from pymavlink.tests import test_mavftp as helpers
 from pymavlink.tests.test_mavftp import ftp_reply
+
+
+@pytest.mark.parametrize("inline", [False, True])
+def test_large_download_drains_inline_burst_continuations(inline):
+    """Two hundred burst replies complete with inline and queued transports."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.ftp_settings.burst_read_size = 80
+    data = bytes(range(80)) * 199 + bytes(range(79))
+    downloaded = []
+    pending = []
+    ftp.cmd_get(["large.bin", "-"], callback=lambda stream: downloaded.append(stream.read()))
+    opened = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        opened.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", len(data)), session=37,
+    ))
+    first = master._decode_payload(sent[-1])
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode != OP_BurstReadFile:
+                continue
+            chunk = data[request.offset:request.offset + 80]
+            reply = ftp_reply(
+                request.seq + 1, OP_Ack, OP_BurstReadFile,
+                chunk, offset=request.offset, burst_complete=1, session=37,
+            )
+            if inline:
+                ftp.mavlink_packet(reply)
+            else:
+                pending.append(reply)
+
+    ftp._send_payloads = send
+    ftp.mavlink_packet(ftp_reply(
+        first.seq + 1, OP_Ack, OP_BurstReadFile,
+        data[:80], offset=0, burst_complete=1, session=37,
+    ))
+    while pending:
+        ftp.mavlink_packet(pending.pop(0))
+    assert downloaded == [data]
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert sum(master._decode_payload(p).opcode == OP_BurstReadFile for p in sent) == 200
+
+
+@pytest.mark.parametrize("inline", [False, True])
+@pytest.mark.parametrize("max_backlog", [1, 5])
+@pytest.mark.parametrize("gap_count", [8, 198])
+def test_download_drains_inline_gap_refills(inline, max_backlog, gap_count):
+    """Gap repairs complete without recursion or an idle-task recovery loop."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.ftp_settings.burst_read_size = 80
+    ftp.ftp_settings.max_backlog = max_backlog
+    data = bytes(i % 251 for i in range(gap_count * 80 + 79))
+    downloaded = []
+    pending = []
+    requests = []
+    ftp.cmd_get(["gapped.bin", "-"], callback=lambda stream: downloaded.append(stream.read()))
+    opened = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        opened.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", len(data)), session=37,
+    ))
+    burst = master._decode_payload(sent[-1])
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode != OP_ReadFile:
+                continue
+            requests.append((request.offset, request.size))
+            assert 0 < ftp.backlog <= max_backlog
+            reply = ftp_reply(
+                request.seq + 1, OP_Ack, OP_ReadFile,
+                data[request.offset:request.offset + request.size],
+                offset=request.offset, session=37,
+            )
+            if inline:
+                ftp.mavlink_packet(reply)
+            else:
+                pending.append(reply)
+
+    ftp._send_payloads = send
+    # Only the short final burst packet arrives; all preceding blocks are gaps.
+    ftp.mavlink_packet(ftp_reply(
+        burst.seq + 1, OP_Ack, OP_BurstReadFile,
+        data[-79:], offset=gap_count * 80, burst_complete=1, session=37,
+    ))
+    if not inline:
+        assert ftp.backlog == max_backlog
+        assert len(pending) == max_backlog
+    while pending:
+        ftp.mavlink_packet(pending.pop(0))
+    assert requests == [(i * 80, 80) for i in range(gap_count)]
+    assert downloaded == [data]
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert sum(master._decode_payload(p).opcode == OP_TerminateSession for p in sent) == 1
+    assert ftp.backlog == 0
+    assert not ftp.read_gaps
+    assert not ftp.read_gap_times
+    assert not ftp.read_gap_retries
+    assert not ftp.pending_read_replies
+    assert not ftp.pending_read_requests
+
+
+@pytest.mark.parametrize("replacement", [False, True])
+def test_gap_refill_drain_stops_on_cancel_and_allows_replacement(replacement):
+    """An old drain cannot send stale gaps or block a new inline download."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.ftp_settings.burst_read_size = 80
+    old_data = []
+    new_data = []
+    old_reads = []
+    new_reads = []
+    replacing = []
+    ftp.cmd_get(["old", "-"], callback=old_data.append)
+    opened = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        opened.seq + 1, OP_Ack, OP_OpenFileRO, struct.pack("<I", 239), session=37,
+    ))
+    burst = master._decode_payload(sent[-1])
+    data = bytes(range(239))
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode == OP_ReadFile:
+                if not replacing:
+                    old_reads.append(request.offset)
+                    replacing.append(True)
+                    # Queue work in the old drain before invalidating it.
+                    ftp.check_read_send()
+                    ftp.cmd_cancel()
+                    if replacement:
+                        ftp.cmd_get(["next", "-"],
+                                    callback=lambda stream: new_data.append(stream.read()))
+                    continue
+                new_reads.append(request.offset)
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_ReadFile,
+                    data[request.offset:request.offset + request.size],
+                    offset=request.offset, session=37,
+                )
+            elif request.opcode == OP_OpenFileRO:
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_OpenFileRO,
+                    struct.pack("<I", len(data)), session=37,
+                )
+            elif request.opcode == OP_BurstReadFile:
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_BurstReadFile,
+                    data[160:], offset=160, burst_complete=1, session=37,
+                )
+            else:
+                continue
+            ftp.mavlink_packet(reply)
+
+    ftp._send_payloads = send
+    ftp.mavlink_packet(ftp_reply(
+        burst.seq + 1, OP_Ack, OP_BurstReadFile,
+        b"x" * 79, offset=160, burst_complete=1, session=37,
+    ))
+    assert old_reads == [0]
+    assert old_data == [None]
+    assert new_reads == ([0, 80] if replacement else [])
+    assert new_data == ([data] if replacement else [])
+    assert [result.error_code for result in completed] == (
+        [FtpError.Fail, FtpError.Success] if replacement else [FtpError.Fail]
+    )
+    assert not ftp._gap_read_drains
+    assert not ftp.pending_read_requests
+    assert not ftp.pending_read_replies
+    assert ftp.backlog == 0
+
+
+def test_gap_refill_drain_releases_ownership_after_transport_exception():
+    """A failed send leaves the gap retryable and does not strand its drain."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.ftp_settings.burst_read_size = 80
+    ftp.ftp_settings.max_backlog = 1
+    downloaded = []
+    reads = []
+    clock = [1.0]
+    data = bytes(range(239))
+    ftp.cmd_get(["gapped.bin", "-"], callback=lambda stream: downloaded.append(stream.read()))
+    opened = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(
+        opened.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", len(data)), session=37,
+    ))
+    burst = master._decode_payload(sent[-1])
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode != OP_ReadFile:
+                continue
+            reads.append((request.seq, request.offset))
+            if len(reads) == 1:
+                ftp.check_read_send()
+                raise RuntimeError("transport failed")
+            ftp.mavlink_packet(ftp_reply(
+                request.seq + 1, OP_Ack, OP_ReadFile,
+                data[request.offset:request.offset + request.size],
+                offset=request.offset, session=37,
+            ))
+
+    ftp._send_payloads = send
+    with patch("pymavlink.mavftp.time.time", side_effect=lambda: clock[0]):
+        with pytest.raises(RuntimeError, match="transport failed"):
+            ftp.mavlink_packet(ftp_reply(
+                burst.seq + 1, OP_Ack, OP_BurstReadFile,
+                data[160:], offset=160, burst_complete=1, session=37,
+            ))
+        assert not ftp._gap_read_drains
+        assert ftp.backlog == 1
+        clock[0] += ftp.retry_timeout() + 1
+        ftp.check_read_send()
+    assert reads[0] == reads[1]
+    assert [offset for _seq, offset in reads] == [0, 0, 80]
+    assert downloaded == [data]
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert not ftp._gap_read_drains
+    assert not ftp.pending_read_requests
+    assert not ftp.pending_read_replies
+    assert ftp.backlog == 0
+
+
+@pytest.mark.parametrize("inline", [False, True])
+def test_large_listing_drains_inline_page_continuations(inline):
+    """Two hundred listing pages complete with inline and queued transports."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    pending = []
+    ftp.cmd_list([], wait=False)
+    first = master._decode_payload(sent[-1])
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode != OP_ListDirectory:
+                continue
+            if request.offset == 200:
+                reply = ftp_reply(
+                    request.seq + 1, OP_Nack, OP_ListDirectory,
+                    [FtpError.EndOfFile], session=37,
+                )
+            else:
+                entry = f"Ffile{request.offset}\t{request.offset}\0".encode()
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_ListDirectory,
+                    entry, session=37,
+                )
+            if inline:
+                ftp.mavlink_packet(reply)
+            else:
+                pending.append(reply)
+
+    ftp._send_payloads = send
+    ftp.mavlink_packet(ftp_reply(
+        first.seq + 1, OP_Ack, OP_ListDirectory, b"Ffile0\t0\0", session=37,
+    ))
+    while pending:
+        ftp.mavlink_packet(pending.pop(0))
+    assert [entry.name for entry in ftp.list_result] == [f"file{i}" for i in range(200)]
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert sum(master._decode_payload(p).opcode == OP_ListDirectory for p in sent) == 201
+
+
+@pytest.mark.parametrize("inline", [False, True])
+def test_large_upload_drains_inline_acknowledgements_without_recursion(inline):
+    """Inline and queued transports both complete the same 200-block upload."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    pending = []
+    uploaded = {}
+    sizes = []
+
+    def send(packets):
+        sent.extend(packets)
+        for payload in packets:
+            request = master._decode_payload(payload)
+            if request.opcode == OP_WriteFile:
+                uploaded[request.offset] = bytes(request.payload)
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_WriteFile,
+                    offset=request.offset, session=37,
+                )
+                if inline:
+                    ftp.mavlink_packet(reply)
+                else:
+                    pending.append(reply)
+
+    ftp._send_payloads = send
+    data = bytes(range(80)) * 200
+    ftp.cmd_put(["large.bin"], fh=BytesIO(data), callback=sizes.append)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile, session=37))
+    while pending:
+        ftp.mavlink_packet(pending.pop(0))
+    assert b"".join(uploaded[offset] for offset in sorted(uploaded)) == data
+    assert sizes == [len(data)]
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert sum(master._decode_payload(p).opcode == OP_TerminateSession for p in sent) == 1
+
+
+def test_cancel_upload_inline_write_ack_sends_only_one_termination():
+    """An ACK arriving during cancellation cannot terminate detached state again."""
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    sizes = []
+    ftp.cmd_put(["old"], fh=BytesIO(b"x" * 160), callback=sizes.append)
+    create = master._decode_payload(sent[-1])
+    ftp.mavlink_packet(ftp_reply(create.seq + 1, OP_Ack, OP_CreateFile, session=37))
+    write = master._decode_payload(sent[-1])
+    answered = []
+
+    def send(packets):
+        sent.extend(packets)
+        if master._decode_payload(packets[0]).opcode == OP_TerminateSession and not answered:
+            answered.append(True)
+            ftp.mavlink_packet(ftp_reply(
+                write.seq + 1, OP_Ack, OP_WriteFile, offset=write.offset, session=37,
+            ))
+
+    ftp._send_payloads = send
+    ftp.cmd_cancel()
+    assert answered == [True]
+    assert sum(master._decode_payload(p).opcode == OP_TerminateSession for p in sent) == 1
+    assert sizes == [None]
+    assert len(completed) == 1
+    assert ftp.write_list is None
+    assert not ftp.write_open
+    assert not ftp.pending_write_requests
+    assert not ftp.pending_write_replies
+    assert not ftp.write_inflight
+    assert ftp.write_pending == 0
 
 
 def test_retry_ack_does_not_resurrect_upload_inflight():
@@ -115,7 +456,7 @@ def test_standalone_download_callback_preserves_replacement(raises):
 def test_standalone_final_progress_skips_old_completion_after_replacement():
     ftp, _master = helpers.TestMAVFTPReplyCompletion.make_ftp([])
     old_completion = MagicMock(side_effect=lambda _size: ftp.cmd_cancel())
-    ftp.cmd_put(["old"], fh=BytesIO(b"data"), callback=old_completion)
+    ftp.cmd_put(["old"], fh=BytesIO(b""), callback=old_completion)
 
     def progress(value):
         if value == 1:
@@ -124,7 +465,10 @@ def test_standalone_final_progress_skips_old_completion_after_replacement():
 
     ftp.put_callback_progress = progress
     with patch.object(ftp, "process_ftp_reply"):
-        ftp._MAVFTP__put_finished(4)
+        create = ftp.last_op
+        ftp.mavlink_packet(ftp_reply(
+            create.seq + 1, OP_Ack, OP_CreateFile, session=ftp.session,
+        ))
     old_completion.assert_not_called()
     assert ftp.last_op.opcode == OP_CreateDirectory
     assert not ftp.request_cancelled
