@@ -1044,9 +1044,6 @@ class MAVLink(object):
                 return False
             logger.info("new stream")
 
-        # set the streams timestamp so we reject timestamps that go backwards
-        self.signing.stream_timestamps[stream_key] = timestamp
-
         h = hashlib.new("sha256")
         h.update(self.signing.secret_key)
         h.update(msgbuf[:-6])
@@ -1055,6 +1052,9 @@ class MAVLink(object):
         if sig1 != sig2:
             logger.info("sig mismatch")
             return False
+
+        # set the streams timestamp so we reject timestamps that go backwards
+        self.signing.stream_timestamps[stream_key] = timestamp
 
         # the timestamp we next send with is the max of the received timestamp and
         # our current timestamp
