@@ -290,14 +290,40 @@ _MAV_PUT_ARRAY(int64_t,  i64)
 _MAV_PUT_ARRAY(float,    f)
 _MAV_PUT_ARRAY(double,   d)
 
-#define _MAV_RETURN_char(msg, wire_offset)             (char)_MAV_PAYLOAD(msg)[wire_offset]
-#define _MAV_RETURN_int8_t(msg, wire_offset)   (int8_t)_MAV_PAYLOAD(msg)[wire_offset]
-#define _MAV_RETURN_uint8_t(msg, wire_offset) (uint8_t)_MAV_PAYLOAD(msg)[wire_offset]
+/*
+ * Copy size bytes of the payload starting at ofs into dest. Bytes at or after
+ * msg->len were trimmed from the wire and are zero, but a packed message has
+ * its checksum stored at payload[len] and payload[len+1], so they are not
+ * read from the payload.
+ */
+static inline void _mav_get_payload_bytes(const mavlink_message_t *msg, void *dest, uint16_t ofs, uint16_t size)
+{
+	uint16_t avail = 0;
+	if (ofs < msg->len) {
+		avail = msg->len - ofs;
+		if (avail > size) {
+			avail = size;
+		}
+		memcpy(dest, &_MAV_PAYLOAD(msg)[ofs], avail);
+	}
+	memset((char *)dest + avail, 0, size - avail);
+}
+
+static inline uint8_t _mav_get_payload_byte(const mavlink_message_t *msg, uint16_t ofs)
+{
+	uint8_t r;
+	_mav_get_payload_bytes(msg, &r, ofs, 1);
+	return r;
+}
+
+#define _MAV_RETURN_char(msg, wire_offset)             (char)_mav_get_payload_byte(msg, wire_offset)
+#define _MAV_RETURN_int8_t(msg, wire_offset)   (int8_t)_mav_get_payload_byte(msg, wire_offset)
+#define _MAV_RETURN_uint8_t(msg, wire_offset) (uint8_t)_mav_get_payload_byte(msg, wire_offset)
 
 #if MAVLINK_NEED_BYTE_SWAP
 #define _MAV_MSG_RETURN_TYPE(TYPE, SIZE) \
 static inline TYPE _MAV_RETURN_## TYPE(const mavlink_message_t *msg, uint8_t ofs) \
-{ TYPE r; byte_swap_## SIZE((char*)&r, &_MAV_PAYLOAD(msg)[ofs]); return r; }
+{ TYPE r; char b[SIZE]; _mav_get_payload_bytes(msg, b, ofs, SIZE); byte_swap_## SIZE((char*)&r, b); return r; }
 
 _MAV_MSG_RETURN_TYPE(uint16_t, 2)
 _MAV_MSG_RETURN_TYPE(int16_t,  2)
@@ -311,7 +337,7 @@ _MAV_MSG_RETURN_TYPE(double,   8)
 #elif !MAVLINK_ALIGNED_FIELDS
 #define _MAV_MSG_RETURN_TYPE(TYPE, SIZE) \
 static inline TYPE _MAV_RETURN_## TYPE(const mavlink_message_t *msg, uint8_t ofs) \
-{ TYPE r; byte_copy_## SIZE((char*)&r, &_MAV_PAYLOAD(msg)[ofs]); return r; }
+{ TYPE r; _mav_get_payload_bytes(msg, &r, ofs, SIZE); return r; }
 
 _MAV_MSG_RETURN_TYPE(uint16_t, 2)
 _MAV_MSG_RETURN_TYPE(int16_t,  2)
@@ -324,7 +350,7 @@ _MAV_MSG_RETURN_TYPE(double,   8)
 #else // native byte order; the packed message payload may still be unaligned
 #define _MAV_MSG_RETURN_TYPE(TYPE) \
 static inline TYPE _MAV_RETURN_## TYPE(const mavlink_message_t *msg, uint8_t ofs) \
-{ TYPE r; memcpy(&r, &_MAV_PAYLOAD(msg)[ofs], sizeof(TYPE)); return r; }
+{ TYPE r; _mav_get_payload_bytes(msg, &r, ofs, sizeof(TYPE)); return r; }
 
 _MAV_MSG_RETURN_TYPE(uint16_t)
 _MAV_MSG_RETURN_TYPE(int16_t)
@@ -339,21 +365,21 @@ _MAV_MSG_RETURN_TYPE(double)
 static inline uint16_t _MAV_RETURN_char_array(const mavlink_message_t *msg, char *value, 
 						     uint8_t array_length, uint8_t wire_offset)
 {
-	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length);
+	_mav_get_payload_bytes(msg, value, wire_offset, array_length);
 	return array_length;
 }
 
 static inline uint16_t _MAV_RETURN_uint8_t_array(const mavlink_message_t *msg, uint8_t *value, 
 							uint8_t array_length, uint8_t wire_offset)
 {
-	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length);
+	_mav_get_payload_bytes(msg, value, wire_offset, array_length);
 	return array_length;
 }
 
 static inline uint16_t _MAV_RETURN_int8_t_array(const mavlink_message_t *msg, int8_t *value, 
 						       uint8_t array_length, uint8_t wire_offset)
 {
-	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length);
+	_mav_get_payload_bytes(msg, value, wire_offset, array_length);
 	return array_length;
 }
 
@@ -373,7 +399,7 @@ static inline uint16_t _MAV_RETURN_## TYPE ##_array(const mavlink_message_t *msg
 static inline uint16_t _MAV_RETURN_## TYPE ##_array(const mavlink_message_t *msg, TYPE *value, \
 							 uint8_t array_length, uint8_t wire_offset) \
 { \
-	memcpy(value, &_MAV_PAYLOAD(msg)[wire_offset], array_length*sizeof(TYPE)); \
+	_mav_get_payload_bytes(msg, value, wire_offset, array_length*sizeof(TYPE)); \
 	return array_length*sizeof(TYPE); \
 }
 #endif
