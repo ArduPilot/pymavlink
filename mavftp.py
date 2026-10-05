@@ -2921,9 +2921,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.filename = filename
         if callback is None:
             logging.info("Putting %s to %s", fname, self.filename)
-        self.fh.seek(0, 2)
-        file_size = self.fh.tell()
-        self.fh.seek(0)
+        stream = self.fh
+        generation = self._event_generation
+        stream.seek(0, 2)
+        if self._event_generation != generation or self.fh is not stream:
+            return MAVFTPReturn("CreateFile", FtpError.Fail)
+        file_size = stream.tell()
+        if self._event_generation != generation or self.fh is not stream:
+            return MAVFTPReturn("CreateFile", FtpError.Fail)
+        stream.seek(0)
+        if self._event_generation != generation or self.fh is not stream:
+            return MAVFTPReturn("CreateFile", FtpError.Fail)
 
         # setup write list
         self.write_file_size = file_size
