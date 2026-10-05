@@ -106,3 +106,26 @@ jobs:
         run: |
           ./test_gen_js.sh
           cd "generator/javascript" && npm test
+
+  rust-tests:
+    name: Rust bindings and C interoperability
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Rust and Python dependencies
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup default 1.88.0
+          python3 -m pip install pytest lxml
+          git init mavlink
+          git -C mavlink remote add origin https://github.com/ArduPilot/mavlink.git
+          git -C mavlink fetch --depth 1 origin 0d734a416f1836e0840c3bb9ab9e4daffc6330d1
+          git -C mavlink checkout --detach FETCH_HEAD
+          MDEF="$PWD/mavlink/message_definitions" python3 -m pip install .
+      - name: Compare every Rust message against C
+        env:
+          MDEF: ${{ github.workspace }}/mavlink/message_definitions
+        run: python3 -m pytest -q tests/test_mavgen_rust.py
