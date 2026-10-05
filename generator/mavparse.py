@@ -551,6 +551,7 @@ def check_duplicates(xml):
     msgmap = {}
     msg_name_map = {}
     enummap = {}
+    entry_owner = {}
     for x in xml:
         for m in x.message:
             key = m.id
@@ -592,6 +593,16 @@ def check_duplicates(xml):
                         enummap.get(s1) or enummap.get(s2)))
                     return True
                 enummap[s1] = enummap[s2] = "%s.%s = %s @ %s:%u" % (enum.name, entry.name, entry.value, entry.origin_file, entry.origin_line)
+                # Entry names share one namespace in the generated code (C
+                # enumerators, Python module constants), so the same name in
+                # two enums does not compile in C and silently takes the
+                # later value in Python.
+                if entry.name in entry_owner:
+                    print("ERROR: Duplicate enum entry name %s in %s @ %s:%u\n\talso in %s" % (
+                        entry.name, enum.name, entry.origin_file, entry.origin_line,
+                        entry_owner[entry.name]))
+                    return True
+                entry_owner[entry.name] = "%s @ %s:%u" % (enum.name, entry.origin_file, entry.origin_line)
 
     return False
 
