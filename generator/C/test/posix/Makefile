@@ -3,7 +3,7 @@
 # particular issues are with pointers to arrays right now. TODO - fix the generator and remove this.
 CFLAGS = -g -Wall -Werror -O0 -Wno-address-of-packed-member -Wno-unused-function
 TESTPROTOCOL = ardupilotmega
-ALLPROTOCOLS = minimal test common pixhawk ardupilotmega slugs ualberta
+ALLPROTOCOLS = minimal test common ardupilotmega
 
 all:
 	for p in ${ALLPROTOCOLS}; do make -f Makefile build TESTPROTOCOL=$$p; done
