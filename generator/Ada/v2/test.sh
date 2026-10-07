@@ -1,7 +1,7 @@
 #!/bin/bash
 for p in 1.0 2.0
 do
-  for w in ASLUAV.xml common.xml cubepilot.xml icarous.xml marsh.xml minimal.xml ualberta.xml ardupilotmega.xml AVSSUAS.xml csAirLink.xml development.xml loweheiser.xml matrixpilot.xml paparazzi.xml standard.xml uAvionix.xml
+  for w in ASLUAV.xml common.xml cubepilot.xml icarous.xml marsh.xml minimal.xml ardupilotmega.xml AVSSUAS.xml csAirLink.xml development.xml loweheiser.xml paparazzi.xml standard.xml uAvionix.xml
   do
     rm -rf ./gen
     python3 -m pymavlink.tools.mavgen --lang=Ada --wire-protocol=$p --output=gen mavlink/message_definitions/v1.0/$w
