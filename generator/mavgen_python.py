@@ -219,6 +219,7 @@ class MAVLink_message(object):
         self._link_id: Optional[int] = None
         self._instances: Optional[Dict[str, str]] = None
         self._instance_field: Optional[str] = None
+        self._raw_patches: Dict[int, bytes] = {}
 
     def format_attr(self, field: str) -> Union[str, float, int]:
         """override field getter"""
@@ -337,7 +338,41 @@ class MAVLink_message(object):
         self._msgbuf += sig
         mav.signing.timestamp += 1
 
+    def set_raw_field_bytes(self, offset: int, data: bytes) -> None:
+        """Override payload bytes before trimming, checksumming and signing.
+
+        Use this for bytewise values in float fields: a float conversion can
+        quiet signalling NaNs. The override remains until explicitly cleared.
+        Offsets are relative to the payload, independent of header extensions.
+        """
+        if offset < 0 or offset + len(data) > self.unpacker.size:
+            raise ValueError("raw field override outside payload")
+        self._raw_patches[offset] = bytes(data)
+
+    def clear_raw_field_bytes(self) -> None:
+        """Use the normal field values on subsequent packs."""
+        self._raw_patches.clear()
+
+    def get_raw_field_bytes(self, offset: int, size: int) -> bytes:
+        """Return exact payload bytes, padding MAVLink2-truncated zeroes."""
+        if offset < 0 or size < 0 or offset + size > self.unpacker.size:
+            raise ValueError("raw field outside payload")
+        if self._payload is None:
+            if offset in self._raw_patches and len(self._raw_patches[offset]) == size:
+                return self._raw_patches[offset]
+            raise ValueError("message has no raw payload; pack it or set raw bytes first")
+        payload = bytearray(self._payload)
+        payload.extend(bytes(max(0, self.unpacker.size - len(payload))))
+        for patch_offset, patch in self._raw_patches.items():
+            payload[patch_offset:patch_offset + len(patch)] = patch
+        return bytes(payload[offset:offset + size])
+
     def _pack(self, mav: "MAVLink", crc_extra: int, payload: bytes, force_mavlink1: bool = False) -> bytes:
+        if self._raw_patches:
+            raw_payload = bytearray(payload)
+            for offset, data in self._raw_patches.items():
+                raw_payload[offset:offset + len(data)] = data
+            payload = bytes(raw_payload)
         plen = len(payload)
         if float(WIRE_PROTOCOL_VERSION) == 2.0 and not force_mavlink1:
             # in MAVLink2 we can strip trailing zeros off payloads. This allows for simple
@@ -1212,6 +1247,12 @@ class MAVLink(object):
             m._link_id = msgbuf[-13]
         m._msgbuf = msgbuf
         m._payload = msgbuf[headerlen : -(2 + signature_len)]
+        # Preserve explicit bytewise parameters when a decoded message is
+        # repacked/forwarded. Both parameter messages start with param_value.
+        if m.get_type() in ("PARAM_VALUE", "PARAM_SET") and getattr(m, "param_type", -1) in (
+            globals().get("MAV_PARAM_TYPE_BYTEWISE_INT32"), globals().get("MAV_PARAM_TYPE_BYTEWISE_UINT32")
+        ):
+            m.set_raw_field_bytes(0, bytes(mbuf[:4]))
         m._crc = crc
         m._header = MAVLink_header(msgId, incompat_flags, compat_flags, mlen, seq, srcSystem, srcComponent, target_system or 0)
         if target_system is not None and msgtype.target_system_fieldname is not None:
