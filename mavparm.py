@@ -81,7 +81,7 @@ class MAVParmDict(dict):
             if p and fnmatch.fnmatch(str(p).upper(), wildcard.upper()):
                 value = self.__getitem__(p)
                 if isinstance(value, float):
-                    f.write("%-16.16s %f\n" % (p, value))
+                    f.write("%-16.16s %.17g\n" % (p, value))
                 else:
                     f.write("%-16.16s %s\n" % (p, str(value)))
                 count += 1
