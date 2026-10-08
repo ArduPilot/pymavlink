@@ -16,9 +16,9 @@ package MAVLink.V2 is
 
    type Data_Buffer is array (Positive range <>) of Interfaces.Unsigned_8;
 
-   Maximum_Buffer_Len : constant Positive := 280;
+   Maximum_Buffer_Len : constant Positive := 287;
 
-   type System_Id_Type is new Interfaces.Unsigned_8;
+   type System_Id_Type is new Interfaces.Unsigned_32;
    type Component_Id_Type is new Interfaces.Unsigned_8;
    type Sequence_Id_Type is new Interfaces.Unsigned_8;
    type Link_Id_Type is new Interfaces.Unsigned_8;
@@ -135,6 +135,11 @@ package MAVLink.V2 is
      (Self : Connection) return Sequence_Id_Type with Inline;
    --  Returns message's Seq
 
+   --  Header destination, or the payload's target byte if not extended.
+   function Get_Message_Target_System_Id
+     (Self : Connection; Payload_Target : System_Id_Type := 0)
+      return System_Id_Type;
+
    function Get_Message_System_Id
      (Self : Connection) return System_Id_Type with Inline;
    --  Returns message's Sys_Id
@@ -204,6 +209,11 @@ package MAVLink.V2 is
    function Get_Message_Sequnce
      (Self : In_Connection) return Sequence_Id_Type with Inline;
 
+   --  Header destination, or the payload's target byte if not extended.
+   function Get_Message_Target_System_Id
+     (Self : In_Connection; Payload_Target : System_Id_Type := 0)
+      return System_Id_Type;
+
    function Get_Message_System_Id
      (Self : In_Connection) return System_Id_Type with Inline;
 
@@ -254,7 +264,7 @@ private
       Inc_Flags : Interfaces.Unsigned_8;
       Cmp_Flags : Interfaces.Unsigned_8;
       Seq       : Sequence_Id_Type;
-      Sys_Id    : System_Id_Type;
+      Sys_Id    : Interfaces.Unsigned_8;
       Comp_Id   : Component_Id_Type;
       Id_Low    : Interfaces.Unsigned_8;
       Id_Mid    : Interfaces.Unsigned_8;
@@ -315,7 +325,8 @@ private
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive);
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0);
 
    procedure Encode
      (Self   : in out Connection;
@@ -323,7 +334,8 @@ private
       Extras : Interfaces.Unsigned_8;
       Sign   : in out Signature;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive);
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0);
 
    function Is_CRC_Valid
      (Self   : Connection;
@@ -370,7 +382,8 @@ private
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive);
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0);
 
    procedure Encode
      (Self   : in out Out_Connection;
@@ -378,7 +391,13 @@ private
       Extras : Interfaces.Unsigned_8;
       Sign   : in out Signature;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive);
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0);
+
+   function Header_Length (Incoming : Incoming_Data) return Positive;
+   function Get_Message_Target_System_Id
+     (Incoming : Incoming_Data; Payload_Target : System_Id_Type := 0)
+      return System_Id_Type;
 
    -- Utils --
 
@@ -453,7 +472,8 @@ private
       Extras       : Interfaces.Unsigned_8;
       Buffer       : in out Data_Buffer;
       Last         : in out Positive;
-      Inc_Flags    : Interfaces.Unsigned_8 := 0);
+      Inc_Flags    : Interfaces.Unsigned_8 := 0;
+      Target_System : System_Id_Type := 0);
 
    procedure Encode
      (System_Id    : System_Id_Type;
@@ -463,7 +483,8 @@ private
       Extras       : Interfaces.Unsigned_8;
       Sign         : in out Signature;
       Buffer       : in out Data_Buffer;
-      Last         : in out Positive);
+      Last         : in out Positive;
+      Target_System : System_Id_Type := 0);
 
    procedure Calc_SHA
      (Key    : SHA_256.Context;

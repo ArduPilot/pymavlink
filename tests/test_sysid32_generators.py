@@ -62,6 +62,15 @@ def frame(flags=0, payload=None, source=42, target=7, msgid=0, extra=50, v1=Fals
     return packet
 
 
+def command_frames(signed_values=(0, 1)):
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in signed_values:
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                yield frame(flags, payload, source=source, target=target, msgid=76, extra=152)
+
+
 @pytest.fixture(scope='module')
 def streams(tmp_path_factory):
     directory = tmp_path_factory.mktemp('sysid32-streams')
@@ -136,7 +145,7 @@ def test_c_no_per_message_target_system_getters(tmp_path, protocol):
         assert 'implicit declaration' in result.stderr
 
 
-def test_java_rejects_extensions(tmp_path, streams):
+def test_java_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams):
     java = generate(tmp_path / 'java', 'Java')
     sources = list(java.rglob('*.java'))
     run([tool('javac'), '-d', tmp_path / 'classes', *sources, RESOURCES / 'Reject.java'])
@@ -146,11 +155,47 @@ def test_java_rejects_extensions(tmp_path, streams):
     run([tool('java'), '-cp', tmp_path / 'classes', 'Reject', java_streams])
 
 
-def test_cs_rejects_extensions(tmp_path, streams):
+def test_java_stats_bounded(tmp_path):
+    java = generate(tmp_path / 'java', 'Java')
+    run([tool('javac'), '-d', tmp_path / 'classes', *java.rglob('*.java'), RESOURCES / 'Stats.java'])
+    run([tool('java'), '-Xmx32m', '-cp', tmp_path / 'classes', 'Stats'])
+
+
+def test_java_field_target(tmp_path):
+    java = generate(tmp_path / 'java', 'Java')
+    run([tool('javac'), '-d', tmp_path / 'classes', *java.rglob('*.java'), RESOURCES / 'Target.java'])
+    expected = []
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert run([tool('java'), '-cp', tmp_path / 'classes', 'Target']).splitlines() == expected
+
+
+def test_cs_rejects_unknown_flags(tmp_path, streams):
     cs = generate(tmp_path / 'cs', 'CS')
     exe = tmp_path / 'reject.exe'
     run([tool('mcs'), '-unsafe', '-out:' + str(exe), *cs.glob('*.cs'), RESOURCES / 'Reject.cs'])
     run([tool('mono'), exe, streams])
+
+
+@pytest.mark.parametrize('protocol', ['1.0', '2.0'])
+def test_cs_field_target(tmp_path, protocol):
+    cs = generate(tmp_path / 'cs', 'CS', protocol)
+    exe = tmp_path / 'target.exe'
+    run([tool('mcs'), '-unsafe', '-out:' + str(exe), *cs.glob('*.cs'), RESOURCES / 'Target.cs'])
+    actual = [bytes.fromhex(line) for line in run([tool('mono'), exe]).splitlines()]
+    expected = list(command_frames())
+    assert len(actual) == len(expected)
+    for packet, reference in zip(actual, expected):
+        if packet[2] & 1:
+            # C# signing supplies its own wall-clock timestamp and link ID.
+            assert packet[:-13] == reference[:-13]
+            assert packet[-6:] == hashlib.sha256(bytes([42] * 32) + packet[:-6]).digest()[:6]
+        else:
+            assert packet == reference
 
 
 def node_environment():
@@ -178,9 +223,23 @@ def test_node_environment_missing_dependencies(tmp_path, monkeypatch, missing):
 
 
 @pytest.mark.parametrize('language', ['JavaScript', 'JavaScript_Stable'])
-def test_stable_javascript_rejects_extensions(tmp_path, streams, language):
+def test_stable_javascript_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams, language):
     generated = generate(tmp_path / 'mavlink.js', language)
     run([tool('node'), RESOURCES / 'reject-stable.js', generated, streams], env=node_environment())
+
+
+@pytest.mark.parametrize('language', ['JavaScript', 'JavaScript_Stable'])
+def test_stable_field_target(tmp_path, language):
+    generated = generate(tmp_path / 'mavlink.js', language)
+    actual = run([tool('node'), RESOURCES / 'target-stable.js', generated], env=node_environment()).splitlines()
+    expected = []
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert actual == expected
 
 
 def test_nextgen_rejects_unknown_incompat_flags(tmp_path, streams):
@@ -210,11 +269,18 @@ def test_nextgen_field_target(tmp_path):
     assert actual == expected
 
 
-def test_cpp_rejects_extensions(tmp_path, streams):
+def test_cpp_field_target(tmp_path):
     headers = generate(tmp_path / 'cpp', 'C++11')
-    exe = tmp_path / 'reject'
-    run([tool('g++'), '-std=c++11', '-I' + str(headers), RESOURCES / 'reject.cpp', '-o', exe])
-    run([exe, streams])
+    exe = tmp_path / 'target'
+    run([tool('g++'), '-std=c++11', '-I' + str(headers), RESOURCES / 'target.cpp', '-o', exe])
+    expected = []
+    for source in (42, 0xABCDEF12):
+        for target in (0, 7, 255, 256, 0xFFFFFFFF):
+            for signed in (0, 1):
+                flags = (2 if source > 255 else 0) | (4 if target > 255 else 0) | signed
+                payload = struct.pack('<7fHBBB', 1, 2, 3, 4, 5, 6, 7, 300, min(target, 255), 250, 1)
+                expected.append(frame(flags, payload, source=source, target=target, msgid=76, extra=152).hex())
+    assert run([exe]).splitlines() == expected
 
 
 def lua_run(script):
@@ -340,7 +406,7 @@ def test_wlua_unknown_message_boundary(tmp_path):
 
 
 @pytest.mark.parametrize('protocol', ['1.0', '2.0'])
-def test_ada_rejects_extensions(tmp_path, streams, protocol):
+def test_ada_rejects_unknown_flags(tmp_path, streams, protocol):
     compiler = tool('gnatmake')
     generated = generate(tmp_path / 'ada', 'Ada', protocol)
     version = 'V1' if protocol == '1.0' else 'V2'
@@ -350,10 +416,19 @@ def test_ada_rejects_extensions(tmp_path, streams, protocol):
     (generated / 'reject_ada.adb').write_text(source)
     run([compiler, '-gnat2022', '-gnata', '-q', 'reject_ada.adb'], cwd=generated)
     for stream in sorted(streams.glob('*.' + version.lower())):
+        if version == 'V2' and int(stream.name.split('-')[0]) < 128:
+            continue
         run([generated / 'reject_ada', stream])
 
 
-def test_typescript_rejects_extensions(tmp_path, streams):
+def test_ada_field_target(tmp_path):
+    generated = generate(tmp_path / 'ada', 'Ada')
+    shutil.copyfile(RESOURCES / 'target_ada.adb', generated / 'target_ada.adb')
+    run([tool('gnatmake'), '-gnat2022', '-gnata', '-q', 'target_ada.adb'], cwd=generated)
+    assert run([generated / 'target_ada']).splitlines() == [p.hex() for p in command_frames()]
+
+
+def test_typescript_rejects_unknown_flags_and_unverified_signatures(tmp_path, streams):
     modules = Path(os.environ.get('MAVLINK_TYPESCRIPT_NODE_MODULES', RESOURCES / 'node_modules'))
     compiler = modules / 'typescript/bin/tsc'
     if not compiler.exists():
@@ -365,7 +440,21 @@ def test_typescript_rejects_extensions(tmp_path, streams):
     run([tool('node'), RESOURCES / 'reject-typescript.js', generated / 'compiled/message-registry.js', streams])
 
 
-def test_swift_rejects_extensions(tmp_path, streams):
+@pytest.mark.parametrize('target', ['es2017', 'es2022'])
+def test_typescript_field_target(tmp_path, target):
+    modules = Path(os.environ.get('MAVLINK_TYPESCRIPT_NODE_MODULES', RESOURCES / 'node_modules'))
+    compiler = modules / 'typescript/bin/tsc'
+    if not compiler.exists():
+        pytest.skip('npm install in tests/sysid32 to enable TypeScript runtime tests')
+    generated = generate(tmp_path / 'typescript', 'TypeScript')
+    (generated / 'node_modules').symlink_to(modules, target_is_directory=True)
+    run([tool('node'), compiler, '--skipLibCheck', '--target', target, '--module', 'commonjs',
+         '--strict', '--outDir', generated / 'compiled', generated / 'message-registry.ts'], cwd=tmp_path)
+    actual = run([tool('node'), RESOURCES / 'target-typescript.js', generated / 'compiled/message-registry.js'])
+    assert [line for line in actual.splitlines() if line.startswith('fd')] == [p.hex() for p in command_frames()]
+
+
+def test_swift_discards_unknown_messages_and_unverified_signatures(tmp_path, streams):
     compiler = tool('swiftc')
     generated = tmp_path / 'swift'
     assert mavgen.mavgen(mavgen.Opts(output=str(generated), language='Swift', wire_protocol='1.0', validate=False),
@@ -374,6 +463,14 @@ def test_swift_rejects_extensions(tmp_path, streams):
     exe = tmp_path / 'reject'
     run([compiler, '-module-cache-path', tmp_path / 'swift-cache', *generated.glob('*.swift'), '-o', exe])
     run([exe, streams])
+
+
+def test_swift_field_target(tmp_path):
+    generated = generate(tmp_path / 'swift', 'Swift')
+    (generated / 'main.swift').write_text((RESOURCES / 'target.swift').read_text())
+    exe = tmp_path / 'target'
+    run([tool('swiftc'), '-module-cache-path', tmp_path / 'swift-cache', *generated.glob('*.swift'), '-o', exe])
+    assert run([exe]).splitlines() == [p.hex() for p in command_frames()]
 
 
 def objc_sources(tmp_path):
@@ -385,7 +482,7 @@ def objc_sources(tmp_path):
     return generated, includes
 
 
-def test_objc_rejects_extensions(tmp_path, streams):
+def test_objc_header_flags(tmp_path, streams):
     import sys
     if sys.platform != 'darwin':
         pytest.skip('Objective-C runtime test requires Apple Foundation and ARC')
@@ -407,13 +504,39 @@ def test_objc_compiles_with_gnustep(tmp_path):
          '-include', 'Foundation/Foundation.h', *includes, *generated.rglob('*.m'), RESOURCES / 'reject.m'])
 
 
+@pytest.mark.parametrize('protocol', ['1.0', '2.0'])
+def test_objc_common_target(tmp_path, protocol):
+    import sys
+    root = os.environ.get('MAVLINK_GNUSTEP_ROOT')
+    objc_include = os.environ.get('MAVLINK_OBJC_INCLUDE')
+    native = sys.platform == 'darwin'
+    if not native and (not root or not objc_include):
+        pytest.skip('Apple Foundation or GNUstep headers required')
+    generated = generate(tmp_path / 'objc', 'ObjC', protocol)
+    headers = generate(tmp_path / 'c', 'C', protocol)
+    includes = ['-I' + str(p) for p in [generated, headers / 'common',
+                generated / 'common', generated / 'minimal', generated / 'standard']]
+    if native:
+        flags = ['-fobjc-arc', '-framework', 'Foundation', '-o', tmp_path / 'target']
+    else:
+        flags = ['-fsyntax-only', '-fobjc-runtime=gnustep-2.0', '-fobjc-weak',
+                 '-DGNUSTEP', '-DGNUSTEP_BASE_LIBRARY=1', '-I' + root, '-I' + objc_include]
+    run([tool('clang'), *flags, '-include', 'Foundation/Foundation.h',
+         *includes, *generated.rglob('*.m'), RESOURCES / 'target.m'])
+    if native:
+        run([tmp_path / 'target'])
+
+
 @pytest.fixture
 def spin2_harness(tmp_path, streams):
     compiler = tool('flexspin')
     assert mavgen.mavgen(mavgen.Opts(output=str(tmp_path / 'mavlink'), language='Spin2',
                                   wire_protocol='2.0', validate=False), [str(XML.with_name('minimal.xml'))])
     data = bytearray()
-    for stream in sorted(streams.glob('*.v2')):
+    rejected = [stream for stream in sorted(streams.glob('*.v2'))
+                if int(stream.name.split('-')[0]) not in (2, 4, 6)]
+    data += struct.pack('<H', len(rejected))
+    for stream in rejected:
         packet = stream.read_bytes()
         data += struct.pack('<H', len(packet)) + packet
     (tmp_path / 'streams.bin').write_bytes(data)
@@ -435,3 +558,10 @@ def test_spin2_rejects_extensions(spin2_harness):
     binary = spin2_harness
     output = run([simulator, '-t', '-b115200', '-q', '-10000000', binary], timeout=30)
     assert output == 'OK'  # simulator instruction limit alone is not success
+
+
+def test_spin2_target_compiles(tmp_path):
+    generate(tmp_path / 'mavlink', 'Spin2')
+    shutil.copyfile(RESOURCES / 'target.spin2', tmp_path / 'target.spin2')
+    run([tool('flexspin'), '-2', '--fcache=0', '-O1', '-o', tmp_path / 'target.binary',
+         'target.spin2'], cwd=tmp_path)

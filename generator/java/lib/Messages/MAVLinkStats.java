@@ -14,6 +14,9 @@ import com.MAVLink.common.msg_radio_status;
  */
 public class MAVLinkStats /* implements Serializable */{
 
+    public static final int DEFAULT_MAX_WIDE_SYSTEMS = 256;
+    private final int maxWideSystems;
+
     public int receivedPacketCount; // total received packet count for all sources
 
     public int crcErrorCount;
@@ -23,13 +26,22 @@ public class MAVLinkStats /* implements Serializable */{
     public boolean ignoreRadioPackets;
 
     // stats are nil for a system id until a packet has been received from a system
-    public SystemStat[] systemStats; // stats for each system that is known
+    public SystemStat[] systemStats;
+    // Least-recently-used entries are evicted; aggregate counters survive eviction.
+    public java.util.Map<Long, SystemStat> wideSystemStats;
 
     public MAVLinkStats() {
         this(false);
     }
 
     public MAVLinkStats(boolean ignoreRadioPackets) {
+        this(ignoreRadioPackets, DEFAULT_MAX_WIDE_SYSTEMS);
+    }
+
+    /** Bound wide-ID sequence history; increase the limit for larger fleets. */
+    public MAVLinkStats(boolean ignoreRadioPackets, int maxWideSystems) {
+        if (maxWideSystems < 1) throw new IllegalArgumentException("maxWideSystems must be positive");
+        this.maxWideSystems = maxWideSystems;
         this.ignoreRadioPackets = ignoreRadioPackets;
         resetStats();
     }
@@ -45,11 +57,19 @@ public class MAVLinkStats /* implements Serializable */{
             return;
         }
 
-        if (systemStats[packet.sysid] == null) {
-            // only allocate stats for systems that exist on the network
-            systemStats[packet.sysid] = new SystemStat();
+        SystemStat stat;
+        if (packet.sysid <= 255) {
+            int id = (int)packet.sysid;
+            if (systemStats[id] == null) systemStats[id] = new SystemStat();
+            stat = systemStats[id];
+        } else {
+            stat = wideSystemStats.get(packet.sysid);
+            if (stat == null) {
+                stat = new SystemStat();
+                wideSystemStats.put(packet.sysid, stat);
+            }
         }
-        lostPacketCount += systemStats[packet.sysid].newPacket(packet);
+        lostPacketCount += stat.newPacket(packet);
         receivedPacketCount++;
     }
 
@@ -65,6 +85,12 @@ public class MAVLinkStats /* implements Serializable */{
         lostPacketCount = 0;
         receivedPacketCount = 0;
         systemStats = new SystemStat[256];
+        wideSystemStats = new java.util.LinkedHashMap<Long, SystemStat>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(java.util.Map.Entry<Long, SystemStat> eldest) {
+                return size() > maxWideSystems;
+            }
+        };
     }
 
     /**
