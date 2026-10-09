@@ -12,3 +12,6 @@
 | mavgps.py       |  Allows connection of the uBlox u-Center software to a uBlox GPS device connected to a PX4 or Pixhawk device, using Mavlink's SERIAL_CONTROL support to route serial traffic to/from the GPS, and exposing the data to u-Center via a local TCP connection.  |
 | mavtester.py    |  Test mavlink messages.
 | status_msg.py   |  Print flight controller banner statustext message contents |
+| arm_disarm.py    |  Arm a vehicle, hold, then disarm, checking COMMAND_ACK and HEARTBEAT. |
+| takeoff_land.py  |  Take off an ArduCopter in GUIDED mode, hover, then land. |
+| guided_flight.py |  Arm, take off, move, yaw and land an ArduCopter in GUIDED mode. |
