@@ -123,6 +123,21 @@ class MatrixTest(unittest.TestCase):
         assert diff.length() < 1.0e-12
 
 
+    def test_euler_pitch_singularity(self):
+        '''to_euler() must return +/-90 degrees of pitch at the gimbal-lock
+        attitudes, where from_euler() drives c.x to exactly +/-1.0'''
+        for p in (-90, 90):
+            m = Matrix3()
+            m.from_euler(0.0, radians(p), 0.0)
+            (r2, p2, y2) = m.to_euler()
+            # assert the value, not the constant: -90 -> c.x == +1.0
+            assert abs(degrees(p2) - p) < 1.0e-9
+            # and the recovered angles must rebuild the same matrix
+            m2 = Matrix3()
+            m2.from_euler(r2, p2, y2)
+            assert m2.close(m, tol=1.0e-9)
+
+
     def test_euler312(self):
         '''check that from_euler312() and to_euler312() are consistent'''
         m = Matrix3()
