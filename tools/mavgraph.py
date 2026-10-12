@@ -266,18 +266,20 @@ def field_unit(f, msg):
         return ""
     if m.group(1) != msg.get_type():
         return None
+    field = m.group(3)
     fmt = getattr(msg, 'fmt', None)
-    if fmt is None or not hasattr(fmt, 'get_unit'):
-        # not a DataFlash message
-        return ""
-    try:
-        unit = fmt.get_unit(m.group(3))
-    except KeyError:
-        return ""
-    if unit == "UNKNOWN":
-        # ArduPilot's placeholder for a unit it has not specified
-        return ""
-    return unit
+    if fmt is not None and hasattr(fmt, 'get_unit'):
+        # DataFlash message; units come from the log's FMTU metadata
+        try:
+            unit = fmt.get_unit(field)
+        except KeyError:
+            return ""
+        if unit == "UNKNOWN":
+            # ArduPilot's placeholder for a unit it has not specified
+            return ""
+        return unit
+    # MAVLink message; units come from the message definition
+    return getattr(msg, 'fieldunits_by_name', {}).get(field, "")
 
 def add_data(t, msg, vars, flightmode):
     '''add some data'''
