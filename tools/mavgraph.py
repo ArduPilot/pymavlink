@@ -65,6 +65,10 @@ def plotit(x, y, fields, colors=[]):
     fig = pylab.figure(num=1, figsize=(12,6))
     ax1 = fig.gca()
     ax2 = None
+    # saved images get small legend text
+    legend_prop = None
+    if args.output is not None and not args.output.endswith('.html'):
+        legend_prop = {'size': 8}
     xrange = 0.0
     for i in range(0, len(fields)):
         if len(x[i]) == 0: continue
@@ -88,8 +92,6 @@ def plotit(x, y, fields, colors=[]):
         ax1.xaxis.set_major_locator(locator)
         ax1.xaxis.set_major_formatter(formatter)
     empty = True
-    ax1_labels = []
-    ax2_labels = []
     ax1_units = []
     ax2_units = []
     for i in range(0, len(fields)):
@@ -111,11 +113,10 @@ def plotit(x, y, fields, colors=[]):
             label = fields[i]
             if label.endswith(":2"):
                 label = label[:-2]
-            ax2_labels.append(label)
             if units[i] not in ax2_units:
                 ax2_units.append(units[i])
         else:
-            ax1_labels.append(fields[i])
+            label = fields[i]
             if units[i] not in ax1_units:
                 ax1_units.append(units[i])
             ax = ax1
@@ -128,7 +129,7 @@ def plotit(x, y, fields, colors=[]):
                 linestyle = args.linestyle
             else:
                 linestyle = 'None'
-            ax.plot(x[i], y[i], color=color, label=fields[i],
+            ax.plot(x[i], y[i], color=color, label=label,
                     linestyle=linestyle, marker=marker)
         else:
             if args.marker is not None:
@@ -162,7 +163,7 @@ def plotit(x, y, fields, colors=[]):
                             alpha=0.3,
                             verticalalignment='baseline')
             else:
-                ax.plot_date(x[i], y[i], color=color, label=fields[i],
+                ax.plot_date(x[i], y[i], color=color, label=label,
                              linestyle=linestyle, marker=marker, tz=None)
         empty = False
     if args.flightmode is not None:
@@ -171,10 +172,15 @@ def plotit(x, y, fields, colors=[]):
             ax1.axvspan(modes[i][0], modes[i+1][0], fc=c, ec=edge_colour, alpha=0.1)
         c = colourmap[args.flightmode].get(modes[-1][1], edge_colour)
         ax1.axvspan(modes[-1][0], ax1.get_xlim()[1], fc=c, ec=edge_colour, alpha=0.1)
-    if ax1_labels != []:
-        ax1.legend(ax1_labels,loc=args.legend)
-    if ax2_labels != []:
-        ax2.legend(ax2_labels,loc=args.legend2)
+    # the legends list every line on the axes, so a graph of several logs
+    # keeps every log's entries
+    handles, labels = ax1.get_legend_handles_labels()
+    if handles:
+        ax1.legend(handles, labels, loc=args.legend, prop=legend_prop)
+    if ax2 is not None:
+        handles, labels = ax2.get_legend_handles_labels()
+        if handles:
+            ax2.legend(handles, labels, loc=args.legend2, prop=legend_prop)
     # only label an axis if every field on it has a unit
     if ax1_units != [] and "" not in ax1_units:
         ax1.set_ylabel(", ".join(ax1_units))
@@ -381,5 +387,4 @@ else:
         f_out.write(html)
         f_out.close()
     else:
-        pylab.legend(loc=2,prop={'size':8})
         pylab.savefig(args.output, bbox_inches='tight', dpi=200)
