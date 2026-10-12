@@ -12,6 +12,9 @@ For realtime discussion please see the pymavlink [Gitter channel](https://gitter
 
 Examples can be found [in the repository](examples/) or in the [ArduSub book](https://www.ardusub.com/developers/pymavlink.html)
 
+Rust generation and MAVSpec/mavio interoperability are documented in
+[generator/Rust/README.md](generator/Rust/README.md).
+
 
 # Installation 
 
