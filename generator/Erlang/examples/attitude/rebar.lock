@@ -1,0 +1,4 @@
+[{<<"gen_serial">>,
+  {git,"https://git.hq.sig7.se/gen_serial.git",
+       {ref,"b8c1e93684528a6b44e7378ae36ffc9907f53f4e"}},
+  0}].

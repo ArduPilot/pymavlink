@@ -40,7 +40,7 @@ MAXIMUM_INCLUDE_FILE_NESTING = 5
 
 # List the supported languages. This is done globally because it's used by the GUI wrapper too
 # Right now, 'JavaScript' ~= 'JavaScript_Stable', in the future it may be made equivalent to 'JavaScript_NextGen'
-supportedLanguages = ["Ada", "C", "CS", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python3", "Python", "Lua", "WLua", "ObjC", "Spin2", "Swift", "Java", "C++11"]
+supportedLanguages = ["Ada", "C", "CS", "Erlang", "JavaScript", "JavaScript_Stable","JavaScript_NextGen", "TypeScript", "Python3", "Python", "Lua", "WLua", "ObjC", "Spin2", "Swift", "Java", "C++11"]
 
 
 def mavgen(opts, args):
@@ -291,6 +291,12 @@ def mavgen(opts, args):
             mavgen_ada.generate_v2(opts.output, xml)
         else:
             raise DeprecationWarning("Error! Mavgen_Ada does not supports protocol version")
+    elif opts.language == 'erlang':
+        from . import mavgen_erlang
+        if opts.wire_protocol == mavparse.PROTOCOL_1_0:
+            mavgen_erlang.generate(opts.output, xml)
+        else:
+            raise DeprecationWarning("Error! Mavgen_Erlang does not supports protocol version")
     else:
         print("Unsupported language %s" % opts.language)
 
