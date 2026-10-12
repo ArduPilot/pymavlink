@@ -90,6 +90,8 @@ def plotit(x, y, fields, colors=[]):
     empty = True
     ax1_labels = []
     ax2_labels = []
+    ax1_units = []
+    ax2_units = []
     for i in range(0, len(fields)):
         if len(x[i]) == 0:
             print("Failed to find any values for field %s" % fields[i])
@@ -110,8 +112,12 @@ def plotit(x, y, fields, colors=[]):
             if label.endswith(":2"):
                 label = label[:-2]
             ax2_labels.append(label)
+            if units[i] not in ax2_units:
+                ax2_units.append(units[i])
         else:
             ax1_labels.append(fields[i])
+            if units[i] not in ax1_units:
+                ax1_units.append(units[i])
             ax = ax1
         if args.xaxis:
             if args.marker is not None:
@@ -169,6 +175,11 @@ def plotit(x, y, fields, colors=[]):
         ax1.legend(ax1_labels,loc=args.legend)
     if ax2_labels != []:
         ax2.legend(ax2_labels,loc=args.legend2)
+    # only label an axis if every field on it has a unit
+    if ax1_units != [] and "" not in ax1_units:
+        ax1.set_ylabel(", ".join(ax1_units))
+    if ax2_units != [] and "" not in ax2_units:
+        ax2.set_ylabel(", ".join(ax2_units))
     if empty:
         print("No data to graph")
         return
@@ -223,6 +234,7 @@ for f in args.logs_fields:
 msg_types = set()
 multiplier = []
 field_types = []
+units = []
 
 colors = [ 'red', 'green', 'blue', 'orange', 'olive', 'black', 'grey', 'yellow', 'brown', 'darkcyan', 'cornflowerblue', 'darkmagenta', 'deeppink', 'darkred']
 
@@ -241,6 +253,31 @@ for f in fields:
     x.append([])
     axes.append(1)
     first_only.append(False)
+    units.append(None)
+
+re_field = re.compile(r'^([A-Z_][A-Z0-9_]*)(\[[^\]]*\])?\.([A-Za-z_][A-Za-z0-9_]*)$')
+
+def field_unit(f, msg):
+    '''return the unit of a plain MSG.Field expression, or "" if not known.
+    Returns None if msg is not the field's message, so a later message
+    can supply the unit'''
+    m = re_field.match(f)
+    if m is None:
+        return ""
+    if m.group(1) != msg.get_type():
+        return None
+    fmt = getattr(msg, 'fmt', None)
+    if fmt is None or not hasattr(fmt, 'get_unit'):
+        # not a DataFlash message
+        return ""
+    try:
+        unit = fmt.get_unit(m.group(3))
+    except KeyError:
+        return ""
+    if unit == "UNKNOWN":
+        # ArduPilot's placeholder for a unit it has not specified
+        return ""
+    return unit
 
 def add_data(t, msg, vars, flightmode):
     '''add some data'''
@@ -268,6 +305,10 @@ def add_data(t, msg, vars, flightmode):
             xv = mavutil.evaluate_expression(args.xaxis, vars)
             if xv is None:
                 continue
+        if units[i] is None:
+            # only fields with data get a unit, so a field that is
+            # not in the log does not get an empty axis
+            units[i] = field_unit(f, msg)
         y[i].append(v)
         x[i].append(xv)
 
