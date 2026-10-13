@@ -83,6 +83,11 @@
 						     mavlink_message_t* r_message, 
 						     mavlink_status_t* r_mavlink_status);
     MAVLINK_HELPER uint8_t mavlink_frame_char(uint8_t chan, uint8_t c, mavlink_message_t* r_message, mavlink_status_t* r_mavlink_status);
+    MAVLINK_HELPER uint8_t mavlink_parse_char_buffer(mavlink_message_t* rxmsg,
+						     mavlink_status_t* status,
+						     uint8_t c,
+                                                     mavlink_message_t* r_message,
+                                                     mavlink_status_t* r_mavlink_status);
     MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_message_t* r_message, mavlink_status_t* r_mavlink_status);
     #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
     MAVLINK_HELPER void _mavlink_send_uart(mavlink_channel_t chan, const char *buf, uint16_t len);
