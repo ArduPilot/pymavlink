@@ -6932,16 +6932,16 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertIsNone(ftp.callback_failure)
         self.assertEqual(stdout.buffer.getvalue(), b"x" * 2560)
 
-    def test_short_known_size_destination_is_not_published(self):
-        """A short non-callback download preserves the existing destination."""
+    def test_staged_destination_missing_received_bytes_is_not_published(self):
+        """Staging shorter than the received range preserves the destination."""
         ftp, _master = self.make_ftp([])
         ftp.fh = MagicMock()
-        ftp.fh.tell.return_value = 88
+        ftp.fh.tell.return_value = 1000
         ftp.fh.fileno.return_value = 7
         ftp.filename = "destination.bin"
         ftp.temp_filename = "staging.bin"
         ftp.op_start = time.time() - 1
-        ftp.read_total = 88
+        ftp.read_total = 1000
         ftp.requested_size = 1000
         ftp.remote_size_known = True
         ftp.reached_eof = True
@@ -8563,8 +8563,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             ))
             self.assertEqual(ftp.callback_failure.error_code, FtpError.InvalidDataSize)
 
-    def test_sysfs_storage_and_crash_dump_sizes_remain_exact(self):
-        """Short downloads cannot replace storage or crash dumps."""
+    def test_sysfs_storage_and_crash_dump_reject_truncated_staging(self):
+        """Missing received bytes cannot replace storage or crash dumps."""
         for remote in ("/@SYS/storage.bin", "/@SYS/crash_dump.bin"):
             with self.subTest(remote=remote), tempfile.TemporaryDirectory() as tempdir:
                 destination = os.path.join(tempdir, "original.bin")
@@ -8578,6 +8578,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                     ftp._MAVFTP__handle_open_ro_reply(open_reply, None)
                 ftp.fh.write(b"data")
                 ftp.read_total = 4
+                ftp.fh.truncate(2)
                 ftp.reached_eof = True
                 with patch.object(ftp, "process_ftp_reply", return_value=MAVFTPReturn(
                     "TerminateSession", FtpError.Success

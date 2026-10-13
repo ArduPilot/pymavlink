@@ -2367,8 +2367,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     self.get_result = result[: self.requested_size]
                 elif self.filename == "-":
                     self.get_result = result
-                if not self.read_to_memory and not self.remote_size_known:
-                    self.requested_size = max(0, actual_size - self.requested_offset)
+                if not self.read_to_memory:
+                    # Full downloads require EOF and no outstanding gaps.
+                    # OpenFileRO may report a stat estimate (e.g. ArduPilot's
+                    # @PARAM and @SYS files), not the stream's actual length.
+                    # Use the received high-water mark, never a short staging
+                    # file's size, as the final publication/accounting target.
+                    self.requested_size = max(0, ofs - self.requested_offset)
                 if self.read_to_memory and len(self.get_result) < self.requested_size:
                     logging.warning(
                         "expected %u, got %u", self.requested_size, len(self.get_result)
@@ -2378,19 +2383,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         "expected %u, got %u", self.requested_size, actual_size
                     )
                 if (
-                    self.remote_size_known
-                    and not self.read_to_memory
+                    not self.read_to_memory
                     and self.filename not in (None, "-")
                     and self.temp_filename is not None
-                    and actual_size < self.requested_size
+                    and actual_size < ofs
                 ):
                     # A destination-file transfer must not atomically replace
-                    # an existing good file with a known-truncated download.
-                    # Callback and stdout consumers intentionally retain their
-                    # historical EOF-authoritative behavior above.
+                    # an existing good file if received bytes are missing from
+                    # staging, even when no remote size was advertised.
                     logging.error(
                         "FTP: refusing to publish short download: expected %u, got %u",
-                        self.requested_size,
+                        ofs,
                         actual_size,
                     )
                     self.callback_failure = MAVFTPReturn(
