@@ -23,8 +23,10 @@ import time
 import unittest
 from argparse import Namespace
 from io import BytesIO, StringIO
-
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from pymavlink import mavftp as mavftp_module
 from pymavlink import mavutil
 from pymavlink.examples import mavftp_example
@@ -251,6 +253,65 @@ class FakeMaster:  # pylint: disable=too-few-public-methods
                 return None
             return self.replies.pop(0)
         return None
+
+
+class PagedListingMaster(FakeMaster):  # pylint: disable=too-few-public-methods
+    """Serve ten entries every 250 ms, optionally stalling after two pages."""
+
+    def __init__(self, clock, stalled=False, rejected=None):
+        super().__init__([ftp_reply(1, OP_Ack, OP_ResetSessions)])
+        self.clock = clock
+        self.stalled = stalled
+        self.rejected = rejected
+        self.last_progress = None
+        self.served = set()
+
+    def recv_match(self, **kwargs):
+        self.clock[0] += 0.25
+        request = self._decode_payload(self.mav.sent[-1][-1])
+        if (
+            request.opcode in {OP_ListDirectory, OP_ListDirectoryWithTime}
+            and request.seq not in self.served
+            and not (self.stalled and request.offset >= 20)
+        ):
+            self.served.add(request.seq)
+            if request.offset >= 700:
+                reply = ftp_reply(
+                    request.seq + 1, OP_Nack, request.opcode,
+                    bytes([FtpError.EndOfFile]),
+                )
+            else:
+                entries = [
+                    f"Flog{index:04d}.bin\t1".encode("ascii")
+                    + (b"\t123" if request.opcode == OP_ListDirectoryWithTime else b"")
+                    + b"\0"
+                    for index in range(request.offset, request.offset + 10)
+                ]
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, request.opcode, b"".join(entries),
+                    offset=request.offset,
+                )
+                self.last_progress = self.clock[0]
+            self.replies.append(reply)
+        elif self.rejected and request.opcode == OP_ListDirectory:
+            reply = ftp_reply(
+                request.seq + 1, OP_Ack, OP_ListDirectory, b"Fwrong.bin\t1\0",
+                offset=request.offset,
+            )
+            if self.rejected == "target":
+                reply.target_system = 99
+            elif self.rejected == "session":
+                reply = ftp_reply(
+                    request.seq + 1, OP_Ack, OP_ListDirectory,
+                    b"Fwrong.bin\t1\0", offset=request.offset, session=99,
+                )
+            else:
+                reply = ftp_reply(
+                    request.seq - 1, OP_Ack, OP_ListDirectory,
+                    b"Fwrong.bin\t1\0", offset=request.offset,
+                )
+            self.replies.append(reply)
+        return super().recv_match(**kwargs)
 
 
 class SilentTimestampListingMaster(FakeMaster):  # pylint: disable=too-few-public-methods
@@ -5387,8 +5448,8 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         self.assertEqual(process_reply.call_args.args, ("ListDirectory",))
         self.assertAlmostEqual(process_reply.call_args.kwargs["timeout"], 60.02)
 
-    def test_baseline_listing_keeps_the_legacy_default_timeout(self):
-        """A standard listing does not opt into retries by default."""
+    def test_baseline_listing_uses_the_5_second_default_timeout(self):
+        """A standard listing allows five seconds of inactivity by default."""
         ftp, _master = self.make_ftp([], list_time=0)
         ftp.process_ftp_reply = MagicMock(
             return_value=MAVFTPReturn("ListDirectory", FtpError.Success)
@@ -7557,7 +7618,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.fh = BytesIO()
         ftp.filename = "-"
         ftp.burst_size = 239
-        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+        setattr(ftp, "_MAVFTP__terminate_session", lambda **_kwargs: None)
         far_offset = (MAX_READ_GAPS + 1) * ftp.burst_size
 
         result = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
@@ -7583,7 +7644,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
         ftp.fh = BytesIO()
         ftp.filename = "-"
         ftp.burst_size = 239
-        setattr(ftp, "_MAVFTP__terminate_session", lambda: None)
+        setattr(ftp, "_MAVFTP__terminate_session", lambda **_kwargs: None)
         first_offset = MAX_READ_GAPS * ftp.burst_size
 
         first_result = ftp._MAVFTP__handle_burst_read(  # pylint: disable=protected-access
@@ -8746,6 +8807,90 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
                 self.assertEqual(result.error_code, expected_error)
                 self.assertEqual(master.replies, [])
+
+
+@pytest.mark.parametrize("list_time", [0, 1])
+@pytest.mark.parametrize("timeout", [None, 0])
+@pytest.mark.parametrize("rx_lag", [0, 100])
+def test_blocking_listing_completes_while_pages_keep_arriving(list_time, timeout, rx_lag):
+    """An omitted or unbounded timeout permits more than 15 s of progress."""
+    clock = [100.0]
+    master = PagedListingMaster(clock)
+    with (
+        patch("pymavlink.mavftp.time.time", side_effect=lambda: clock[0]),
+        patch("pymavlink.mavftp.time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        ftp = MAVFTP(master, 1, 1)
+        ftp.ftp_settings.list_time = list_time
+        ftp.ftp_settings.pkt_lag_rx = rx_lag
+        result = ftp.cmd_list(["/logs"], timeout=timeout)
+
+    assert result.error_code == FtpError.Success
+    assert len(result.directory_listing) == 700
+    assert result.directory_listing[0].name == "log0000.bin"
+    assert result.directory_listing[-1].name == "log0699.bin"
+    assert clock[0] - 100.25 > 15
+
+
+@pytest.mark.parametrize("list_time", [0, 1])
+def test_blocking_listing_explicit_timeout_remains_a_total_budget(list_time):
+    """An explicit timeout is not extended by incoming directory pages."""
+    clock = [100.0]
+    master = PagedListingMaster(clock)
+    with patch("pymavlink.mavftp.time.time", side_effect=lambda: clock[0]):
+        ftp = MAVFTP(master, 1, 1)
+        ftp.ftp_settings.list_time = list_time
+        result = ftp.cmd_list(["/logs"], timeout=15)
+
+    assert result.error_code == FtpError.RemoteReplyTimeout
+    assert len(ftp.list_temp_result) < 700
+    assert clock[0] - 100.25 <= 15.5
+    assert ftp.request_cancelled
+
+
+@pytest.mark.parametrize("rejected", [None, "target", "session", "sequence"])
+def test_blocking_listing_default_times_out_after_last_accepted_page(rejected):
+    """Silence or rejected traffic cannot extend the last page's 5 s window."""
+    clock = [100.0]
+    master = PagedListingMaster(clock, stalled=True, rejected=rejected)
+    with patch("pymavlink.mavftp.time.time", side_effect=lambda: clock[0]):
+        ftp = MAVFTP(master, 1, 1)
+        result = ftp.cmd_list(["/logs"])
+
+    assert result.error_code == FtpError.RemoteReplyTimeout
+    assert len(ftp.list_temp_result) == 20
+    assert 5 <= clock[0] - master.last_progress <= 5.5
+    assert ftp.request_cancelled
+
+
+def test_managed_listing_default_retains_its_progress_timeout():
+    """The managed 5 s deadline restarts after each accepted page."""
+    clock = [100.0]
+    ftp, master, sent, completed = TestMAVFTPReplyCompletion.managed_ftp()
+    with patch("pymavlink.mavftp.time.time", side_effect=lambda: clock[0]):
+        ftp.cmd_list(["/logs"], wait=False)
+        assert ftp._event_timeout == 5
+        assert ftp._event_deadline == 105
+        for index in range(80):
+            clock[0] += 0.25
+            request = master._decode_payload(sent[-1])
+            result = ftp.mavlink_packet(ftp_reply(
+                request.seq + 1, OP_Ack, OP_ListDirectory,
+                f"Flog{index:04d}.bin\t1\0".encode("ascii"),
+                offset=index, session=37,
+            ))
+            assert result.error_code == FtpError.Success
+            assert ftp._event_deadline == clock[0] + 5
+            assert not completed
+        request = master._decode_payload(sent[-1])
+        ftp.mavlink_packet(ftp_reply(
+            request.seq + 1, OP_Nack, OP_ListDirectory,
+            bytes([FtpError.EndOfFile]), offset=80, session=37,
+        ))
+
+    assert [result.error_code for result in completed] == [FtpError.Success]
+    assert len(completed[0].directory_listing) == 80
+    assert ftp.event_complete
 
 
 class TestMAVFTPParamDecode(unittest.TestCase):

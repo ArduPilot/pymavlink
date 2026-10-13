@@ -12,6 +12,7 @@ import pytest
 
 from pymavlink.mavftp import (
     FtpError,
+    MAX_READ_GAPS,
     OP_Ack,
     OP_BurstReadFile,
     OP_Nack,
@@ -188,3 +189,82 @@ def test_estimated_size_download_with_unrepaired_gap_times_out(tmp_path):
     assert [result.error_code for result in completed] == [FtpError.RemoteReplyTimeout]
     assert ftp.fh is None
     assert ftp.temp_filename is None
+
+
+@pytest.mark.parametrize("cumulative", [False, True])
+def test_managed_gap_limit_reports_the_same_terminal_error(tmp_path, cumulative):
+    """The packet result, event result and callback preserve InvalidDataSize."""
+    destination = tmp_path / "download.bin"
+    destination.write_bytes(b"original")
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.ftp_settings.burst_read_size = 80
+    ftp.cmd_get(["remote.bin", str(destination)])
+    ftp.mavlink_packet(ftp_reply(
+        ftp.last_op.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", 1000000), session=37,
+    ))
+    stage = ftp.temp_filename
+    burst_seq = ftp.pending_burst_seq
+    offset = (MAX_READ_GAPS + 1) * 80
+    if cumulative:
+        first_offset = MAX_READ_GAPS * 80
+        ftp.mavlink_packet(ftp_reply(
+            burst_seq, OP_Ack, OP_BurstReadFile,
+            b"x" * 80, offset=first_offset, session=37,
+        ))
+        assert len(ftp.read_gaps) == MAX_READ_GAPS
+        assert not completed
+        offset = first_offset + 160
+    result = ftp.mavlink_packet(ftp_reply(
+        burst_seq + int(cumulative), OP_Ack, OP_BurstReadFile,
+        b"x" * 80, offset=offset, session=37,
+    ))
+
+    assert result.error_code == FtpError.InvalidDataSize
+    assert ftp.event_complete
+    assert completed == [result]
+    assert ftp.event_result is result
+    assert result.operation_name == "BurstReadFile"
+    assert destination.read_bytes() == b"original"
+    assert not Path(stage).exists()
+    assert ftp.fh is None
+    assert ftp.temp_filename is None
+    assert not ftp.read_gaps
+    assert not ftp.transfer_active
+    terminations = [
+        master._decode_payload(payload)
+        for payload in sent
+        if master._decode_payload(payload).opcode == OP_TerminateSession
+    ]
+    assert len(terminations) == 1
+    assert terminations[0].session == 37
+    ftp.mavlink_packet(ftp_reply(
+        burst_seq + 2, OP_Ack, OP_BurstReadFile, b"late", session=37,
+    ))
+    assert completed == [result]
+
+
+@pytest.mark.parametrize(
+    "remote", ["@PARAM/param.pck", "/@PARAM/param.pck?withdefaults=1"]
+)
+def test_parameter_max_size_still_rejects_an_oversized_announcement(tmp_path, remote):
+    """Explicit download limits deliberately retain their announcement check."""
+    destination = tmp_path / "download.bin"
+    destination.write_bytes(b"original")
+    ftp, master, sent, completed = helpers.TestMAVFTPReplyCompletion.managed_ftp()
+    ftp.cmd_get([remote, str(destination)], max_size=17000)
+    result = ftp.mavlink_packet(ftp_reply(
+        ftp.last_op.seq + 1, OP_Ack, OP_OpenFileRO,
+        struct.pack("<I", 17544), session=37,
+    ))
+
+    assert result.error_code == FtpError.InvalidDataSize
+    assert completed == [result]
+    assert ftp.event_complete
+    assert destination.read_bytes() == b"original"
+    assert ftp.fh is None
+    assert ftp.temp_filename is None
+    assert all(
+        master._decode_payload(payload).opcode != OP_BurstReadFile
+        for payload in sent
+    )

@@ -622,6 +622,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # an omitted public timeout. This is consumed by the next reply loop
         # entry so process_ftp_reply keeps its long-standing public signature.
         self._next_no_sessions_timeout_extension: Optional[bool] = None
+        self._next_list_timeout_refresh: Optional[bool] = None
         self.last_op_reply = False
         # A synchronous operation that has returned an error must not be
         # retried later by idle_task(), including through the optional
@@ -1666,7 +1667,11 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def cmd_list(
         self, args: List[str], timeout: Optional[float] = None, wait: bool = True
     ) -> MAVFTPReturn:
-        """List files."""
+        """List files; the default timeout bounds inactivity between pages.
+
+        An explicit blocking timeout remains a total operation budget, with
+        zero disabling that budget.
+        """
         extend_timeout_on_no_sessions = timeout is None
         valid_timeout, timeout = self.__coerce_optional_timeout(timeout)
         if not valid_timeout:
@@ -1734,6 +1739,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             "ListDirectory",
             timeout=timeout,
             extend_timeout_on_no_sessions=extend_timeout_on_no_sessions,
+            refresh_list_timeout=extend_timeout_on_no_sessions,
         )
 
     def __list_without_time(self, mark_unsupported: bool = True) -> None:
@@ -2663,8 +2669,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     logging.error(
                         "FTP: burst reply creates too many gaps (%u)", total_gap_count
                     )
-                    self.__terminate_session()
-                    return MAVFTPReturn("BurstReadFile", FtpError.InvalidDataSize)
+                    result = MAVFTPReturn("BurstReadFile", FtpError.InvalidDataSize)
+                    self.__terminate_session(result=result)
+                    return result
                 while True:
                     if gap[1] <= max_read:
                         self.read_gaps.append(gap)
@@ -4780,14 +4787,18 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         operation_name: str,
         timeout: Optional[float],
         extend_timeout_on_no_sessions: bool,
+        refresh_list_timeout: Optional[bool] = None,
     ) -> MAVFTPReturn:
         """Run a public command reply loop without changing its override API."""
         previous_extension = self._next_no_sessions_timeout_extension
+        previous_list_refresh = self._next_list_timeout_refresh
         self._next_no_sessions_timeout_extension = extend_timeout_on_no_sessions
+        self._next_list_timeout_refresh = refresh_list_timeout
         try:
             return self.process_ftp_reply(operation_name, timeout=timeout)
         finally:
             self._next_no_sessions_timeout_extension = previous_extension
+            self._next_list_timeout_refresh = previous_list_refresh
 
     def process_ftp_reply(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements,too-many-nested-blocks,too-many-return-statements
         self, operation_name: str, timeout: Optional[float] = None
@@ -4798,6 +4809,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ``_next_no_sessions_timeout_extension`` flag to control whether an
         omitted timeout is extended after ``NoSessionsAvailable`` replies;
         direct callers default to extending an omitted timeout.
+
+        ``cmd_list`` also preserves whether its timeout was omitted through
+        ``_next_list_timeout_refresh``. Only default listing deadlines restart
+        after accepted pages; explicit blocking timeouts remain total budgets.
         """
         start_time = time.time()
         generation = self._event_generation
@@ -4805,6 +4820,13 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         default_timeout = timeout is None
         extend_timeout_on_no_sessions = self._next_no_sessions_timeout_extension
         self._next_no_sessions_timeout_extension = None
+        refresh_list_timeout = self._next_list_timeout_refresh
+        self._next_list_timeout_refresh = None
+        if refresh_list_timeout is None:
+            refresh_list_timeout = default_timeout
+        refresh_list_timeout = (
+            refresh_list_timeout and operation_name == "ListDirectory"
+        )
         if extend_timeout_on_no_sessions is None:
             extend_timeout_on_no_sessions = default_timeout
         if timeout is None:
@@ -4866,6 +4888,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._ftp_reply_processing_depth += 1
         try:
             while True:  # an FTP operation can have multiple responses
+                accepted_before_receive = self.accepted_reply_generation
+                list_offset_before_receive = self.dir_offset
                 m = self.master.recv_match(
                     type=["FILE_TRANSFER_PROTOCOL"], timeout=recv_timeout
                 )
@@ -4952,6 +4976,14 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                         ret = self.callback_failure
                         self.callback_failure = None
                         break
+                if (
+                    refresh_list_timeout
+                    and timeout > 0
+                    and self.accepted_reply_generation != accepted_before_receive
+                    and self.dir_offset > list_offset_before_receive
+                ):
+                    timeout_deadline = time.time() + timeout
+                    self._ftp_reply_deadline = timeout_deadline
                 # Completion is scoped to the terminal reply that produced it.
                 # This prevents a delayed ListDirectory EOF from completing a
                 # following RemoveFile or a subsequent list operation.
@@ -4994,6 +5026,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     )
                     ret = MAVFTPReturn(operation_name, FtpError.RemoteReplyTimeout)
                     break
+                accepted_before_idle = self.accepted_reply_generation
+                list_offset_before_idle = self.dir_offset
                 idle_expired = self.idle_task()
                 if self._event_generation != generation:
                     return ret
@@ -5051,6 +5085,17 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                     break
                 if malformed_result:
                     break
+                # RX simulation can release a page from idle_task(), rather
+                # than the receive above. Refresh before the timeout check in
+                # that case too; stale or wrong-recipient traffic cannot count.
+                if (
+                    refresh_list_timeout
+                    and timeout > 0
+                    and self.accepted_reply_generation != accepted_before_idle
+                    and self.dir_offset > list_offset_before_idle
+                ):
+                    timeout_deadline = time.time() + timeout
+                    self._ftp_reply_deadline = timeout_deadline
                 if (
                     extend_timeout_on_no_sessions
                     and timeout > 0
@@ -5334,7 +5379,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         """Save Ardupilot parameter information to a local file."""
         if not pdict or not filename:
             return
-        with open(filename, "w", encoding="utf-8") as f:
+        with open(filename, "w", encoding="utf-8", newline="\n") as f:
             parameter_data_types = {
                 1: "8-bit",
                 2: "16-bit",
