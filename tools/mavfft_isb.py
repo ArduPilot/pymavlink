@@ -265,9 +265,9 @@ class mavfft_fttd:
                 scale_label="dB "
             if self.fft_output == 'lsd':
                 if str(sensor).startswith("Gyro"):
-                    pylab.ylabel('LSD $' + scale_label + 'd/s/\sqrt{Hz}$')
+                    pylab.ylabel('LSD $' + scale_label + r'd/s/\sqrt{Hz}$')
                 else:
-                    pylab.ylabel('LSD $' + scale_label + 'm/s^2/\sqrt{Hz}$')
+                    pylab.ylabel('LSD $' + scale_label + r'm/s^2/\sqrt{Hz}$')
             else:
                 if str(sensor).startswith("Gyro"):
                     pylab.ylabel('PSD $' + scale_label + 'd^2/s^2/Hz$')
