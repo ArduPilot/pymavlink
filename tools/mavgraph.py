@@ -67,11 +67,12 @@ restacking = False  # set while the y axes are being stacked
 restack_pending = False  # a y range has changed since the last restack
 left_layout = None  # where the y axes were last stacked
 redraw_timer = None  # draws the figure again after the y axes are restacked
+axis_re = re.compile(r'^(.*):([2-9])$')  # FIELD:N puts FIELD on y axis N
 
 def field_axes():
     '''work out which y axis each field is plotted on'''
-    if 2 in axes:
-        # axes chosen by hand with :2 suffixes
+    if max(axes) > 1:
+        # axes chosen by hand with :N suffixes
         return axes[:]
     # give each unit its own axis; fields without a unit share the first.
     # A unit keeps its axis for every log plotted
@@ -242,8 +243,9 @@ def plotit(x, y, fields, colors=[]):
             ax.xaxis.set_major_locator(locator)
             ax.xaxis.set_major_formatter(formatter)
         label = fields[i]
-        if label.endswith(":2"):
-            label = label[:-2]
+        m = axis_re.match(label)
+        if m is not None:
+            label = m.group(1)
         lines = []
         if args.xaxis:
             if args.marker is not None:
@@ -437,9 +439,10 @@ for f in fields:
     units.append(None)
     # parse the suffixes now, so they apply even if the field never
     # gets any data
-    if f.endswith(":2"):
-        axes[-1] = 2
-        f = f[:-2]
+    m = axis_re.match(f)
+    if m is not None:
+        axes[-1] = int(m.group(2))
+        f = m.group(1)
     if f.endswith(":1"):
         first_only[-1] = True
         f = f[:-2]
