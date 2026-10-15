@@ -61,6 +61,12 @@ plot_axes = {}  # y axis number -> matplotlib axes
 unit_axis = {}  # unit -> y axis number, kept across logs
 axis_units = {} # y axis number -> units of the fields plotted on it
 plotted_lines = []  # every line plotted, in the order plotted
+restack_cid = None  # resize handler restacking the y axes
+restack_axes = []   # y axes whose range changes restack them
+restacking = False  # set while the y axes are being stacked
+restack_pending = False  # a y range has changed since the last restack
+left_layout = None  # where the y axes were last stacked
+redraw_timer = None  # draws the figure again after the y axes are restacked
 
 def field_axes():
     '''work out which y axis each field is plotted on'''
@@ -79,11 +85,117 @@ def field_axes():
         ret.append(unit_axis[unit])
     return ret
 
+def extra_axes():
+    '''return the numbers of the y axes stacked left of the first'''
+    return sorted(n for n in plot_axes if n >= 2)
+
 def get_axis(n):
     '''return y axis n, creating it if needed'''
     if n not in plot_axes:
         plot_axes[n] = plot_axes[1].twinx()
     return plot_axes[n]
+
+def time_locator(xrange, max_ticks):
+    '''return a locator aiming for at most max_ticks ticks on xrange
+    seconds; very long ranges get daily ticks however many there are'''
+    intervals = [ 1, 2, 5, 10, 15, 30, 60, 120, 240, 300, 600,
+                  900, 1800, 3600, 7200, 5*3600, 10*3600, 24*3600 ]
+    for interval in intervals:
+        if xrange / interval < max_ticks:
+            break
+    return matplotlib.dates.SecondLocator(interval=interval)
+
+def figure_renderer(fig):
+    '''return a renderer for measuring the artists of fig'''
+    get_renderer = getattr(fig.canvas, 'get_renderer', None)
+    if get_renderer is not None:
+        return get_renderer()
+    # non-Agg backends (e.g. cairo) have no get_renderer
+    get_renderer = getattr(fig, '_get_renderer', None)
+    if get_renderer is not None:
+        return get_renderer()
+    from matplotlib.backend_bases import _get_renderer
+    return _get_renderer(fig)
+
+def stack_left_axes(fig, extra):
+    '''place the extra y axes to the left of the first, each one just clear
+    of the tick labels and label of the axis inside it. Return True if
+    anything moved'''
+    global restacking, left_layout
+    if restacking:
+        # measuring the labels can autoscale an axis, changing its y range
+        return False
+    restacking = True
+    try:
+        layout = place_left_axes(fig, extra)
+    finally:
+        restacking = False
+    # do it again whenever the window is resized or a y range changes, as
+    # both change how much room the labels need
+    global restack_cid
+    if restack_cid is None:
+        restack_cid = fig.canvas.mpl_connect(
+            'resize_event', lambda event: stack_left_axes(fig, extra_axes()))
+        fig.canvas.mpl_connect('draw_event', restack_after_draw)
+    for ax in plot_axes.values():
+        if ax not in restack_axes:
+            restack_axes.append(ax)
+            ax.callbacks.connect('ylim_changed', ylim_changed)
+    changed = layout != left_layout
+    left_layout = layout
+    return changed
+
+def ylim_changed(ax):
+    '''a y range has changed, which changes how much room the tick labels
+    need. Panning changes every axis's range at every mouse step, so
+    restack once, after the next draw, rather than on every change'''
+    global restack_pending
+    if not restacking:
+        restack_pending = True
+
+def restack_after_draw(event):
+    '''restack the y axes if a y range has changed, drawing again if that
+    moved anything'''
+    global restack_pending, redraw_timer
+    if not restack_pending:
+        return
+    restack_pending = False
+    fig = event.canvas.figure
+    if stack_left_axes(fig, extra_axes()):
+        # backends ignore a request to draw made during a draw, so make it
+        # once this draw has finished
+        redraw_timer = fig.canvas.new_timer(interval=0)
+        redraw_timer.single_shot = True
+        redraw_timer.add_callback(fig.canvas.draw_idle)
+        redraw_timer.start()
+
+def place_left_axes(fig, extra):
+    '''do the work of stack_left_axes, returning the layout chosen'''
+    ax1 = plot_axes[1]
+    for n in extra:
+        get_axis(n).spines['left'].set_position(('axes', 0))
+        get_axis(n).yaxis.get_offset_text().set_x(0)
+    # a non-Agg backend's renderer can change the figure's dpi
+    dpi = fig.dpi
+    renderer = figure_renderer(fig)
+    # how far each axis's tick labels and label reach left of its line
+    widths = [ax1.bbox.x0 - get_axis(n).yaxis.get_tightbbox(renderer).x0
+              for n in [1] + extra]
+    gap = 6 * fig.dpi / 72.0
+    offsets = []
+    offset = 0
+    for w in widths[:-1]:
+        offset += w + gap
+        offsets.append(offset)
+    left = (offsets[-1] + widths[-1] + gap) / fig.bbox.width
+    fig.subplots_adjust(left=min(0.6, left))
+    for n, offset in zip(extra, offsets):
+        get_axis(n).spines['left'].set_position(('axes', -offset / ax1.bbox.width))
+        # put the axis's scale (e.g. 1e6) over the axis, not the plot
+        get_axis(n).yaxis.get_offset_text().set_x(-offset / ax1.bbox.width)
+    if fig.dpi != dpi:
+        fig.dpi = dpi
+    return [min(0.6, left)] + offsets
 
 def plotit(x, y, fields, colors=[]):
     '''plot a set of graphs using date for x axis'''
@@ -110,13 +222,7 @@ def plotit(x, y, fields, colors=[]):
     xrange *= 24 * 60 * 60
     formatter = matplotlib.dates.DateFormatter('%H:%M:%S')
     faxes = field_axes()
-    interval = 1
-    intervals = [ 1, 2, 5, 10, 15, 30, 60, 120, 240, 300, 600,
-                  900, 1800, 3600, 7200, 5*3600, 10*3600, 24*3600 ]
-    for interval in intervals:
-        if xrange / interval < 15:
-            break
-    locator = matplotlib.dates.SecondLocator(interval=interval)
+    locator = time_locator(xrange, 15)
     if not args.xaxis:
         ax1.xaxis.set_major_locator(locator)
         ax1.xaxis.set_major_formatter(formatter)
@@ -228,21 +334,30 @@ def plotit(x, y, fields, colors=[]):
     if len(plot_axes) > 2:
         # as in MAVExplorer, stack the extra axes on the left, and colour
         # each axis whose lines (across all files) share a colour to match
-        extra = sorted(n for n in plot_axes if n >= 2)
-        for idx, n in enumerate(extra):
+        extra = extra_axes()
+        for n in extra:
             ax = get_axis(n)
             ax.yaxis.set_ticks_position('left')
             ax.yaxis.set_label_position('left')
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_visible(True)
-            ax.spines['left'].set_position(('axes', -(idx + 1) * 0.10))
         for n in plot_axes:
             line_colors = set(line.get_color() for line in get_axis(n).get_lines())
             c = line_colors.pop() if len(line_colors) == 1 else 'black'
             get_axis(n).yaxis.label.set_color(c)
             get_axis(n).tick_params(axis='y', colors=c)
             get_axis(n).spines['left'].set_color(c)
-        fig.subplots_adjust(left=min(0.5, 0.08 + len(extra) * 0.10))
+        stack_left_axes(fig, extra)
+        if not args.xaxis:
+            # the stacked axes narrow the plot, so it gets fewer time
+            # ticks; a little fewer than in proportion, as the tick count
+            # can come out one over the limit
+            width = ax1.get_position().width
+            full_width = (matplotlib.rcParams['figure.subplot.right'] -
+                          matplotlib.rcParams['figure.subplot.left'])
+            locator = time_locator(xrange, 13 * width / full_width)
+            for ax in plot_axes.values():
+                ax.xaxis.set_major_locator(locator)
     if empty:
         print("No data to graph")
         return
