@@ -57,14 +57,42 @@ edge_colour = (0.1, 0.1, 0.1)
 
 lowest_x = None
 highest_x = None
+plot_axes = {}  # y axis number -> matplotlib axes
+unit_axis = {}  # unit -> y axis number, kept across logs
+axis_units = {} # y axis number -> units of the fields plotted on it
+plotted_lines = []  # every line plotted, in the order plotted
+
+def field_axes():
+    '''work out which y axis each field is plotted on'''
+    if 2 in axes:
+        # axes chosen by hand with :2 suffixes
+        return axes[:]
+    # give each unit its own axis; fields without a unit share the first.
+    # A unit keeps its axis for every log plotted
+    ret = []
+    for unit in units:
+        if not unit:
+            ret.append(1)
+            continue
+        if unit not in unit_axis:
+            unit_axis[unit] = len(unit_axis) + 1
+        ret.append(unit_axis[unit])
+    return ret
+
+def get_axis(n):
+    '''return y axis n, creating it if needed'''
+    if n not in plot_axes:
+        plot_axes[n] = plot_axes[1].twinx()
+    return plot_axes[n]
 
 def plotit(x, y, fields, colors=[]):
     '''plot a set of graphs using date for x axis'''
     global lowest_x, highest_x
     pylab.ion()
     fig = pylab.figure(num=1, figsize=(12,6))
-    ax1 = fig.gca()
-    ax2 = None
+    if 1 not in plot_axes:
+        plot_axes[1] = fig.gca()
+    ax1 = plot_axes[1]
     # saved images get small legend text
     legend_prop = None
     if args.output is not None and not args.output.endswith('.html'):
@@ -81,6 +109,7 @@ def plotit(x, y, fields, colors=[]):
     xrange = highest_x - lowest_x
     xrange *= 24 * 60 * 60
     formatter = matplotlib.dates.DateFormatter('%H:%M:%S')
+    faxes = field_axes()
     interval = 1
     intervals = [ 1, 2, 5, 10, 15, 30, 60, 120, 240, 300, 600,
                   900, 1800, 3600, 7200, 5*3600, 10*3600, 24*3600 ]
@@ -92,8 +121,6 @@ def plotit(x, y, fields, colors=[]):
         ax1.xaxis.set_major_locator(locator)
         ax1.xaxis.set_major_formatter(formatter)
     empty = True
-    ax1_units = []
-    ax2_units = []
     for i in range(0, len(fields)):
         if len(x[i]) == 0:
             print("Failed to find any values for field %s" % fields[i])
@@ -103,23 +130,15 @@ def plotit(x, y, fields, colors=[]):
         else:
             color = 'red'
         (tz, tzdst) = time.tzname
-        if axes[i] == 2:
-            if ax2 is None:
-                ax2 = ax1.twinx()
-            ax = ax2
-            if not args.xaxis:
-                ax2.xaxis.set_major_locator(locator)
-                ax2.xaxis.set_major_formatter(formatter)
-            label = fields[i]
-            if label.endswith(":2"):
-                label = label[:-2]
-            if units[i] not in ax2_units:
-                ax2_units.append(units[i])
-        else:
-            label = fields[i]
-            if units[i] not in ax1_units:
-                ax1_units.append(units[i])
-            ax = ax1
+        n = faxes[i]
+        ax = get_axis(n)
+        if n != 1 and not args.xaxis:
+            ax.xaxis.set_major_locator(locator)
+            ax.xaxis.set_major_formatter(formatter)
+        label = fields[i]
+        if label.endswith(":2"):
+            label = label[:-2]
+        lines = []
         if args.xaxis:
             if args.marker is not None:
                 marker = args.marker
@@ -129,8 +148,8 @@ def plotit(x, y, fields, colors=[]):
                 linestyle = args.linestyle
             else:
                 linestyle = 'None'
-            ax.plot(x[i], y[i], color=color, label=label,
-                    linestyle=linestyle, marker=marker)
+            lines = ax.plot(x[i], y[i], color=color, label=label,
+                            linestyle=linestyle, marker=marker)
         else:
             if args.marker is not None:
                 marker = args.marker
@@ -144,27 +163,34 @@ def plotit(x, y, fields, colors=[]):
                 # assume this is a piece of text to be rendered at a point in time
                 last_text_time = -1
                 last_text = None
-                for n in range(0, len(x[i])):
+                for j in range(0, len(x[i])):
                     if last_text is None:
-                        last_text = "[" + y[i][n] + "]"
-                        last_text_time = x[i][n]
-                    elif x[i][n] == last_text_time:
-                        last_text += "[" + y[i][n] + "]"
+                        last_text = "[" + y[i][j] + "]"
+                        last_text_time = x[i][j]
+                    elif x[i][j] == last_text_time:
+                        last_text += "[" + y[i][j] + "]"
                     else:
-                        ax.text(x[i][n], 10, last_text,
+                        ax.text(x[i][j], 10, last_text,
                                 rotation=90,
                                 alpha=0.3,
                                 verticalalignment='baseline')
                         last_text = None
-                        last_label_time = x[i][n]
+                        last_label_time = x[i][j]
                 if last_text is not None:
-                    ax.text(x[i][n], 10, last_text,
+                    ax.text(x[i][j], 10, last_text,
                             rotation=90,
                             alpha=0.3,
                             verticalalignment='baseline')
             else:
-                ax.plot_date(x[i], y[i], color=color, label=label,
-                             linestyle=linestyle, marker=marker, tz=None)
+                lines = ax.plot_date(x[i], y[i], color=color, label=label,
+                                     linestyle=linestyle, marker=marker, tz=None)
+        plotted_lines.extend(lines)
+        if lines:
+            # text fields have no lines, and don't count towards the label
+            unit = units[i] or ""
+            axis_units.setdefault(n, [])
+            if unit not in axis_units[n]:
+                axis_units[n].append(unit)
         empty = False
     if args.flightmode is not None:
         for i in range(len(modes)-1):
@@ -172,20 +198,51 @@ def plotit(x, y, fields, colors=[]):
             ax1.axvspan(modes[i][0], modes[i+1][0], fc=c, ec=edge_colour, alpha=0.1)
         c = colourmap[args.flightmode].get(modes[-1][1], edge_colour)
         ax1.axvspan(modes[-1][0], ax1.get_xlim()[1], fc=c, ec=edge_colour, alpha=0.1)
-    # the legends list every line on the axes, so a graph of several logs
-    # keeps every log's entries
+    # the first axis has its own legend; the others share one, listing
+    # their lines in the order they were plotted.  It goes on the last
+    # axis created, which is drawn on top, so the other axes' lines don't
+    # cover it.  The legends list every line on the axes, so earlier logs
+    # keep their entries
     handles, labels = ax1.get_legend_handles_labels()
     if handles:
         ax1.legend(handles, labels, loc=args.legend, prop=legend_prop)
-    if ax2 is not None:
-        handles, labels = ax2.get_legend_handles_labels()
-        if handles:
-            ax2.legend(handles, labels, loc=args.legend2, prop=legend_prop)
-    # only label an axis if every field on it has a unit
-    if ax1_units != [] and "" not in ax1_units:
-        ax1.set_ylabel(", ".join(ax1_units))
-    if ax2_units != [] and "" not in ax2_units:
-        ax2.set_ylabel(", ".join(ax2_units))
+    right = [n for n in plot_axes if n != 1]
+    for n in right:
+        # a later log may have added an axis, so the legend moves to it
+        legend = get_axis(n).get_legend()
+        if legend is not None:
+            legend.remove()
+    right_handles = [line for line in plotted_lines
+                     if line.axes is not ax1 and not line.get_label().startswith('_')]
+    if right_handles:
+        get_axis(right[-1]).legend(right_handles,
+                                   [line.get_label() for line in right_handles],
+                                   loc=args.legend2, prop=legend_prop)
+    for n in axis_units:
+        # only label an axis if every field on it has a unit
+        if axis_units[n] and "" not in axis_units[n]:
+            get_axis(n).set_ylabel(", ".join(axis_units[n]))
+        else:
+            # an earlier log may have labelled it
+            get_axis(n).set_ylabel("")
+    if len(plot_axes) > 2:
+        # as in MAVExplorer, stack the extra axes on the left, and colour
+        # each axis whose lines (across all files) share a colour to match
+        extra = sorted(n for n in plot_axes if n >= 2)
+        for idx, n in enumerate(extra):
+            ax = get_axis(n)
+            ax.yaxis.set_ticks_position('left')
+            ax.yaxis.set_label_position('left')
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(True)
+            ax.spines['left'].set_position(('axes', -(idx + 1) * 0.10))
+        for n in plot_axes:
+            line_colors = set(line.get_color() for line in get_axis(n).get_lines())
+            c = line_colors.pop() if len(line_colors) == 1 else 'black'
+            get_axis(n).yaxis.label.set_color(c)
+            get_axis(n).tick_params(axis='y', colors=c)
+            get_axis(n).spines['left'].set_color(c)
+        fig.subplots_adjust(left=min(0.5, 0.08 + len(extra) * 0.10))
     if empty:
         print("No data to graph")
         return
@@ -210,6 +267,8 @@ parser.add_argument("--flightmode", default=None,
                     help="Choose the plot background according to the active flight mode of the specified type, e.g. --flightmode=apm for ArduPilot or --flightmode=px4 for PX4 stack logs.  Cannot be specified with --xaxis.")
 parser.add_argument("--dialect", default="ardupilotmega", help="MAVLink dialect")
 parser.add_argument("--output", default=None, help="provide an output format")
+parser.add_argument("--no-unit-axes", dest="unit_axes", action='store_false',
+                    help="don't label y axes with units or give each unit its own y axis")
 parser.add_argument("--timeshift", type=float, default=0, help="shift time on first graph in seconds")
 parser.add_argument("logs_fields", metavar="<LOG or FIELD>", nargs="+")
 args = parser.parse_args()
@@ -320,7 +379,7 @@ def add_data(t, msg, vars, flightmode):
         if units[i] is None:
             # only fields with data get a unit, so a field that is
             # not in the log does not get an empty axis
-            units[i] = field_unit(f, msg)
+            units[i] = field_unit(f, msg) if args.unit_axes else ""
         y[i].append(v)
         x[i].append(xv)
 
@@ -366,6 +425,7 @@ for fi in range(0, len(filenames)):
         if first_only[i] and fi != 0:
             x[i] = []
             y[i] = []
+            units[i] = None
     if labels:
         lab = labels[fi*len(fields):(fi+1)*len(fields)]
     else:
@@ -378,6 +438,8 @@ for fi in range(0, len(filenames)):
     for i in range(0, len(x)):
         x[i] = []
         y[i] = []
+        # a field's unit may differ between logs
+        units[i] = None
 if args.output is None:
     pylab.show()
     pylab.draw()
