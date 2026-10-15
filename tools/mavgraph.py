@@ -250,6 +250,7 @@ y = []
 modes = []
 axes = []
 first_only = []
+exprs = []  # fields without their suffixes
 re_caps = re.compile('[A-Z_][A-Z0-9_]+')
 for f in fields:
     caps = set(re.findall(re_caps, f))
@@ -260,6 +261,15 @@ for f in fields:
     axes.append(1)
     first_only.append(False)
     units.append(None)
+    # parse the suffixes now, so they apply even if the field never
+    # gets any data
+    if f.endswith(":2"):
+        axes[-1] = 2
+        f = f[:-2]
+    if f.endswith(":1"):
+        first_only[-1] = True
+        f = f[:-2]
+    exprs.append(f)
 
 re_field = re.compile(r'^([A-Z_][A-Z0-9_]*)(\[[^\]]*\])?\.([A-Za-z_][A-Za-z0-9_]*)$')
 
@@ -297,13 +307,7 @@ def add_data(t, msg, vars, flightmode):
     for i in range(0, len(fields)):
         if mtype not in field_types[i]:
             continue
-        f = fields[i]
-        if f.endswith(":2"):
-            axes[i] = 2
-            f = f[:-2]
-        if f.endswith(":1"):
-            first_only[i] = True
-            f = f[:-2]
+        f = exprs[i]
         v = mavutil.evaluate_expression(f, vars)
         if v is None:
             continue
