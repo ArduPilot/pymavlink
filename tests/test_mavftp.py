@@ -1373,7 +1373,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                 for request in self.sent_requests(master)
                 if request.opcode == OP_OpenFileRO
             )
-            self.assertEqual(open_request.payload, b"@PARAM/param.pck?withdefaults=1")
+            self.assertEqual(open_request.payload, b"@PARAM/param.pck?withdefaults=1&v=2")
 
     def test_cancel_resets_transfer_state_and_uses_active_session(self):
         """Given an active download, when cancel is requested, then its session is terminated and state is cleared."""
@@ -2816,7 +2816,7 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
             getparams_result = ftp.cmd_ftp(["getparams", os.path.join(tempdir, "values.param")])
             self.assertEqual(getparams_result.error_code, FtpError.Success)
             self.assertEqual(self.sent_requests(master)[-1].opcode, OP_OpenFileRO)
-            self.assertEqual(self.sent_requests(master)[-1].payload, b"@PARAM/param.pck")
+            self.assertEqual(self.sent_requests(master)[-1].payload, b"@PARAM/param.pck?v=2")
 
     def test_open_file_ack_uses_allocated_session(self):
         """A non-echoing OpenFileRO server session is used for BurstReadFile."""
