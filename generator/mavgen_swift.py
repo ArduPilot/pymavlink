@@ -244,17 +244,6 @@ def contains_a_bitmask(enums, enumName):
             return enum.is_a_bitmask
     return False
 
-def enum_is_a_bitmask(enum):
-    values = []
-    for entry in enum.entry:
-        values.append(entry.value)
-    values.sort()
-    for i, value in enumerate(values):
-        if 2 ** i != value:
-            return False
-    return True
-
-
 def generate_enums_type_info(enums, msgs):
     """Add camel case swift names for enums an entries, descriptions and sort enums alphabetically"""
 
@@ -297,7 +286,7 @@ def generate_enums_type_info(enums, msgs):
         enum.all_entities = ", ".join(all_entities)
         enum.entities_info = ", ".join(entities_info)
         enum.entity_description = enum.description.replace('"','\\"')
-        enum.is_a_bitmask = enum_is_a_bitmask(enum)
+        enum.is_a_bitmask = enum.bitmask
 
     enums.sort(key = lambda enum : enum.swift_name)
 
