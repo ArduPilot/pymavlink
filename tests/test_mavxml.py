@@ -32,6 +32,13 @@ class MAVXMLTest(unittest.TestCase):
             _ = MAVXML(test_filepath)
 
 
+    def test_isdestination_requires_haslocation(self):
+        """Test that an enum entry which is isDestination must also be hasLocation"""
+        test_filename = "isdestination-without-haslocation.xml"
+        test_filepath = importlib_files(__spec__.parent).joinpath(test_filename)
+        with self.assertRaises(MAVParseError):
+            _ = MAVXML(test_filepath)
+
     def test_wire_protocol_version(self):
         """Test that an unknown MAVLink wire protocol version raises an exception"""
         with self.assertRaises(MAVParseError):

@@ -170,7 +170,7 @@ class MAVEnumParam(object):
             self.description = description
 
 class MAVEnumEntry(object):
-    def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False):
+    def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False, is_destination=False):
         self.name = name
         self.value = value
         self.deprecated = None
@@ -182,6 +182,7 @@ class MAVEnumEntry(object):
         self.origin_file = origin_file
         self.origin_line = origin_line
         self.has_location = has_location
+        self.is_destination = is_destination
 
 class MAVEnum(object):
     def __init__(self, name, linenumber, description='', bitmask=False):
@@ -243,6 +244,18 @@ class MAVXML(object):
                     raise MAVParseError('expected missing %s "%s" attribute at %s:%u' % (
                         where, c, filename, p.CurrentLineNumber))
 
+        def bool_attr(attrs, name):
+            '''return an optional boolean attribute; absent means False'''
+            value = attrs.get(name, False)
+            if value == 'true':
+                value = True
+            elif value == 'false':
+                value = False
+            if type(value) != bool:
+                raise MAVParseError('invalid %s value "%s" at %s:%u' % (
+                    name, value, filename, p.CurrentLineNumber))
+            return value
+
         def start_element(name, attrs):
             in_element_list.append(name)
             in_element = '.'.join(in_element_list)
@@ -293,13 +306,13 @@ class MAVXML(object):
                 # check highest value
                 if (value > self.enum[-1].highest_value):
                     self.enum[-1].highest_value = value
-                has_location = attrs.get('hasLocation', False)
-                if has_location == 'true':
-                    has_location = True
-                elif has_location == 'false':
-                    has_location = False
-                if type(has_location) != bool:
-                    raise MAVParseError("invalid has_location value %s" % has_location)
+                has_location = bool_attr(attrs, 'hasLocation')
+                is_destination = bool_attr(attrs, 'isDestination')
+                if is_destination and not has_location:
+                    # a destination is somewhere the vehicle goes to, so
+                    # it must have a location
+                    raise MAVParseError('%s is isDestination but not hasLocation at %s:%u' % (
+                        attrs['name'], filename, p.CurrentLineNumber))
 
                 # check bitmask value
                 if self.enum[-1].bitmask:
@@ -309,7 +322,7 @@ class MAVXML(object):
                         print(f"{attrs['name']} has invalid values (bitmask must have powers of 2)")
 
                 # append the new entry
-                self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, False, autovalue, self.filename, p.CurrentLineNumber, has_location=has_location))
+                self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, False, autovalue, self.filename, p.CurrentLineNumber, has_location=has_location, is_destination=is_destination))
             elif in_element == "mavlink.enums.enum.entry.wip":
                 self.enum[-1].entry[-1].wip = True
             elif in_element == "mavlink.enums.enum.entry.param":
