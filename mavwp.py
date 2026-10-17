@@ -606,7 +606,7 @@ class MissionItemProtocol_Rally(MissionItemProtocol):
                     0,  # param4
                     int(lat_deg * 1e7),  # x (latitude)
                     int(lng_deg * 1e7),  # y (longitude)
-                    alt * 1e3,      # z (altitude)
+                    alt,            # z (altitude, metres)
                     self.mav_mission_type()
                 )
                 points.append(w)
