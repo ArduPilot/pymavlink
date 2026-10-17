@@ -215,10 +215,20 @@ describe("Generated MAVLink 2.0 protocol handler object", function() {
     describe("length decoder", function() {
         it("updates the expected length to the size of the expected full message", function() {
             this.m.expected_length.should.equal(10); // default, header size
-            var b = new Buffer.from([253, 1, 1]); // packet length = 1
+            var b = new Buffer.from([253, 1, 0]); // unsigned packet, payload length = 1
             this.m.pushBuffer(b);
             this.m.parseLength();
             this.m.expected_length.should.equal(13); // 1+12 bytes for the message header
+        });
+
+        [1, 2, 4, 6, 7].forEach(function(flags) {
+            it("includes signature and wide header bytes for flags " + flags, function() {
+                this.m.pushBuffer(Buffer.from([253, 1, flags]));
+                this.m.parseLength();
+                var expected = 13 + ((flags & 1) ? 13 : 0) +
+                    ((flags & 2) ? 3 : 0) + ((flags & 4) ? 4 : 0);
+                this.m.expected_length.should.equal(expected);
+            });
         });
     });
 
