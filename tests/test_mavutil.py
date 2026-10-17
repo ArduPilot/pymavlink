@@ -99,5 +99,37 @@ class TestUnixDomainSocket(unittest.TestCase):
             self.assertFalse(server.is_alive())
 
 
+class TestTCPInput(unittest.TestCase):
+    def test_eof_returns_to_listener_and_accepts_next_client(self):
+        mav = mavutil.mavtcpin("127.0.0.1:0")
+        address = mav.listen.getsockname()
+        first_client = socket.create_connection(address)
+        second_client = None
+        try:
+            # Accept a client that does not send any MAVLink data.  It remains
+            # connected until it closes; mavtcpin must not impose a protocol
+            # timeout on an otherwise idle stream.
+            mav.recv()
+            self.assertIsNotNone(mav.port)
+
+            first_client.close()
+            first_client = None
+            self.assertTrue(mav.select(1))
+            self.assertEqual(mav.recv(), b"")
+            self.assertIsNone(mav.port)
+            self.assertEqual(mav.fd, mav.listen.fileno())
+
+            second_client = socket.create_connection(address)
+            self.assertTrue(mav.select(1))
+            mav.recv()
+            self.assertIsNotNone(mav.port)
+        finally:
+            if first_client is not None:
+                first_client.close()
+            if second_client is not None:
+                second_client.close()
+            mav.close()
+
+
 if __name__ == '__main__':
     unittest.main()
