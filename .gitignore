@@ -25,6 +25,7 @@ include/mavlink/v1.0
 /.vscode
 .idea/
 .venv/
+.tmp/
 dfindexer/dfindexer_cy.c
 dfindexer/*.so
 dfindexer/*.pyd
