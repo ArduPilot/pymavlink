@@ -6,6 +6,7 @@ regression tests for mavwp.py
 
 import unittest
 import os
+import tempfile
 try:
     from importlib.resources import files as importlib_files
 except ImportError:
@@ -227,6 +228,17 @@ class RallyTest(unittest.TestCase):
         loader.load(rally_filepath)
         self.assertEqual(loader.count(), 2)
         self.assertEqual(loader.wp(0).command, mavutil.mavlink.MAV_CMD_NAV_RALLY_POINT)
+
+    def test_rally_load_altitude(self):
+        '''test the altitude from an old RALLY style file is kept in metres'''
+        loader = mavwp.MissionItemProtocol_Rally()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rally_filepath = os.path.join(tmpdir, "rally.txt")
+            with open(rally_filepath, "w") as f:
+                f.write("RALLY 40.071553\t-105.229401\t100.000000\t40.000000\t0.000000\t0\n")
+            loader.load(rally_filepath)
+        self.assertEqual(loader.count(), 1)
+        self.assertEqual(loader.wp(0).z, 100)
 
 class FenceTest(unittest.TestCase):
     def test_fence_load(self):
