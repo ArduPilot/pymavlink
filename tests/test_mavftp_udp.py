@@ -94,11 +94,12 @@ class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
         self.crc_files = {}
         self.uploads = {}
         self.download_stat_size = 4
+        self.download_data = b"data"
 
     def stop(self):
         self.stop_event.set()
 
-    def run(self):  # pylint: disable=too-many-branches
+    def run(self):  # pylint: disable=too-many-branches,too-many-statements
         try:
             while not self.stop_event.is_set():
                 message = self.master.recv_match(
@@ -184,13 +185,32 @@ class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
                         session=request.session,
                     )
                 elif request.opcode == OP_BurstReadFile:
+                    # Like ArduPilot, send what is left of the file and then
+                    # announce its end with a NAK carrying EOF.
+                    seq = request.seq + 1
+                    offset = request.offset
+                    while offset < len(self.download_data):
+                        chunk = self.download_data[offset:offset + 239]
+                        self.send_reply(
+                            message,
+                            request,
+                            OP_Ack,
+                            payload=chunk,
+                            session=42,
+                            seq=seq,
+                            offset=offset,
+                        )
+                        seq += 1
+                        offset += len(chunk)
                     self.send_reply(
                         message,
                         request,
-                        OP_Ack,
-                        payload=b"data",
+                        OP_Nack,
+                        payload=bytes([FtpError.EndOfFile]),
                         burst_complete=1,
                         session=42,
+                        seq=seq,
+                        offset=offset,
                     )
                 elif request.opcode == OP_TerminateSession:
                     self.send_reply(message, request, OP_Ack)
@@ -208,15 +228,17 @@ class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
         session=None,
         payload=b"",
         burst_complete=0,
+        seq=None,
+        offset=None,
     ):
         reply = FTP_OP(
-            seq=(request.seq + 1) & 0xFFFF,
+            seq=((request.seq + 1) if seq is None else seq) & 0xFFFF,
             session=request.session if session is None else session,
             opcode=opcode,
             size=len(payload),
             req_opcode=request.opcode,
             burst_complete=burst_complete,
-            offset=request.offset,
+            offset=request.offset if offset is None else offset,
             payload=bytearray(payload),
         ).pack()
         reply.extend(b"\0" * (251 - len(reply)))

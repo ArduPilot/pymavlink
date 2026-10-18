@@ -80,6 +80,20 @@ def test_staged_download_uses_eof_not_advertised_size(  # pylint: disable=too-ma
                 OP_Nack, OP_BurstReadFile,
                 bytes([FtpError.EndOfFile]), offset=len(data), session=37,
             ))
+        elif not ftp.read_complete:
+            # A short packet below the advertised size does not end the file,
+            # so the client asks for more and the server answers with EOF.
+            assert destination.read_bytes() == b"original"
+            more = (
+                master._decode_payload(sent[-1])
+                if managed else helpers.TestMAVFTPReplyCompletion.sent_requests(master)[-1]
+            )
+            assert (more.opcode, more.offset) == (OP_BurstReadFile, len(data))
+            ftp.mavlink_packet(ftp_reply(
+                more.seq + 1, OP_Nack, OP_BurstReadFile,
+                bytes([FtpError.EndOfFile]), offset=len(data),
+                burst_complete=1, session=37,
+            ))
     assert destination.read_bytes() == data
     assert ftp.callback_failure is None
     assert ftp.read_complete
@@ -120,7 +134,11 @@ def test_estimated_size_download_waits_for_post_eof_gap_repair(
     burst_seq = ftp.pending_burst_seq
     ftp.mavlink_packet(ftp_reply(
         burst_seq + 1, OP_Ack, OP_BurstReadFile,
-        b"tail", offset=80, burst_complete=1, session=37,
+        b"tail", offset=80, session=37,
+    ))
+    ftp.mavlink_packet(ftp_reply(
+        burst_seq + 2, OP_Nack, OP_BurstReadFile,
+        bytes([FtpError.EndOfFile]), offset=84, burst_complete=1, session=37,
     ))
     assert ftp.reached_eof
     assert ftp.read_gaps == [(0, 80)]
@@ -177,9 +195,14 @@ def test_estimated_size_download_with_unrepaired_gap_times_out(tmp_path):
         ftp.last_op.seq + 1, OP_Ack, OP_OpenFileRO,
         struct.pack("<I", 17544), session=37,
     ))
+    burst_seq = ftp.pending_burst_seq
     ftp.mavlink_packet(ftp_reply(
-        ftp.pending_burst_seq + 1, OP_Ack, OP_BurstReadFile,
-        b"tail", offset=80, burst_complete=1, session=37,
+        burst_seq + 1, OP_Ack, OP_BurstReadFile,
+        b"tail", offset=80, session=37,
+    ))
+    ftp.mavlink_packet(ftp_reply(
+        burst_seq + 2, OP_Nack, OP_BurstReadFile,
+        bytes([FtpError.EndOfFile]), offset=84, burst_complete=1, session=37,
     ))
     assert ftp.reached_eof
     assert ftp.read_gaps == [(0, 80)]

@@ -1852,7 +1852,14 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
                     with patch("pymavlink.mavftp.logging.warning") as warning:
                         ftp.mavlink_packet(ftp_reply(
                             burst.seq + 1, OP_Ack, OP_BurstReadFile,
-                            b"data", burst_complete=1, session=37,
+                            b"data", session=37,
+                        ))
+                        # A short packet does not end the file; the server
+                        # announces the end with a NAK carrying EOF.
+                        ftp.mavlink_packet(ftp_reply(
+                            burst.seq + 2, OP_Nack, OP_BurstReadFile,
+                            bytes([FtpError.EndOfFile]), offset=4,
+                            burst_complete=1, session=37,
                         ))
                     if known_size:
                         warning.assert_called_once_with("expected %u, got %u", 100, 4)
