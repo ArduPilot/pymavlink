@@ -196,10 +196,13 @@ class Matrix3(object):
 
     def to_euler(self):
         '''find Euler angles (321 convention) for the matrix'''
+        # pitch is -asin(c.x); at the singularity c.x saturates at +/-1,
+        # which is +/-90 degrees of pitch, not +/-180. This matches
+        # AP_Math's Matrix3<T>::to_euler(), which uses -safe_asin(c.x).
         if self.c.x >= 1.0:
-            pitch = pi
+            pitch = -pi/2
         elif self.c.x <= -1.0:
-            pitch = -pi
+            pitch = pi/2
         else:
             pitch = -asin(self.c.x)
         roll = atan2(self.c.y, self.c.z)
