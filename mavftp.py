@@ -546,6 +546,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.dir_offset = 0
         self.last_op_time = time.time()
         self.last_send_time = time.time()
+        self.last_read_progress_time: Optional[float] = None
         self.rtt = 0.5
         self.rttvar = 0.25
         self.rtt_valid = False
@@ -3229,6 +3230,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             # that the link made forward progress and starts a fresh window.
             if op.req_opcode in {OP_BurstReadFile, OP_ReadFile} and read_progressed:
                 self.read_retries = 0
+                self.last_read_progress_time = now
             if op.req_opcode not in {OP_BurstReadFile, OP_ReadFile} or read_progressed:
                 self.accepted_reply_generation += 1
 
@@ -3450,7 +3452,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # must retain idle detection when process_ftp_reply is unbounded.
         if initial_request_pending:
             if crc_request_pending and self.crc_unbounded_wait:
-                return self.__last_send_time_was_more_than_idle_detection_time_ago(now)
+                return self.__idle_timeout_expired(now)
             return False
 
         if (
@@ -3458,10 +3460,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             and self.last_burst_read is None
             and self.write_list is None
         ):
-            return self.__last_send_time_was_more_than_idle_detection_time_ago(now)
+            return self.__idle_timeout_expired(now)
 
         if self.fh is None:
-            return self.__last_send_time_was_more_than_idle_detection_time_ago(now)
+            return self.__idle_timeout_expired(now)
 
         # see if burst read has stalled
         if (
@@ -3502,14 +3504,16 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         if self.write_list is not None:
             self.__send_more_writes()
 
-        return self.__last_send_time_was_more_than_idle_detection_time_ago(now)
+        return self.__idle_timeout_expired(now)
 
-    def __last_send_time_was_more_than_idle_detection_time_ago(
-        self, now: float
-    ) -> bool:
-        return self.last_send_time is not None and now - self.last_send_time > float(
-            self.ftp_settings.idle_detection_time
-        )
+    def __idle_timeout_expired(self, now: float) -> bool:
+        # A paced burst can keep delivering data longer than the idle timeout
+        # without another client request. Only useful read progress renews this
+        # clock; stale or duplicate replies must not keep a stalled read alive.
+        last_activity = self.last_send_time
+        if self.last_read_progress_time is not None:
+            last_activity = max(last_activity, self.last_read_progress_time)
+        return now - last_activity > float(self.ftp_settings.idle_detection_time)
 
     def __handle_reset_sessions_reply(self, op: FTP_OP, _m) -> MAVFTPReturn:
         """Handle reset sessions reply."""

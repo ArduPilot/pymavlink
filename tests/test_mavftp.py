@@ -5827,6 +5827,99 @@ class TestMAVFTPReplyCompletion(unittest.TestCase):  # pylint: disable=too-many-
 
         self.assertEqual(result.error_code, FtpError.Fail)
 
+    def test_paced_burst_download_respects_progress_and_overall_deadline(self):
+        """A 500-packet burst can outlast idle time, but not a caller deadline."""
+        payload = bytes(range(239)) * 500
+        for idle_timeout, timeout, expected in (
+            (3.7, 10.0, FtpError.Success),
+            (20.0, 10.0, FtpError.Success),
+            (3.7, 2.0, FtpError.RemoteReplyTimeout),
+        ):
+            with self.subTest(idle_timeout=idle_timeout, timeout=timeout):
+                clock = [100.0]
+                with patch.object(mavftp_module.time, "time", side_effect=lambda clock=clock: clock[0]):
+                    ftp, master = self.make_ftp([])
+                    ftp.ftp_settings.idle_detection_time = idle_timeout
+                    ftp.ftp_settings.read_retry_time = 1.0
+                    ftp.ftp_settings.retry_time = 0.5
+                    ftp.ftp_settings.burst_read_size = 239
+                    master.replies.append(ftp_reply(
+                        2, OP_Ack, OP_OpenFileRO, payload=struct.pack("<I", len(payload)),
+                    ))
+                    master.replies.extend(
+                        ftp_reply(3 + index, OP_Ack, OP_BurstReadFile,
+                                  payload=payload[offset:offset + 239], offset=offset)
+                        for index, offset in enumerate(range(0, len(payload), 239))
+                    )
+                    master.replies.append(ftp_reply(
+                        503, OP_Nack, OP_BurstReadFile,
+                        payload=[FtpError.EndOfFile], offset=len(payload),
+                    ))
+                    receive = master.recv_match
+
+                    def paced_receive(clock=clock, master=master, receive=receive, **kwargs):
+                        clock[0] += 0.01
+                        request = master._decode_payload(master.mav.sent[-1][-1])
+                        if request.opcode == OP_TerminateSession:
+                            return ftp_reply(request.seq + 1, OP_Ack, OP_TerminateSession,
+                                             session=request.session)
+                        return receive(**kwargs)
+
+                    master.recv_match = paced_receive
+                    downloaded = []
+                    ftp.cmd_get(["remote"], callback=lambda fh, downloaded=downloaded: downloaded.append(
+                        fh.read() if fh is not None else None))
+                    result = ftp.process_ftp_reply("get", timeout=timeout)
+
+                self.assertEqual(result.error_code, expected)
+                self.assertIsNone(ftp.fh)
+                self.assertIsNone(ftp.pending_terminate_seq)
+                if expected == FtpError.Success:
+                    self.assertEqual(downloaded, [payload])
+                    self.assertGreater(clock[0] - 100.0, 5.0)
+                    self.assertEqual(len([
+                        request for request in self.sent_requests(master)
+                        if request.opcode == OP_BurstReadFile
+                    ]), 1)
+                else:
+                    self.assertNotIn(payload, downloaded)
+                    self.assertLess(clock[0] - 100.0, 3.0)
+
+    def test_unproductive_burst_replies_do_not_refresh_idle_timeout(self):
+        """Duplicate, foreign and stale replies cannot prolong an idle read."""
+        for kind in ("duplicate", "foreign", "session", "stale"):
+            with self.subTest(kind=kind):
+                clock = [100.0]
+                with patch.object(mavftp_module.time, "time", side_effect=lambda clock=clock: clock[0]):
+                    ftp, _master = self.make_ftp([])
+                    ftp.ftp_settings.idle_detection_time = 3.7
+                    ftp.ftp_settings.read_retry_time = 1.0
+                    ftp.ftp_settings.retry_time = 10.0
+                    ftp.cmd_get(["remote"], callback=lambda _fh: None)
+                    ftp.mavlink_packet(ftp_reply(
+                        2, OP_Ack, OP_OpenFileRO, payload=struct.pack("<I", 160),
+                    ))
+                    clock[0] += 0.1
+                    ftp.mavlink_packet(ftp_reply(
+                        3, OP_Ack, OP_BurstReadFile, payload=b"x" * 80,
+                    ))
+                    reply = ftp_reply(3, OP_Ack, OP_BurstReadFile, payload=b"x" * 80)
+                    if kind == "foreign":
+                        reply.target_system = 99
+                    elif kind == "session":
+                        reply = ftp_reply(4, OP_Ack, OP_BurstReadFile,
+                                          payload=b"x" * 80, offset=80, session=7)
+                    elif kind == "stale":
+                        reply = ftp_reply(1, OP_Ack, OP_BurstReadFile,
+                                          payload=b"x" * 80, offset=80)
+                    # Keep the burst retry later than the idle check. Only real
+                    # received progress should postpone inactivity expiry.
+                    ftp.rtt_valid = False
+                    clock[0] += 3.8
+                    ftp.mavlink_packet(reply)
+                    self.assertTrue(ftp.idle_task())
+                    ftp.fh.close()
+
     def test_incomplete_burst_read_reports_timeout_on_idle(self):
         ftp, _master = self.make_ftp(
             [
