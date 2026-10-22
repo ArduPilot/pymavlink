@@ -9,6 +9,7 @@ import pytest
 from pymavlink.generator import mavgen, mavgen_rust, mavparse
 
 HERE = Path(__file__).parent / 'rust'
+NO_STD_TARGET = 'thumbv7m-none-eabi'
 
 
 @pytest.fixture(scope='module')
@@ -18,6 +19,9 @@ def require_toolchain():
     for executable in ('cargo', 'cc'):
         if not shutil.which(executable):
             pytest.fail(executable + ' is required when PYMAVLINK_TEST_RUST=1', pytrace=False)
+    installed = subprocess.run(['rustup', 'target', 'list', '--installed'], text=True, capture_output=True)
+    if NO_STD_TARGET not in installed.stdout.split():
+        pytest.fail('rustup target add ' + NO_STD_TARGET + ' is required when PYMAVLINK_TEST_RUST=1', pytrace=False)
 
 
 def run(args, **kwargs):
@@ -179,7 +183,8 @@ def test_all_messages_against_c(generated):
 
 def test_feature_builds(generated):
     directory, _ = generated
-    no_std = ['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--no-default-features']
+    no_std = ['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--no-default-features',
+              '--target', NO_STD_TARGET]
     run(no_std)
     run(no_std + ['--features', 'serde'])
     run(['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--features', 'std,serde'])
@@ -187,7 +192,7 @@ def test_feature_builds(generated):
 
 def test_v1_generator(tmp_path, require_toolchain):
     assert mavgen.mavgen(mavgen.Opts(str(tmp_path), language='Rust', wire_protocol='1.0'), [str(definitions())])
-    run(['cargo', 'check', '--manifest-path', tmp_path / 'Cargo.toml'])
+    run(['cargo', 'check', '--manifest-path', tmp_path / 'Cargo.toml', '--target', NO_STD_TARGET])
 
 
 def test_dialect_inheritance(tmp_path, require_toolchain):
