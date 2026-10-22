@@ -179,8 +179,9 @@ def test_all_messages_against_c(generated):
 
 def test_feature_builds(generated):
     directory, _ = generated
-    run(['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--no-default-features'])
-    run(['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--features', 'serde'])
+    no_std = ['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--no-default-features']
+    run(no_std)
+    run(no_std + ['--features', 'serde'])
     run(['cargo', 'check', '--manifest-path', directory / 'rust/Cargo.toml', '--features', 'std,serde'])
 
 
