@@ -160,12 +160,21 @@ class MAVEnumParam(object):
         self.default = default
         self.multiplier = multiplier
         if self.reserved and not self.default:
-            self.default = '0'
+            # No default in the XML. param5/param6 double as int32 lat/lon when sent via
+            # COMMAND_INT or MISSION_ITEM_INT, which can't carry NaN, so their default
+            # depends on which message they are carried in.
+            self.default = 'NaN'
+            if int(index) in (5, 6):
+                self.reserved_description = 'Reserved. Default: INT32_MAX (COMMAND_INT/MISSION_INT) or NaN (COMMAND_LONG).'
+            else:
+                self.reserved_description = 'Reserved. Default: NaN.'
+        else:
+            self.reserved_description = 'Reserved. Default: %s.' % self.default
         self.set_description(description)
 
     def set_description(self, description):
         if not description.strip() and self.reserved:
-            self.description = 'Reserved (default:%s)' % self.default
+            self.description = self.reserved_description
         else:
             self.description = description
 
@@ -319,7 +328,7 @@ class MAVXML(object):
                                                         label=attrs.get('label', ''), units=attrs.get('units', ''), 
                                                         enum=attrs.get('enum', ''), increment=attrs.get('increment', ''), 
                                                         minValue=attrs.get('minValue', ''), 
-                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'), 
+                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', ''), 
                                                         reserved=attrs.get('reserved', False), multiplier=attrs.get('multiplier','')))
             elif in_element == "mavlink.enums.enum.entry.deprecated":
                 check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
@@ -379,16 +388,8 @@ class MAVXML(object):
                     continue
                 params_dict=dict()
                 for param_index in range (1,8):
-                    if param_index in (5, 6):
-                        # param5/param6 double as int32 lat/lon when sent via COMMAND_INT or
-                        # MISSION_ITEM_INT, so an unused param5/param6 has a different default
-                        # depending on which message it is carried in.
-                        params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
-                                                            minValue='', maxValue='', default='NaN', reserved='True',
-                                                            description='Reserved (default:NaN, or INT32_MAX if sent as part of a COMMAND_INT or MISSION_ITEM_INT message)')
-                    else:
-                        params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
-                                                            minValue='', maxValue='', default='NaN', reserved='True')
+                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
+                                                        minValue='', maxValue='', reserved='True')
 
                 for a_param in enum_entry.param:
                     params_dict[int(a_param.index)] = a_param
