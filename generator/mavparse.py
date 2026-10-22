@@ -165,7 +165,7 @@ class MAVEnumParam(object):
             # depends on which message they are carried in.
             self.default = 'NaN'
             if int(index) in (5, 6):
-                self.reserved_description = 'Reserved. Default: INT32_MAX (COMMAND_INT/MISSION_INT) or NaN (COMMAND_LONG).'
+                self.reserved_description = 'Reserved. Default: INT32_MAX (COMMAND_INT/MISSION_ITEM_INT) or NaN (COMMAND_LONG).'
             else:
                 self.reserved_description = 'Reserved. Default: NaN.'
         else:
