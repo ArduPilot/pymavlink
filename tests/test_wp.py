@@ -6,6 +6,8 @@ regression tests for mavwp.py
 
 import unittest
 import os
+import math
+import tempfile
 try:
     from importlib.resources import files as importlib_files
 except ImportError:
@@ -177,6 +179,61 @@ class MAVWPTest(unittest.TestCase):
 
         for i in range(loader.count()):
             self.assertEqual(loader.wp(i).z, loader2.wp(i).z)
+
+    def test_save_nan_yaw(self):
+        '''Preserve unspecified yaw using the case-sensitive NaN file spelling.'''
+        loader = mavwp.MAVWPLoader()
+        for yaw in (float('nan'), 0.0, 90.0):
+            wp = mavutil.mavlink.MAVLink_mission_item_message(
+                1, 1, 0, 3, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                0, 1, 0.0, 0.0, 0.0, yaw, 47.0, 8.0, 50.0)
+            loader.add(wp, comment='nan in a comment must remain unchanged')
+
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, 'mission.waypoints')
+            loader.save(filename)
+            with open(filename) as stream:
+                saved = stream.read()
+            rows = [line.split('\t') for line in saved.splitlines()[1:]
+                    if not line.startswith('#')]
+            self.assertEqual([row[7] for row in rows],
+                             ['NaN', '0.000000', '90.000000'])
+            self.assertIn('# nan in a comment must remain unchanged\n', saved)
+            self.assertEqual(rows[1], ['1', '0', '3', '16', '0.000000',
+                                      '0.000000', '0.000000', '0.000000',
+                                      '47.000000', '8.000000', '50.000000', '1'])
+            loaded = mavwp.MAVWPLoader()
+            loaded.load(filename)
+            self.assertEqual(loaded.count(), 3)
+            self.assertTrue(math.isnan(loaded.wp(0).param4))
+            self.assertEqual(loaded.wp(1).param4, 0.0)
+            self.assertEqual(loaded.wp(2).param4, 90.0)
+
+    def test_save_nan_float_fields(self):
+        '''The writer formats all float columns consistently, without validation.'''
+        fields = ('param1', 'param2', 'param3', 'param4', 'x', 'y', 'z')
+        with tempfile.TemporaryDirectory() as directory:
+            filename = os.path.join(directory, 'mission.waypoints')
+            for column, field in enumerate(fields, start=4):
+                with self.subTest(field=field):
+                    loader = mavwp.MAVWPLoader()
+                    wp = mavutil.mavlink.MAVLink_mission_item_message(
+                        1, 1, 0, 3, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+                        0, 1, 1.25, -2.5, 3.0, 90.0, 47.0, 8.0, 50.0)
+                    setattr(wp, field, float('nan'))
+                    loader.add(wp)
+                    loader.save(filename)
+                    with open(filename) as stream:
+                        row = stream.read().splitlines()[1].split('\t')
+                    self.assertEqual(row[column], 'NaN')
+                    loaded = mavwp.MAVWPLoader()
+                    loaded.load(filename)
+                    for other in fields:
+                        value = getattr(loaded.wp(0), other)
+                        if other == field:
+                            self.assertTrue(math.isnan(value))
+                        else:
+                            self.assertEqual(value, getattr(wp, other))
 
     def test_wp_is_loiter(self):
         '''test is_loiter method'''
