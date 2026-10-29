@@ -27,8 +27,8 @@ def older_message(m, lastm):
     for a in list(atts.keys()):
         if hasattr(m, a):
             mul = atts[a]
-            t1 = m.getattr(a) * mul
-            t2 = lastm.getattr(a) * mul
+            t1 = getattr(m, a) * mul
+            t2 = getattr(lastm, a) * mul
             if t2 >= t1 and t2 - t1 < 60:
                 return True
     return False
