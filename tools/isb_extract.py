@@ -29,7 +29,7 @@ def mavfft_fttd(logfile):
             self.instance = ffth.instance
             self.sample_rate_hz = ffth.smp_rate
             self.multiplier = ffth.mul
-            self.SampleUS = ffth.SampleUS
+            self.SampleUS = ffth.TimeUS
             self.data = {}
             self.data["X"] = []
             self.data["Y"] = []
@@ -117,9 +117,9 @@ def mavfft_fttd(logfile):
         f = files[fname]
         dt = 1.0e6 / p.sample_rate_hz
         for i in range(len(p.data['X'])):
-            x = p.data['X'][i]/p.multiplier
-            y = p.data['Y'][i]/p.multiplier
-            z = p.data['Z'][i]/p.multiplier
+            x = p.data['X'][i]/float(p.multiplier)
+            y = p.data['Y'][i]/float(p.multiplier)
+            z = p.data['Z'][i]/float(p.multiplier)
             f.write("%u,%.5f,%.5f,%.5f\n" % (int(p.SampleUS+i*dt), x, y, z))
     for f in files:
         files[f].close()
