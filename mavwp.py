@@ -7,6 +7,7 @@ Released under GNU LGPL version 3 or later
 
 import time, copy
 import logging
+import math
 import re
 
 from . import mavutil
@@ -267,10 +268,13 @@ class MissionItemProtocol(object):
         for w in self.wpoints:
             if getattr(w, 'comment', None):
                 f.write("# %s\n" % w.comment)
-            f.write("%u\t%u\t%u\t%u\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%u\n" % (
+            # Mission Planner's .NET Framework parser requires this NaN spelling.
+            values = ["NaN" if math.isnan(value) else "%f" % value
+                      for value in (w.param1, w.param2, w.param3, w.param4,
+                                    w.x, w.y, w.z)]
+            f.write("%u\t%u\t%u\t%u\t%s\t%u\n" % (
                 w.seq, w.current, w.frame, w.command,
-                w.param1, w.param2, w.param3, w.param4,
-                w.x, w.y, w.z, w.autocontinue))
+                '\t'.join(values), w.autocontinue))
         f.close()
 
     def view_indexes(self, done=None):
