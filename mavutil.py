@@ -1158,6 +1158,11 @@ class mavmcast(mavfile):
 
 class mavtcp(mavfile):
     '''a TCP mavlink socket'''
+
+    # Minimum time between reconnect attempts after the peer drops the link.
+    # recv() can be called far faster than this once a socket is at EOF.
+    _RECONNECT_INTERVAL_S = 1.0
+
     def __init__(self,
                  device,
                  autoreconnect=False,
@@ -1179,14 +1184,21 @@ class mavtcp(mavfile):
         # so callers which expect that can ask for a shorter delay (and
         # correspondingly more retries):
         self.reconnect_delay = reconnect_delay
+        self.port = None
+        self._link_down_reported = False
+        self._reconnect_announced = False
+        self._last_reconnect_error = None
+        self._next_reconnect = 0
+        self._reconnect_interval = mavtcp._RECONNECT_INTERVAL_S
         self.do_connect()
 
         mavfile.__init__(self, self.port.fileno(), "tcp:" + device, source_system=source_system, source_component=source_component, use_native=use_native)
 
-    def do_connect(self):
+    def do_connect(self, retries=None):
         if sys.platform != 'darwin':
             self.port = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        retries = self.retries
+        if retries is None:
+            retries = self.retries
         if retries <= 0:
             # try to connect at least once:
             retries = 1
@@ -1210,20 +1222,49 @@ class mavtcp(mavfile):
         self.port.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
 
     def close(self):
-        self.port.close()
+        self._close_port()
+
+    def _close_port(self):
+        '''drop the TCP socket so later reads do not spin on EOF'''
+        port = self.port
+        self.port = None
+        # select() waits on fd. A peer that has closed stays readable, so
+        # keeping the old fd makes recv_match() call recv() without pausing.
+        self.fd = None
+        if port is None:
+            return
+        try:
+            port.close()
+        except Exception:
+            pass
+
+    def _report_link_down(self, message):
+        '''close the socket and print the reason once per outage'''
+        self._close_port()
+        if self._link_down_reported:
+            return
+        print(message)
+        self._link_down_reported = True
+
+    def _closed_read(self):
+        '''finish a read against a socket that is no longer open'''
+        if self.autoreconnect:
+            return b""
+        raise EOFError("EOF on TCP socket")
 
     def handle_disconnect(self):
-        print("Connection reset or closed by peer on TCP socket")
+        self._report_link_down("Connection reset or closed by peer on TCP socket")
         self.reconnect()
 
     def handle_eof(self):
-        # EOF
-        print("EOF on TCP socket")
+        self._report_link_down("EOF on TCP socket")
         self.reconnect()
 
     def recv(self,n=None):
         if self.port is None:
             self.reconnect()
+        if self.port is None:
+            return self._closed_read()
         if n is None:
             n = self.mav.bytes_needed()
         try:
@@ -1233,18 +1274,21 @@ class mavtcp(mavfile):
                 return b""
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
                 self.handle_disconnect()
+                if self.port is not None or self.autoreconnect:
+                    return b""
+                raise
             raise
         if len(data) == 0:
             self.handle_eof()
+            if self.port is not None:
+                return b""
+            return self._closed_read()
 
         return data
 
     def write(self, buf):
         if self.port is None:
-            try:
-                self.reconnect()
-            except socket.error as e:
-                pass
+            self.reconnect()
         if self.port is None:
             return
         try:
@@ -1252,15 +1296,46 @@ class mavtcp(mavfile):
         except socket.error as e:
             if e.errno in [ errno.ECONNRESET, errno.EPIPE ]:
                 self.handle_disconnect()
-            pass
 
     def reconnect(self):
-        if self.autoreconnect:
+        '''open the TCP socket again when autoreconnect is set
+
+        A refused connection is not raised. The peer can come back later,
+        and recv()/write() try again after _reconnect_interval. On success
+        fd is pointed at the new socket; mavfile captured the original
+        fileno, and select() would otherwise keep waiting on the closed one.
+        '''
+        if not self.autoreconnect:
+            return False
+        now = time.monotonic()
+        if now < self._next_reconnect:
+            return False
+        self._next_reconnect = now + self._reconnect_interval
+        self._close_port()
+        if not self._reconnect_announced:
             print("Attempting reconnect")
-            if self.port is not None:
-                self.port.close()
-                self.port = None
-            self.do_connect()
+            self._reconnect_announced = True
+        try:
+            # One attempt per interval. do_connect() sleeps between its own
+            # retries, which would block the caller for the whole outage.
+            self.do_connect(retries=1)
+        except Exception as e:
+            self._close_port()
+            message = str(e)
+            if message != self._last_reconnect_error:
+                print(e, "sleeping")
+                self._last_reconnect_error = message
+            return False
+        self.fd = self.port.fileno()
+        self._link_down_reported = False
+        self._reconnect_announced = False
+        self._last_reconnect_error = None
+        self._next_reconnect = 0
+        if isinstance(self.destination_addr, tuple):
+            print("Reconnected to tcp:%s:%s" % self.destination_addr)
+        else:
+            print("Reconnected to uds:%s" % self.destination_addr)
+        return True
 
 
 class mavuds(mavtcp):
@@ -1277,6 +1352,12 @@ class mavuds(mavtcp):
         self.destination_addr = device
         self.autoreconnect = autoreconnect
         self.retries = retries
+        self.port = None
+        self._link_down_reported = False
+        self._reconnect_announced = False
+        self._last_reconnect_error = None
+        self._next_reconnect = 0
+        self._reconnect_interval = mavtcp._RECONNECT_INTERVAL_S
         self.do_connect()
 
         mavfile.__init__(self, self.port.fileno(), "uds:" + device,
@@ -1284,8 +1365,9 @@ class mavuds(mavtcp):
                          source_component=source_component,
                          use_native=use_native)
 
-    def do_connect(self):
-        retries = self.retries
+    def do_connect(self, retries=None):
+        if retries is None:
+            retries = self.retries
         if retries <= 0:
             retries = 1
         while retries >= 0:
