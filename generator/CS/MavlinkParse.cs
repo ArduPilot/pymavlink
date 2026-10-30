@@ -125,7 +125,9 @@ public partial class MAVLink
 
         public MAVLinkMessage ReadPacket(Stream BaseStream)
         {
-            byte[] buffer = new byte[MAVLink.MAVLINK_MAX_PACKET_LEN];
+            // Receive the wire maximum even when this dialect only defines small messages.
+            byte[] buffer = new byte[byte.MaxValue + MAVLINK_MAX_HEADER_BYTES +
+                                     MAVLINK_NUM_CHECKSUM_BYTES + MAVLINK_SIGNATURE_BLOCK_LEN];
 
             DateTime packettime = DateTime.MinValue;
 

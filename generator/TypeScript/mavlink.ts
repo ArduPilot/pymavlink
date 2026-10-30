@@ -34,7 +34,8 @@ export class MAVLinkModule extends BaseModule {
 
     private crc(bytes: Buffer, extra: number): number {
         let crc = 0xffff;
-        for (const value of [...bytes, extra]) {
+        for (let i = 0; i <= bytes.length; i++) {
+            const value = i < bytes.length ? bytes[i] : extra;
             let tmp = value ^ (crc & 255);
             tmp = (tmp ^ (tmp << 4)) & 255;
             crc = ((crc >>> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >>> 4)) & 0xffff;
