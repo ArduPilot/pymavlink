@@ -78,7 +78,7 @@ def streams(tmp_path_factory):
     legacy1 = frame(v1=True)
     # A rejected payload contains CRC-valid v1 and v2 packets. Neither may leak
     # out of a parser as a received message, even with fragmented input.
-    for flags in [2, 3, 4, 5, 6, 7, 128, 129]:
+    for flags in [2, 3, 4, 5, 6, 7, *range(128, 136)]:
         for length in [0, 80, 255]:
             payload = (legacy + legacy1).ljust(length, b'\xfd')[:length]
             unsupported = frame(flags, payload, source=0xFEDCBA98 if flags & 2 else 42,
@@ -174,8 +174,9 @@ def test_java_field_target(tmp_path):
     assert run([tool('java'), '-cp', tmp_path / 'classes', 'Target']).splitlines() == expected
 
 
-def test_cs_rejects_unknown_flags(tmp_path, streams):
-    cs = generate(tmp_path / 'cs', 'CS')
+@pytest.mark.parametrize('dialect', ['common', 'minimal'])
+def test_cs_rejects_unknown_flags(tmp_path, streams, dialect):
+    cs = generate(tmp_path / 'cs', 'CS', xml=XML.with_name(dialect + '.xml'))
     exe = tmp_path / 'reject.exe'
     run([tool('mcs'), '-unsafe', '-out:' + str(exe), *cs.glob('*.cs'), RESOURCES / 'Reject.cs'])
     run([tool('mono'), exe, streams])
@@ -440,7 +441,7 @@ def test_typescript_rejects_unknown_flags_and_unverified_signatures(tmp_path, st
     run([tool('node'), RESOURCES / 'reject-typescript.js', generated / 'compiled/message-registry.js', streams])
 
 
-@pytest.mark.parametrize('target', ['es2017', 'es2022'])
+@pytest.mark.parametrize('target', ['es5', 'es2017', 'es2022'])
 def test_typescript_field_target(tmp_path, target):
     modules = Path(os.environ.get('MAVLINK_TYPESCRIPT_NODE_MODULES', RESOURCES / 'node_modules'))
     compiler = modules / 'typescript/bin/tsc'
@@ -448,9 +449,15 @@ def test_typescript_field_target(tmp_path, target):
         pytest.skip('npm install in tests/sysid32 to enable TypeScript runtime tests')
     generated = generate(tmp_path / 'typescript', 'TypeScript')
     (generated / 'node_modules').symlink_to(modules, target_is_directory=True)
-    run([tool('node'), compiler, '--skipLibCheck', '--target', target, '--module', 'commonjs',
-         '--strict', '--outDir', generated / 'compiled', generated / 'message-registry.ts'], cwd=tmp_path)
-    actual = run([tool('node'), RESOURCES / 'target-typescript.js', generated / 'compiled/message-registry.js'])
+    if target == 'es5':
+        # Exercise the generated project's defaults, including its ES5 target.
+        run([tool('node'), compiler, '--project', generated], cwd=tmp_path)
+        registry = generated / 'message-registry.js'
+    else:
+        run([tool('node'), compiler, '--skipLibCheck', '--target', target, '--module', 'commonjs',
+             '--strict', '--outDir', generated / 'compiled', generated / 'message-registry.ts'], cwd=tmp_path)
+        registry = generated / 'compiled/message-registry.js'
+    actual = run([tool('node'), RESOURCES / 'target-typescript.js', registry])
     assert [line for line in actual.splitlines() if line.startswith('fd')] == [p.hex() for p in command_frames()]
 
 

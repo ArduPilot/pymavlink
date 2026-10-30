@@ -3,8 +3,8 @@ using System.IO;
 class Reject {
     static void Main(string[] args) {
         foreach (string path in Directory.GetFiles(args[0], "*.v2")) {
-            if (!Path.GetFileName(path).StartsWith("128-") && !Path.GetFileName(path).StartsWith("129-")) continue;
             byte[] original = File.ReadAllBytes(path);
+            if ((original[2] & ~7) == 0) continue;
             int rejectedLength = File.ReadAllBytes(Path.ChangeExtension(path, "frame")).Length;
             foreach (bool magicTrailer in new[] { false, true }) {
                 byte[] bytes = (byte[])original.Clone();
