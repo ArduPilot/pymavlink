@@ -1359,6 +1359,10 @@ class mavtcpin(mavfile):
             self.port = None
             self.fd = self.listen.fileno()
             return ''
+        if not data:
+            self.port.close()
+            self.port = None
+            self.fd = self.listen.fileno()
         return data
 
     def write(self, buf):
