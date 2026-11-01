@@ -467,6 +467,13 @@ ${decode_post}
 def generate_testsuite_h(directory, xml):
     '''generate testsuite.h per XML file'''
     f = open(os.path.join(directory, "testsuite.h"), mode='w', encoding='utf-8')
+    # mavlink_test_all is a fixed name, so a dialect literally named "all"
+    # (the top-level meta-dialect that just <include>s every other dialect,
+    # with no messages of its own) collides with its own per-file function
+    # mavlink_test_${basename}: duplicate definition, and infinite
+    # self-recursion from mavlink_test_all calling mavlink_test_${basename}.
+    # Such a dialect's per-file function would be empty anyway, so skip it.
+    own_test_function = xml.basename != 'all'
     t.write(f, '''
 /** @file
  *    @brief MAVLink comm protocol testsuite generated from ${basename}.xml
@@ -483,14 +490,14 @@ extern "C" {
 #ifndef MAVLINK_TEST_ALL
 #define MAVLINK_TEST_ALL
 ${{include_list:static void mavlink_test_${base}(uint8_t, uint8_t, mavlink_message_t *last_msg);
-}}
-static void mavlink_test_${basename}(uint8_t, uint8_t, mavlink_message_t *last_msg);
+}}''' + ('''
+static void mavlink_test_${basename}(uint8_t, uint8_t, mavlink_message_t *last_msg);''' if own_test_function else '') + '''
 
 static void mavlink_test_all(uint8_t system_id, uint8_t component_id, mavlink_message_t *last_msg)
 {
 ${{include_list:    mavlink_test_${base}(system_id, component_id, last_msg);
-}}
-    mavlink_test_${basename}(system_id, component_id, last_msg);
+}}''' + ('''
+    mavlink_test_${basename}(system_id, component_id, last_msg);''' if own_test_function else '') + '''
 }
 #endif
 
@@ -558,13 +565,13 @@ static void mavlink_test_${name_lower}(uint8_t system_id, uint8_t component_id, 
 #endif
 }
 }}
-
+''' + ('''
 static void mavlink_test_${basename}(uint8_t system_id, uint8_t component_id, mavlink_message_t *last_msg)
 {
 ${{message:    mavlink_test_${name_lower}(system_id, component_id, last_msg);
 }}
 }
-
+''' if own_test_function else '') + '''
 #ifdef __cplusplus
 }
 #endif // __cplusplus
