@@ -828,7 +828,9 @@ class mavfile:
         does, or False if timeout seconds pass first'''
         deadline = None if timeout is None else time.time() + timeout
         while True:
-            self.wait_heartbeat(timeout=self._time_left(deadline))
+            if self.wait_heartbeat(timeout=self._time_left(deadline)) is None:
+                # no heartbeat in time, so the arm state below is only the default
+                return False
             if bool(self.motors_armed()) == armed:
                 return True
             if deadline is not None and time.time() >= deadline:

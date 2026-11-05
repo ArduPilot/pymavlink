@@ -67,6 +67,11 @@ class TestWaitTimeouts(unittest.TestCase):
         result = self.assert_returns_within(2, self.gcs.motors_armed_wait, timeout=0.5)
         self.assertFalse(result)
 
+    def test_disarmed_wait_times_out_with_no_link(self):
+        # the default arm state is disarmed, so this must not count as a match
+        result = self.assert_returns_within(2, self.gcs.motors_disarmed_wait, timeout=0.5)
+        self.assertFalse(result)
+
     def test_gps_fix_times_out(self):
         result = self.assert_returns_within(2, self.gcs.wait_gps_fix, timeout=0.5)
         self.assertIsNone(result)
