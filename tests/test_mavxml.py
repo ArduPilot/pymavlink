@@ -4,11 +4,7 @@ Module to test MAVXML
 """
 
 import unittest
-try:
-    from importlib.resources import files as importlib_files
-except ImportError:
-    # importlib.resources.files() requires Python 3.9+; use backport for older versions
-    from importlib_resources import files as importlib_files
+from importlib.resources import files as importlib_files
 
 from pymavlink.generator.mavparse import MAVXML
 from pymavlink.generator.mavparse import MAVParseError
