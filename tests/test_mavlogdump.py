@@ -6,11 +6,7 @@ regression tests for mavlogdump.py
 """
 import unittest
 import os
-try:
-    from importlib.resources import files as importlib_files
-except ImportError:
-    # importlib.resources.files() requires Python 3.9+; use backport for older versions
-    from importlib_resources import files as importlib_files
+from importlib.resources import files as importlib_files
 import sys
 
 class MAVLogDumpTest(unittest.TestCase):
