@@ -250,7 +250,7 @@ class DFMessage(object):
             if self.fmt.msg_mults[i] > 0.0 and self.fmt.msg_mults[i] < 1.0:
                 divisor = 1/self.fmt.msg_mults[i]
                 v /= divisor
-            else:
+            elif self.fmt.msg_mults[i] > 1:
                 v *= self.fmt.msg_mults[i]
         return v
 
@@ -280,6 +280,46 @@ class DFMessage(object):
         if col_count != 0:
             ret = ret[:-2]
         return ret + '}'
+
+    def get_multiplied_field_value(self, field):
+        v = getattr(self, field)
+        if getattr(self, "_apply_multiplier", False) is True:
+            return v
+        # not applied already...
+        i = self.fmt.colhash[field]
+        mult = self.fmt.msg_mults[i]
+        if not mult:
+            return v
+        # For reasons relating to floating point accuracy, you get a more
+        # accurate result by dividing by 1e2 or 1e7 than multiplying by
+        # 1e-2 or 1e-7
+        if mult > 0.0 and mult < 1.0:
+            divisor = 1/mult
+            return v / divisor
+
+        return v * mult
+
+    def get_latitude(self):
+        for i in 'Lat', 'lat':
+            try:
+                return self.get_multiplied_field_value(i)
+            except AttributeError:
+                continue
+        raise AttributeError("No latitude found")
+
+    def get_longitude(self):
+        for i in 'Lon', 'Lng', 'lon', 'lng':
+            try:
+                return self.get_multiplied_field_value(i)
+            except AttributeError:
+                continue
+        raise AttributeError("No longitude found")
+
+    def get_latlon(self):
+        '''return a mavutil.location object for the first location present in
+        the object'''
+        latlon = (self.get_latitude(), self.get_longitude())
+        return latlon
 
     def dump_verbose_bitmask(self, f, c, val, field_metadata):
         try:
