@@ -31,6 +31,9 @@ except Exception:
 # maximum packet length for a single receive call - use the UDP limit
 UDP_MAX_PACKET_LEN = 65535
 
+# Bound both retained source state and per-write fan-out for UDP servers.
+UDP_MAX_CLIENTS = 64
+
 # Store the MAVLink library for the currently-selected dialect
 # (set by set_dialect())
 mavlink: ModuleType | None = None
@@ -989,10 +992,12 @@ class mavserial(mavfile):
 
 class mavudp(mavfile):
     '''a UDP mavlink socket'''
-    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native, timeout=0):
+    def __init__(self, device, input=True, broadcast=False, source_system=255, source_component=0, use_native=default_native, timeout=0, max_clients=UDP_MAX_CLIENTS):
         a = device.split(':')
         if len(a) != 2:
             raise ValueError("UDP ports must be specified as host:port")
+        if not isinstance(max_clients, int) or max_clients < 1:
+            raise ValueError("UDP max_clients must be a positive integer")
         self.port = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_server = input
         self.broadcast = False
@@ -1012,13 +1017,38 @@ class mavudp(mavfile):
         self.port.setblocking(False)
         self.last_address = None
         self.timeout = timeout
+        self.max_clients = max_clients
         self.clients = set()
         self.clients_last_alive = {}
+        self._last_recv_address = None
         self.resolved_destination_addr = None
         mavfile.__init__(self, self.port.fileno(), device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
 
     def close(self):
         self.port.close()
+
+    def _remove_client(self, address):
+        self.clients.discard(address)
+        self.clients_last_alive.pop(address, None)
+
+    def _prune_expired_clients(self, current_time, keep_one=False):
+        if self.timeout <= 0:
+            return
+        expired = [
+            address for address in self.clients
+            if self.clients_last_alive[address] + self.timeout <= current_time
+        ]
+        remove_limit = len(self.clients) - (1 if keep_one else 0)
+        for address in expired[:max(0, remove_limit)]:
+            self._remove_client(address)
+
+    def _record_client(self, address, current_time):
+        self._prune_expired_clients(current_time)
+        if address not in self.clients and len(self.clients) >= self.max_clients:
+            oldest = min(self.clients, key=self.clients_last_alive.get)
+            self._remove_client(oldest)
+        self.clients.add(address)
+        self.clients_last_alive[address] = current_time
 
     def recv(self,n=None):
         try:
@@ -1028,8 +1058,7 @@ class mavudp(mavfile):
                 return ""
             raise
         if self.udp_server:
-            self.clients.add(new_addr)
-            self.clients_last_alive[new_addr] = time.time()
+            self._last_recv_address = new_addr
         elif self.broadcast:
             self.last_address = new_addr
         return data
@@ -1038,15 +1067,9 @@ class mavudp(mavfile):
         try:
             if self.udp_server:
                 current_time = time.time()
-                to_remove = set()
+                self._prune_expired_clients(current_time, keep_one=True)
                 for address in self.clients:
-                    if len(self.clients) == 1 or self.timeout <= 0 or self.clients_last_alive[address] + self.timeout > current_time:
-                        self.port.sendto(buf, address)
-                    elif len(self.clients) > 1 and len(to_remove) < len(self.clients) - 1:
-                        # we keep always at least 1 client, so we don't break old behavior
-                        to_remove.add(address)
-                        self.clients_last_alive.pop(address)
-                self.clients -= to_remove
+                    self.port.sendto(buf, address)
             else:
                 if self.last_address and self.broadcast:
                     self.destination_addr = self.last_address
@@ -1071,6 +1094,8 @@ class mavudp(mavfile):
 
         m = self.mav.parse_char(s)
         if m is not None:
+            if self.udp_server and m.get_type() != 'BAD_DATA':
+                self._record_client(self._last_recv_address, time.time())
             self.post_message(m)
 
         return m
@@ -2044,7 +2069,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        dialect=None, autoreconnect=False, zero_time_base=False,
                        retries=3, reconnect_delay=1, use_native=default_native,
                        force_connected=False, progress_callback=None,
-                       udp_timeout=0, **opts):
+                       udp_timeout=0, udp_max_clients=UDP_MAX_CLIENTS, **opts):
     '''open a serial, UDP, TCP, Unix domain socket or file mavlink connection'''
     global mavfile_global
 
@@ -2079,7 +2104,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                       retries=retries,
                       use_native=use_native)
     if device.startswith('udpin:'):
-        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native, timeout=udp_timeout)
+        return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native, timeout=udp_timeout, max_clients=udp_max_clients)
     if device.startswith('udpout:'):
         return mavudp(device[7:], input=False, source_system=source_system, source_component=source_component, use_native=use_native)
     if device.startswith('udpbcast:'):
@@ -2090,7 +2115,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
         return mavwebsocket_client(device, source_system=source_system, source_component=source_component, use_native=use_native)
     # For legacy purposes we accept the following syntax and let the caller to specify direction
     if device.startswith('udp:'):
-        return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native)
+        return mavudp(device[4:], input=input, source_system=source_system, source_component=source_component, use_native=use_native, timeout=udp_timeout, max_clients=udp_max_clients)
     if device.startswith('mcast:'):
         return mavmcast(device[6:], source_system=source_system, source_component=source_component, use_native=use_native)
 
@@ -2133,7 +2158,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
     logsuffixes = ['mavlink', 'log', 'raw', 'tlog' ]
     suffix = device.split('.')[-1].lower()
     if device.find(':') != -1 and not suffix in logsuffixes:
-        return mavudp(device, source_system=source_system, source_component=source_component, input=input, use_native=use_native)
+        return mavudp(device, source_system=source_system, source_component=source_component, input=input, use_native=use_native, timeout=udp_timeout, max_clients=udp_max_clients)
     if os.path.isfile(device):
         if device.endswith(".elf") or device.find("/bin/") != -1:
             print("executing '%s'" % device)
