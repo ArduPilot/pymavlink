@@ -398,6 +398,7 @@ ${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_struct(mavlink
 #endif
 }
 
+${send_struct_target}
 #if MAVLINK_MSG_ID_${name}_LEN <= MAVLINK_MAX_PAYLOAD_LEN
 /*
   This variant of _send() can be used to save stack space by reusing
@@ -789,6 +790,32 @@ def generate_one(basename, xml):
                     f.putname = f.name
             else:
                 f.putname = f.const_value
+
+        m.send_struct_target = ''
+        if sysid32_capable and m.target_system_fieldname is not None:
+            m.struct_target_args = ', '.join(
+                'target_sysid' if f.is_target_system else '%s->%s' % (m.name_lower, f.name)
+                for f in m.arg_fields)
+            m.send_struct_target = '''
+/**
+ * @brief Send a ${name_lower} struct with an explicit system target
+ * The caller must have exclusive access to this writable struct during the call.
+ * Normalizing its target byte in place avoids a payload copy on aligned systems.
+ * The target byte is updated even if the channel cannot send the message.
+ * @param chan MAVLink channel to send the message
+ * @param ${name_lower} Writable MAVLink struct; its target byte is normalized in place
+ * @param target_sysid Full system target, overriding the struct's target byte
+ */
+${MSG_ATTRIBUTE}static inline void mavlink_msg_${name_lower}_send_struct_target(mavlink_channel_t chan, mavlink_${name_lower}_t* ${name_lower}, uint32_t target_sysid)
+{
+    ${name_lower}->${target_system_fieldname} = mavlink_msg_target_field(target_sysid);
+#if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
+    mavlink_msg_${name_lower}_send(chan, ${struct_target_args});
+#else
+    _mav_finalize_message_chan_send_target(chan, MAVLINK_MSG_ID_${name}, (const char *)${name_lower}, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC, target_sysid);
+#endif
+}
+'''
 
     generate_mavlink_h(directory, xml)
     generate_version_h(directory, xml)
