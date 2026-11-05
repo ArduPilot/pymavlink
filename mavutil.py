@@ -1076,16 +1076,25 @@ class mavudp(mavfile):
         return m
 
 class mavmcast(mavfile):
-    '''a UDP multicast mavlink socket'''
+    '''a UDP multicast mavlink socket
+
+    device is "", "PORT", "GROUP:PORT" or "GROUP:PORT:IFADDR".  IFADDR
+    is the address of the local interface to join the group on and send
+    from, e.g. 127.0.0.1 to keep the traffic on this machine; without it
+    the routing table chooses, which normally means the interface of the
+    default route'''
     def __init__(self, device, source_system=255, source_component=0, use_native=default_native):
         a = device.split(':')
         mcast_ip = "239.255.145.50"
         mcast_port = 14550
+        mcast_if = None
         if len(a) == 1 and len(a[0]) > 0:
             mcast_port = int(a[0])
         elif len(a) > 1:
             mcast_ip = a[0]
             mcast_port = int(a[1])
+        if len(a) > 2 and len(a[2]) > 0:
+            mcast_if = a[2]
 
         # first the receiving socket. We use separate sending and receiving
         # sockets so we can use the port number of the sending socket to detect
@@ -1097,7 +1106,10 @@ class mavmcast(mavfile):
             self.port.bind(("0.0.0.0", mcast_port))
         else:
             self.port.bind((mcast_ip, mcast_port))
-        mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
+        if mcast_if is None:
+            mreq = struct.pack("4sl", socket.inet_aton(mcast_ip), socket.INADDR_ANY)
+        else:
+            mreq = socket.inet_aton(mcast_ip) + socket.inet_aton(mcast_if)
         self.port.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self.port.setblocking(False)
         set_close_on_exec(self.port.fileno())
@@ -1106,6 +1118,10 @@ class mavmcast(mavfile):
         self.port_out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.port_out.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.port_out.setblocking(False)
+        if mcast_if is not None:
+            # send on the same interface, and from its address
+            self.port_out.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(mcast_if))
+            self.port_out.bind((mcast_if, 0))
         self.port_out.connect((mcast_ip, mcast_port))
         set_close_on_exec(self.port_out.fileno())
         self.myport = None
