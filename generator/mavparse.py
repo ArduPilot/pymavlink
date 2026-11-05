@@ -303,9 +303,8 @@ class MAVXML(object):
 
                 # check bitmask value
                 if self.enum[-1].bitmask:
-                    # values should always be a power of 2.  Py3.10
-                    # has value.bit_count()
-                    if bin(value).count("1") != 1:
+                    # values should always be a power of 2
+                    if value.bit_count() != 1:
                         print(f"{attrs['name']} has invalid values (bitmask must have powers of 2)")
 
                 # append the new entry
