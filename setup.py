@@ -228,6 +228,7 @@ setup (name = 'pymavlink',
                    'tools/mavbitmask_change.py',
                    'tools/mavsensor_status_change.py',
        ],
+       python_requires='>=3.10',
        install_requires=[
             'lxml',
             'fastcrc',
