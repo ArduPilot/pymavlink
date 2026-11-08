@@ -507,7 +507,7 @@ rotations = [
     Rotation("ROTATION_ROLL_270_PITCH_270",      270, 270,   0),
     Rotation("ROTATION_ROLL_90_PITCH_180_YAW_90", 90, 180,  90),
     Rotation("ROTATION_ROLL_90_YAW_270",          90,   0, 270),
-    Rotation("ROTATION_ROLL_90_PITCH_68_YAW_293", 90,  68, 270),
+    Rotation("ROTATION_ROLL_90_PITCH_68_YAW_293", 90, 68.8, 293.3),  # the name truncates the angles, as in AP_Math
     Rotation("ROTATION_PITCH_315",                 0, 315,   0),
     Rotation("ROTATION_ROLL_90_PITCH_315",        90, 315,   0),
     Rotation("ROTATION_PITCH_7",                   0,   7,   0),
