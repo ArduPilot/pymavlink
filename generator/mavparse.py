@@ -9,6 +9,7 @@ Released under GNU GPL version 3 or later
 import errno
 import operator
 import os
+import re
 import sys
 import time
 import xml.parsers.expat
@@ -159,15 +160,22 @@ class MAVEnumParam(object):
         self.reserved = reserved
         self.default = default
         self.multiplier = multiplier
-        if self.reserved and not self.default:
-            self.default = '0'
-        self.set_description(description)
 
-    def set_description(self, description):
-        if not description.strip() and self.reserved:
-            self.description = 'Reserved (default:%s)' % self.default
+    def set_reserved(self):
+        '''Mark as reserved, replacing any description and default from the XML.
+        param5/param6 double as int32 lat/lon when sent via COMMAND_INT or
+        MISSION_ITEM_INT, which can't carry NaN, so their default depends on the
+        message they are carried in.'''
+        self.reserved = True
+        self.default = 'NaN'
+        if int(self.index) in (5, 6):
+            self.description = 'Reserved. Default: INT32_MAX (COMMAND_INT/MISSION_ITEM_INT) or NaN (COMMAND_LONG).'
         else:
-            self.description = description
+            self.description = 'Reserved. Default: NaN.'
+        self.description += ' Note: Implementations that currently accept 0 as the sentinel values are planning to migrate (check their documentation on the state).'
+
+# Param text that marks a MAV_CMD param as reserved/unused (e.g. "Empty.", "Reserved (set to 0)")
+RESERVED_PARAM_TEXT = re.compile(r'\s*(reserved|empty|unused|not used|n/a|spare)(?=$|[\s.,:;(])', re.IGNORECASE)
 
 class MAVEnumEntry(object):
     def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False):
@@ -319,8 +327,8 @@ class MAVXML(object):
                                                         label=attrs.get('label', ''), units=attrs.get('units', ''), 
                                                         enum=attrs.get('enum', ''), increment=attrs.get('increment', ''), 
                                                         minValue=attrs.get('minValue', ''), 
-                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', '0'), 
-                                                        reserved=attrs.get('reserved', False), multiplier=attrs.get('multiplier','')))
+                                                        maxValue=attrs.get('maxValue', ''), default=attrs.get('default', ''), 
+                                                        reserved=attrs.get('reserved', 'false').lower() in ('true', '1'), multiplier=attrs.get('multiplier','')))
             elif in_element == "mavlink.enums.enum.entry.deprecated":
                 check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
                 self.enum[-1].entry[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])
@@ -370,20 +378,22 @@ class MAVXML(object):
         f.close()
    
 
-        #Post process to add reserved params (for docs)
+        #Post process to add reserved params (for docs). A param is reserved if it is
+        #undeclared, tagged reserved, blank, or its text starts with "Reserved", "Empty" etc.
         for current_enum in self.enum:
             if not 'MAV_CMD' in current_enum.name:
                 continue
             for enum_entry in current_enum.entry:
-                if len(enum_entry.param) == 7:
-                    continue
                 params_dict=dict()
                 for param_index in range (1,8):
-                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='', 
-                                                        minValue='', maxValue='', default='0', reserved='True')
+                    params_dict[param_index] = MAVEnumParam(param_index, label='', units='', enum='', increment='',
+                                                        minValue='', maxValue='', reserved=True)
 
                 for a_param in enum_entry.param:
                     params_dict[int(a_param.index)] = a_param
+                for a_param in params_dict.values():
+                    if a_param.reserved or not a_param.description.strip() or RESERVED_PARAM_TEXT.match(a_param.description):
+                        a_param.set_reserved()
                 enum_entry.param=params_dict.values()
                 
 
