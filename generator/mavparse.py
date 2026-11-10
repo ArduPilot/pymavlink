@@ -178,7 +178,7 @@ class MAVEnumParam(object):
 RESERVED_PARAM_TEXT = re.compile(r'\s*(reserved|empty|unused|not used|n/a|spare)(?=$|[\s.,:;(])', re.IGNORECASE)
 
 class MAVEnumEntry(object):
-    def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False):
+    def __init__(self, name, value, description='', wip=False, end_marker=False, autovalue=False, origin_file='', origin_line=0, has_location=False, is_destination=False):
         self.name = name
         self.value = value
         self.deprecated = None
@@ -190,6 +190,7 @@ class MAVEnumEntry(object):
         self.origin_file = origin_file
         self.origin_line = origin_line
         self.has_location = has_location
+        self.is_destination = is_destination
 
 class MAVEnum(object):
     def __init__(self, name, linenumber, description='', bitmask=False):
@@ -308,6 +309,13 @@ class MAVXML(object):
                     has_location = False
                 if type(has_location) != bool:
                     raise MAVParseError("invalid has_location value %s" % has_location)
+                is_destination = attrs.get('isDestination', False)
+                if is_destination == 'true':
+                    is_destination = True
+                elif is_destination == 'false':
+                    is_destination = False
+                if type(is_destination) != bool:
+                    raise MAVParseError("invalid is_destination value %s" % is_destination)
 
                 # check bitmask value
                 if self.enum[-1].bitmask:
@@ -316,7 +324,7 @@ class MAVXML(object):
                         print(f"{attrs['name']} has invalid values (bitmask must have powers of 2)")
 
                 # append the new entry
-                self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, False, autovalue, self.filename, p.CurrentLineNumber, has_location=has_location))
+                self.enum[-1].entry.append(MAVEnumEntry(attrs['name'], value, '', False, False, autovalue, self.filename, p.CurrentLineNumber, has_location=has_location, is_destination=is_destination))
             elif in_element == "mavlink.enums.enum.entry.wip":
                 self.enum[-1].entry[-1].wip = True
             elif in_element == "mavlink.enums.enum.entry.param":
