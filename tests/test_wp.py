@@ -5,6 +5,7 @@ regression tests for mavwp.py
 """
 
 import unittest
+from unittest import mock
 import os
 import tempfile
 from importlib.resources import files as importlib_files
@@ -217,20 +218,62 @@ class MAVWPTest(unittest.TestCase):
             ))
         return loader
 
+    def location_go_around(self):
+        '''a context in which MAV_CMD_DO_GO_AROUND is a location command,
+        as it is with message definitions which mark it hasLocation'''
+        entry = mavutil.mavlink.enums['MAV_CMD'][mavutil.mavlink.MAV_CMD_DO_GO_AROUND]
+        return mock.patch.object(entry, 'has_location', True)
+
+    def test_go_around_starts_path(self):
+        '''a DO_GO_AROUND with a position is the start of the abort
+        sequence's path, and is never flown to'''
+        WP = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+        LAND = mavutil.mavlink.MAV_CMD_NAV_LAND
+        GO_AROUND = mavutil.mavlink.MAV_CMD_DO_GO_AROUND
+        with self.location_go_around():
+            loader = self.make_mission([
+                (WP, -35.0, 149.0),         # 0: home
+                (WP, -35.1, 149.0),         # 1
+                (LAND, -35.2, 149.0),       # 2
+                (GO_AROUND, -35.15, 149.0), # 3: abort sequence starts here
+                (WP, -35.15, 149.1),        # 4
+                (WP, -35.05, 149.1),        # 5
+            ])
+            self.assertFalse(loader.is_location_wp(loader.wp(3)))
+            self.assertEqual(loader.view_list(), [[0, 1, 2], [3, 4, 5]])
+            polygons = loader.polygon_list()
+            go_around = loader.wp(3)
+            self.assertEqual(polygons[1][0], (go_around.x, go_around.y, (255, 0, 127)))
+
+    def test_go_around_mid_path(self):
+        '''the path does not fly to a DO_GO_AROUND between waypoints'''
+        WP = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+        GO_AROUND = mavutil.mavlink.MAV_CMD_DO_GO_AROUND
+        with self.location_go_around():
+            loader = self.make_mission([
+                (WP, -35.0, 149.0),         # 0
+                (WP, -35.1, 149.0),         # 1
+                (GO_AROUND, -35.15, 149.0), # 2
+                (WP, -35.2, 149.0),         # 3
+            ])
+            self.assertEqual(loader.view_list(), [[0, 1, 3], [2, 3]])
+
     def test_zero_position_start_item(self):
         '''a start item without a position is not drawn from 0,0'''
         WP = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
         LAND = mavutil.mavlink.MAV_CMD_NAV_LAND
         for start in [mavutil.mavlink.MAV_CMD_DO_LAND_START,
-                      mavutil.mavlink.MAV_CMD_DO_RETURN_PATH_START]:
-            loader = self.make_mission([
-                (WP, -35.0, 149.0),     # 0
-                (LAND, -35.1, 149.0),   # 1
-                (start, 0, 0),          # 2
-                (WP, -35.2, 149.0),     # 3
-                (LAND, -35.1, 149.0),   # 4
-            ])
-            self.assertEqual(loader.view_list(), [[0, 1], [3, 4]])
+                      mavutil.mavlink.MAV_CMD_DO_RETURN_PATH_START,
+                      mavutil.mavlink.MAV_CMD_DO_GO_AROUND]:
+            with self.location_go_around():
+                loader = self.make_mission([
+                    (WP, -35.0, 149.0),     # 0
+                    (LAND, -35.1, 149.0),   # 1
+                    (start, 0, 0),          # 2
+                    (WP, -35.2, 149.0),     # 3
+                    (LAND, -35.1, 149.0),   # 4
+                ])
+                self.assertEqual(loader.view_list(), [[0, 1], [3, 4]])
 
 class RallyTest(unittest.TestCase):
     '''tests functions related to loading waypoints and transferring them
