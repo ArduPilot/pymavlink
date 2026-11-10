@@ -476,6 +476,7 @@ class EnumEntry(object):
         self.param: Dict[int, str] = {}
         self.label: Dict[int, str] = {}
         self.has_location = False
+        self.is_destination = False
 
 class Enum(Dict[int, EnumEntry]):
     def __init__(self) -> None:
@@ -504,6 +505,9 @@ enums: Dict[str, Enum] = {}
                 )
             if entry.has_location:
                 outf.write('enums["%s"][%d].has_location = True\n' %
+                           (e.name, int(entry.value),))
+            if entry.is_destination:
+                outf.write('enums["%s"][%d].is_destination = True\n' %
                            (e.name, int(entry.value),))
             for param in entry.param:
                 description = param.description.replace("\t", "    ")
