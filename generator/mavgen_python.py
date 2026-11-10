@@ -1237,9 +1237,12 @@ def generate_methods(outf, msgs):
             if f.enum:
                 field_info += ", values:%s" % f.enum
             field_info += ")"
+            # strip trailing whitespace from every line of multi-line
+            # descriptions so the generated docstring passes flake8
+            description = "\n".join(line.rstrip() for line in f.description.strip().splitlines())
             ret += "        %-18s        : %s %s\n" % (
                 f.name,
-                f.description.strip(),
+                description,
                 field_info,
             )
         return ret
