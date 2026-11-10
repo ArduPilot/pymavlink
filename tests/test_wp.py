@@ -203,6 +203,35 @@ class MAVWPTest(unittest.TestCase):
         self.assertTrue(loader.is_location_command(mavutil.mavlink.MAV_CMD_NAV_WAYPOINT))
         self.assertTrue(loader.is_location_command(mavutil.mavlink.MAV_CMD_NAV_LOITER_TURNS))
 
+    def make_mission(self, items):
+        '''returns a MAVWPLoader holding a mission item for each of
+        items, a list of (command, lat, lon) tuples'''
+        loader = mavwp.MAVWPLoader()
+        for (seq, (command, lat, lon)) in enumerate(items):
+            loader.add(mavutil.mavlink.MAVLink_mission_item_int_message(
+                1, 1, seq,
+                mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                command,
+                0, 1, 0, 0, 0, 0,
+                int(lat * 1.0e7), int(lon * 1.0e7), 100,
+            ))
+        return loader
+
+    def test_zero_position_start_item(self):
+        '''a start item without a position is not drawn from 0,0'''
+        WP = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+        LAND = mavutil.mavlink.MAV_CMD_NAV_LAND
+        for start in [mavutil.mavlink.MAV_CMD_DO_LAND_START,
+                      mavutil.mavlink.MAV_CMD_DO_RETURN_PATH_START]:
+            loader = self.make_mission([
+                (WP, -35.0, 149.0),     # 0
+                (LAND, -35.1, 149.0),   # 1
+                (start, 0, 0),          # 2
+                (WP, -35.2, 149.0),     # 3
+                (LAND, -35.1, 149.0),   # 4
+            ])
+            self.assertEqual(loader.view_list(), [[0, 1], [3, 4]])
+
 class RallyTest(unittest.TestCase):
     '''tests functions related to loading waypoints and transferring them
     via the mission-item-protocol'''
