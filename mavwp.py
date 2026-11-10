@@ -296,7 +296,8 @@ class MissionItemProtocol(object):
                 # these are starting points; we should never fly to
                 # one of these.... but we want an edge *from* one of these
                 if len(ret) == 0:
-                    ret.append(idx)
+                    if w.x != 0 or w.y != 0:
+                        ret.append(idx)
                     done.add(idx)
                 idx += 1
                 continue
