@@ -1,8 +1,9 @@
-"""Check which wip/deprecated/superseded attribute macros the C generator
-puts on each enum and enum entry of the wip_deprecated_superseded.xml
-fixture.
+"""Check which wip/deprecated/superseded attribute macros the C and C++11
+generators put on each enum and enum entry of the
+wip_deprecated_superseded.xml fixture.
 
-The compile tests under generator/C/test/posix show that a diagnostic fires, but a compiler
+The compile tests under generator/C/test/posix and
+generator/CPP11/test/posix show that a diagnostic fires, but a compiler
 reports only one diagnostic for an entry carrying several attributes, so
 they cannot show that every applicable macro is present.  This test checks the generated text instead.
 """
@@ -55,6 +56,15 @@ EXPECTED = {
     }),
 }
 
+# C++11 names an entry through its enum class (E::ENTRY), so the enum class
+# carries only the flags every declaration has: a flag on it would be
+# reported for the entries of an unflagged declaration too
+CPP11_TYPE_ATTRIBUTES = {
+    'EXTENDED_DEPRECATED_ENUM': [],
+    'EXTENDED_WIP_ENUM': [],
+}
+
+
 def generate(directory, language):
     assert mavgen.mavgen(mavgen.Opts(output=str(directory), language=language,
                                      wire_protocol='2.0', validate=False), [str(XML)])
@@ -79,3 +89,14 @@ def test_c(tmp_path):
         assert attributes(found.pop('%s_ENUM_END' % enum)) == []
         assert {name: attributes(a) for name, a in found.items()} == entries, enum
 
+
+def test_cpp11(tmp_path):
+    header = generate(tmp_path, 'C++11')
+    for enum, (type_attributes, entries) in EXPECTED.items():
+        body = re.search(r'^enum class((?: MAVLINK_ENUM_\w+)*) %s\b.*?\n\{\n(.*?)\n\};' % enum,
+                         header, re.S | re.M)
+        assert body is not None, enum
+        assert attributes(body.group(1)) == CPP11_TYPE_ATTRIBUTES.get(enum, type_attributes), enum
+        found = dict(re.findall(r'^    (\w+)((?: MAVLINK_ENUM_\w+)*)=', body.group(2), re.M))
+        expected = {name[len(enum) + 1:]: a for name, a in entries.items()}
+        assert {name: attributes(a) for name, a in found.items()} == expected, enum
