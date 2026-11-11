@@ -1,0 +1,10 @@
+This directory contains the supporting codebase that
+supports both v1 and v2 protocol in connection.
+
+To use it set the following environtment variable:
+`$export ADA_BOTH_PROTOCOLS="True"`
+
+and generate code for both protocols like:
+`$python3 -m pymavlink.tools.mavgen --lang=Ada --wire-protocol=1.0 --output={output_dir} mavlink/message_definitions/v1.0/common.xml`
+
+`$python3 -m pymavlink.tools.mavgen --lang=Ada --wire-protocol=2.0 --output={output_dir} mavlink/message_definitions/v1.0/common.xml`
