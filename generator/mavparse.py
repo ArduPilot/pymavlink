@@ -127,6 +127,12 @@ class MAVDeprecated(object):
         self.replaced_by = replaced_by
         self.explanation = explanation
 
+class MAVSuperseded(object):
+    def __init__(self, since, replaced_by, explanation=''):
+        self.since = since
+        self.replaced_by = replaced_by
+        self.explanation = explanation
+
 class MAVType(object):
     def __init__(self, name, id, linenumber, description='', wip=False):
         self.name = name
@@ -134,6 +140,7 @@ class MAVType(object):
         self.linenumber = linenumber
         self.id = int(id)
         self.deprecated = None
+        self.superseded = None
         self.description = description
         self.wip = wip
         self.fields = []
@@ -182,6 +189,7 @@ class MAVEnumEntry(object):
         self.name = name
         self.value = value
         self.deprecated = None
+        self.superseded = None
         self.description = description
         self.wip = wip
         self.param = []
@@ -191,11 +199,18 @@ class MAVEnumEntry(object):
         self.origin_line = origin_line
         self.has_location = has_location
         self.is_destination = is_destination
+        # wip/deprecated/superseded of the enum declaration this entry
+        # came from, which may differ from the merged enum's
+        self.enum_wip = False
+        self.enum_deprecated = None
+        self.enum_superseded = None
 
 class MAVEnum(object):
     def __init__(self, name, linenumber, description='', bitmask=False):
         self.name = name
         self.deprecated = None
+        self.superseded = None
+        self.wip = False
         self.description = description
         self.entry = []
         self.start_value = None
@@ -278,6 +293,9 @@ class MAVXML(object):
             elif in_element == "mavlink.messages.message.deprecated":
                 check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
                 self.message[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])
+            elif in_element == "mavlink.messages.message.superseded":
+                check_attrs(attrs, ['since', 'replaced_by'], 'superseded')
+                self.message[-1].superseded = MAVSuperseded(attrs['since'], attrs['replaced_by'])
             elif in_element == "mavlink.messages.message.field":
                 check_attrs(attrs, ['name', 'type'], 'field')
                 print_format = attrs.get('print_format', None)
@@ -296,9 +314,14 @@ class MAVXML(object):
                 check_attrs(attrs, ['name'], 'enum')
                 bitmask = 'bitmask' in attrs and attrs['bitmask'] == 'true'
                 self.enum.append(MAVEnum(attrs['name'], p.CurrentLineNumber, bitmask=bitmask))
+            elif in_element == "mavlink.enums.enum.wip":
+                self.enum[-1].wip = True
             elif in_element == "mavlink.enums.enum.deprecated":
                 check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
                 self.enum[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])
+            elif in_element == "mavlink.enums.enum.superseded":
+                check_attrs(attrs, ['since', 'replaced_by'], 'superseded')
+                self.enum[-1].superseded = MAVSuperseded(attrs['since'], attrs['replaced_by'])
             elif in_element == "mavlink.enums.enum.entry":
                 check_attrs(attrs, ['name'], 'enum entry')
                 # determine value and if it was automatically assigned (for possible merging later)
@@ -345,6 +368,9 @@ class MAVXML(object):
             elif in_element == "mavlink.enums.enum.entry.deprecated":
                 check_attrs(attrs, ['since', 'replaced_by'], 'deprecated')
                 self.enum[-1].entry[-1].deprecated = MAVDeprecated(attrs['since'], attrs['replaced_by'])
+            elif in_element == "mavlink.enums.enum.entry.superseded":
+                check_attrs(attrs, ['since', 'replaced_by'], 'superseded')
+                self.enum[-1].entry[-1].superseded = MAVSuperseded(attrs['since'], attrs['replaced_by'])
             elif in_element == "mavlink.include":
                 self.include.append('')
 
@@ -364,6 +390,8 @@ class MAVXML(object):
                 self.message[-1].description += data
             elif in_element == "mavlink.messages.message.deprecated":
                 self.message[-1].deprecated.explanation += data
+            elif in_element == "mavlink.messages.message.superseded":
+                self.message[-1].superseded.explanation += data
             elif in_element == "mavlink.messages.message.field":
                 if self.message[-1].extensions_start is None or self.allow_extensions:
                     self.message[-1].fields[-1].description += data
@@ -371,10 +399,14 @@ class MAVXML(object):
                 self.enum[-1].description += data
             elif in_element == "mavlink.enums.enum.deprecated":
                 self.enum[-1].deprecated.explanation += data
+            elif in_element == "mavlink.enums.enum.superseded":
+                self.enum[-1].superseded.explanation += data
             elif in_element == "mavlink.enums.enum.entry.description":
                 self.enum[-1].entry[-1].description += data
             elif in_element == "mavlink.enums.enum.entry.deprecated":
                 self.enum[-1].entry[-1].deprecated.explanation += data
+            elif in_element == "mavlink.enums.enum.entry.superseded":
+                self.enum[-1].entry[-1].superseded.explanation += data
             elif in_element == "mavlink.enums.enum.entry.param":
                 self.enum[-1].entry[-1].param[-1].description += data
             elif in_element == "mavlink.version":
@@ -389,6 +421,15 @@ class MAVXML(object):
         p.CharacterDataHandler = char_data
         p.ParseFile(f)
         f.close()
+
+        # record each entry's enum-level flags now, while the entry is
+        # still with the declaration it came from: merge_enums() moves
+        # the entries of an extended enum into a single declaration
+        for current_enum in self.enum:
+            for enum_entry in current_enum.entry:
+                enum_entry.enum_wip = current_enum.wip
+                enum_entry.enum_deprecated = current_enum.deprecated
+                enum_entry.enum_superseded = current_enum.superseded
    
 
         #Post process to add reserved params (for docs). A param is reserved if it is
@@ -552,6 +593,13 @@ def merge_enums(xml):
                 emapitem.entry.extend(enum.entry)
                 if not emapitem.description:
                     emapitem.description = enum.description
+                # the merged enum is flagged if any declaration of it is;
+                # the entries keep the flags of their own declaration
+                emapitem.wip = emapitem.wip or enum.wip
+                if emapitem.deprecated is None:
+                    emapitem.deprecated = enum.deprecated
+                if emapitem.superseded is None:
+                    emapitem.superseded = enum.superseded
                 print("Merged enum %s" % enum.name)
             else:
                 newenums.append(enum)
