@@ -14,6 +14,15 @@ from . import mavtemplate
 t = mavtemplate.MAVTemplate()
 
 
+def strip_line_ends(text):
+    '''return text without whitespace at the end of each of its lines but
+    the last.  The last line is followed by the closing quotes on the same
+    line, so its whitespace is not at the end of a line, and it keeps a
+    final quote or backslash in the text from running into them'''
+    lines = text.split("\n")
+    return "\n".join([line.rstrip() for line in lines[:-1]] + lines[-1:])
+
+
 def generate_preamble(outf, msgs, basename, args, xml):
     print("Generating preamble")
 
@@ -491,7 +500,7 @@ enums: Dict[str, Enum] = {}
         outf.write(f'enums["{e.name}"].bitmask = {e.bitmask}\n');
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
-            description = entry.description.replace("\t", "    ")
+            description = strip_line_ends(entry.description.replace("\t", "    "))
             if "\n" in description:
                 outf.write(
                     'enums["%s"][%d] = EnumEntry(\n    "%s",\n    """%s""",\n)\n'
@@ -506,7 +515,7 @@ enums: Dict[str, Enum] = {}
                 outf.write('enums["%s"][%d].has_location = True\n' %
                            (e.name, int(entry.value),))
             for param in entry.param:
-                description = param.description.replace("\t", "    ")
+                description = strip_line_ends(param.description.replace("\t", "    "))
                 if "\n" in description:
                     outf.write(
                         'enums["%s"][%d].param[\n    %d\n] = """%s"""\n'
