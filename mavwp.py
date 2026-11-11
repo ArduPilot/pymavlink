@@ -274,6 +274,11 @@ class MissionItemProtocol(object):
                 w.x, w.y, w.z, w.autocontinue))
         f.close()
 
+    def is_location_marker_wp(self, w):
+        '''see if w is an item with a location the vehicle does not go
+        to, drawn as a point of its own'''
+        return False
+
     def view_indexes(self, done=None):
         '''return a list waypoint indexes in view order'''
         ret = []
@@ -302,6 +307,15 @@ class MissionItemProtocol(object):
                     if w.x != 0 or w.y != 0:
                         ret.append(idx)
                     done.add(idx)
+                idx += 1
+                continue
+            if self.is_location_marker_wp(w):
+                # a location we do not fly to, such as a region of
+                # interest: never on a path, but a point of its own
+                if len(ret) == 0:
+                    ret.append(idx)
+                    done.add(idx)
+                    return ret
                 idx += 1
                 continue
             done.add(idx)
@@ -461,6 +475,14 @@ class MAVWPLoader(MissionItemProtocol):
             return False
         return (self.is_location_command(w.command) and
                 self.is_destination_command(w.command))
+
+    def is_location_marker_wp(self, w):
+        '''see if w is a mission item with a latitude/longitude the
+        vehicle does not go to, such as a region of interest'''
+        if w.x == 0 and w.y == 0:
+            return False
+        return (self.is_location_command(w.command) and
+                not self.is_destination_command(w.command))
 
 
 def get_first_line_from_file(filename):
