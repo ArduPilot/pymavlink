@@ -317,7 +317,32 @@ class MAVWPTest(unittest.TestCase):
         with self.command_markup(ROI, has_location=True, is_destination=False):
             loader = self.roi_mission()
             self.assertFalse(loader.is_location_wp(loader.wp(2)))
-            self.assertEqual(loader.view_list(), [[0, 1, 3]])
+            # the ROI is a point of its own, so it still gets a marker:
+            self.assertEqual(loader.view_list(), [[0, 1, 3], [2]])
+
+    def test_location_markers(self):
+        '''locations which are not destinations are each drawn as a
+        point of their own, off the path'''
+        WP = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
+        LAND = mavutil.mavlink.MAV_CMD_NAV_LAND
+        ROI = mavutil.mavlink.MAV_CMD_DO_SET_ROI_LOCATION
+        HOME = mavutil.mavlink.MAV_CMD_DO_SET_HOME
+        with self.command_markup(ROI, has_location=True, is_destination=False), \
+             self.command_markup(HOME, has_location=True, is_destination=False):
+            loader = self.make_mission([
+                (WP, -35.0, 149.0),     # 0
+                (WP, -35.1, 149.0),     # 1
+                (ROI, -35.15, 149.1),   # 2
+                (HOME, -35.05, 149.05), # 3
+                (WP, -35.2, 149.0),     # 4
+                (LAND, -35.25, 149.0),  # 5
+                (ROI, -35.3, 149.1),    # 6: after the landing
+                (ROI, 0, 0),            # 7: no position, not drawn
+            ])
+            self.assertEqual(loader.view_list(), [[0, 1, 4, 5], [2], [3], [6]])
+            polygons = loader.polygon_list()
+            roi = loader.wp(2)
+            self.assertEqual(polygons[1], [(roi.x, roi.y)])
 
     def test_is_destination_unknown(self):
         '''with Python generated before is_destination, the path is
