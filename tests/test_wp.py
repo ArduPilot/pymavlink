@@ -303,6 +303,14 @@ class MAVWPTest(unittest.TestCase):
             self.assertFalse(loader.is_destination_command(ROI))
             self.assertFalse(loader.is_destination_command(RTL))
 
+    def test_destination_without_location(self):
+        '''older definitions mark some commands isDestination without
+        hasLocation; with no location they are not destinations'''
+        loader = mavwp.MAVWPLoader()
+        CHANGE_ALT = mavutil.mavlink.MAV_CMD_NAV_CONTINUE_AND_CHANGE_ALT
+        with self.command_markup(CHANGE_ALT, has_location=False, is_destination=True):
+            self.assertFalse(loader.is_destination_command(CHANGE_ALT))
+
     def test_location_not_destination_not_flown_to(self):
         '''the path does not go to a location which is not a destination'''
         ROI = mavutil.mavlink.MAV_CMD_DO_SET_ROI_LOCATION
