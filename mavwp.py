@@ -450,7 +450,9 @@ class MAVWPLoader(MissionItemProtocol):
             return (self.is_location_command(cmd) and
                     cmd not in [mavutil.mavlink.MAV_CMD_DO_LAND_START,
                                 mavutil.mavlink.MAV_CMD_DO_GO_AROUND])
-        return is_destination
+        # a destination needs a location; older definitions mark some
+        # commands isDestination without hasLocation
+        return is_destination and self.is_location_command(cmd)
 
     def is_location_wp(self, w):
         '''see if w is a mission item with a latitude/longitude the
