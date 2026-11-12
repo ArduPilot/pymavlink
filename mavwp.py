@@ -752,7 +752,7 @@ class MAVRallyLoader(object):
 
             if (a[0].lower() == "rally"):
                 self.create_and_append_rally_point(float(a[1]) * 1e7, float(a[2]) * 1e7,
-                                                   float(a[3]), float(a[4]), float(a[5]) * 100.0, int(a[6]))
+                                                   float(a[3]), float(a[4]), round(float(a[5]) * 100.0), int(a[6]))
         f.close()
         return len(self.rally_points)
 
@@ -761,7 +761,7 @@ class MAVRallyLoader(object):
         f = open(filename, mode='w')
         for p in self.rally_points:
             f.write("RALLY %f\t%f\t%f\t%f\t%f\t%d\n" % (p.lat * 1e-7, p.lng * 1e-7, p.alt,
-                                                        p.break_alt, p.land_dir, p.flags))
+                                                        p.break_alt, p.land_dir * 0.01, p.flags))
         f.close()
 
 class MAVFenceError(Exception):
