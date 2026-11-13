@@ -1802,51 +1802,61 @@ class DFReader_text(DFReader):
         if name == 'FMT':
             # add to formats
             # name, len, format, headings
-            ftype = int(elements[0])
-            fname = elements[2]
-            if self.delimiter == ",":
-                elements = elements[0:4] + [",".join(elements[4:])]
-            columns = elements[4]
-            if fname == 'FMT' and columns == 'Type,Length,Name,Format':
-                # some logs have the 'Columns' column missing from text logs
-                columns = "Type,Length,Name,Format,Columns"
-            new_fmt = DFFormat(ftype,
-                               fname,
-                               int(elements[1]),
-                               elements[3],
-                               columns,
-                               oldfmt=self.formats.get(ftype,None))
-            self.formats[fname] = new_fmt
-            self.id_to_name[ftype] = fname
-            self.name_to_id[fname] = ftype
+            try:
+                ftype = int(elements[0])
+                fname = elements[2]
+                if self.delimiter == ",":
+                    elements = elements[0:4] + [",".join(elements[4:])]
+                columns = elements[4]
+                if fname == 'FMT' and columns == 'Type,Length,Name,Format':
+                    # some logs have the 'Columns' column missing from text logs
+                    columns = "Type,Length,Name,Format,Columns"
+                new_fmt = DFFormat(ftype,
+                                   fname,
+                                   int(elements[1]),
+                                   elements[3],
+                                   columns,
+                                   oldfmt=self.formats.get(ftype,None))
+                self.formats[fname] = new_fmt
+                self.id_to_name[ftype] = fname
+                self.name_to_id[fname] = ftype
+            except Exception:
+                # malformed FMT line in an untrusted log: skip rather than crash,
+                # mirroring DFReader_binary._parse_next's defensive handling.
+                return self._parse_next()
 
         try:
             m = DFMessage(fmt, elements, False, self)
         except ValueError:
             return self._parse_next()
 
-        if m.get_type() == 'FMTU':
-            fmtid = getattr(m, 'FmtType', None)
-            if fmtid is not None and fmtid in self.id_to_name:
-                fmtu = self.formats[self.id_to_name[fmtid]]
-                fmtu.set_unit_ids(getattr(m, 'UnitIds', None), self.unit_lookup)
-                fmtu.set_mult_ids(getattr(m, 'MultIds', None), self.mult_lookup)
+        # Field access (DFMessage.__getattr__), chr() and null_term() can all raise on a
+        # malformed row; metadata handling must not crash the whole read.
+        try:
+            if m.get_type() == 'FMTU':
+                fmtid = getattr(m, 'FmtType', None)
+                if fmtid is not None and fmtid in self.id_to_name:
+                    fmtu = self.formats[self.id_to_name[fmtid]]
+                    fmtu.set_unit_ids(getattr(m, 'UnitIds', None), self.unit_lookup)
+                    fmtu.set_mult_ids(getattr(m, 'MultIds', None), self.mult_lookup)
 
-        if m.get_type() == 'UNIT':
-            unitid = getattr(m, 'Id', None)
-            label = getattr(m, 'Label', None)
-            self.unit_lookup[chr(unitid)] = null_term(label)
+            if m.get_type() == 'UNIT':
+                unitid = getattr(m, 'Id', None)
+                label = getattr(m, 'Label', None)
+                self.unit_lookup[chr(unitid)] = null_term(label)
 
-        if m.get_type() == 'MULT':
-            multid = getattr(m, 'Id', None)
-            mult = getattr(m, 'Mult', None)
-            # Even though the multiplier value is logged as a double, the
-            # values in log files look to be single-precision values that have
-            # been cast to a double.
-            # To ensure that the values saved here can be used to index the
-            # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
-            mult = float("%.7g" % (mult))
-            self.mult_lookup[chr(multid)] = mult
+            if m.get_type() == 'MULT':
+                multid = getattr(m, 'Id', None)
+                mult = getattr(m, 'Mult', None)
+                # Even though the multiplier value is logged as a double, the
+                # values in log files look to be single-precision values that have
+                # been cast to a double.
+                # To ensure that the values saved here can be used to index the
+                # MULT_TO_PREFIX table, we round them to 7 significant decimal digits
+                mult = float("%.7g" % (mult))
+                self.mult_lookup[chr(multid)] = mult
+        except Exception:
+            pass
 
         self._add_msg(m)
 
