@@ -184,6 +184,15 @@ class MatrixTest(unittest.TestCase):
                                          Vector3(0.00, 1.00, 0.00),
                                          Vector3(-0.71, 0.00, 0.71)), tol=1e-2)
 
+    def test_rotation_roll_90_pitch_68_yaw_293(self):
+        '''check rotation 38 against the matrix in AP_Math rotate()'''
+        v = Vector3(1, 2, 3).rotate_by_id(38)
+        # x, y, z from Vector3<T>::rotate(ROTATION_ROLL_90_PITCH_68_YAW_293)
+        x = 0.14303897231223747 * 1 + 0.36877648650320383 * 2 - 0.9184463813430871 * 3
+        y = -0.3321327777966474 * 1 - 0.8562894214664188 * 2 - 0.3955455025629652 * 3
+        z = -0.9323238012155122 * 1 + 0.3616245700820924 * 2 + 0.0 * 3
+        assert v.close(Vector3(x, y, z), tol=1e-12)
+
     def test_two_vectors(self):
         '''test the from_two_vectors() method'''
         for i in range(100):
