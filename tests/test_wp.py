@@ -407,6 +407,29 @@ class RallyTest(unittest.TestCase):
         self.assertEqual(loader.count(), 1)
         self.assertEqual(loader.wp(0).z, 100)
 
+class LegacyRallyTest(unittest.TestCase):
+    def test_save_preserves_landing_heading(self):
+        """Legacy rally files store headings in degrees, not centidegrees."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filename = os.path.join(tmpdir, "rally.txt")
+            for heading in (0, 29, 113, 125, 9000, 18000, 35999):
+                with self.subTest(heading=heading):
+                    loader = mavwp.MAVRallyLoader()
+                    loader.create_and_append_rally_point(
+                        400715530, -1052294010, 100, 40, heading, 0)
+                    loader.save(filename)
+                    with open(filename) as f:
+                        self.assertEqual(float(f.read().split()[5]), heading / 100.0)
+                    restored = mavwp.MAVRallyLoader()
+                    restored.load(filename)
+                    before = loader.rally_point(0)
+                    after = restored.rally_point(0)
+                    for field in ("lat", "lng", "alt", "break_alt", "land_dir", "flags"):
+                        self.assertEqual(getattr(after, field), getattr(before, field))
+                    # A loaded point must still fit its MAVLink wire representation.
+                    after.pack(mavutil.mavlink.MAVLink(None))
+
+
 class FenceTest(unittest.TestCase):
     def test_fence_load(self):
         '''test loading rally points from old RALLY style file'''
