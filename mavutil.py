@@ -757,10 +757,22 @@ class mavfile:
                                    mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, 0,
                                    param1, 0, 0, 0, 0, param6, 0)
 
-    def wait_gps_fix(self):
-        self.recv_match(type='VFR_HUD', blocking=True)
-        self.recv_match(type='GPS_RAW_INT', blocking=True,
-                        condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
+    def _time_left(self, deadline):
+        '''seconds left before deadline, or None if there is no deadline'''
+        if deadline is None:
+            return None
+        return max(0, deadline - time.time())
+
+    def wait_gps_fix(self, timeout=None):
+        '''wait for a 3D GPS fix. With a timeout in seconds, return None
+        if no fix arrives in time, otherwise return the GPS_RAW_INT message'''
+        deadline = None if timeout is None else time.time() + timeout
+        if self.recv_match(type='VFR_HUD', blocking=True,
+                           timeout=self._time_left(deadline)) is None:
+            return None
+        return self.recv_match(type='GPS_RAW_INT', blocking=True,
+                               timeout=self._time_left(deadline),
+                               condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
 
     def location(self, relative_alt=False):
         '''return current location'''
@@ -811,19 +823,28 @@ class mavfile:
         '''return true if motors armed'''
         return self.sysid_state[self.sysid].armed
 
-    def motors_armed_wait(self):
-        '''wait for motors to be armed'''
+    def _wait_armed_state(self, armed, timeout):
+        '''wait until the arm state matches armed. Return True when it
+        does, or False if timeout seconds pass first'''
+        deadline = None if timeout is None else time.time() + timeout
         while True:
-            m = self.wait_heartbeat()
-            if self.motors_armed():
-                return
+            if self.wait_heartbeat(timeout=self._time_left(deadline)) is None:
+                # no heartbeat in time, so the arm state below is only the default
+                return False
+            if bool(self.motors_armed()) == armed:
+                return True
+            if deadline is not None and time.time() >= deadline:
+                return False
 
-    def motors_disarmed_wait(self):
-        '''wait for motors to be disarmed'''
-        while True:
-            m = self.wait_heartbeat()
-            if not self.motors_armed():
-                return
+    def motors_armed_wait(self, timeout=None):
+        '''wait for motors to be armed. With a timeout in seconds, return
+        False if they are not armed in time'''
+        return self._wait_armed_state(True, timeout)
+
+    def motors_disarmed_wait(self, timeout=None):
+        '''wait for motors to be disarmed. With a timeout in seconds, return
+        False if they are not disarmed in time'''
+        return self._wait_armed_state(False, timeout)
 
 
     def field(self, type, field, default=None):
