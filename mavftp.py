@@ -176,6 +176,7 @@ class ParamData:
     """A class to manage parameter values and defaults for ArduPilot configuration."""
 
     def __init__(self) -> None:
+        self.version = 1
         self.params: List[
             Tuple[bytes, float, type]
         ] = []  # params as (name, value, ptype)
@@ -3934,7 +3935,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             )
             return None
         magic2, num_params, total_params = struct.unpack("<HHH", data[0:6])
-        if magic2 not in {magic, magic_defaults}:
+        if magic2 not in {magic, magic_defaults, 0x671D, 0x671E}:
             logging.error("paramftp: bad magic 0x%x expected 0x%x", magic2, magic)
             return None
         if num_params > total_params:
@@ -3944,7 +3945,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 total_params,
             )
             return None
-        with_defaults = magic2 == magic_defaults
+        pdata.version = 2 if magic2 in {0x671D, 0x671E} else 1
+        with_defaults = magic2 in {magic_defaults, 0x671E}
 
         # mapping of data type to type length and format
         data_types = {
@@ -3953,6 +3955,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             3: (4, "i"),
             4: (4, "f"),
         }
+
+        if pdata.version == 2:
+            data_types.update({5: (1, "B"), 6: (2, "H"), 7: (4, "I")})
 
         count = 0
         pad_byte = 0
@@ -4074,6 +4079,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                 2: "16-bit",
                 3: "32-bit integer",
                 4: "32-bit float",
+                5: "8-bit unsigned integer",
+                6: "16-bit unsigned integer",
+                7: "32-bit unsigned integer",
             }
             if add_timestamp_comment:
                 f.write(
@@ -4154,9 +4162,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         return self.cmd_get(
             [
-                "@PARAM/param.pck?withdefaults=1"
+                "@PARAM/param.pck?withdefaults=1&v=2"
                 if len(args) > 1
-                else "@PARAM/param.pck"
+                else "@PARAM/param.pck?v=2"
             ],
             callback=decode_and_save_params,
             progress_callback=progress_callback,
