@@ -433,7 +433,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 		  mavlink_msg_to_send_buffer() won't overwrite the
 		  checksum
 		 */
-		r_message->checksum = _MAV_PAYLOAD(rxmsg)[status->packet_idx] | (_MAV_PAYLOAD(rxmsg)[status->packet_idx+1]<<8);
+		r_message->checksum = (uint8_t)_MAV_PAYLOAD(rxmsg)[status->packet_idx] | ((uint8_t)_MAV_PAYLOAD(rxmsg)[status->packet_idx+1]<<8);
 	}
 
 	return status->msg_received;
