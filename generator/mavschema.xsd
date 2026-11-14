@@ -51,6 +51,7 @@
     <xs:restriction base="xs:string">
         <xs:pattern value="float(\[([0-9])+\])?"/>
         <xs:pattern value="double(\[([0-9])+\])?"/>
+        <xs:pattern value="float16_t(\[([0-9])+\])?"/>
         <xs:pattern value="char(\[([0-9])+\])?"/>
         <xs:pattern value="int8_t(\[([0-9])+\])?"/>
         <xs:pattern value="uint8_t(\[([0-9])+\])?"/>
