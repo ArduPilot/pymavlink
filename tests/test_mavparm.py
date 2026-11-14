@@ -5,6 +5,8 @@
 Unit tests for the mavparm library
 """
 
+import contextlib
+import io
 import unittest
 import os
 
@@ -54,6 +56,30 @@ class MAVParmDictTest(unittest.TestCase):
         self.parms.show()
         
         self.parms.diff('prms.txt')
-        
+
+    def test_diff_use_tabs(self):
+        """Test that use_tabs also applies to params present in only one file"""
+        other = mavparm.MAVParmDict()
+        other['AFS_ACTION'] = 42
+        other['PARAM1'] = 35.45
+        other['ONLY_IN_FILE1'] = 7
+        other.save('prms.txt')
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.parms.diff('prms.txt', use_tabs=True, header=True)
+        os.remove('prms.txt')
+
+        lines = [l for l in out.getvalue().splitlines() if not l.startswith('Loaded ')]
+        assert lines == [
+            "PARAMETER\tFILE1\tFILE2",
+            "ONLY_IN_FILE1\t7.0000",
+            "PARAM1\t35.4500\t34.4500",
+            "PARAM2\t\t0.0000",
+            "PARAM3\t\t-13.4000",
+        ]
+        for line in lines:
+            assert " " not in line
+
 if __name__ == '__main__':
     unittest.main()
