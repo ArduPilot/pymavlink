@@ -5,9 +5,13 @@ tests for handling the GNSS message alongside GPS_RAW_INT and GPS2_RAW
 '''
 
 import math
+import os
+import struct
+import tempfile
+import threading
 import unittest
 
-from pymavlink import mavextra
+from pymavlink import mavextra, mavutil
 from pymavlink.dialects.v20 import all as mavlink2
 
 HAVE_GNSS = hasattr(mavlink2, 'MAVLink_gnss_message')
@@ -136,6 +140,89 @@ class TestGPSMessageFilter(unittest.TestCase):
         gps_filter = mavextra.GPSMessageFilter()
         gps_filter.use(from_system(gnss()))
         self.assertTrue(gps_filter.use(from_system(mavlink2.MAVLink_heartbeat_message(0, 0, 0, 0, 0, 3))))
+
+
+
+def write_tlog(path, msgs):
+    '''write msgs, from system 1, to a telemetry log at path'''
+    mav = mavlink2.MAVLink(None, srcSystem=1, srcComponent=1)
+    with open(path, 'wb') as f:
+        for (i, msg) in enumerate(msgs):
+            f.write(struct.pack('>Q', 1000000 + i * 100000))
+            f.write(msg.pack(mav))
+
+
+def vfr_hud():
+    return mavlink2.MAVLink_vfr_hud_message(airspeed=0, groundspeed=0, heading=90, throttle=0, alt=584.0, climb=0)
+
+
+def global_position_int():
+    return mavlink2.MAVLink_global_position_int_message(time_boot_ms=1000, lat=LAT_E7, lon=LON_E7, alt=584000,
+                                                        relative_alt=0, vx=0, vy=0, vz=0, hdg=9000)
+
+
+@unittest.skipUnless(HAVE_GNSS, "message definitions do not include GNSS")
+class TestMavutilGNSS(unittest.TestCase):
+    def setUp(self):
+        # GNSS needs MAVLink 2
+        self.saved_mavlink20 = os.environ.get('MAVLINK20')
+        self.saved_dialect = mavutil.current_dialect
+        os.environ['MAVLINK20'] = '1'
+        mavutil.set_dialect('all')
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.tlog = os.path.join(self.tempdir.name, 'test.tlog')
+
+    def tearDown(self):
+        if self.saved_mavlink20 is None:
+            del os.environ['MAVLINK20']
+        else:
+            os.environ['MAVLINK20'] = self.saved_mavlink20
+        mavutil.set_dialect(self.saved_dialect)
+        self.tempdir.cleanup()
+
+    def read_all(self, msgs):
+        write_tlog(self.tlog, msgs)
+        mlog = mavutil.mavlink_connection(self.tlog)
+        while mlog.recv_match() is not None:
+            pass
+        return mlog
+
+    def test_home_from_gnss(self):
+        mlog = self.read_all([
+            gnss(instance=1, lat=LAT_E7 + 5000),  # not the first receiver
+            gnss(instance=0, fix_type=2, lat=LAT_E7 + 6000),  # no 3D fix
+            gnss(instance=0),
+            gnss(instance=0, lat=LAT_E7 + 7000),  # home is already set
+        ])
+        home = mlog.sysid_state[1].messages['HOME']
+        self.assertEqual(home.get_type(), 'GPS_RAW_INT')
+        self.assertEqual(home.fix_type, 3)
+        self.assertEqual(home.lat, LAT_E7)
+        self.assertEqual(home.lon, LON_E7)
+        self.assertEqual(home.alt, 584000)
+
+    def test_location_from_gnss(self):
+        write_tlog(self.tlog, [
+            mavlink2.MAVLink_heartbeat_message(mavlink2.MAV_TYPE_QUADROTOR, mavlink2.MAV_AUTOPILOT_ARDUPILOTMEGA,
+                                               0, 0, 0, 3),
+            vfr_hud(),
+            gnss(instance=1, lat=LAT_E7 + 5000),  # not the first receiver
+            gnss(instance=0),
+            vfr_hud(),
+            global_position_int(),
+        ])
+        # read it sequentially, as from a live link: mavmmaplog only returns
+        # the message types asked for in its first recv_match()
+        mlog = mavutil.mavlogfile(self.tlog)
+        result = []
+        # location() blocks until it has a fix, so don't let a failure hang the test:
+        thread = threading.Thread(target=lambda: result.append(mlog.location()), daemon=True)
+        thread.start()
+        thread.join(5)
+        self.assertEqual(len(result), 1, "location() did not return")
+        self.assertAlmostEqual(result[0].lat, LAT_E7 * 1.0e-7)
+        self.assertAlmostEqual(result[0].lng, LON_E7 * 1.0e-7)
+        self.assertAlmostEqual(result[0].alt, 584.0)
 
 
 if __name__ == '__main__':
