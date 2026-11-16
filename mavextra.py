@@ -516,6 +516,11 @@ def get_lat_lon_alt(MSG):
         lat = radians(MSG.Lat)
         lon = radians(MSG.Lon)
         alt = MSG.Alt
+    elif hasattr(MSG, 'height_above_geoid'):
+        # GNSS
+        lat = radians(MSG.lat)*1.0e-7
+        lon = radians(MSG.lon)*1.0e-7
+        alt = MSG.height_above_geoid
     elif hasattr(MSG, 'cog'):
         lat = radians(MSG.lat)*1.0e-7
         lon = radians(MSG.lon)*1.0e-7
