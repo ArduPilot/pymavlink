@@ -36,7 +36,7 @@ parser.add_argument("--types", default=None, help="types of messages (comma sepa
 parser.add_argument("--nottypes", default=None, help="types of messages not to include (comma separated with wildcard)")
 parser.add_argument("--mat_file", dest="mat_file", help="Output file path for MATLAB file output. Only applies when --format=mat")
 parser.add_argument("-c", "--compress", action='store_true', help="Compress .mat file data")
-parser.add_argument("--dialect", default="ardupilotmega", help="MAVLink dialect")
+parser.add_argument("--dialect", default=os.environ.get("MAVLINK_DIALECT", "all"), help="MAVLink dialect, default $MAVLINK_DIALECT or all")
 parser.add_argument("--zero-time-base", action='store_true', help="use Z time base for DF logs")
 parser.add_argument("--no-bad-data", action='store_true', help="Don't output corrupted messages")
 parser.add_argument("--show-source", action='store_true', help="Show source system ID and component ID")
