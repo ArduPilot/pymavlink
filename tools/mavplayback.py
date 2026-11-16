@@ -31,7 +31,7 @@ args = parser.parse_args()
 
 if args.mav10:
     os.environ['MAVLINK10'] = '1'
-from pymavlink import mavutil
+from pymavlink import mavextra, mavutil
 
 filename = args.log
 
@@ -65,6 +65,7 @@ class App(object):
             self.fgout.append(mavutil.mavudp(f, input=False))
 
         self.fdm = fgFDM.fgFDM()
+        self.gps_filter = mavextra.GPSMessageFilter()
 
         self.msg = self.mlog.recv_match(condition=args.condition)
         if self.msg is None:
@@ -203,11 +204,15 @@ class App(object):
             for m in self.mout:
                 m.write(msg.get_msgbuf())
 
-        if msg.get_type() == "GPS_RAW_INT":
-            self.fdm.set('latitude', msg.lat/1.0e7, units='degrees')
-            self.fdm.set('longitude', msg.lon/1.0e7, units='degrees')
-            if args.gpsalt:
-                self.fdm.set('altitude', msg.alt/1.0e3, units='meters')
+        if self.gps_filter.use(msg):
+            gps = mavextra.gps_values(msg)
+        else:
+            gps = None
+        if gps is not None and gps.instance == 0:
+            self.fdm.set('latitude', gps.lat, units='degrees')
+            self.fdm.set('longitude', gps.lon, units='degrees')
+            if args.gpsalt and gps.alt is not None:
+                self.fdm.set('altitude', gps.alt, units='meters')
 
         if msg.get_type() == "VFR_HUD":
             if not args.gpsalt:

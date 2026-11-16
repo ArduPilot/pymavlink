@@ -14,7 +14,7 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
 
-from pymavlink import mavutil
+from pymavlink import mavextra, mavutil
 
 
 class vec3(object):
@@ -123,15 +123,21 @@ def magfit(logfile):
 
     attitude = mlog.recv_match(type='ATTITUDE',condition=args.condition)
 
+    gps_filter = mavextra.GPSMessageFilter()
+
     # now gather all the data
     while True:
         m = mlog.recv_match(condition=args.condition)
         if m is None:
             break
-        if m.get_type() == "GPS_RAW_INT":
+        if not gps_filter.use(m):
+            continue
+        gps = mavextra.gps_values(m)
+        if gps is not None and gps.instance == 0:
             # flying if groundspeed more than 5 m/s
-            flying = (m.vel/100 > args.minspeed and m.fix_type == 3)
-            gps_heading = m.cog/100
+            flying = (gps.ground_speed is not None and gps.cog is not None and
+                      gps.ground_speed > args.minspeed and gps.fix_type == 3)
+            gps_heading = gps.cog
         if m.get_type() == "ATTITUDE":
             attitude = m
         if m.get_type() == "SENSOR_OFFSETS":

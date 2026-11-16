@@ -13,7 +13,7 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
 
-from pymavlink import mavutil
+from pymavlink import mavextra, mavutil
 from pymavlink.rotmat import Vector3, Matrix3
 from math import radians, degrees, sin, cos, atan2
 
@@ -86,19 +86,24 @@ def magfit(logfile):
     total_error = [0]*len(rotations)
     attitude = None
     gps = None
+    gps_filter = mavextra.GPSMessageFilter()
 
     # now gather all the data
     while True:
         m = mlog.recv_match()
         if m is None:
             break
+        if not gps_filter.use(m):
+            continue
         if m.get_type() == "ATTITUDE":
             attitude = m
-        if m.get_type() == "GPS_RAW_INT":
-            gps = m
+        values = mavextra.gps_values(m)
+        if values is not None and values.instance == 0:
+            gps = values
         if m.get_type() == "RAW_IMU":
             mag = Vector3(m.xmag, m.ymag, m.zmag)
-            if attitude is not None and gps is not None and gps.vel > args.min_speed*100 and gps.fix_type>=3:
+            if (attitude is not None and gps is not None and gps.ground_speed is not None and
+                    gps.ground_speed > args.min_speed and gps.fix_type >= 3):
                 add_errors(mag, attitude, total_error, rotations)
             count += 1
 

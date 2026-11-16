@@ -12,7 +12,7 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
 
-from pymavlink import mavutil
+from pymavlink import mavextra, mavutil
 
 
 def lock_time(logfile):
@@ -24,14 +24,28 @@ def lock_time(logfile):
     start_time = 0.0
     total_time = 0.0
     t = None
-    m = mlog.recv_match(type='GPS_RAW_INT', condition=args.condition)
+    gps_filter = mavextra.GPSMessageFilter()
+
+    def next_gps():
+        '''return the next message from the first GPS, from GPS_RAW_INT or GNSS'''
+        while True:
+            m = mlog.recv_match(type=['GPS_RAW_INT', 'GNSS'], condition=args.condition)
+            if m is None:
+                return None
+            if not gps_filter.use(m):
+                continue
+            if m.get_type() == 'GNSS' and m.id != 0:
+                continue
+            return m
+
+    m = next_gps()
     if m is None:
         return 0
 
     unlock_time = time.mktime(time.localtime(m._timestamp))
 
     while True:
-        m = mlog.recv_match(type='GPS_RAW_INT', condition=args.condition)
+        m = next_gps()
         if m is None:
             if locked:
                 total_time += time.mktime(t) - start_time
