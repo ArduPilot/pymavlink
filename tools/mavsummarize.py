@@ -5,13 +5,14 @@ Summarize MAVLink logs. Useful for identifying which log is of interest in a lar
 '''
 
 import glob
+import os
 import time
 
 from argparse import ArgumentParser
 parser = ArgumentParser(description=__doc__)
 parser.add_argument("--no-timestamps", dest="notimestamps", action='store_true', help="Log doesn't have timestamps")
 parser.add_argument("--condition", default=None, help="condition for packets")
-parser.add_argument("--dialect", default="ardupilotmega", help="MAVLink dialect")
+parser.add_argument("--dialect", default=os.environ.get("MAVLINK_DIALECT", "all"), help="MAVLink dialect, default $MAVLINK_DIALECT or all")
 parser.add_argument("logs", metavar="LOG", nargs="+")
 
 args = parser.parse_args()
