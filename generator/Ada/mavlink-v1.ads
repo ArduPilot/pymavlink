@@ -13,32 +13,12 @@ package MAVLink.V1 is
 
    pragma Pure;
 
+   Version_1_Code     : constant Interfaces.Unsigned_8 := 16#FE#;
+
    subtype Msg_Id is Interfaces.Unsigned_8;
-
-   -- Arrays --
-
-   type Data_Buffer is array (Positive range <>) of Interfaces.Unsigned_8;
 
    Maximum_Buffer_Len : constant Positive := 263;
 
-   Version_1_Code     : constant Interfaces.Unsigned_8 := 16#FE#;
-
-   type Unsigned_8_Array is array (Natural range <>) of Interfaces.Unsigned_8
-     with Component_Size => 8;
-   type Unsigned_16_Array is array (Natural range <>) of Interfaces.Unsigned_16
-     with Component_Size => 16;
-   type Unsigned_32_Array is array (Natural range <>) of Interfaces.Unsigned_32
-     with Component_Size => 32;
-   type Unsigned_64_Array is array (Natural range <>) of Interfaces.Unsigned_64
-     with Component_Size => 64;
-   type Integer_8_Array is array (Natural range <>) of Interfaces.Integer_8
-     with Component_Size => 8;
-   type Integer_16_Array is array (Natural range <>) of Interfaces.Integer_16
-     with Component_Size => 16;
-   type Integer_32_Array is array (Natural range <>) of Interfaces.Integer_32
-     with Component_Size => 32;
-   type Integer_64_Array is array (Natural range <>) of Interfaces.Integer_64
-     with Component_Size => 64;
    type Short_Float_Array is array (Natural range <>) of Raw_Float
      with Component_Size => 32;
    type Long_Float_Array is array (Natural range <>) of Raw_Long_Float
@@ -161,7 +141,6 @@ private
    Packet_Control_Info_Size : constant :=
      Packet_Marker_Length + Packet_Header_Length + Packet_Checksum_Length;
 
-
    Pos_Len                 : constant Natural := 2;
    Pos_Sequence            : constant Natural := 3;
    Pos_Target_System_Id    : constant Natural := 4;
@@ -169,13 +148,14 @@ private
    Pos_Msg_Id              : constant Natural := 6;
 
    type Incoming_Data is record
-      In_Buf       : Data_Buffer (1 .. Maximum_Buffer_Len) := [others => 0];
-      In_Ptr       : Natural := 0;
-      Len          : Natural := 0;
-      Checksum     : X25CRC.Checksum;
-      Extras_Added : Boolean := False;
+      In_Buf             : Data_Buffer (1 .. Maximum_Buffer_Len) :=
+        [others => 0];
+      In_Ptr             : Natural := 0;
+      Len                : Natural := 0;
+      Checksum           : X25CRC.Checksum;
+      Extras_Added       : Boolean := False;
       Unsupported_Header : Natural := 0;
-      Discard_Remaining : Natural := 0;
+      Discard_Remaining  : Natural := 0;
    end record;
 
    -- Connection --
