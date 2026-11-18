@@ -164,7 +164,7 @@ class DFFormat(object):
         for i in range(len(self.units)):
             # If the format has its own multiplier, do not adjust the unit,
             # and if no unit is specified there is nothing to adjust
-            if self.msg_mults[i] is not None or self.units[i] == "":
+            if self.msg_mults[i] is not None or self.units[i] != "":
                 continue
             # Get the unit multiplier from the lookup table
             if mult_ids[i] in mult_lookup:
@@ -174,6 +174,9 @@ class DFFormat(object):
                     self.units[i] = MULT_TO_PREFIX[unitmult]+self.units[i]
                 else:
                     self.units[i] = "%.4g %s" % (unitmult, self.units[i])
+                if self.units[i] in FORMAT_TO_STRUCT:
+                    (label, mul, t) = FORMAT_TO_STRUCT[self.units[i]]
+                    self.msg_mults[i] = mul
 
     def get_unit(self, col):
         '''Return the unit for the specified field'''
