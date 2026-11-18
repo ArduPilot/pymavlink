@@ -294,6 +294,7 @@ def magfit(logfile):
         mag_msg = 'MAG'
     else:
         mag_msg = 'MAG%s' % args.mag
+    mag_msgs = ['MAG'] if args.mag == 1 else ['MAG', mag_msg]
 
     count = 0
     parameters = {}
@@ -324,7 +325,7 @@ def magfit(logfile):
 
     # extract MAG data
     while True:
-        msg = mlog.recv_match(type=['GPS',mag_msg,ATT_NAME,'CTUN','BARO', 'BAT'], condition=args.condition)
+        msg = mlog.recv_match(type=['GPS'] + mag_msgs + [ATT_NAME, 'CTUN', 'BARO', 'BAT'], condition=args.condition)
         if msg is None:
             break
         if msg.get_type() == 'GPS' and msg.Status >= 3 and earth_field is None:
@@ -341,7 +342,12 @@ def magfit(logfile):
             BAT = msg
         if msg.get_type() == 'CTUN':
             CTUN = msg
-        if msg.get_type() == mag_msg and ATT is not None:
+        if msg.get_type() in mag_msgs and ATT is not None:
+            if hasattr(msg, 'I'):
+                if msg.get_type() != 'MAG' or msg.I != args.mag - 1:
+                    continue
+            elif msg.get_type() != mag_msg:
+                continue
             if count % args.reduce == 0:
                 data.append((msg,ATT,BAT,CTUN))
             count += 1
@@ -485,4 +491,5 @@ def magfit(logfile):
         pyplot.show()
 
 
-magfit(args.log)
+if __name__ == '__main__':
+    magfit(args.log)
