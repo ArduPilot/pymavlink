@@ -292,6 +292,7 @@ static inline void byte_copy_8(char *dst, const char *src)
 #if MAVLINK_NEED_BYTE_SWAP
 #define _mav_put_uint16_t(buf, wire_offset, b) byte_swap_2(&buf[wire_offset], (const char *)&b)
 #define _mav_put_int16_t(buf, wire_offset, b)  byte_swap_2(&buf[wire_offset], (const char *)&b)
+#define _mav_put_float16_t(buf, wire_offset, b) byte_swap_2(&buf[wire_offset], (const char *)&b)
 #define _mav_put_uint32_t(buf, wire_offset, b) byte_swap_4(&buf[wire_offset], (const char *)&b)
 #define _mav_put_int32_t(buf, wire_offset, b)  byte_swap_4(&buf[wire_offset], (const char *)&b)
 #define _mav_put_uint64_t(buf, wire_offset, b) byte_swap_8(&buf[wire_offset], (const char *)&b)
@@ -301,6 +302,7 @@ static inline void byte_copy_8(char *dst, const char *src)
 #elif !MAVLINK_ALIGNED_FIELDS
 #define _mav_put_uint16_t(buf, wire_offset, b) byte_copy_2(&buf[wire_offset], (const char *)&b)
 #define _mav_put_int16_t(buf, wire_offset, b)  byte_copy_2(&buf[wire_offset], (const char *)&b)
+#define _mav_put_float16_t(buf, wire_offset, b) byte_copy_2(&buf[wire_offset], (const char *)&b)
 #define _mav_put_uint32_t(buf, wire_offset, b) byte_copy_4(&buf[wire_offset], (const char *)&b)
 #define _mav_put_int32_t(buf, wire_offset, b)  byte_copy_4(&buf[wire_offset], (const char *)&b)
 #define _mav_put_uint64_t(buf, wire_offset, b) byte_copy_8(&buf[wire_offset], (const char *)&b)
@@ -310,6 +312,7 @@ static inline void byte_copy_8(char *dst, const char *src)
 #else
 #define _mav_put_uint16_t(buf, wire_offset, b) *(uint16_t *)&buf[wire_offset] = b
 #define _mav_put_int16_t(buf, wire_offset, b)  *(int16_t *)&buf[wire_offset] = b
+#define _mav_put_float16_t(buf, wire_offset, b) *(float16_t *)&buf[wire_offset] = b
 #define _mav_put_uint32_t(buf, wire_offset, b) *(uint32_t *)&buf[wire_offset] = b
 #define _mav_put_int32_t(buf, wire_offset, b)  *(int32_t *)&buf[wire_offset] = b
 #define _mav_put_uint64_t(buf, wire_offset, b) *(uint64_t *)&buf[wire_offset] = b
@@ -391,6 +394,7 @@ _MAV_PUT_ARRAY(uint64_t, u64)
 _MAV_PUT_ARRAY(int16_t,  i16)
 _MAV_PUT_ARRAY(int32_t,  i32)
 _MAV_PUT_ARRAY(int64_t,  i64)
+_MAV_PUT_ARRAY(float16_t, f16)
 _MAV_PUT_ARRAY(float,    f)
 _MAV_PUT_ARRAY(double,   d)
 
@@ -409,6 +413,7 @@ _MAV_MSG_RETURN_TYPE(uint32_t, 4)
 _MAV_MSG_RETURN_TYPE(int32_t,  4)
 _MAV_MSG_RETURN_TYPE(uint64_t, 8)
 _MAV_MSG_RETURN_TYPE(int64_t,  8)
+_MAV_MSG_RETURN_TYPE(float16_t, 2)
 _MAV_MSG_RETURN_TYPE(float,    4)
 _MAV_MSG_RETURN_TYPE(double,   8)
 
@@ -423,6 +428,7 @@ _MAV_MSG_RETURN_TYPE(uint32_t, 4)
 _MAV_MSG_RETURN_TYPE(int32_t,  4)
 _MAV_MSG_RETURN_TYPE(uint64_t, 8)
 _MAV_MSG_RETURN_TYPE(int64_t,  8)
+_MAV_MSG_RETURN_TYPE(float16_t, 2)
 _MAV_MSG_RETURN_TYPE(float,    4)
 _MAV_MSG_RETURN_TYPE(double,   8)
 #else // native byte order; the packed message payload may still be unaligned
@@ -436,6 +442,7 @@ _MAV_MSG_RETURN_TYPE(uint32_t)
 _MAV_MSG_RETURN_TYPE(int32_t)
 _MAV_MSG_RETURN_TYPE(uint64_t)
 _MAV_MSG_RETURN_TYPE(int64_t)
+_MAV_MSG_RETURN_TYPE(float16_t)
 _MAV_MSG_RETURN_TYPE(float)
 _MAV_MSG_RETURN_TYPE(double)
 #endif // MAVLINK_NEED_BYTE_SWAP
@@ -488,5 +495,6 @@ _MAV_RETURN_ARRAY(uint64_t, u64)
 _MAV_RETURN_ARRAY(int16_t,  i16)
 _MAV_RETURN_ARRAY(int32_t,  i32)
 _MAV_RETURN_ARRAY(int64_t,  i64)
+_MAV_RETURN_ARRAY(float16_t, f16)
 _MAV_RETURN_ARRAY(float,    f)
 _MAV_RETURN_ARRAY(double,   d)
