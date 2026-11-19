@@ -894,8 +894,6 @@ ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcCompo
             //console.log('bad new stream ', timestamp/(100.0*1000*60*60*24*365), this.signing.timestamp/(100.0*1000*60*60*24*365))
             return false
         }
-        this.signing.stream_timestamps[stream_key] = timestamp;
-        //console.log('new stream',this.signing.stream_timestamps)
     }
 
     // just the last 6 of 13 available are the actual sig . ie excluding the linkid(1) and timestamp(6)
@@ -919,6 +917,8 @@ ${MAVPROCESSOR}.prototype.check_signature = function(msgbuf, srcSystem, srcCompo
     if (!signaturesMatch) {
         return false;
     }
+    // Only authenticated packets advance per-stream replay state.
+    this.signing.stream_timestamps[stream_key] = timestamp;
     //# the timestamp we next send with is the max of the received timestamp and
     //# our current timestamp
     this.signing.timestamp = Math.max(this.signing.timestamp, timestamp+1);

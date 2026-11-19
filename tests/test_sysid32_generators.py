@@ -572,3 +572,9 @@ def test_spin2_target_compiles(tmp_path):
     shutil.copyfile(RESOURCES / 'target.spin2', tmp_path / 'target.spin2')
     run([tool('flexspin'), '-2', '--fcache=0', '-O1', '-o', tmp_path / 'target.binary',
          'target.spin2'], cwd=tmp_path)
+
+def test_nextgen_signing_replay_state(tmp_path):
+    """Invalid signatures must not poison replay state; valid ones advance it."""
+    xml = Path(__file__).parent / 'snapshottests/resources/minimal.xml'
+    generated = generate(tmp_path / 'mavlink.js', 'JavaScript_NextGen', xml=xml)
+    run([tool('node'), RESOURCES / 'signing-state.js', generated], env=node_environment())
