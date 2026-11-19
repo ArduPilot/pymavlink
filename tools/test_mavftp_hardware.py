@@ -83,6 +83,7 @@ def run(device: str, baud: int, component: int) -> None:  # pylint: disable=too-
         print(f"list: {listing.error_code.name}", flush=True)
         if listing.error_code != FtpError.Success:
             raise RuntimeError(f"directory listing failed: {listing.error_code.name}")
+        ftp.ftp_settings.list_time = 1
         timestamped_listing = ftp.cmd_list(["/APM"])
         timestamp_count = sum(
             entry.mtime is not None
