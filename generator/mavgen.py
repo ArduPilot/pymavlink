@@ -110,6 +110,9 @@ def mavgen(opts, args):
         for i in range(MAXIMUM_INCLUDE_FILE_NESTING):
             if not expand_oneiteration():
                 break
+        if i >= MAXIMUM_INCLUDE_FILE_NESTING:
+            print("\nERROR include tree is too deeply nested!")
+            exit(1)
 
         if mavparse.check_duplicates(xml):
             return False
