@@ -1,6 +1,7 @@
 fastcrc
 lxml>=3.6.0
 setuptools>=42
+pyserial>=3.5
 wheel>=0.37.1
 
 # dev dependencies:
