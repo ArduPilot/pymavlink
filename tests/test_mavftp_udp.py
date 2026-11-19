@@ -93,6 +93,7 @@ class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
         self.silent_timestamp_listing = False
         self.crc_files = {}
         self.uploads = {}
+        self.download_stat_size = 4
 
     def stop(self):
         self.stop_event.set()
@@ -149,7 +150,7 @@ class FTPUDPResponder(  # pylint: disable=too-many-instance-attributes
                         request,
                         OP_Ack,
                         session=42,
-                        payload=struct.pack("<I", 4),
+                        payload=struct.pack("<I", self.download_stat_size),
                     )
                 elif request.opcode == OP_CalcFileCRC32:
                     name = bytes(request.payload)
@@ -408,6 +409,31 @@ class TestMAVFTPUDP(unittest.TestCase):
             ],
         )
         self.assertEqual(self.responder.envelopes, [(0, 1, 1, 250, 190)] * 4)
+
+    def test_real_udp_staged_virtual_download_accepts_stat_estimate(self):
+        """Virtual-file estimates do not prevent real UDP file publication."""
+        for remote, stat_size in (
+            ("@PARAM/param.pck", 17544),
+            ("@SYS/tasks.txt", 100000),
+        ):
+            with self.subTest(remote=remote), tempfile.TemporaryDirectory() as temp_dir:
+                destination = f"{temp_dir}/download.bin"
+                with open(destination, "wb") as existing:
+                    existing.write(b"original")
+                self.responder.download_stat_size = stat_size
+                self.assertEqual(
+                    self.ftp.cmd_get([remote, destination]).error_code,
+                    FtpError.Success,
+                )
+                result = self.ftp.process_ftp_reply("get", timeout=5)
+
+                self.assertEqual(result.error_code, FtpError.Success)
+                with open(destination, "rb") as downloaded:
+                    self.assertEqual(downloaded.read(), b"data")
+                self.assertIsNone(self.ftp.fh)
+                self.assertIsNone(self.ftp.temp_filename)
+                self.assertIsNone(self.ftp.get_result)
+                self.assertIsNone(self.ftp.transfer_status())
 
     def test_real_udp_crc_compare_round_trip(self):
         """CRC comparison exchanges multiple real MAVLink FTP requests."""
