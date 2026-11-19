@@ -119,6 +119,7 @@ jobs:
         run: |
           rustup toolchain install 1.88.0 --profile minimal
           rustup default 1.88.0
+          rustup target add thumbv7m-none-eabi
           python3 -m pip install pytest lxml
           git init mavlink
           git -C mavlink remote add origin https://github.com/ArduPilot/mavlink.git
