@@ -28,9 +28,9 @@ def process_tlog(filename):
     # note that Octave doesn't like any extra '.', '*', '-', characters in the filename
     (head, tail) = os.path.split(filename)
     basename = '.'.join(tail.split('.')[:-1])
-    mfilename = re.sub('[\.\-\+\*]','_', basename) + '.m'
+    mfilename = re.sub(r'[\.\-\+\*]','_', basename) + '.m'
     # Octave also doesn't like files that don't start with a letter
-    if re.match('^[a-zA-z]', mfilename) is None:
+    if re.match('^[a-zA-Z]', mfilename) is None:
         mfilename = 'm_' + mfilename
 
     if head is not None:
