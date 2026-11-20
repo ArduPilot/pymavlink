@@ -230,7 +230,9 @@ class MAVXML(object):
         self.enum = []
         # we use only the day for the parse_time, as otherwise
         # it causes a lot of unnecessary cache misses with ccache
-        self.parse_time = time.strftime("%a %b %d %Y")
+        epoch = os.environ.get("SOURCE_DATE_EPOCH")
+        self.parse_time = time.strftime(
+            "%a %b %d %Y", time.gmtime(int(epoch)) if epoch else time.localtime())
         self.version = 2
         self.include = []
         self.wire_protocol_version = wire_protocol_version

@@ -4,6 +4,7 @@ Module to test MAVXML
 """
 
 import unittest
+from unittest import mock
 from importlib.resources import files as importlib_files
 
 import contextlib
@@ -122,6 +123,14 @@ class MAVXMLTest(unittest.TestCase):
         """Test that an unknown MAVLink wire protocol version raises an exception"""
         with self.assertRaises(MAVParseError):
             _ = MAVXML(filename="", wire_protocol_version=42)
+
+
+    def test_parse_time_from_source_date_epoch(self):
+        """Test that SOURCE_DATE_EPOCH, when set, fixes parse_time"""
+        test_filepath = importlib_files(__spec__.parent).joinpath("64-fields.xml")
+        with mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000"}):
+            xml = MAVXML(test_filepath)
+        self.assertEqual(xml.parse_time, "Tue Nov 14 2023")
 
 
     def test_wip_deprecated_superseded(self):
