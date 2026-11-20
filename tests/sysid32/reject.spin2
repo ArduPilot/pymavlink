@@ -2,14 +2,15 @@ OBJ
     parser : "mavlink"
 VAR
     long cursor, limit, fragment, pause_next
-PUB main() | mode, index, length, count, packet, data
+    ^parser.MAVLink packet
+PUB main() | mode, index, length, count, data
     pinhigh(62)
     waitx(1000)
     parser.init_session(42, 11, 115200, @tx, @rx)
     repeat mode from 0 to 1
         fragment := mode
-        data := @streams
-        repeat index from 0 to 23
+        data := @streams + 2
+        repeat index from 0 to word[@streams] - 1
             length := byte[data] + (byte[data+1] << 8)
             cursor := data + 2
             limit := cursor + length
@@ -18,8 +19,8 @@ PUB main() | mode, index, length, count, packet, data
             parser.newPacket()
             repeat while cursor < limit
                 if parser.receive()
-                    packet := parser.getPacket()
-                    if byte[packet] <> $FD || byte[packet+5] <> 42 || byte[packet+7] <> 0
+                    [packet] := parser.getPacket()
+                    if packet.magic <> $FD || packet.sysid <> 42 || packet.msgid <> 0
                         finish(1)
                     count++
             if count <> 1

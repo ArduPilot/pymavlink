@@ -5,6 +5,49 @@ with MAVLink.X25CRC;
 
 package body MAVLink.V2 is
 
+   function Source_Length (Incoming : Incoming_Data) return Positive is
+     (if (Incoming.Income_Buffer (3) and 2) /= 0 then 4 else 1);
+
+   function Header_Length (Incoming : Incoming_Data) return Positive is
+     (9 + Source_Length (Incoming) +
+        (if (Incoming.Income_Buffer (3) and 4) /= 0 then 4 else 0));
+
+   function Read_LE (Incoming : Incoming_Data; First, Length : Positive)
+     return Unsigned_32
+   is
+      Value : Unsigned_32 := 0;
+   begin
+      for I in 0 .. Length - 1 loop
+         Value := Value or Shift_Left (Unsigned_32 (Incoming.Income_Buffer (First + I)), I * 8);
+      end loop;
+      return Value;
+   end Read_LE;
+
+   function Get_Message_Target_System_Id
+     (Incoming : Incoming_Data; Payload_Target : System_Id_Type := 0)
+      return System_Id_Type is
+   begin
+      if (Incoming.Income_Buffer (3) and 4) /= 0 then
+         return System_Id_Type (Read_LE (Incoming, 10 + Source_Length (Incoming), 4));
+      end if;
+      return Payload_Target;
+   end Get_Message_Target_System_Id;
+
+   function Get_Message_Target_System_Id
+     (Self : Connection; Payload_Target : System_Id_Type := 0)
+      return System_Id_Type is
+   begin
+      return Get_Message_Target_System_Id (Self.Incoming, Payload_Target);
+   end Get_Message_Target_System_Id;
+
+   function Get_Message_Target_System_Id
+     (Self : In_Connection; Payload_Target : System_Id_Type := 0)
+      return System_Id_Type is
+   begin
+      return Get_Message_Target_System_Id (Self.Incoming, Payload_Target);
+   end Get_Message_Target_System_Id;
+
+
    ----------------
    -- Initialize --
    ----------------
@@ -119,7 +162,7 @@ package body MAVLink.V2 is
       Incoming.Position := Incoming.Position + 1;
       Incoming.Income_Buffer (Incoming.Position) := Value;
 
-      if Incoming.Position = 3 and then (Value and 16#FE#) /= 0 then
+      if Incoming.Position = 3 and then (Value and 16#F8#) /= 0 then
          --  Skip the entire unsupported frame, including any signature. Payload
          --  bytes may contain valid-looking frames and must not be parsed again.
          declare
@@ -140,14 +183,14 @@ package body MAVLink.V2 is
          end;
       end if;
 
-      if Incoming.Position < Packet_Payload_First then
+      if Incoming.Position < 3 or else Incoming.Position < Header_Length (Incoming) then
          --  no header yet
          return False;
       end if;
 
       if Incoming.Last = 0 then
          Incoming.Last := Incoming.Income_Buffer'First +
-           Packet_Payload_First + --  header
+           Header_Length (Incoming) + --  header
              Natural (Header.Len) + --  data len
            1; --  x25crc checksum
 
@@ -199,8 +242,8 @@ package body MAVLink.V2 is
         Address => Incoming.Income_Buffer'Address;
    begin
       Seq     := Header.Seq;
-      Sys_Id  := Header.Sys_Id;
-      Comp_Id := Header.Comp_Id;
+      Sys_Id  := Get_Message_System_Id (Incoming);
+      Comp_Id := Get_Message_Component_Id (Incoming);
       Id      := Get_Message_Id (Incoming);
    end Get_Message_Information;
 
@@ -301,9 +344,7 @@ package body MAVLink.V2 is
         Address => Incoming.Income_Buffer'Address;
 
    begin
-      return Msg_Id (Shift_Left (Unsigned_64 (Header.Id_High), 16) +
-                       Shift_Left (Unsigned_64 (Header.Id_Mid), 8) +
-                         Unsigned_64 (Header.Id_Low));
+      return Msg_Id (Read_LE (Incoming, 7 + Source_Length (Incoming), 3));
    end Get_Message_Id;
 
    --------------------
@@ -367,7 +408,7 @@ package body MAVLink.V2 is
       Header : constant V2_Header with Import,
         Address => Incoming.Income_Buffer'Address;
    begin
-      return Header.Sys_Id;
+      return System_Id_Type (Read_LE (Incoming, 6, Source_Length (Incoming)));
    end Get_Message_System_Id;
 
    ---------------------------
@@ -400,7 +441,7 @@ package body MAVLink.V2 is
       Header : constant V2_Header with Import,
         Address => Incoming.Income_Buffer'Address;
    begin
-      return Header.Comp_Id;
+      return Component_Id_Type (Incoming.Income_Buffer (6 + Source_Length (Incoming)));
    end Get_Message_Component_Id;
 
    ------------------------------
@@ -432,14 +473,10 @@ package body MAVLink.V2 is
    is
       Header : constant V2_Header with Import,
         Address => Incoming.Income_Buffer'Address;
-      Sig    : constant MAVLink.V2.MAV_Signature with Import,
-        Address => Incoming.Income_Buffer
-          (Incoming.Income_Buffer'First +
-             Packet_Payload_First +
-               Natural (Header.Len) + 2)'Address;
    begin
       if (Header.Inc_Flags and 1) > 0 then
-         return Sig.Link_Id;
+         return Link_Id_Type (Incoming.Income_Buffer
+           (Header_Length (Incoming) + Natural (Header.Len) + 3));
       else
          return 0;
       end if;
@@ -482,7 +519,7 @@ package body MAVLink.V2 is
       if (Header.Inc_Flags and 1) > 0 then
          declare
             Last_Data   : constant Positive := Incoming.Income_Buffer'First +
-              Packet_Payload_First +
+              Header_Length (Incoming) +
                 Natural (Header.Len) - 1;
             Sig         : constant MAVLink.V2.MAV_Signature with Import,
               Address => Incoming.Income_Buffer (Last_Data + 3)'Address;
@@ -555,7 +592,7 @@ package body MAVLink.V2 is
       Header    : constant V2_Header with Import,
         Address => Incoming.Income_Buffer'Address;
       Last_Data : constant Positive := Incoming.Income_Buffer'First +
-        Packet_Payload_First +
+        Header_Length (Incoming) +
           Natural (Header.Len) - 1;
 
       CRC : X25CRC.Checksum;
@@ -679,7 +716,7 @@ package body MAVLink.V2 is
         Address => Incoming.Income_Buffer'Address;
       First_Data : constant Natural :=
         Incoming.Income_Buffer'First +
-          Packet_Payload_First;
+          Header_Length (Incoming);
       Len        : Natural;
    begin
       Len  := Natural'Min (Natural (Header.Len), Buffer'Length);
@@ -752,11 +789,12 @@ package body MAVLink.V2 is
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive) is
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0) is
    begin
       Encode
         (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
-         Id, Extras, Buffer, Last);
+         Id, Extras, Buffer, Last, Target_System => Target_System);
       Self.Sequence_Id := Self.Sequence_Id + 1;
    end Encode;
 
@@ -770,11 +808,12 @@ package body MAVLink.V2 is
       Extras : Interfaces.Unsigned_8;
       Sign   : in out Signature;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive) is
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0) is
    begin
       Encode
         (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
-         Id, Extras, Sign, Buffer, Last);
+         Id, Extras, Sign, Buffer, Last, Target_System);
       Self.Sequence_Id := Self.Sequence_Id + 1;
    end Encode;
 
@@ -787,11 +826,12 @@ package body MAVLink.V2 is
       Id     : Msg_Id;
       Extras : Interfaces.Unsigned_8;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive) is
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0) is
    begin
       Encode
         (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
-         Id, Extras, Buffer, Last);
+         Id, Extras, Buffer, Last, Target_System => Target_System);
       Self.Sequence_Id := Self.Sequence_Id + 1;
    end Encode;
 
@@ -805,11 +845,12 @@ package body MAVLink.V2 is
       Extras : Interfaces.Unsigned_8;
       Sign   : in out Signature;
       Buffer : in out Data_Buffer;
-      Last   : in out Positive) is
+      Last   : in out Positive;
+      Target_System : System_Id_Type := 0) is
    begin
       Encode
         (Self.System_Id, Self.Component_Id, Self.Sequence_Id,
-         Id, Extras, Sign, Buffer, Last);
+         Id, Extras, Sign, Buffer, Last, Target_System);
       Self.Sequence_Id := Self.Sequence_Id + 1;
    end Encode;
 
@@ -825,33 +866,42 @@ package body MAVLink.V2 is
       Extras       : Interfaces.Unsigned_8;
       Buffer       : in out Data_Buffer;
       Last         : in out Positive;
-      Inc_Flags    : Interfaces.Unsigned_8 := 0)
+      Inc_Flags    : Interfaces.Unsigned_8 := 0;
+      Target_System : System_Id_Type := 0)
    is
-      Header : V2_Header with Import,
-        Address => Buffer (Buffer'First)'Address;
-      L_Id   : Unsigned_64 := Unsigned_64 (Id);
-      CRC    : X25CRC.Checksum;
+      Source_Size : constant Positive := (if System_Id > 255 then 4 else 1);
+      Header_Size : constant Positive := 9 + Source_Size + (if Target_System > 255 then 4 else 0);
+      Delta_Size : constant Natural := Header_Size - Packet_Payload_First;
+      Length : Natural;
+      Pos : Positive := Buffer'First;
+      CRC : X25CRC.Checksum;
+      procedure Put (Value : Unsigned_32; Size : Positive) is
+      begin
+         for I in 0 .. Size - 1 loop
+            Buffer (Pos) := Unsigned_8 (Shift_Right (Value, I * 8) and 255);
+            Pos := Pos + 1;
+         end loop;
+      end Put;
    begin
-      --  Truncate the message
       while Last > Buffer'First + Packet_Payload_First loop
          exit when Buffer (Last) /= 0;
          Last := Last - 1;
       end loop;
-
-      Header.Stx       := Version_2_Code;
-      Header.Len       := Unsigned_8
-        (Last - (Buffer'First + Packet_Payload_First - 1));
-      Header.Inc_Flags := Inc_Flags;
-      Header.Cmp_Flags := 0;
-      Header.Seq       := Sequence_Id;
-      Header.Sys_Id    := System_Id;
-      Header.Comp_Id   := Component_Id;
-
-      Header.Id_Low := Unsigned_8 (L_Id and 16#FF#);
-      L_Id := Shift_Right (L_Id, 8);
-      Header.Id_Mid := Unsigned_8 (L_Id and 16#FF#);
-      L_Id := Shift_Right (L_Id, 8);
-      Header.Id_High := Unsigned_8 (L_Id and 16#FF#);
+      Length := Last - (Buffer'First + Packet_Payload_First - 1);
+      for I in reverse Buffer'First + Packet_Payload_First .. Last loop
+         Buffer (I + Delta_Size) := Buffer (I);
+      end loop;
+      Last := Last + Delta_Size;
+      Put (Unsigned_32 (Version_2_Code), 1);
+      Put (Unsigned_32 (Length), 1);
+      Put (Unsigned_32 (Inc_Flags) or (if Source_Size = 4 then 2 else 0) or
+             (if Target_System > 255 then 4 else 0), 1);
+      Put (0, 1);
+      Put (Unsigned_32 (Sequence_Id), 1);
+      Put (Unsigned_32 (System_Id), Source_Size);
+      Put (Unsigned_32 (Component_Id), 1);
+      Put (Unsigned_32 (Id), 3);
+      if Target_System > 255 then Put (Unsigned_32 (Target_System), 4); end if;
 
       for B of Buffer (Buffer'First + 1 .. Last) loop
          X25CRC.Update (CRC, B);
@@ -875,10 +925,11 @@ package body MAVLink.V2 is
       Extras       : Interfaces.Unsigned_8;
       Sign         : in out Signature;
       Buffer       : in out Data_Buffer;
-      Last         : in out Positive) is
+      Last         : in out Positive;
+      Target_System : System_Id_Type := 0) is
    begin
       Encode
-        (System_Id, Component_Id, Sequence_Id, Id, Extras, Buffer, Last, 1);
+        (System_Id, Component_Id, Sequence_Id, Id, Extras, Buffer, Last, 1, Target_System);
 
       declare
          Sig  : MAV_Signature with Import,

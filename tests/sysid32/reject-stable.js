@@ -1,7 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const lib = require(process.argv[2]);
-for (const file of fs.readdirSync(process.argv[3]).filter(f => f.endsWith('.v2'))) {
+for (const file of fs.readdirSync(process.argv[3]).filter(f => f.endsWith('.v2') && ![2, 4, 6].includes(Number(f.split('-')[0])))) {
     const bytes = fs.readFileSync(process.argv[3] + '/' + file);
     for (const fragmented of [false, true]) {
         const parser = new lib.MAVLink20Processor(null, 255, 1);

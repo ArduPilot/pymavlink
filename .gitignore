@@ -35,3 +35,5 @@ tmp.dump
 prms.txt
 test_wp-wp.txt
 test_wp-wp2.txt
+
+/tests/sysid32/node_modules/

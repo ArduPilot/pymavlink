@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<mavlink>
+  <!-- included by wip_deprecated_superseded.xml, which extends these enums -->
+  <enums>
+    <enum name="EXTENDED_DEPRECATED_ENUM">
+      <deprecated since="2024-01" replaced_by="SOME_OTHER_ENUM">Use SOME_OTHER_ENUM instead.</deprecated>
+      <description>An enum flagged deprecated here and extended, without a flag, by the including file.</description>
+      <entry name="EXTENDED_DEPRECATED_ENUM_FROM_FLAGGED_BASE" value="0">
+        <description>Entry from the declaration flagged deprecated.</description>
+      </entry>
+    </enum>
+    <enum name="EXTENDED_WIP_ENUM">
+      <description>An enum not flagged here and extended, flagged work-in-progress, by the including file.</description>
+      <entry name="EXTENDED_WIP_ENUM_FROM_UNFLAGGED_BASE" value="0">
+        <description>Entry from the declaration with no flag.</description>
+      </entry>
+    </enum>
+    <enum name="EXTENDED_BOTH_DEPRECATED_ENUM">
+      <deprecated since="2024-01" replaced_by="SOME_OTHER_ENUM">Use SOME_OTHER_ENUM instead.</deprecated>
+      <description>An enum flagged deprecated here and extended, also flagged deprecated, by the including file.</description>
+      <entry name="EXTENDED_BOTH_DEPRECATED_ENUM_FROM_BASE" value="0">
+        <description>Entry from the included declaration flagged deprecated.</description>
+      </entry>
+    </enum>
+  </enums>
+  <messages>
+  </messages>
+</mavlink>

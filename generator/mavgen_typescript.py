@@ -80,14 +80,17 @@ def generate_classes(dir, registry, msgs, xml):
 
                 for field in m.fields:
                     if field.enum:
-                        f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum)))
+                        f.write("\tpublic {}!: {};\n".format(field.name, camelcase(field.enum) + ("[]" if field.array_length else "")))
                     else:
-                        f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type]))
+                        f.write("\tpublic {}!: {};\n".format(field.name, ts_types[field.type] + ("[]" if field.array_length and field.type != "char" else "")))
 
                 f.write("\tpublic _message_id: number = {};\n".format(m.id))
                 f.write("\tpublic _message_name: string = '{}';\n".format(m.name))
                 f.write("\tpublic _crc_extra: number = {};\n".format(m.crc_extra))
 
+                target = next((f.name for f in m.fields if f.is_target_system), None)
+                f.write("\tpublic _target_system_field = %r;\n" % (target or ""))
+                f.write("\tpublic _array_lengths: {[name: string]: number} = {%s};\n" % ", ".join("%r: %u" % (field.name, field.array_length) for field in m.fields if field.array_length))
                 i = 0
                 f.write("\tpublic _message_fields: [string, string, boolean][] = [\n")
                 for fieldname in m.ordered_fieldnames:

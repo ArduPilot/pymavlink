@@ -19,8 +19,6 @@ Run locally with, e.g.:
   .github/scripts/check_branch_conventions.py --base-branch origin/master
 '''
 
-from __future__ import annotations
-
 import argparse
 import os
 import pathlib

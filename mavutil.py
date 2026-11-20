@@ -2301,6 +2301,7 @@ mode_mapping_apm = {
     24 : 'THERMAL',
     25 : 'LOITERALTQLAND',
     26 : 'AUTOLAND',
+    27 : 'GLIDE',
 }
 
 mode_mapping_acm = {

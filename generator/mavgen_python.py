@@ -14,6 +14,15 @@ from . import mavtemplate
 t = mavtemplate.MAVTemplate()
 
 
+def strip_line_ends(text):
+    '''return text without whitespace at the end of each of its lines but
+    the last.  The last line is followed by the closing quotes on the same
+    line, so its whitespace is not at the end of a line, and it keeps a
+    final quote or backslash in the text from running into them'''
+    lines = text.split("\n")
+    return "\n".join([line.rstrip() for line in lines[:-1]] + lines[-1:])
+
+
 def generate_preamble(outf, msgs, basename, args, xml):
     print("Generating preamble")
 
@@ -476,6 +485,7 @@ class EnumEntry(object):
         self.param: Dict[int, str] = {}
         self.label: Dict[int, str] = {}
         self.has_location = False
+        self.is_destination = False
 
 class Enum(Dict[int, EnumEntry]):
     def __init__(self) -> None:
@@ -491,7 +501,7 @@ enums: Dict[str, Enum] = {}
         outf.write(f'enums["{e.name}"].bitmask = {e.bitmask}\n');
         for entry in e.entry:
             outf.write("%s = %u\n" % (entry.name, entry.value))
-            description = entry.description.replace("\t", "    ")
+            description = strip_line_ends(entry.description.replace("\t", "    "))
             if "\n" in description:
                 outf.write(
                     'enums["%s"][%d] = EnumEntry(\n    "%s",\n    """%s""",\n)\n'
@@ -505,8 +515,11 @@ enums: Dict[str, Enum] = {}
             if entry.has_location:
                 outf.write('enums["%s"][%d].has_location = True\n' %
                            (e.name, int(entry.value),))
+            if entry.is_destination:
+                outf.write('enums["%s"][%d].is_destination = True\n' %
+                           (e.name, int(entry.value),))
             for param in entry.param:
-                description = param.description.replace("\t", "    ")
+                description = strip_line_ends(param.description.replace("\t", "    "))
                 if "\n" in description:
                     outf.write(
                         'enums["%s"][%d].param[\n    %d\n] = """%s"""\n'
@@ -1044,9 +1057,6 @@ class MAVLink(object):
                 return False
             logger.info("new stream")
 
-        # set the streams timestamp so we reject timestamps that go backwards
-        self.signing.stream_timestamps[stream_key] = timestamp
-
         h = hashlib.new("sha256")
         h.update(self.signing.secret_key)
         h.update(msgbuf[:-6])
@@ -1055,6 +1065,9 @@ class MAVLink(object):
         if sig1 != sig2:
             logger.info("sig mismatch")
             return False
+
+        # set the streams timestamp so we reject timestamps that go backwards
+        self.signing.stream_timestamps[stream_key] = timestamp
 
         # the timestamp we next send with is the max of the received timestamp and
         # our current timestamp
@@ -1237,9 +1250,12 @@ def generate_methods(outf, msgs):
             if f.enum:
                 field_info += ", values:%s" % f.enum
             field_info += ")"
+            # strip trailing whitespace from every line of multi-line
+            # descriptions so the generated docstring passes flake8
+            description = "\n".join(line.rstrip() for line in f.description.strip().splitlines())
             ret += "        %-18s        : %s %s\n" % (
                 f.name,
-                f.description.strip(),
+                description,
                 field_info,
             )
         return ret

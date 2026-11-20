@@ -188,6 +188,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
         packet.sysid = sysid;
         packet.compid = compid;
         packet.msgid = MAVLINK_MSG_ID_${name};
+        ${store_target}
 
         ${{base_fields:${packField}
         }}
@@ -235,7 +236,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
     /**
      * Constructor for a new message, initializes everything
      */
-    public msg_${name_lower}(${{ordered_fields: ${type}${array_suffix_empty} ${name},}}, int sysid, int compid, boolean isMavlink2) {
+    public msg_${name_lower}(${{ordered_fields: ${type}${array_suffix_empty} ${name},}}, long sysid, int compid, boolean isMavlink2) {
         this.msgid = MAVLINK_MSG_ID_${name};
         this.sysid = sysid;
         this.compid = compid;
@@ -257,6 +258,7 @@ public class msg_${name_lower} extends MAVLinkMessage {
         this.compid = mavLinkPacket.compid;
         this.isMavlink2 = mavLinkPacket.isMavlink2;
         unpack(mavLinkPacket.payload);
+        ${restore_target}
     }
 
     ${{ordered_fields: ${getText} }}
@@ -340,14 +342,12 @@ ${importString}
  * 5              System ID           1 - 255            ID of the SENDING system. Allows to differentiate different MAVs on the same network.
  * 6              Component ID        0 - 255            ID of the SENDING component. Allows to differentiate different components of the same system, e.g. the IMU and the autopilot.
  * 7 to 9         Message ID          0 - 16777216       ID of the message - the id defines what the payload means and how it should be correctly decoded.
- * 10             Target System ID    1 - 255            (OPTIONAL) ID of the TARGET system. Only used for point-to-point mode
- * 11             Target Component ID 0 - 255            (OPTIONAL) ID of the TARGET component. Only used for point-to-point mode
- * 12 to (n+12)   Payload             0 - 255            Data of the message, depends on the message id.
- * (n+13)to(n+14) Checksum (low byte, high byte)         CRC16/MCRF4XX hash, excluding packet start sign, so bytes 1..(n+6) Note: The checksum also includes MAVLINK_CRC_EXTRA (Number computed from message fields. Protects the packet from decoding a different version of the same packet but with different variables).
- * (n+15)to(n+27) Signature (typeid, timestamp, sha256)  (OPTIONAL) Signature which allows ensuring that the link is tamper-proof; 13 bytes containing typeid (1 byte), timestamp (6 bytes), and last 6 bytes of SHA256 hash
- *
- * The signature is a combination of a typeid, timestamp, and SHA256 hash.
- * OPTIONAL fields mean that, if they are not used, they do not exist in the MAVLink frame at all. Typically target sysid and target compid are not used, and signature is only used if signing is set up between both ends.
+ * The source field grows to four little-endian bytes when SYSID32 (0x02)
+ * is set. Component and message IDs follow it. TARGET32 (0x04) appends a
+ * four-byte little-endian destination after the message ID; the target
+ * component remains in the payload. Header lengths are 10, 13, 14 or 17.
+ * Payload follows the header, then two CRC bytes. SIGNED (0x01) appends a
+ * link ID, six-byte timestamp and the first six bytes of SHA256(key + packet).
  *
  * @see <a href="https://mavlink.io">mavlink.io</a> for more documentation on the MAVLink protocol
  */
@@ -380,7 +380,7 @@ public class MAVLinkPacket implements Serializable {
      * ID of the SENDING system. Allows to differentiate different MAVs on the
      * same network.
      */
-    public int sysid;
+    public long sysid;
 
     /**
      * ID of the SENDING component. Allows to differentiate different components
@@ -423,6 +423,26 @@ public class MAVLinkPacket implements Serializable {
      * Flags that can be ignored if not understood
      */
     public int compatFlags;
+    public long targetSysid;
+    public byte[] signingKey;
+    public int signingLinkId;
+    public long signingTimestamp;
+
+    public int headerLength() {
+        return isMavlink2 ? 10 + ((incompatFlags & 2) != 0 ? 3 : 0) + ((incompatFlags & 4) != 0 ? 4 : 0) : 6;
+    }
+
+    public static byte[] signature(byte[] key, byte[] packet, int length) {
+        if (key == null || key.length != 32) throw new IllegalArgumentException("Signing key must have 32 bytes");
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            digest.update(key);
+            digest.update(packet, 0, length);
+            return java.util.Arrays.copyOf(digest.digest(), 6);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     public MAVLinkPacket(int payloadLength) {
         this(payloadLength, false);
@@ -457,15 +477,21 @@ public class MAVLinkPacket implements Serializable {
             crc.update_checksum(incompatFlags);
             crc.update_checksum(compatFlags);
             crc.update_checksum(seq);
-            crc.update_checksum(sysid);
+            crc.update_checksum((int)sysid);
+            if ((incompatFlags & 2) != 0) {
+                for (int shift = 8; shift < 32; shift += 8) crc.update_checksum((int)(sysid >>> shift));
+            }
             crc.update_checksum(compid);
             crc.update_checksum(msgid);
             crc.update_checksum(msgid >>> 8);
             crc.update_checksum(msgid >>> 16);
+            if ((incompatFlags & 4) != 0) {
+                for (int shift = 0; shift < 32; shift += 8) crc.update_checksum((int)(targetSysid >>> shift));
+            }
         } else {
             crc.update_checksum(payloadSize);
             crc.update_checksum(seq);
-            crc.update_checksum(sysid);
+            crc.update_checksum((int)sysid);
             crc.update_checksum(compid);
             crc.update_checksum(msgid);
         }
@@ -498,12 +524,18 @@ public class MAVLinkPacket implements Serializable {
      * @return Array with bytes to be transmitted
      */
     public byte[] encodePacket() {
+        if (sysid < 0 || sysid > 0xffffffffL || targetSysid < 0 || targetSysid > 0xffffffffL)
+            throw new IllegalArgumentException("System IDs must be uint32");
+        if (!isMavlink2 && (sysid > 255 || targetSysid > 255 || msgid > 255))
+            throw new IllegalArgumentException("Wide IDs require MAVLink2");
+        incompatFlags = isMavlink2 ? (sysid > 255 ? 2 : 0) | (targetSysid > 255 ? 4 : 0) | (signingKey != null ? 1 : 0) : 0;
+        final int signatureLength = (incompatFlags & 1) != 0 ? 13 : 0;
         final int bufLen;
         final int payloadSize;
 
         if (isMavlink2) {
             payloadSize = mavTrimPayload(payload.payload.array());
-            bufLen = MAVLINK2_HEADER_LEN + payloadSize + 2;
+            bufLen = headerLength() + payloadSize + 2 + signatureLength;
         } else {
             payloadSize = payload.size();
             bufLen = MAVLINK1_HEADER_LEN + payloadSize + 2;
@@ -519,10 +551,16 @@ public class MAVLinkPacket implements Serializable {
             buffer[i++] = (byte) compatFlags;
             buffer[i++] = (byte) seq;
             buffer[i++] = (byte) sysid;
+            if ((incompatFlags & 2) != 0) {
+                for (int shift = 8; shift < 32; shift += 8) buffer[i++] = (byte)(sysid >>> shift);
+            }
             buffer[i++] = (byte) compid;
             buffer[i++] = (byte) (msgid & 0XFF);
             buffer[i++] = (byte) ((msgid >>> 8) & 0XFF);
             buffer[i++] = (byte) ((msgid >>> 16) & 0XFF);
+            if ((incompatFlags & 4) != 0) {
+                for (int shift = 0; shift < 32; shift += 8) buffer[i++] = (byte)(targetSysid >>> shift);
+            }
         } else {
             buffer[i++] = (byte) MAVLINK_STX_MAVLINK1;
             buffer[i++] = (byte) payloadSize;
@@ -539,6 +577,15 @@ public class MAVLinkPacket implements Serializable {
         generateCRC(payloadSize);
         buffer[i++] = (byte) (crc.getLSB());
         buffer[i++] = (byte) (crc.getMSB());
+
+        if (signatureLength != 0) {
+            if (signingTimestamp < 0 || signingTimestamp >= (1L << 48))
+                throw new IllegalArgumentException("Signing timestamp must be uint48");
+            buffer[i++] = (byte)signingLinkId;
+            for (int shift = 0; shift < 48; shift += 8) buffer[i++] = (byte)(signingTimestamp >>> shift);
+            System.arraycopy(signature(signingKey, buffer, i), 0, buffer, i, 6);
+            signingTimestamp++;
+        }
 
         logv(String.format("encode: isMavlink2=%s msgid=%d", isMavlink2, msgid));
 
@@ -778,6 +825,9 @@ def generate_one(basename, xml):
         for f in m.ordered_fields:
             # fix types to java
             f.type = mavfmt(f)
+            if f.is_target_system:
+                f.type = 'long'
+                f.packField = 'packet.payload.putUnsignedByte((short)(%s > 255 ? 255 : %s));' % (f.name, f.name)
             # remove brackets in units
             f.units = removeBrackets(f.units)
             # Escape quotes in description
@@ -785,6 +835,10 @@ def generate_one(basename, xml):
 
     # separate base fields from MAVLink 2 extended fields
     for m in xml.message:
+        target = next((f for f in m.fields if f.is_target_system), None)
+        m.store_target = 'packet.targetSysid = %s;' % target.name if target else ''
+        m.restore_target = ('if ((mavLinkPacket.incompatFlags & 4) != 0) this.%s = mavLinkPacket.targetSysid;'
+                            % target.name) if target else ''
         m.base_fields = m.ordered_fields[:m.extensions_start]
         m.extended_fields = []
         if m.extensions_start is not None:
