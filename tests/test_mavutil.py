@@ -99,5 +99,29 @@ class TestUnixDomainSocket(unittest.TestCase):
             self.assertFalse(server.is_alive())
 
 
+class TestMulticast(unittest.TestCase):
+    # a port of our own, so as not to talk to a SITL on the usual one
+    DEVICE = 'mcast:239.255.145.50:14659:127.0.0.1'
+
+    def test_interface(self):
+        a = mavutil.mavlink_connection(self.DEVICE, source_system=1)
+        b = mavutil.mavlink_connection(self.DEVICE, source_system=2)
+        try:
+            # both directions stay on loopback: the sender's address is ours
+            self.assertEqual(a.port_out.getsockname()[0], '127.0.0.1')
+            a.mav.heartbeat_send(0, 0, 0, 0, 0)
+            b.mav.heartbeat_send(0, 0, 0, 0, 0)
+            got_a = a.recv_match(type='HEARTBEAT', blocking=True, timeout=2)
+            got_b = b.recv_match(type='HEARTBEAT', blocking=True, timeout=2)
+            # and each one ignores what it sent itself
+            self.assertIsNotNone(got_a)
+            self.assertEqual(got_a.get_srcSystem(), 2)
+            self.assertIsNotNone(got_b)
+            self.assertEqual(got_b.get_srcSystem(), 1)
+        finally:
+            a.close()
+            b.close()
+
+
 if __name__ == '__main__':
     unittest.main()
