@@ -39,9 +39,6 @@ from pymavlink import mavextra
 from pymavlink.rotmat import Vector3
 from pymavlink.rotmat import Matrix3
 
-import matplotlib
-import matplotlib.pyplot as pyplot
-import numpy
 
 earth_field = None
 declination = None
@@ -461,6 +458,9 @@ def magfit(logfile):
         f.close()
     else:
         c.show_parms()
+
+    import matplotlib.pyplot as pyplot
+    import numpy
 
     fig, axs = pyplot.subplots(3, 1, sharex=True)
 
