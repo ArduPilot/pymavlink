@@ -309,7 +309,7 @@ private
       Component_Id : Component_Id_Type := 1;
       Sequence_Id  : Sequence_Id_Type := 0;
       Incoming     : Incoming_Data;
-   end record;
+   end record with Preelaborable_Initialization;
 
    procedure Encode
      (Self          : in out Connection;
@@ -347,7 +347,7 @@ private
 
    type In_Connection is record
       Incoming : Incoming_Data;
-   end record;
+   end record with Preelaborable_Initialization;
 
    function Is_CRC_Valid
      (Self   : In_Connection;
@@ -368,7 +368,7 @@ private
       System_Id    : System_Id_Type := 1;
       Component_Id : Component_Id_Type := 1;
       Sequence_Id  : Sequence_Id_Type := 0;
-   end record;
+   end record with Preelaborable_Initialization;
 
    procedure Encode
      (Self          : in out Out_Connection;

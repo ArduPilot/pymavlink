@@ -42,7 +42,7 @@ private
       Last    : Natural := 0;
       Length  : Interfaces.Unsigned_64 := 0;
       Buffer  : Data (1 .. 64) := [others => 0];
-   end record;
+   end record with Preelaborable_Initialization;
 
    Initial_Context : constant Context := (others => <>);
 

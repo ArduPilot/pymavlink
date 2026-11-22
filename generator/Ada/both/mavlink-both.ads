@@ -437,13 +437,13 @@ private
       Sequence_Id  : Sequence_Id_Type := 0;
       Incoming     : Incoming_Data;
       Out_Sequency : Interfaces.Unsigned_8 := 0;
-   end record;
+   end record with Preelaborable_Initialization;
 
    -- In_Connection --
 
    type In_Connection is record
       Incoming : Incoming_Data;
-   end record;
+   end record with Preelaborable_Initialization;
 
    -- Out_Connection --
 
@@ -451,7 +451,7 @@ private
       System_Id    : System_Id_Type := 1;
       Component_Id : Component_Id_Type := 1;
       Sequence_Id  : Sequence_Id_Type := 0;
-   end record;
+   end record with Preelaborable_Initialization;
 
    -- Utils --
 

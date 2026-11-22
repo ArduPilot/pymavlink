@@ -165,7 +165,7 @@ private
       Component_Id : Interfaces.Unsigned_8 := 1;
       Incoming     : Incoming_Data;
       Out_Sequency : Interfaces.Unsigned_8 := 0;
-   end record;
+   end record with Preelaborable_Initialization;
 
    function Get_Target_System_Id
      (Conn : Connection) return Interfaces.Unsigned_8
@@ -205,7 +205,7 @@ private
 
    type In_Connection is record
       Incoming : Incoming_Data;
-   end record;
+   end record with Preelaborable_Initialization;
 
    function Get_Target_System_Id
      (Conn : In_Connection) return Interfaces.Unsigned_8
@@ -240,7 +240,7 @@ private
       System_Id    : Interfaces.Unsigned_8 := 1;
       Component_Id : Interfaces.Unsigned_8 := 1;
       Out_Sequency : Interfaces.Unsigned_8 := 0;
-   end record;
+   end record with Preelaborable_Initialization;
 
    procedure Encode
      (Conn   : in out Out_Connection;
