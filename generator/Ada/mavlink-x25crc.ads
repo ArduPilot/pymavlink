@@ -14,7 +14,10 @@ package MAVLink.X25CRC is
          when others =>
             Value     : Unsigned_16 := 16#FFFF#;
       end case;
-   end record with Size => 16, Unchecked_Union;
+   end record with Size => 16,
+     Unchecked_Union,
+     Preelaborable_Initialization;
+
    for Checksum use record
       High at 0 range 0 .. 7;
       Low  at 0 range 8 .. 15;
