@@ -18,6 +18,7 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 args = parser.parse_args()
 
 from pymavlink import mavutil
+from pymavlink import mavextra
 from pymavlink.mavextra import distance_two
 
 
@@ -47,10 +48,12 @@ def PrintSummary(logfile):
     start_time = None # The datetime of the first received message (seconds since epoch)
     total_dist = 0.0 # The total ground distance travelled (meters)
     last_gps_msg = None # The first GPS message received
+    last_gps_time_usec = None
     first_gps_msg = None # The last GPS message received
     true_time = None # Track the first timestamp found that corresponds to a UNIX timestamp
 
-    types = set(['HEARTBEAT', 'GPS_RAW_INT'])
+    types = set(['HEARTBEAT', 'GPS_RAW_INT', 'GNSS'])
+    gps_filter = mavextra.GPSMessageFilter()
 
     while True:
         m = mlog.recv_match(condition=args.condition, type=types)
@@ -82,7 +85,12 @@ def PrintSummary(logfile):
                 true_time = m.time_usec * 1.0e-6
 
         # Track the vehicle's speed and status
-        if m.get_type() == 'GPS_RAW_INT':
+        if m.get_type() in ['GPS_RAW_INT', 'GNSS']:
+            if not gps_filter.use(m):
+                continue
+            gps = mavextra.gps_values(m)
+            if gps.instance != 0:
+                continue
 
             # Ignore GPS messages without a proper fix
             if m.fix_type < 3 or m.lat == 0 or m.lon == 0:
@@ -95,12 +103,13 @@ def PrintSummary(logfile):
 
             # Track the distance travelled, being sure to skip GPS fixes
             # that are bad (at lat/lon of 0,0)
-            if last_gps_msg is None or m.time_usec > last_gps_msg.time_usec or m.time_usec+30e6 < last_gps_msg.time_usec:
+            if last_gps_msg is None or gps.time_usec > last_gps_time_usec or gps.time_usec+30e6 < last_gps_time_usec:
                 if last_gps_msg is not None:
                     total_dist += distance_two(last_gps_msg, m)
 
                 # Save this GPS message to do simple distance calculations with
                 last_gps_msg = m
+                last_gps_time_usec = gps.time_usec
 
         elif m.get_type() == 'HEARTBEAT':
             if m.type == mavutil.mavlink.MAV_TYPE_GCS:

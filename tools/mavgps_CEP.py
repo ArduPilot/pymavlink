@@ -38,22 +38,26 @@ def process_log(logfile):
     '''process GPS logs'''
     print("Processing log %s" % filename)
     mlog = mavutil.mavlink_connection(filename)
+    gps_filter = GPSMessageFilter()
 
     while True:
-        m = mlog.recv_match(type=['GPS', 'GPS2', 'GPS_RAW_INT', 'GPS2_RAW'])
+        m = mlog.recv_match(type=['GPS', 'GPS2', 'GPS_RAW_INT', 'GPS2_RAW', 'GNSS'])
         if m is None:
             break
+        if not gps_filter.use(m):
+            continue
         mtype = m.get_type()
-        if mtype in ['GPS_RAW_INT', 'GPS2_RAW']:
-            (lat, lon, alt, fix_type) = (m.lat*1.0e-7, m.lon*1.0e-7, m.alt*1.0e-3, m.fix_type)
+        if mtype in ['GPS_RAW_INT', 'GPS2_RAW', 'GNSS']:
+            gps = gps_values(m)
+            if gps.alt is None:
+                continue
+            (lat, lon, alt, fix_type) = (gps.lat, gps.lon, gps.alt, gps.fix_type)
+            gps_id = gps.instance + 1
         else:
             (lat, lon, alt, fix_type) = (m.Lat, m.Lng, m.Alt, m.Status)
+            gps_id = 1 if mtype == 'GPS' else 2
         if fix_type < 3:
             continue
-        if mtype in ['GPS', 'GPS_RAW_INT']:
-            gps_id = 1
-        else:
-            gps_id = 2
 
         if hasattr(m, 'get_srcSystem'):
             sysid = m.get_srcSystem()

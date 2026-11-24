@@ -15,7 +15,7 @@ parser.add_argument("--type", default=[], nargs="*")
 parser.add_argument("logs", metavar="LOG", nargs="+")
 args = parser.parse_args()
 
-from pymavlink import mavutil
+from pymavlink import mavextra, mavutil
 
 
 def mav_to_gpx(infilename, outfilename, display_types=None):
@@ -62,21 +62,27 @@ def mav_to_gpx(infilename, outfilename, display_types=None):
     lon=0
     fix=0
 
-    match_types =['GPS_RAW_INT', 'GPS', 'GPS2', 'GLOBAL_POSITION_INT', 'POS']
+    match_types =['GPS_RAW_INT', 'GNSS', 'GPS', 'GPS2', 'GLOBAL_POSITION_INT', 'POS']
     if display_types is None or len(display_types) == 0:
         display_types = match_types
+    gps_filter = mavextra.GPSMessageFilter()
     while True:
         m = mlog.recv_match(type=match_types, condition=args.condition)
         if m is None:
             break
-        if m.get_type() == 'GPS_RAW_INT':
-            lat = m.lat/1.0e7
-            lon = m.lon/1.0e7
-            alt = m.alt/1.0e3
-            v = m.vel/100.0
-            hdg = m.cog/100.0
+        if not gps_filter.use(m):
+            continue
+        if m.get_type() in ['GPS_RAW_INT', 'GNSS']:
+            gps = mavextra.gps_values(m)
+            if gps.instance != 0:
+                continue
+            lat = gps.lat
+            lon = gps.lon
+            alt = 0 if gps.alt is None else gps.alt
+            v = 0 if gps.ground_speed is None else gps.ground_speed
+            hdg = 0 if gps.cog is None else gps.cog
             timestamp = m._timestamp
-            fix = m.fix_type
+            fix = gps.fix_type
         elif m.get_type() == 'GLOBAL_POSITION_INT':
             lat = m.lat/1.0e7
             lon = m.lon/1.0e7

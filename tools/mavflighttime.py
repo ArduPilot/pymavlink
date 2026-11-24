@@ -15,6 +15,7 @@ parser.add_argument("logs", metavar="LOG", nargs="+")
 args = parser.parse_args()
 
 from pymavlink import mavutil
+from pymavlink import mavextra
 from pymavlink.mavextra import distance_two
 
 
@@ -30,19 +31,25 @@ def flight_time(logfile):
     t = None
     last_msg = None
     last_time_usec = None
+    gps_filter = mavextra.GPSMessageFilter()
 
     while True:
-        m = mlog.recv_match(type=['GPS','GPS_RAW_INT'], condition=args.condition)
+        m = mlog.recv_match(type=['GPS','GPS_RAW_INT','GNSS'], condition=args.condition)
         if m is None:
             if in_air:
                 total_time += time.mktime(t) - start_time
             if total_time > 0:
                 print("Flight time : %u:%02u" % (int(total_time)/60, int(total_time)%60))
             return (total_time, total_dist)
-        if m.get_type() == 'GPS_RAW_INT':
-            groundspeed = m.vel*0.01
-            status = m.fix_type
-            time_usec = m.time_usec
+        if m.get_type() in ['GPS_RAW_INT', 'GNSS']:
+            if not gps_filter.use(m):
+                continue
+            gps = mavextra.gps_values(m)
+            if gps.instance != 0 or gps.ground_speed is None:
+                continue
+            groundspeed = gps.ground_speed
+            status = gps.fix_type
+            time_usec = gps.time_usec
         else:
             groundspeed = m.Spd
             status = m.Status

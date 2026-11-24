@@ -87,6 +87,23 @@ class location:
     def __str__(self) -> str:
         return "lat=%.6f,lon=%.6f,alt=%.1f" % (self.lat, self.lng, self.alt)
 
+def gps_raw_int_from_gnss(msg):
+    '''return a GPS_RAW_INT carrying the fix from a GNSS message'''
+    alt = 0 if math.isnan(msg.height_above_geoid) else int(msg.height_above_geoid * 1000)
+    vel = 65535 if math.isnan(msg.ground_speed) else min(int(msg.ground_speed * 100), 65534)
+    ret = mavlink.MAVLink_gps_raw_int_message(time_usec=msg.time_boot_ms * 1000,
+                                              fix_type=msg.fix_type,
+                                              lat=msg.lat,
+                                              lon=msg.lon,
+                                              alt=alt,
+                                              eph=65535,
+                                              epv=65535,
+                                              vel=vel,
+                                              cog=msg.cog,
+                                              satellites_visible=msg.satellites_used)
+    ret._timestamp = getattr(msg, '_timestamp', None)
+    return ret
+
 def add_message(messages, mtype, msg):
     '''add a msg to array of messages, taking account of instance messages'''
     if msg._instance_field is None or getattr(msg, msg._instance_field, None) is None:
@@ -446,6 +463,10 @@ class mavfile:
         elif m_type == 'GPS_RAW_INT':
             if self.sysid_state[src_system].messages['HOME'].fix_type < 3:
                 self.sysid_state[src_system].messages['HOME'] = msg
+        elif m_type == 'GNSS':
+            # HOME stays a GPS_RAW_INT so existing users of it keep working
+            if msg.id == 0 and msg.fix_type >= 3 and self.sysid_state[src_system].messages['HOME'].fix_type < 3:
+                self.sysid_state[src_system].messages['HOME'] = gps_raw_int_from_gnss(msg)
         for hook in self.message_hooks:
             hook(self, msg)
 
@@ -758,13 +779,18 @@ class mavfile:
                                    param1, 0, 0, 0, 0, param6, 0)
 
     def wait_gps_fix(self):
+        '''wait for a 3D fix from the first GPS, from GPS_RAW_INT or GNSS, and return that message'''
         self.recv_match(type='VFR_HUD', blocking=True)
-        self.recv_match(type='GPS_RAW_INT', blocking=True,
-                        condition='GPS_RAW_INT.fix_type>=3 and GPS_RAW_INT.lat != 0')
+        while True:
+            m = self.recv_match(type=['GPS_RAW_INT', 'GNSS'], blocking=True)
+            if m.get_type() == 'GNSS' and m.id != 0:
+                continue
+            if m.fix_type >= 3 and m.lat != 0:
+                return m
 
     def location(self, relative_alt=False):
         '''return current location'''
-        self.wait_gps_fix()
+        gps_type = self.wait_gps_fix().get_type()
         # wait for another VFR_HUD, to ensure we have correct altitude
         self.recv_match(type='VFR_HUD', blocking=True)
         self.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
@@ -772,8 +798,12 @@ class mavfile:
             alt = self.messages['GLOBAL_POSITION_INT'].relative_alt*0.001
         else:
             alt = self.messages['VFR_HUD'].alt
-        return location(self.messages['GPS_RAW_INT'].lat*1.0e-7,
-                        self.messages['GPS_RAW_INT'].lon*1.0e-7,
+        if gps_type == 'GNSS':
+            gps = self.messages['GNSS[0]']
+        else:
+            gps = self.messages['GPS_RAW_INT']
+        return location(gps.lat*1.0e-7,
+                        gps.lon*1.0e-7,
                         alt,
                         self.messages['VFR_HUD'].heading)
 

@@ -6,6 +6,7 @@ Copyright Andrew Tridgell 2011
 Released under GNU GPL version 3 or later
 '''
 from builtins import sum as builtin_sum
+from collections import namedtuple
 from functools import lru_cache
 
 from math import *
@@ -376,14 +377,73 @@ def delta_angle(var, key, tusec=None):
     last_delta[key] = (var, tnow, ret)
     return ret
 
+GPSValues = namedtuple('GPSValues',
+                       ['instance', 'fix_type', 'lat', 'lon', 'alt', 'ground_speed', 'cog', 'satellites', 'time_usec'])
+
+def gps_values(GPS):
+    '''return a GPSValues from a GPS_RAW_INT, GPS2_RAW or GNSS message, or None
+    for any other message. lat and lon are in degrees, alt is above mean sea
+    level in metres, ground_speed is in m/s and cog in degrees; values the
+    message marks as unknown are None'''
+    mtype = GPS.get_type()
+    if mtype == 'GNSS':
+        alt = None if isnan(GPS.height_above_geoid) else GPS.height_above_geoid
+        ground_speed = None if isnan(GPS.ground_speed) else GPS.ground_speed
+        satellites = None if GPS.satellites_used == 255 else GPS.satellites_used
+        return GPSValues(instance=GPS.id,
+                         fix_type=GPS.fix_type,
+                         lat=GPS.lat/1.0e7,
+                         lon=GPS.lon/1.0e7,
+                         alt=alt,
+                         ground_speed=ground_speed,
+                         cog=None if GPS.cog == 65535 else GPS.cog/100.0,
+                         satellites=satellites,
+                         time_usec=GPS.time_boot_ms*1000)
+    if mtype in ('GPS_RAW_INT', 'GPS2_RAW'):
+        satellites = None if GPS.satellites_visible == 255 else GPS.satellites_visible
+        return GPSValues(instance=0 if mtype == 'GPS_RAW_INT' else 1,
+                         fix_type=GPS.fix_type,
+                         lat=GPS.lat/1.0e7,
+                         lon=GPS.lon/1.0e7,
+                         alt=GPS.alt/1000.0,
+                         ground_speed=None if GPS.vel == 65535 else GPS.vel/100.0,
+                         cog=None if GPS.cog == 65535 else GPS.cog/100.0,
+                         satellites=satellites,
+                         time_usec=GPS.time_usec)
+    return None
+
+class GPSMessageFilter(object):
+    '''choose which GPS messages to use from a stream that may contain
+    GPS_RAW_INT, GPS2_RAW and GNSS. An autopilot sending GNSS also sends
+    GPS_RAW_INT and GPS2_RAW for the same receivers, so once a system has
+    sent GNSS its GPS_RAW_INT and GPS2_RAW are not used'''
+    def __init__(self):
+        self.gnss_systems = set()
+
+    def use(self, m):
+        '''return True if m should be used'''
+        mtype = m.get_type()
+        sysid = m.get_srcSystem() if hasattr(m, 'get_srcSystem') else None
+        if mtype == 'GNSS':
+            self.gnss_systems.add(sysid)
+            return True
+        if mtype in ('GPS_RAW_INT', 'GPS2_RAW'):
+            return sysid not in self.gnss_systems
+        return True
+
+def _gps_ground_speed(GPS):
+    '''ground speed in m/s from a GPS_RAW_INT, GPS2_RAW or GNSS message; 0 if unknown'''
+    ground_speed = gps_values(GPS).ground_speed
+    return 0 if ground_speed is None else ground_speed
+
 def roll_estimate(RAW_IMU,GPS_RAW_INT=None,ATTITUDE=None,SENSOR_OFFSETS=None, ofs=None, mul=None,smooth=0.7):
     '''estimate roll from accelerometer'''
     rx = RAW_IMU.xacc * 9.81 / 1000.0
     ry = RAW_IMU.yacc * 9.81 / 1000.0
     rz = RAW_IMU.zacc * 9.81 / 1000.0
     if ATTITUDE is not None and GPS_RAW_INT is not None:
-        ry -= ATTITUDE.yawspeed * GPS_RAW_INT.vel*0.01
-        rz += ATTITUDE.pitchspeed * GPS_RAW_INT.vel*0.01
+        ry -= ATTITUDE.yawspeed * _gps_ground_speed(GPS_RAW_INT)
+        rz += ATTITUDE.pitchspeed * _gps_ground_speed(GPS_RAW_INT)
     if SENSOR_OFFSETS is not None and ofs is not None:
         rx += SENSOR_OFFSETS.accel_cal_x
         ry += SENSOR_OFFSETS.accel_cal_y
@@ -403,8 +463,8 @@ def pitch_estimate(RAW_IMU, GPS_RAW_INT=None,ATTITUDE=None, SENSOR_OFFSETS=None,
     ry = RAW_IMU.yacc * 9.81 / 1000.0
     rz = RAW_IMU.zacc * 9.81 / 1000.0
     if ATTITUDE is not None and GPS_RAW_INT is not None:
-        ry -= ATTITUDE.yawspeed * GPS_RAW_INT.vel*0.01
-        rz += ATTITUDE.pitchspeed * GPS_RAW_INT.vel*0.01
+        ry -= ATTITUDE.yawspeed * _gps_ground_speed(GPS_RAW_INT)
+        rz += ATTITUDE.pitchspeed * _gps_ground_speed(GPS_RAW_INT)
     if SENSOR_OFFSETS is not None and ofs is not None:
         rx += SENSOR_OFFSETS.accel_cal_x
         ry += SENSOR_OFFSETS.accel_cal_y
@@ -516,6 +576,11 @@ def get_lat_lon_alt(MSG):
         lat = radians(MSG.Lat)
         lon = radians(MSG.Lon)
         alt = MSG.Alt
+    elif hasattr(MSG, 'height_above_geoid'):
+        # GNSS
+        lat = radians(MSG.lat)*1.0e-7
+        lon = radians(MSG.lon)*1.0e-7
+        alt = MSG.height_above_geoid
     elif hasattr(MSG, 'cog'):
         lat = radians(MSG.lat)*1.0e-7
         lon = radians(MSG.lon)*1.0e-7
@@ -736,16 +801,22 @@ def gps_velocity(GLOBAL_POSITION_INT):
 
 
 def gps_velocity_old(GPS_RAW_INT):
-    '''return GPS velocity vector'''
-    return Vector3(GPS_RAW_INT.vel*0.01*cos(radians(GPS_RAW_INT.cog*0.01)),
-                   GPS_RAW_INT.vel*0.01*sin(radians(GPS_RAW_INT.cog*0.01)), 0)
+    '''return GPS velocity vector from a GPS_RAW_INT, GPS2_RAW or GNSS message'''
+    v = gps_values(GPS_RAW_INT)
+    if v.ground_speed is None or v.cog is None:
+        return None
+    return Vector3(v.ground_speed*cos(radians(v.cog)),
+                   v.ground_speed*sin(radians(v.cog)), 0)
 
 def gps_velocity_body(GPS_RAW_INT, ATTITUDE):
-    '''return GPS velocity vector in body frame'''
+    '''return GPS velocity vector in body frame from a GPS_RAW_INT, GPS2_RAW or GNSS message'''
+    v = gps_values(GPS_RAW_INT)
+    if v.ground_speed is None or v.cog is None:
+        return None
     r = rotation(ATTITUDE)
-    return r.transposed() * Vector3(GPS_RAW_INT.vel*0.01*cos(radians(GPS_RAW_INT.cog*0.01)),
-                                    GPS_RAW_INT.vel*0.01*sin(radians(GPS_RAW_INT.cog*0.01)),
-                                    -tan(ATTITUDE.pitch)*GPS_RAW_INT.vel*0.01)
+    return r.transposed() * Vector3(v.ground_speed*cos(radians(v.cog)),
+                                    v.ground_speed*sin(radians(v.cog)),
+                                    -tan(ATTITUDE.pitch)*v.ground_speed)
 
 def earth_accel(IMU,ATT):
     '''return earth frame acceleration vector'''
