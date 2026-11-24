@@ -84,6 +84,7 @@ package body MAVLink.V1 is
          Incoming.Discard_Remaining := Natural (Val) + 9;
          Incoming.Unsupported_Header := 2;
          return False;
+
       elsif Incoming.Unsupported_Header = 2 then
          if (Val and 1) /= 0 then
             Incoming.Discard_Remaining := Incoming.Discard_Remaining + 13;
@@ -96,9 +97,11 @@ package body MAVLink.V1 is
          end if;
          Incoming.Unsupported_Header := 0;
          return False;
+
       elsif Incoming.Discard_Remaining > 0 then
          Incoming.Discard_Remaining := Incoming.Discard_Remaining - 1;
          return False;
+
       elsif Incoming.In_Ptr = 0 and then Val = 16#FD# then
          Incoming.Unsupported_Header := 1;
          return False;
