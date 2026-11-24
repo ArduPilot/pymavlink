@@ -1,0 +1,7 @@
+aggregate project Pymavlink_Ada_Tests is
+   for Project_Files use
+     ("build/minimal-1.0/tests/test.gpr",
+      "build/minimal-2.0/tests/test.gpr",
+      "build/common-1.0/tests/test.gpr",
+      "build/common-2.0/tests/test.gpr");
+end Pymavlink_Ada_Tests;

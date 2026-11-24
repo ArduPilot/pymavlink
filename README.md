@@ -132,6 +132,13 @@ already have an ArduPilot checkout, point it at that `mavlink/message_definition
 instead. `PYTHONPATH=..` imports the local checkout rather than a pip-installed
 copy.
 
+For the Ada tests, install Alire, `pytest` and this checkout of `pymavlink`.
+From the repository root, `alr -C tests/ada build` generates and builds the Ada
+tests. `alr -C tests/ada test` also runs them for `minimal` and `common` on
+both MAVLink 1.0 and 2.0, then runs the Ada frame checks in pytest. By default,
+the build uses the checked-in XML fixtures. To use external definitions, set
+`MDEF` to the absolute path of the `message_definitions` directory.
+
 ### Ardupilot Custom Modes
 
 By default, `pymavlink` will map the Ardupilot mode names to mode numbers per the definitions in the [ardupilotmega.xml](https://mavlink.io/en/messages/ardupilotmega.html#PLANE_MODE) file. However, during development, it can be useful to add to or update the default mode mappings.

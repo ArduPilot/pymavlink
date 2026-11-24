@@ -1,0 +1,14 @@
+name = "pymavlink_ada_tests"
+description = "Build and test the generated pymavlink Ada bindings"
+version = "0.1.0-dev"
+
+[configuration]
+disabled = true
+
+[[actions]]
+type = "pre-build"
+command = ["bash", "generate.sh"]
+
+[[actions]]
+type = "test"
+command = ["alr", "--non-interactive", "exec", "--", "bash", "test.sh"]

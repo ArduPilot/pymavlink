@@ -1203,9 +1203,11 @@ is""");
     if Has_Common:
         f.write("""
    D1 : constant MAVLink.SHA_256.Data  := [16#61#, 16#62#, 16#63#];
-   R1 : constant MAVLink.SHA_256.State :=
-     [16#ba7816bf#, 16#8f01cfea#, 16#414140de#, 16#5dae2223#,
-      16#b00361a3#, 16#96177a9c#, 16#b410ff61#, 16#f20015ad#];
+   R1 : constant MAVLink.SHA_256.Digest_Type :=
+     [16#ba#, 16#78#, 16#16#, 16#bf#, 16#8f#, 16#01#, 16#cf#, 16#ea#,
+      16#41#, 16#41#, 16#40#, 16#de#, 16#5d#, 16#ae#, 16#22#, 16#23#,
+      16#b0#, 16#03#, 16#61#, 16#a3#, 16#96#, 16#17#, 16#7a#, 16#9c#,
+      16#b4#, 16#10#, 16#ff#, 16#61#, 16#f2#, 16#00#, 16#15#, 16#ad#];
 
    D2 : constant MAVLink.SHA_256.Data :=
      [16#61#, 16#62#, 16#63#, 16#64#, 16#62#, 16#63#, 16#64#, 16#65#, 16#63#,
@@ -1215,9 +1217,11 @@ is""");
       16#6a#, 16#6b#, 16#6c#, 16#6d#, 16#6b#, 16#6c#, 16#6d#, 16#6e#, 16#6c#,
       16#6d#, 16#6e#, 16#6f#, 16#6d#, 16#6e#, 16#6f#, 16#70#, 16#6e#, 16#6f#,
       16#70#, 16#71#];
-   R2 : constant MAVLink.SHA_256.State :=
-     [16#248d6a61#, 16#d20638b8#, 16#e5c02693#, 16#0c3e6039#,
-      16#a33ce459#, 16#64ff2167#, 16#f6ecedd4#, 16#19db06c1#];
+   R2 : constant MAVLink.SHA_256.Digest_Type :=
+     [16#24#, 16#8d#, 16#6a#, 16#61#, 16#d2#, 16#06#, 16#38#, 16#b8#,
+      16#e5#, 16#c0#, 16#26#, 16#93#, 16#0c#, 16#3e#, 16#60#, 16#39#,
+      16#a3#, 16#3c#, 16#e4#, 16#59#, 16#64#, 16#ff#, 16#21#, 16#67#,
+      16#f6#, 16#ec#, 16#ed#, 16#d4#, 16#19#, 16#db#, 16#06#, 16#c1#];
 
    D3 : constant MAVLink.SHA_256.Data :=
      [16#6C#, 16#6F#, 16#6E#, 16#67#, 16#5F#, 16#70#, 16#61#, 16#73#, 16#73#,
@@ -1225,24 +1229,25 @@ is""");
       16#01#, 16#01#, 16#78#, 16#32#, 16#00#, 16#01#, 16#00#, 16#00#, 16#00#,
       16#01#, 16#08#, 16#98#, 16#01#, 16#c8#, 16#00#, 16#00#, 16#00#, 16#00#,
       16#00#];
-   R3 : constant MAVLink.SHA_256.State :=
-     [16#48c298bd#, 16#a123637a#, 16#f1103486#, 16#180a716a#,
-      16#9c41e4b1#, 16#42293472#, 16#ea587ff5#, 16#247d5943#];
-   T  : Data_Buffer (1 .. 32) with Import, Address => R3'Address;
+   R3 : constant MAVLink.SHA_256.Digest_Type :=
+     [16#48#, 16#c2#, 16#98#, 16#bd#, 16#a1#, 16#23#, 16#63#, 16#7a#,
+      16#f1#, 16#10#, 16#34#, 16#86#, 16#18#, 16#0a#, 16#71#, 16#6a#,
+      16#9c#, 16#41#, 16#e4#, 16#b1#, 16#42#, 16#29#, 16#34#, 16#72#,
+      16#ea#, 16#58#, 16#7f#, 16#f5#, 16#24#, 16#7d#, 16#59#, 16#43#];
 
-   procedure Do_SHA_256_Test (D : MAVLink.SHA_256.Data; R : MAVLink.SHA_256.State);
-   procedure Do_SHA_256_Test (D : MAVLink.SHA_256.Data; R : MAVLink.SHA_256.State)
+   procedure Do_SHA_256_Test
+     (D : MAVLink.SHA_256.Data; R : MAVLink.SHA_256.Digest_Type);
+   procedure Do_SHA_256_Test
+     (D : MAVLink.SHA_256.Data; R : MAVLink.SHA_256.Digest_Type)
    is
-      use type MAVLink.SHA_256.State;
+      use type MAVLink.SHA_256.Data;
 
       Checksum : MAVLink.SHA_256.Context;
       Result   : MAVLink.SHA_256.Digest_Type;
-      Res      : MAVLink.SHA_256.State (1 .. 8) with Import,
-        Address => Result'Address;
    begin
       MAVLink.SHA_256.Update (Checksum, D);
       MAVLink.SHA_256.Digest (Checksum, Result);
-      pragma Assert (Res = R);
+      pragma Assert (Result = R);
    end Do_SHA_256_Test;
 
    Hygrometer_Sensors_Data : constant Data_Buffer :=
@@ -1251,7 +1256,7 @@ is""");
       8, 152, --  CRC
       1, -- Link_Id
       200, 0, 0, 0, 0, 0, --  Timestamp
-      189, 152, 194, 72,  122, 99]; --  SHA
+      72, 194, 152, 189, 161, 35]; --  SHA
 """)
 
     f.write("""

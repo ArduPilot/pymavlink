@@ -130,3 +130,21 @@ jobs:
           PYMAVLINK_TEST_RUST: '1'
           MDEF: ${{ github.workspace }}/mavlink/message_definitions
         run: python3 -m pytest -q tests/test_mavgen_rust.py
+
+  ada-tests:
+    name: Ada bindings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: alire-project/setup-alire@v6
+      - name: Install pymavlink and test dependencies
+        run: |
+          mkdir "$RUNNER_TEMP/ada-message-definitions"
+          ln -s "$PWD/tests/snapshottests/resources" "$RUNNER_TEMP/ada-message-definitions/v1.0"
+          MDEF="$RUNNER_TEMP/ada-message-definitions" python3 -m pip install pytest .
+      - name: Build and test generated Ada bindings
+        working-directory: tests/ada
+        run: alr --non-interactive test || { cat alire/alr_test_local.log; exit 1; }
