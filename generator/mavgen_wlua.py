@@ -221,10 +221,14 @@ f.${fname} = ProtoField.new("${flabel} (${ftypename})${unitname}", "mavlink_prot
                 # omit flag enums have values like "0: None"
                 continue
 
+            mask = entry.value
+            if mask > 0xffffffff:
+                # Wide boolean masks require Wireshark's UInt64 representation.
+                mask = "UInt64({}, {})".format(mask & 0xffffffff, mask >> 32)
             t.write(outf,
 """
 f.${fname}_flag${ename} = ProtoField.bool("mavlink_proto.${fname}.${ename}", "${ename}", ${fbits}, nil, ${evalue})
-""", {'fname': name, 'ename': entry.name, 'fbits': physical_bits, 'evalue': entry.value})
+""", {'fname': name, 'ename': entry.name, 'fbits': physical_bits, 'evalue': mask})
 
 
 def generate_msg_fields(outf, msg, enums):
@@ -285,7 +289,11 @@ function dissect_flags_${enumname}(tree, name, tvbrange, value)
         if is_power_of_2(entry.value) and not entry.name.endswith("_ENUM_END"):
             t.write(outf,
 """
-    tree:add_le(f[name .. "_flag${entryname}"], tvbrange, value)
+    if value == nil then
+        tree:add_le(f[name .. "_flag${entryname}"], tvbrange)
+    else
+        tree:add_le(f[name .. "_flag${entryname}"], tvbrange, value)
+    end
 """, {'entryname': entry.name})
 
     t.write(outf,
@@ -401,11 +409,12 @@ def generate_field_dissector(outf, msg, field, offset, enums, cmd=None, param=No
             if not value_extracted:
                 t.write(outf,"    value = tvbrange:${ftvbfunc}()\n", {'ftvbfunc': tvb_func})
                 value_extracted = True
-            valuemethod = ":tonumber()" if tvb_func == "le_uint64" else ""
+            # Let Wireshark read wide integer bits directly; keep explicit values for float command parameters.
+            flag_value = "nil" if tvb_func == "le_uint64" else "value"
             t.write(outf,
 """
-    dissect_flags_${enumname}(subtree, "${fvar}", tvbrange, value${vmeth})
-""", {'enumname': enum_name, 'fvar': field_var, 'vmeth': valuemethod})
+    dissect_flags_${enumname}(subtree, "${fvar}", tvbrange, ${flag_value})
+""", {'enumname': enum_name, 'fvar': field_var, 'flag_value': flag_value})
 
 
 def generate_payload_dissector(outf, msg, cmds, enums, cmd=None):
